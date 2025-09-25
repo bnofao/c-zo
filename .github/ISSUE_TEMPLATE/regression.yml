@@ -1,0 +1,27 @@
+name: "↩️ Regression"
+description: Report behavior that used to work but no longer does.
+labels: [bug, regression]
+title: "regression: <short description>"
+body:
+- type: textarea
+id: was_working
+attributes:
+label: Previously working version
+placeholder: e.g. v1.3.0
+- type: textarea
+id: first_broken
+attributes:
+label: First broken version
+placeholder: e.g. v1.4.0
+- type: textarea
+id: changes
+attributes:
+label: Recent changes
+description: Links to commits, releases, or environment changes around the time it broke.
+- type: textarea
+id: repro
+attributes:
+label: Minimal reproduction
+render: bash
+validations:
+required: true

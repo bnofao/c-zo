@@ -1,0 +1,28 @@
+name: "📚 Documentation"
+description: Report an issue or improvement for the docs.
+labels: [docs]
+title: "docs: <page or topic>"
+body:
+- type: input
+id: page
+attributes:
+label: Affected page / section
+placeholder: URL or path
+- type: textarea
+id: current
+attributes:
+label: Current behavior
+placeholder: What’s confusing, missing, or wrong?
+render: markdown
+validations:
+required: true
+- type: textarea
+id: proposal
+attributes:
+label: Proposed change
+placeholder: Suggest wording or structure if possible.
+render: markdown
+- type: textarea
+id: context
+attributes:
+label: Additional context

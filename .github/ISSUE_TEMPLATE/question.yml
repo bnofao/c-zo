@@ -1,0 +1,22 @@
+name: "❓ Question"
+description: Ask a question about usage or behavior.
+labels: [question]
+title: "question: <short description>"
+body:
+- type: textarea
+id: question
+attributes:
+label: Your question
+validations:
+required: true
+- type: textarea
+id: context
+attributes:
+label: Context
+description: What are you trying to accomplish? Include code/config if helpful.
+render: markdown
+- type: textarea
+id: attempts
+attributes:
+label: What you’ve tried
+description: Links to docs, issues, or experiments you already checked.

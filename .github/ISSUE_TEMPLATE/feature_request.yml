@@ -1,0 +1,47 @@
+name: "✨ Feature request"
+description: Suggest an idea or enhancement.
+labels: [feature]
+title: "feat: <short description>"
+body:
+- type: markdown
+attributes:
+value: |
+Thanks for proposing an improvement! Please provide context to help us evaluate it.
+- type: textarea
+id: problem
+attributes:
+label: Problem statement
+description: What pain or use case does this address?
+placeholder: I'm trying to do X, but Y makes it difficult.
+validations:
+required: true
+- type: textarea
+id: proposal
+attributes:
+label: Proposed solution
+placeholder: Describe the solution you'd like. Include API/UX shape if relevant.
+validations:
+required: true
+- type: textarea
+id: alternatives
+attributes:
+label: Alternatives considered
+placeholder: Describe any alternative solutions or workarounds.
+- type: textarea
+id: impact
+attributes:
+label: Impact & metrics
+description: Who benefits and how would we measure success?
+- type: checkboxes
+id: scope
+attributes:
+label: Scope checklist
+options:
+- label: Backward compatible (no breaking changes)
+- label: Tests / docs impact identified
+- label: Performance implications considered
+- label: Security implications considered
+- type: textarea
+id: additional
+attributes:
+label: Additional context / screenshots
