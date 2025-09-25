@@ -3,26 +3,26 @@ description: Report degraded performance or excessive resource use.
 labels: [performance]
 title: "perf: <short description>"
 body:
-- type: textarea
-id: scenario
-attributes:
-label: Scenario & workload
-placeholder: Describe the workload (inputs, dataset size, traffic), and expected vs. actual performance.
-validations:
-required: true
-- type: textarea
-id: metrics
-attributes:
-label: Metrics
-description: Provide numbers (latency, throughput, memory/CPU, etc.). Include before/after if relevant.
-render: text
-- type: textarea
-id: profiling
-attributes:
-label: Profiling / traces
-description: Flamegraphs, traces, or profiler output if available.
-- type: textarea
-id: env
-attributes:
-label: Environment
-placeholder: OS, architecture, runtime, hardware/cloud instance type.
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario & workload
+      placeholder: Describe the workload (inputs, dataset size, traffic), and expected vs. actual performance.
+    validations:
+      required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Metrics
+      description: Provide numbers (latency, throughput, memory/CPU, etc.). Include before/after if relevant.
+      render: text
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling / traces
+      description: Flamegraphs, traces, or profiler output if available.
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: OS, architecture, runtime, hardware/cloud instance type.

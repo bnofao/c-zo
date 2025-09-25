@@ -3,19 +3,19 @@ description: Guide for reporting vulnerabilities privately.
 labels: [security]
 title: "security: <short description>"
 body:
-- type: markdown
-attributes:
-value: |
-**Do not disclose security issues publicly.**
+  - type: markdown
+    attributes:
+      value: |
+        **Do not disclose security issues publicly.**
 
 
-Please submit a private report via the Security Advisories workflow here:
-https://github.com/OWNER/REPO/security/advisories/new
+        Please submit a private report via the Security Advisories workflow here:
+        https://github.com/OWNER/REPO/security/advisories/new
 
 
-If this is mistakenly opened as a public issue, maintainers will immediately convert or remove it.
-- type: textarea
-id: summary
-attributes:
-label: (Optional) Summary
-description: High-level overview. Do not include sensitive details here.
+        If this is mistakenly opened as a public issue, maintainers will immediately convert or remove it.
+  - type: textarea
+    id: summary
+    attributes:
+      label: (Optional) Summary
+      description: High-level overview. Do not include sensitive details here.
