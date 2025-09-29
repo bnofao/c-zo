@@ -9,3 +9,12 @@ lib-cov
 logs
 node_modules
 temp
+
+# Turbo
+.turbo
+
+# Build Outputs
+.next/
+out/
+build
+dist
