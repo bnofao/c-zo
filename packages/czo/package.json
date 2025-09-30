@@ -1,65 +1,85 @@
 {
   "name": "@czo/czo",
+  "type": "module",
   "version": "0.1.0",
   "description": "czo project management",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "bin": {
-    "czo": "cli.js"
-  },
-  "files": [
-    "dist",
-    "cli.js"
-  ],
-  "exports": {
-    ".": "./dist/index.js",
-    "./config": "./dist/config.js"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch ./src"
-  },
-  "dependencies": {
-    "@medusajs/deps": "2.10.2-preview-20250909081836",
-    "@medusajs/telemetry": "catalog:medusa",
-    "@medusajs/utils": "catalog:medusa",
-    "@medusajs/core-flows": "catalog:medusa",
-    "chokidar": "^3.4.2",
-    "citty": "^0.1.6",
-    "consola": "^3.4.2",
-    "execa": "^8.0.1",
-    "express": "^4.21.0",
-    "fs-exists-cached": "^1.0.0",
-    "fs-extra": "^11.2.0",
-    "is-valid-path": "^0.1.1",
-    "node-schedule": "^2.1.1",
-    "pg-god": "^1.0.12",
-    "prompts": "^2.4.2",
-    "request-ip": "^3.3.0",
-    "uuid": "^9.0.0",
-    "yargs": "^15.3.1",
-    "dotenv": "^16.4.5",
-    "dotenv-expand": "^11.0.6"
-  },
-  "peerDependencies": {
-    "@medusajs/framework": "catalog:medusa",
-    "awilix": "^8.0.1"
-  },
-  "devDependencies": {
-    "@types/yargs": "^15.0.15",
-    "@types/express": "^4.17.17",
-    "@medusajs/types": "2.10.3",
-    "tsx": "catalog:cli",
-    "typescript": "catalog:cli"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/bnofao/c-zo.git",
     "directory": "packages/cli"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js",
+      "require": "./dist/cli/index.cjs"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "require": "./dist/config.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "bin": {
+    "czo": "cli.cjs"
+  },
+  "files": [
+    "cli.cjs",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch ./src",
+    "lint": "eslint . --max-warnings 0 --rule 'turbo/no-undeclared-env-vars: off'",
+    "lint:fix": "eslint . --fix"
+  },
+  "peerDependencies": {
+    "@medusajs/framework": "catalog:medusa",
+    "awilix": "^8.0.1"
+  },
+  "dependencies": {
+    "@medusajs/core-flows": "catalog:medusa",
+    "@medusajs/telemetry": "catalog:medusa",
+    "@medusajs/utils": "catalog:medusa",
+    "chokidar": "catalog:common",
+    "citty": "catalog:common",
+    "consola": "catalog:common",
+    "dotenv": "catalog:common",
+    "dotenv-expand": "catalog:common",
+    "execa": "catalog:common",
+    "express": "catalog:common",
+    "fs-exists-cached": "catalog:common",
+    "fs-extra": "catalog:common",
+    "is-valid-path": "catalog:common",
+    "node-schedule": "catalog:common",
+    "pg-god": "catalog:common",
+    "prompts": "catalog:common",
+    "qs": "catalog:common",
+    "request-ip": "catalog:common",
+    "uuid": "catalog:common",
+    "yargs": "catalog:common"
+  },
+  "devDependencies": {
+    "@medusajs/types": "catalog:types",
+    "@types/express": "catalog:types",
+    "@types/node-schedule": "catalog:types",
+    "@types/qs": "catalog:types",
+    "@types/request-ip": "catalog:types",
+    "@types/yargs": "catalog:types",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "tsx": "catalog:cli",
+    "typescript": "catalog:cli"
   },
   "publishConfig": {
     "access": "public"

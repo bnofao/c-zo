@@ -15,9 +15,13 @@
   "keywords": [],
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
+    "dev:mazo": "pnpm --filter @czo/mazo dev",
+    "dev:czo": "pnpm --filter @czo/czo dev",
+    "build:mazo": "pnpm --filter @czo/mazo build",
+    "build:czo": "pnpm --filter @czo/czo build",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
+    "start:mazo": "pnpm --filter @czo/mazo start",
     "test": "vitest"
   },
   "devDependencies": {

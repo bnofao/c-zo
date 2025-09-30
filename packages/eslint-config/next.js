@@ -6,11 +6,10 @@
 // import globals from "globals"
 // import tseslint from "typescript-eslint"
 
-import { formatters } from "@antfu/eslint-config"
+import { formatters, react } from "@antfu/eslint-config"
 import nextPlugin from '@next/eslint-plugin-next'
 // import { FlatCompat } from '@eslint/eslintrc'
 import { config as baseConfig } from "./base.js"
-import { nextjs, react } from "@antfu/eslint-config"
 
 
 
@@ -18,7 +17,7 @@ import { nextjs, react } from "@antfu/eslint-config"
 //   // import.meta.dirname is available after Node.js v20.11.0
 //   baseDirectory: import.meta.dirname,
 // })
-console.log(nextPlugin)  
+// console.log(nextPlugin)  
 
 /**
  * A custom ESLint configuration for libraries that use Next.js.

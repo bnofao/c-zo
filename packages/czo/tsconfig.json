@@ -5,7 +5,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "paths": {
-      "@czo/*": ["./src/*"],
+      "@czo/*": ["./src/*"]
     },
     "outDir": "dist"
   },
