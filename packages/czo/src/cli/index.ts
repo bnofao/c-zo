@@ -28,5 +28,3 @@ async function runCommands() {
 }
 
 runCommands()
-
-// runMain(main)

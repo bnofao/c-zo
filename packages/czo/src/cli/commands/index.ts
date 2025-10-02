@@ -11,10 +11,14 @@ export default defineCommand({
     const defaultDir = path.resolve('.')
     const defaultPort = '9000'
     return {
-      build: () => import('./build').then(r => r.default(defaultDir)),
-      start: () => import('./start').then(r => r.default(defaultDir, defaultPort)),
-      develop: () => import('./develop').then(r => r.default(defaultDir, defaultPort)),
-      task: () => import('./task').then(r => r.default),
+      'build': () => import('./build').then(r => r.default(defaultDir)),
+      'start': () => import('./start').then(r => r.default(defaultDir, defaultPort)),
+      'develop': () => import('./develop').then(r => r.default(defaultDir, defaultPort)),
+      'task': () => import('./task').then(r => r.default),
+      'db:migration': () => import('./db/migration').then(r => r.default(defaultDir)),
+      'db:scripts': () => import('./db/scripts').then(r => r.default(defaultDir)),
+      'db:links': () => import('./db/links').then(r => r.default(defaultDir)),
+      'db:migrate': () => import('./db/migrate').then(r => r.default(defaultDir)),
     }
   },
 })

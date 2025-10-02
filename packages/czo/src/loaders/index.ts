@@ -79,7 +79,7 @@ async function jobsLoader(
   await jobLoader.load()
 }
 
-async function tasksLoader(
+export async function tasksLoader(
   plugins: PluginDetails[],
   container: MedusaContainer,
 ) {
@@ -168,24 +168,14 @@ export async function initializeContainer(
   return container
 }
 
-export default async ({
-  directory: rootDirectory,
-  expressApp,
-  skipLoadingEntryPoints = false,
-}: Options): Promise<{
-  container: MedusaContainer
-  app?: Express
-  modules: Record<string, LoadedModule | LoadedModule[]>
-  shutdown: () => Promise<void>
-  gqlSchema?: GraphQLSchema
-}> => {
-  const container = await initializeContainer(rootDirectory)
+export async function coreLoader(directory: string) {
+  const container = await initializeContainer(directory)
   const configModule = container.resolve(
     ContainerRegistrationKeys.CONFIG_MODULE,
   )
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
 
-  const plugins = await getResolvedPlugins(rootDirectory, configModule, true)
+  const plugins = await getResolvedPlugins(directory, configModule, true)
   mergePluginModules(configModule, plugins)
 
   Object.keys(configModule.modules ?? {}).forEach((key) => {
@@ -197,13 +187,42 @@ export default async ({
   )
   await new LinkLoader(linksSourcePaths, logger).load()
 
+  return {
+    logger,
+    appLoader: new MedusaAppLoader(),
+    container,
+    plugins,
+  }
+}
+
+export async function appLoader(directory: string) {
+  const loader = await coreLoader(directory)
+  return {
+    ...loader,
+    ...(await loader.appLoader.load()),
+  }
+}
+
+export default async ({
+  directory: rootDirectory,
+  expressApp,
+  skipLoadingEntryPoints = false,
+}: Options): Promise<{
+  container: MedusaContainer
+  app?: Express
+  modules: Record<string, LoadedModule | LoadedModule[]>
+  shutdown: () => Promise<void>
+  gqlSchema?: GraphQLSchema
+}> => {
   const {
     onApplicationStart,
     onApplicationShutdown,
     onApplicationPrepareShutdown,
     modules,
     gqlSchema,
-  } = await new MedusaAppLoader().load()
+    plugins,
+    container,
+  } = await appLoader(rootDirectory)
 
   const workflowsSourcePaths = plugins.map(p => join(p.resolve, 'workflows'))
   const workflowLoader = new WorkflowLoader(workflowsSourcePaths, container)
