@@ -45,6 +45,7 @@
   },
   "peerDependencies": {
     "@medusajs/framework": "catalog:medusa",
+    "@swc/core": "catalog:dev",
     "awilix": "^8.0.1"
   },
   "dependencies": {
@@ -71,6 +72,7 @@
   },
   "devDependencies": {
     "@medusajs/types": "catalog:types",
+    "@swc/core": "catalog:dev",
     "@types/express": "catalog:types",
     "@types/node-schedule": "catalog:types",
     "@types/qs": "catalog:types",
