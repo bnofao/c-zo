@@ -3,7 +3,7 @@
 import onlyWarn from "eslint-plugin-only-warn"
 import turboPlugin from "eslint-plugin-turbo"
 // import tseslint from "typescript-eslint"
-import antfu from "@antfu/eslint-config"
+import antfu, { formatters} from "@antfu/eslint-config"
 
 /**
  * A shared ESLint configuration for the repository.

@@ -14,14 +14,15 @@
   "bugs": "https://github.com/bnofao/c-zo/issues",
   "keywords": [],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "lint": "eslint",
-    "prepublishOnly": "nr build",
-    "release": "bumpp",
-    "start": "tsx src/index.ts",
-    "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "build": "turbo build",
+    "dev:mazo": "pnpm --filter @czo/mazo dev",
+    "dev:czo": "pnpm --filter @czo/czo dev",
+    "build:mazo": "pnpm --filter @czo/mazo build",
+    "build:czo": "pnpm --filter @czo/czo build",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "start:mazo": "pnpm --filter @czo/mazo start",
+    "test": "vitest"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:dev",

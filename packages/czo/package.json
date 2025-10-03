@@ -1,0 +1,89 @@
+{
+  "name": "@czo/czo",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "czo project management",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bnofao/c-zo.git",
+    "directory": "packages/cli"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js",
+      "require": "./dist/cli/index.cjs"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "require": "./dist/config.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "bin": {
+    "czo": "cli.cjs"
+  },
+  "files": [
+    "cli.cjs",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch ./src",
+    "lint": "eslint . --max-warnings 0 --rule 'turbo/no-undeclared-env-vars: off'",
+    "lint:fix": "eslint . --fix"
+  },
+  "peerDependencies": {
+    "@medusajs/framework": "catalog:medusa",
+    "@swc/core": "catalog:dev",
+    "awilix": "^8.0.1"
+  },
+  "dependencies": {
+    "@medusajs/core-flows": "catalog:medusa",
+    "@medusajs/telemetry": "catalog:medusa",
+    "@medusajs/utils": "catalog:medusa",
+    "chokidar": "catalog:common",
+    "citty": "catalog:common",
+    "consola": "catalog:common",
+    "dotenv": "catalog:common",
+    "dotenv-expand": "catalog:common",
+    "execa": "catalog:common",
+    "express": "catalog:common",
+    "fs-exists-cached": "catalog:common",
+    "fs-extra": "catalog:common",
+    "is-valid-path": "catalog:common",
+    "node-schedule": "catalog:common",
+    "pg-god": "catalog:common",
+    "prompts": "catalog:common",
+    "qs": "catalog:common",
+    "request-ip": "catalog:common",
+    "uuid": "catalog:common",
+    "yargs": "catalog:common"
+  },
+  "devDependencies": {
+    "@medusajs/types": "catalog:types",
+    "@swc/core": "catalog:dev",
+    "@types/express": "catalog:types",
+    "@types/node-schedule": "catalog:types",
+    "@types/qs": "catalog:types",
+    "@types/request-ip": "catalog:types",
+    "@types/yargs": "catalog:types",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "tsx": "catalog:cli",
+    "typescript": "catalog:cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
