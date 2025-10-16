@@ -21,6 +21,7 @@ import process from 'node:process'
 
 import dotenv from 'dotenv'
 import { expand } from 'dotenv-expand'
+import { MODULE_PACKAGE_NAMES, Modules, REVERSED_MODULE_PACKAGE_NAMES } from '@medusajs/framework/utils'
 
 const require = createRequire(import.meta.url)
 
@@ -80,7 +81,7 @@ export function defineConfig(config: InputConfig = {}): Omit<ConfigModule, 'admi
   // }
 
   const projectConfig = normalizeProjectConfig(config.projectConfig)
-  const modules = resolveModules(config.modules)
+  const modules = resolveModules(config.modules, config.projectConfig)
   const plugins = resolvePlugins(config.plugins)
 
   return {
@@ -116,14 +117,14 @@ export function transformModules(
     delete moduleConfig.key
 
     if (!serviceName && 'resolve' in moduleConfig) {
-      // if (
-      //   isString(moduleConfig.resolve!) &&
-      //   REVERSED_MODULE_PACKAGE_NAMES[moduleConfig.resolve!]
-      // ) {
-      //   serviceName = REVERSED_MODULE_PACKAGE_NAMES[moduleConfig.resolve!]
-      //   acc[serviceName] = moduleConfig
-      //   return acc
-      // }
+      if (
+        isString(moduleConfig.resolve!) &&
+        REVERSED_MODULE_PACKAGE_NAMES[moduleConfig.resolve!]
+      ) {
+        serviceName = REVERSED_MODULE_PACKAGE_NAMES[moduleConfig.resolve!]
+        acc[serviceName] = moduleConfig
+        return acc
+      }
 
       const resolution = isString(moduleConfig.resolve!)
         ? normalizeImportPathWithSource(moduleConfig.resolve as string)
@@ -191,101 +192,101 @@ function resolvePlugins(
 function resolveModules(
   configModules: InputConfig['modules'],
   // { isCloud }: { isCloud: boolean },
-  // projectConfig: InputConfig["projectConfig"]
+  projectConfig: InputConfig["projectConfig"]
 ): Exclude<ConfigModule['modules'], undefined> {
-  // const sharedModules = [
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.STOCK_LOCATION] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.INVENTORY] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.PRODUCT] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.PRICING] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.PROMOTION] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.CUSTOMER] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.SALES_CHANNEL] },
+  const sharedModules = [
+    { resolve: MODULE_PACKAGE_NAMES[Modules.STOCK_LOCATION] },
+    // { resolve: MODULE_PACKAGE_NAMES[Modules.INVENTORY] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.PRODUCT] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.PRICING] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.PROMOTION] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.CUSTOMER] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.SALES_CHANNEL] },
 
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.CART] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.REGION] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.API_KEY] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.STORE] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.TAX] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.CURRENCY] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.PAYMENT] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.ORDER] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.SETTINGS] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.CART] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.REGION] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.API_KEY] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.STORE] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.TAX] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.CURRENCY] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.PAYMENT] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.ORDER] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.SETTINGS] },
 
-  //   {
-  //     resolve: MODULE_PACKAGE_NAMES[Modules.AUTH],
-  //     options: {
-  //       providers: [
-  //         {
-  //           resolve: "@medusajs/medusa/auth-emailpass",
-  //           id: "emailpass",
-  //         },
-  //       ],
-  //     },
-  //   },
-  //   {
-  //     resolve: MODULE_PACKAGE_NAMES[Modules.USER],
-  //     options: {
-  //       jwt_secret: projectConfig?.http?.jwtSecret ?? DEFAULT_SECRET,
-  //       jwt_options: projectConfig?.http?.jwtOptions,
-  //       jwt_verify_options: projectConfig?.http?.jwtVerifyOptions,
-  //       jwt_public_key: projectConfig?.http?.jwtPublicKey,
-  //     },
-  //   },
-  //   {
-  //     resolve: MODULE_PACKAGE_NAMES[Modules.FULFILLMENT],
-  //     options: {
-  //       providers: [
-  //         {
-  //           resolve: "@medusajs/medusa/fulfillment-manual",
-  //           id: "manual",
-  //         },
-  //       ],
-  //     },
-  //   },
-  //   {
-  //     resolve: MODULE_PACKAGE_NAMES[Modules.NOTIFICATION],
-  //     options: {
-  //       providers: [
-  //         {
-  //           resolve: "@medusajs/medusa/notification-local",
-  //           id: "local",
-  //           options: {
-  //             name: "Local Notification Provider",
-  //             channels: ["feed"],
-  //           },
-  //         },
-  //       ],
-  //     },
-  //   },
-  // ]
+    {
+      resolve: MODULE_PACKAGE_NAMES[Modules.AUTH],
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/auth-emailpass",
+            id: "emailpass",
+          },
+        ],
+      },
+    },
+    {
+      resolve: MODULE_PACKAGE_NAMES[Modules.USER],
+      options: {
+        jwt_secret: projectConfig?.http?.jwtSecret ?? DEFAULT_SECRET,
+        jwt_options: projectConfig?.http?.jwtOptions,
+        jwt_verify_options: projectConfig?.http?.jwtVerifyOptions,
+        jwt_public_key: projectConfig?.http?.jwtPublicKey,
+      },
+    },
+    {
+      resolve: MODULE_PACKAGE_NAMES[Modules.FULFILLMENT],
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/fulfillment-manual",
+            id: "manual",
+          },
+        ],
+      },
+    },
+    {
+      resolve: MODULE_PACKAGE_NAMES[Modules.NOTIFICATION],
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/notification-local",
+            id: "local",
+            options: {
+              name: "Local Notification Provider",
+              channels: ["feed"],
+            },
+          },
+        ],
+      },
+    },
+  ]
 
-  // const defaultModules = [
-  //   ...sharedModules,
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.CACHE] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.EVENT_BUS] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.WORKFLOW_ENGINE] },
-  //   { resolve: MODULE_PACKAGE_NAMES[Modules.LOCKING] },
+  const defaultModules = [
+    ...sharedModules,
+    { resolve: MODULE_PACKAGE_NAMES[Modules.CACHE] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.EVENT_BUS] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.WORKFLOW_ENGINE] },
+    { resolve: MODULE_PACKAGE_NAMES[Modules.LOCKING] },
 
-  //   {
-  //     resolve: MODULE_PACKAGE_NAMES[Modules.FILE],
-  //     options: {
-  //       providers: [
-  //         {
-  //           resolve: "@medusajs/medusa/file-local",
-  //           id: "local",
-  //         },
-  //       ],
-  //     },
-  //   },
-  // ]
+    {
+      resolve: MODULE_PACKAGE_NAMES[Modules.FILE],
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/file-local",
+            id: "local",
+          },
+        ],
+      },
+    },
+  ]
 
   /**
    * The default set of modules to always use. The end user can swap
    * the modules by providing an alternate implementation via their
    * config. But they can never remove a module from this list.
    */
-  const modules: InputConfig['modules'] = []
+  const modules: InputConfig['modules'] = defaultModules
 
   /**
    * Backward compatibility for the old way of defining modules (object vs array)

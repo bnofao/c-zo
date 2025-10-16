@@ -1,0 +1,13 @@
+{
+  "name": "nitro-app",
+  "private": true,
+  "scripts": {
+    "build": "nitro build",
+    "dev": "nitro dev",
+    "preview": "npx srvx --prod .output/"
+  },
+  "devDependencies": {
+    "@czo/kit": "workspace:*",
+    "nitro": "npm:nitro-nightly"
+  }
+}

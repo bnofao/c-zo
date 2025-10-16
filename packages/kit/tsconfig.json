@@ -1,0 +1,14 @@
+{
+  "extends": "@workspace/typescript-config/library.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@czo/kit/*": ["./src/*"]
+    },
+    "outDir": "dist"
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,54 @@
+{
+  "name": "@czo/kit",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Toolkit for authoring modules and interacting with Nuxt",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/czo/czo.git",
+    "directory": "packages/kit"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.mjs"
+    },
+    "./modules": {
+      "import": "./dist/modules/index.mjs",
+      "require": "./dist/modules/index.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "dev": "NODE_ENV=development unbuild --watch",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@adonisjs/fold": "catalog:common",
+    "consola": "catalog:common",
+    "errx": "catalog:common",
+    "exsolve": "catalog:common",
+    "jiti": "catalog:common",
+    "mlly": "catalog:common",
+    "pathe": "catalog:common",
+    "tinyglobby": "catalog:common"
+  },
+  "devDependencies": {
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "hookable": "catalog:dev",
+    "nitro": "catalog:dev",
+    "unbuild": "catalog:dev",
+    "unimport": "catalog:dev"
+  }
+}
