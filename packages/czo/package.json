@@ -28,10 +28,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.cts",
   "bin": {
-    "czo": "cli.cjs"
+    "czo": "dist/cli/index.cjs"
   },
   "files": [
-    "cli.cjs",
     "dist"
   ],
   "engines": {

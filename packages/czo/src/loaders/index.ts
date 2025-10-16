@@ -197,9 +197,10 @@ export async function coreLoader(directory: string) {
 
 export async function appLoader(directory: string) {
   const loader = await coreLoader(directory)
+  const loaded = await loader.appLoader.load()
   return {
     ...loader,
-    ...(await loader.appLoader.load()),
+    ...loaded,
   }
 }
 
