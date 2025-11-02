@@ -1,5 +1,6 @@
 import { defineBuildConfig } from 'unbuild'
 // import { addRollupTimingsPlugin, stubOptions } from '../../debug/build-config'
+
 const dirImport = {
   addRelativeDeclarationExtensions: true,
   // eslint-disable-next-line turbo/no-undeclared-env-vars, node/prefer-global/process
@@ -15,15 +16,23 @@ export default defineBuildConfig({
   declaration: 'node16',
   entries: [
     'src/index',
-    'src/modules/index',
-    'src/graphql/index',
-    'src/cli',
     {
       input: 'src/plugins/',
       outDir: 'dist/plugins',
       ...dirImport
     },
+    {
+      input: 'src/schema/',
+      outDir: 'dist/schema',
+      ...dirImport
+    },
+    {
+      input: 'migrations/',
+      outDir: 'dist/migrations',
+      ...dirImport
+    },
   ],
+  outDir: 'dist',
   // stubOptions,
   // hooks: {
   //   'rollup:options' (ctx, options) {
@@ -31,13 +40,9 @@ export default defineBuildConfig({
   //   },
   // },
   externals: [
-    'nitropack',
+    '@czo/kit',
     'nitro',
     'nitro/runtime',
     'unimport',
-    'graphql',
-    'citty',
-    // 'jiti',
-    // 'pathe',
   ],
 })

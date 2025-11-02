@@ -2,15 +2,11 @@ import type { Nitro } from 'nitro/types'
 import type { GlobOptions } from 'tinyglobby'
 import type { RequirePicked } from './utils'
 import { promises as fsp } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { resolveModulePath } from 'exsolve'
-import { parseNodeModulePath } from 'mlly'
 import { basename, dirname, isAbsolute, join, normalize, resolve } from 'pathe'
 import { resolveAlias as _resolveAlias } from 'pathe/utils'
 import { glob } from 'tinyglobby'
-import { directoryToURL } from './internal/esm'
-// import { tryUseNuxt } from './context'
-// import { isIgnored } from './ignore'
 import { toArray } from './utils'
 
 export interface ResolvePathOptions {
@@ -46,11 +42,17 @@ export interface ResolvePathOptions {
   type?: PathType
 }
 
+export function directoryToURL(dir: string): URL {
+  return pathToFileURL(`${dir}/`)
+}
+
 /**
- * Resolve the full path to a file or a directory (based on the provided type), respecting Nuxt alias and extensions options.
+ * Resolve the full path to a file or a directory (based on the provided type), respecting app alias and extensions options.
  *
  * If a path cannot be resolved, normalized input will be returned unless the `fallbackToOriginal` option is set to `true`,
  * in which case the original input path will be returned.
+ * 
+ * 
  */
 export async function resolvePath(path: string, nitro?: Nitro, opts: ResolvePathOptions = {}): Promise<string> {
   const { type = 'file' } = opts
@@ -118,28 +120,6 @@ export function createResolver(base: string | URL, nitro?: Nitro): Resolver {
     resolve: (...path) => resolve(base as string, ...path),
     resolvePath: (path, opts) => resolvePath(path, nitro, { cwd: base as string, ...opts }),
   }
-}
-
-export async function resolveNuxtModule(base: string, paths: string[]): Promise<string[]> {
-  const resolved: string[] = []
-  const resolver = createResolver(base)
-
-  for (const path of paths) {
-    if (path.startsWith(base)) {
-      resolved.push(path.split('/index.ts')[0]!)
-      continue
-    }
-    const resolvedPath = await resolver.resolvePath(path)
-    const dir = parseNodeModulePath(resolvedPath).dir
-    if (dir) {
-      resolved.push(dir)
-      continue
-    }
-    const index = resolvedPath.lastIndexOf(path)
-    resolved.push(index === -1 ? dirname(resolvedPath) : resolvedPath.slice(0, index + path.length))
-  }
-
-  return resolved
 }
 
 // --- Internal ---
@@ -257,11 +237,12 @@ async function existsSensitive(path: string) {
  * @param opts options for globbing
  * @param opts.followSymbolicLinks whether to follow symbolic links, default is `true`
  * @param opts.ignore additional glob patterns to ignore
+ * @param opts.absolute whether to return absolute paths, default is `true`
  * @returns sorted array of absolute file paths
  */
-export async function resolveFiles(path: string, pattern: string | string[], opts: { followSymbolicLinks?: boolean, ignore?: GlobOptions['ignore'] } = {}) {
+export async function resolveFiles(path: string, pattern: string | string[], opts: { followSymbolicLinks?: boolean, absolute?: boolean, ignore?: GlobOptions['ignore'] } = {}) {
   const files: string[] = []
-  for (const p of await glob(pattern, { cwd: path, followSymbolicLinks: opts.followSymbolicLinks ?? true, absolute: true, ignore: opts.ignore })) {
+  for (const p of await glob(pattern, { cwd: path, followSymbolicLinks: opts.followSymbolicLinks ?? true, absolute: opts.absolute ?? true, ignore: opts.ignore })) {
     files.push(p)
   }
   return files.sort()

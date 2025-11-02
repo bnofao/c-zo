@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/czo/czo.git",
+    "url": "git+https://github.com/bnofao/czo.git",
     "directory": "packages/kit"
   },
   "exports": {
@@ -17,10 +17,17 @@
     "./modules": {
       "import": "./dist/modules/index.mjs",
       "require": "./dist/modules/index.mjs"
+    },
+    "./graphql": {
+      "import": "./dist/graphql/index.mjs",
+      "require": "./dist/graphql/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "bin": {
+    "czo": "./dist/cli.mjs"
+  },
   "files": [
     "dist"
   ],
@@ -35,20 +42,19 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "citty": "catalog:common",
     "consola": "catalog:common",
-    "errx": "catalog:common",
     "exsolve": "catalog:common",
-    "jiti": "catalog:common",
-    "mlly": "catalog:common",
     "pathe": "catalog:common",
+    "jiti": "catalog:common",
     "tinyglobby": "catalog:common"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "graphql": "catalog:common",
     "hookable": "catalog:dev",
     "nitro": "catalog:dev",
-    "unbuild": "catalog:dev",
     "unimport": "catalog:dev"
   }
 }

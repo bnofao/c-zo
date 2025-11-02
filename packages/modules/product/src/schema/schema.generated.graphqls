@@ -1,0 +1,8 @@
+type Product {
+  description: String
+  title: String!
+}
+
+type Query {
+  products: [Product!]!
+}

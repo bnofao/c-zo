@@ -8,6 +8,10 @@ export const iocModule = defineNitroModule({
       from: '@czo/kit',
       imports: ['useContainer', 'useLogger'],
     }, nitro)
+    addImportsSources({
+      from: '@czo/kit/graphql',
+      imports: ['registeredTypeDefs', 'registeredResolvers'],
+    }, nitro)
     addPlugin(resolver.resolve('../plugins/ioc'), nitro)
   },
 })

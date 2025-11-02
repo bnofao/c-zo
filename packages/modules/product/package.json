@@ -1,0 +1,54 @@
+{
+  "name": "@czo/product",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Product module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/czo/czo.git",
+    "directory": "packages/modules/product"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "dev": "NODE_ENV=development unbuild --watch",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "generate": "graphql-codegen"
+  },
+  "peerDependencies": {
+    "@czo/kit": "workspace:*",
+    "kysely": "catalog:common",
+    "nitro": "catalog:dev"
+  },
+  "peerDependenciesMeta": {
+    "kysely": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@adonisjs/fold": "catalog:common"
+  },
+  "devDependencies": {
+    "@czo/kit": "workspace:*",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "graphql": "catalog:common",
+    "kysely": "catalog:common",
+    "nitro": "catalog:dev"
+  }
+}
