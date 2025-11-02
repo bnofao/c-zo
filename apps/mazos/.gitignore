@@ -1,4 +1,3 @@
-node_modules
 dist
 .data
 .nitro
@@ -6,3 +5,5 @@ dist
 .output
 .env
 .env.local
+
+_migrations

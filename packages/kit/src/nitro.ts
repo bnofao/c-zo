@@ -43,7 +43,7 @@ export function addPlugin(plugin: string, nitro: Nitro) {
 }
 
 /**
- * Add server imports to be auto-imported by Nitro
+ * Add imports to the application. It makes your imports available in the application without the need to import them manually.
  */
 export function addImports(imports: Import | Import[], nitro: Nitro) {
   const _imports = toArray(imports)
@@ -54,7 +54,7 @@ export function addImports(imports: Import | Import[], nitro: Nitro) {
 }
 
 /**
- * Add directories to be scanned for auto-imports by Nitro
+ * Add imports from a directory to the application. It will automatically import all files from the directory and make them available in the application without the need to import them manually.
  */
 export function addImportsDir(dirs: string | string[], nitro: Nitro, opts: { prepend?: boolean } = {}) {
   const _dirs = toArray(dirs)
@@ -73,6 +73,9 @@ export function addScanDir(dirs: string | string[], nitro: Nitro, opts: { prepen
   nitro.options.scanDirs[opts.prepend ? 'unshift' : 'push'](..._dirs)
 }
 
+/**
+ * Add listed imports to the application.
+ */
 export function addImportsSources(presets: InlinePreset | InlinePreset[], nitro: Nitro) {
   if (nitro.options.imports !== false) {
     nitro.options.imports.presets.push(...toArray(presets))

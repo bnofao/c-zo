@@ -1,13 +1,20 @@
 {
-  "name": "nitro-app",
+  "name": "@czo/mazos",
   "private": true,
   "scripts": {
     "build": "nitro build",
     "dev": "nitro dev",
-    "preview": "npx srvx --prod .output/"
+    "preview": "npx srvx --prod .output/",
+    "share": "czo publish --dir migrations --outdir ./_migrations --config ./nitro.config.ts"
   },
   "devDependencies": {
     "@czo/kit": "workspace:*",
+    "@czo/product": "workspace:*",
     "nitro": "npm:nitro-nightly"
+  },
+  "dependencies": {
+    "graphql": "catalog:common",
+    "graphql-yoga": "^5.16.0",
+    "kysely": "catalog:common"
   }
 }
