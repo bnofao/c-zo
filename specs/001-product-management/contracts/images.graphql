@@ -1,0 +1,73 @@
+# Product Image Type Definitions and Operations
+# API Version: v1
+# Rate Limits: 50-200 req/min per user (uploads limited to 50)
+
+"""
+Product image with URL reference and ranking
+"""
+type ProductImage {
+  id: ID!
+  url: String!
+  rank: Int!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relations
+  product: Product!
+  variants: [ProductVariant!]!
+}
+
+"""
+Image mutation response payload
+"""
+type ImagePayload {
+  image: ProductImage
+  errors: [Error!]
+}
+
+# Mutation Examples:
+
+# Upload a product image
+# mutation UploadImage {
+#   uploadProductImage(
+#     productId: "prod_123"
+#     url: "https://cdn.example.com/images/product-123-main.jpg"
+#     rank: 0
+#     metadata: { altText: "Laptop X1 front view", width: 1920, height: 1080 }
+#   ) {
+#     image {
+#       id
+#       url
+#       rank
+#     }
+#     errors {
+#       message
+#     }
+#   }
+# }
+
+# Associate image with a variant
+# mutation AssociateImageWithVariant {
+#   associateImageWithVariant(
+#     imageId: "img_456"
+#     variantId: "var_789"
+#   ) {
+#     success
+#     message
+#   }
+# }
+
+# Delete a product image
+# mutation DeleteImage {
+#   deleteProductImage(id: "img_456") {
+#     success
+#     deletedAt
+#     message
+#   }
+# }
+
+# Note: Image URLs are stored in the database
+# Actual file upload to storage (S3, cloud storage) happens separately
+# The URL provided should be the final CDN/storage URL
+

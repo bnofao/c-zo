@@ -1,5 +1,5 @@
-import { defineNitroPlugin } from "nitro/runtime"
+import { definePlugin } from "nitro"
 
-export default defineNitroPlugin((nitroApp) => {
-console.log('Nitro plugin', nitroApp.container)
+export default definePlugin((nitroApp) => {
+console.log('Nitro tests plugin', nitroApp.container)
 })

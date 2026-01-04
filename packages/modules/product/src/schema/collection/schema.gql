@@ -1,0 +1,42 @@
+# Product Collections
+# User Story 5: Collections
+
+type ProductCollection {
+  id: ID!
+  title: String!
+  handle: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  products: [Product!]!
+}
+
+input CreateCollectionInput {
+  title: String!
+  handle: String
+  metadata: JSON
+}
+
+input UpdateCollectionInput {
+  title: String
+  handle: String
+  metadata: JSON
+  expectedUpdatedAt: DateTime!
+}
+
+type CollectionPayload {
+  collection: ProductCollection
+  errors: [Error!]
+}
+
+extend type Query {
+  collection(id: ID!): ProductCollection
+  productsByCollection(collectionId: ID!, pagination: PaginationInput): ProductConnection!
+}
+
+extend type Mutation {
+  createCollection(input: CreateCollectionInput!): CollectionPayload!
+  updateCollection(id: ID!, input: UpdateCollectionInput!): CollectionPayload!
+  deleteCollection(id: ID!): DeletePayload!
+}
+

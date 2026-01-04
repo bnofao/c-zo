@@ -9,6 +9,6 @@
     },
     "outDir": "dist"
   },
-  "include": ["."],
+  "include": [".", "../../../apps/*/unimport.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

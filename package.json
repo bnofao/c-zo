@@ -15,6 +15,7 @@
   "keywords": [],
   "scripts": {
     "build": "turbo build",
+    "dev": "turbo watch dev _dev",
     "dev:mazo": "pnpm --filter @czo/mazo dev",
     "dev:czo": "pnpm --filter @czo/czo dev",
     "build:mazo": "pnpm --filter @czo/mazo build",
@@ -28,25 +29,26 @@
     "@antfu/eslint-config": "catalog:dev",
     "@antfu/ni": "catalog:cli",
     "@antfu/utils": "catalog:inlined",
-    "@eddeee888/gcg-typescript-resolver-files": "^0.14.0",
-    "@graphql-codegen/cli": "^6.0.1",
+    "@eddeee888/gcg-typescript-resolver-files": "catalog:dev",
+    "@graphql-codegen/cli": "catalog:cli",
     "@types/node": "catalog:types",
+    "@types/pg": "catalog:types",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
     "bumpp": "catalog:cli",
+    "drizzle-kit": "catalog:dev",
     "eslint": "catalog:cli",
     "lint-staged": "catalog:cli",
     "tinyexec": "catalog:testing",
     "tsdown": "catalog:cli",
     "tsx": "catalog:cli",
+    "turbo": "catalog:dev",
     "typescript": "catalog:cli",
     "unbuild": "catalog:dev",
     "vite": "catalog:cli",
     "vitest": "catalog:testing",
     "vitest-package-exports": "catalog:testing",
-    "yaml": "catalog:testing",
-    
-    "@workspace/eslint-config": "workspace:*",
-    "@workspace/typescript-config": "workspace:*",
-    "turbo": "^2.5.5"
+    "yaml": "catalog:testing"
   },
   "lint-staged": {
     "*": "eslint --fix"

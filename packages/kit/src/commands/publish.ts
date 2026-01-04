@@ -1,15 +1,12 @@
-import type { CommandDef } from 'citty'
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
-import { resolve } from 'pathe'
-import { glob } from 'tinyglobby'
-import { resolveFiles, resolvePath } from '../resolve'
-import { pathToFileURL } from 'node:url'
 import { createJiti } from 'jiti'
-
+import { resolve } from 'pathe'
+import { resolveFiles, resolvePath } from '../resolve'
 
 const jiti = createJiti(import.meta.url)
 
@@ -39,7 +36,7 @@ export const publishCommand = defineCommand({
     const cwd = process.cwd()
     const dir = args.dir
     const outDir = resolve(cwd, args.outdir)
-    const config = await jiti.import(pathToFileURL(await resolvePath(args.config)).href, {default: true}) as {
+    const config = await jiti.import(pathToFileURL(await resolvePath(args.config)).href, { default: true }) as {
       modules: string[]
     }
 
@@ -95,5 +92,5 @@ export const publishCommand = defineCommand({
 })
 
 async function moduleDirs(modules: string[], dir: string): Promise<string[]> {
-  return await Promise.all(modules.map(async (module) => resolve(await resolvePath(module), '..', dir)))
+  return await Promise.all(modules.map(async module => resolve(await resolvePath(module), '..', dir)))
 }

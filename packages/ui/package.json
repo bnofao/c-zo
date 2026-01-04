@@ -14,16 +14,16 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "catalog:",
-    "class-variance-authority": "catalog:",
-    "clsx": "catalog:",
-    "lucide-react": "catalog:",
-    "next-themes": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "tailwind-merge": "catalog:",
-    "tw-animate-css": "catalog:",
-    "zod": "catalog:"
+    "@radix-ui/react-slot": "catalog:common",
+    "class-variance-authority": "catalog:common",
+    "clsx": "catalog:common",
+    "lucide-react": "catalog:common",
+    "next-themes": "catalog:common",
+    "react": "catalog:common",
+    "react-dom": "catalog:common",
+    "tailwind-merge": "catalog:common",
+    "tw-animate-css": "catalog:common",
+    "zod": "catalog:common"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:dev",

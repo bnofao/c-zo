@@ -1,0 +1,58 @@
+# Product Options and Option Values
+# User Story 4: Product Options
+
+"""
+Product option defining a variant dimension (e.g., Color, Size)
+"""
+type ProductOption {
+  id: ID!
+  title: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  product: Product!
+  values: [ProductOptionValue!]!
+}
+
+"""
+Specific value for a product option (e.g., "Red" for Color)
+"""
+type ProductOptionValue {
+  id: ID!
+  value: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  option: ProductOption!
+  variants: [ProductVariant!]!
+}
+
+input CreateProductOptionInput {
+  title: String!
+  values: [String!]!
+}
+
+type OptionPayload {
+  option: ProductOption
+  values: [ProductOptionValue!]
+  errors: [Error!]
+}
+
+type OptionValuePayload {
+  optionValue: ProductOptionValue
+  errors: [Error!]
+}
+
+extend type Query {
+  productOptions(productId: ID!): [ProductOption!]!
+}
+
+extend type Mutation {
+  createProductOption(productId: ID!, title: String!, values: [String!]!): OptionPayload!
+  addOptionValue(optionId: ID!, value: String!): OptionValuePayload!
+  deleteOptionValue(id: ID!): DeletePayload!
+  associateVariantOptions(variantId: ID!, optionValueIds: [ID!]!): VariantPayload!
+}
+

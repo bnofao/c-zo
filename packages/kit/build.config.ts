@@ -15,12 +15,12 @@ export default defineBuildConfig({
   declaration: 'node16',
   entries: [
     'src/index',
-    'src/modules/index',
+    'src/module/index',
     'src/graphql/index',
     'src/cli',
     {
-      input: 'src/plugins/',
-      outDir: 'dist/plugins',
+      input: 'src/plugin/',
+      outDir: 'dist/plugin',
       ...dirImport
     },
   ],

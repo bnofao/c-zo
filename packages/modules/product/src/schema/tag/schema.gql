@@ -1,0 +1,33 @@
+# Product Tags
+# User Story 5: Tags
+
+type ProductTag {
+  id: ID!
+  value: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  products: [Product!]!
+}
+
+input TagFilter {
+  value: String
+  search: String
+}
+
+type TagPayload {
+  tag: ProductTag
+  errors: [Error!]
+}
+
+extend type Query {
+  tag(id: ID!): ProductTag
+  tags(filter: TagFilter): [ProductTag!]!
+}
+
+extend type Mutation {
+  createTag(value: String!): TagPayload!
+  assignTagsToProduct(productId: ID!, tagIds: [ID!]!): ProductPayload!
+  deleteTag(id: ID!): DeletePayload!
+}
+

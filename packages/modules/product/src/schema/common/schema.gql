@@ -1,0 +1,90 @@
+# Common GraphQL types and scalars for Product Management Module
+
+"""
+Custom scalar for DateTime values (ISO 8601 format)
+"""
+scalar DateTime
+
+"""
+Custom scalar for JSON data
+"""
+scalar JSON
+
+"""
+Pagination input for list queries
+"""
+input PaginationInput {
+  """Number of items to return (max 100)"""
+  limit: Int = 50
+  
+  """Number of items to skip"""
+  offset: Int = 0
+  
+  """Cursor for cursor-based pagination"""
+  cursor: String
+}
+
+"""
+Page information for cursor-based pagination
+"""
+type PageInfo {
+  """Whether there are more items after this page"""
+  hasNextPage: Boolean!
+  
+  """Whether there are items before this page"""
+  hasPreviousPage: Boolean!
+  
+  """Cursor for the first item in this page"""
+  startCursor: String
+  
+  """Cursor for the last item in this page"""
+  endCursor: String
+}
+
+"""
+Sort direction enum
+"""
+enum SortDirection {
+  ASC
+  DESC
+}
+
+"""
+Error type for mutation responses
+"""
+type Error {
+  """Field that caused the error (if applicable)"""
+  field: String
+  
+  """Human-readable error message"""
+  message: String!
+  
+  """Machine-readable error code"""
+  code: String!
+}
+
+"""
+Generic delete response payload
+"""
+type DeletePayload {
+  """Whether the deletion was successful"""
+  success: Boolean!
+  
+  """Timestamp when the record was deleted"""
+  deletedAt: DateTime!
+  
+  """Optional message"""
+  message: String
+}
+
+"""
+Generic boolean response payload
+"""
+type BooleanPayload {
+  """Operation success status"""
+  success: Boolean!
+  
+  """Optional message"""
+  message: String
+}
+

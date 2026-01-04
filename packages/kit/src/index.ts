@@ -2,6 +2,7 @@ import type { NitroHooks } from 'nitro/types'
 import type { Container } from './ioc'
 
 export * from './commands'
+export * from './db'
 export * from './ioc'
 export { logger, useLogger } from './logger'
 export * from './module'
@@ -15,7 +16,7 @@ declare module 'nitro/types' {
     container: Container<Record<any, any>>
   }
   interface NitroRuntimeHooks {
-    'czo:register': <T extends Record<any, any>>(container: Container<T>) => void
+    // 'czo:register': <T extends Record<any, any>>(container: Container<T>) => void
     'czo:boot': <T extends Record<any, any>>(container: Container<T>) => void
   }
   interface NitroModule {

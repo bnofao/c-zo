@@ -11,20 +11,20 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.mjs"
+      "types": "./src/index.ts",
+      "default": "./dist/index.mjs"
     },
-    "./modules": {
-      "import": "./dist/modules/index.mjs",
-      "require": "./dist/modules/index.mjs"
+    "./module": {
+      "types": "./src/module/index.ts",
+      "default": "./dist/module/index.mjs"
     },
     "./graphql": {
-      "import": "./dist/graphql/index.mjs",
-      "require": "./dist/graphql/index.mjs"
+      "types": "./src/graphql/index.ts",
+      "default": "./dist/graphql/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
+  "types": "./src/index.ts",
   "bin": {
     "czo": "./dist/cli.mjs"
   },
@@ -36,7 +36,7 @@
   },
   "scripts": {
     "build": "unbuild",
-    "dev": "NODE_ENV=development unbuild --watch",
+    "_dev": "NODE_ENV=development unbuild",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix"
   },
@@ -44,12 +44,16 @@
     "@adonisjs/fold": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
+    "drizzle-orm": "catalog:common",
     "exsolve": "catalog:common",
-    "pathe": "catalog:common",
     "jiti": "catalog:common",
+    "kysely": "catalog:common",
+    "pathe": "catalog:common",
+    "pg": "catalog:common",
     "tinyglobby": "catalog:common"
   },
   "devDependencies": {
+    "@types/pg": "catalog:types",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",

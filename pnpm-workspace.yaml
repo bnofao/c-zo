@@ -15,23 +15,35 @@ catalog:
   '@graphql-tools/schema': ^10.0.25
   '@hookform/error-message': ^2.0.1
   '@hookform/resolvers': 3.4.2
+  '@medusajs/admin-sdk': 2.10.3
   '@medusajs/admin-shared': 2.10.3
   '@medusajs/admin-vite-plugin': 2.10.3
+  '@medusajs/cli': 2.10.3
   '@medusajs/icons': 2.10.3
   '@medusajs/js-sdk': 2.10.3
+  '@medusajs/medusa': 2.10.3
+  '@medusajs/test-utils': 2.10.3
   '@medusajs/types': 2.10.3
   '@medusajs/ui': 4.0.23
   '@medusajs/ui-preset': 2.10.3
+  '@mikro-orm/cli': 6.4.3
+  '@mikro-orm/core': 6.4.3
+  '@mikro-orm/knex': 6.4.3
+  '@mikro-orm/migrations': 6.4.3
+  '@mikro-orm/postgresql': 6.4.3
   '@radix-ui/react-dialog': 1.1.4
   '@radix-ui/react-dismissable-layer': 1.1.4
   '@radix-ui/react-slot': ^1.2.3
+  '@swc/jest': ^0.2.36
   '@tanstack/react-query': 5.64.2
   '@tanstack/react-table': 8.20.5
   '@tanstack/react-virtual': ^3.8.3
+  '@types/jest': ^29.5.13
   '@uiw/react-json-view': ^2.0.0-alpha.17
   '@vitejs/plugin-react': 4.2.1
   ajv: ^8.17.1
   autoprefixer: ^10.4.17
+  awilix: ^8.0.1
   c12: ^3.3.0
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
@@ -44,6 +56,7 @@ catalog:
   i18next: 23.7.11
   i18next-browser-languagedetector: 7.2.0
   i18next-http-backend: 2.4.2
+  jest: ^29.7.0
   jiti: ^2.6.1
   kysely: ^0.28.8
   lodash: ^4.17.21
@@ -53,10 +66,10 @@ catalog:
   motion: ^11.15.0
   next: ^15.4.5
   next-themes: ^0.4.6
-  nitro: npm:nitro-nightly
   pathe: ^2.0.3
   postcss: ^8.4.33
   prettier: ^3.1.1
+  prop-types: ^15.8.1
   qs: ^6.12.0
   radix-ui: 1.1.2
   react: ^19.1.1
@@ -68,21 +81,24 @@ catalog:
   react-i18next: 13.5.0
   react-jwt: ^1.2.0
   react-router-dom: 6.20.1
-  tailwind-merge: ^3.3.1
   tinyglobby: ^0.2.15
+  ts-node: ^10.9.2
   tsup: ^8.0.2
-  tw-animate-css: ^1.3.6
+  ulid: ^3.0.1
   unbuild: 3.6.1
   unimport: ^5.4.1
   vite-plugin-inspect: ^0.8.7
+  yalc: ^1.0.0-pre.53
   zod: ^3.25.76
 
 catalogs:
   cli:
     '@antfu/ni': ^26.0.1
+    '@graphql-codegen/cli': ^6.0.1
     bumpp: ^10.2.3
     eslint: ^9.36.0
     lint-staged: ^16.2.0
+    next: ^15.4.5
     simple-git-hooks: ^2.13.1
     tsdown: ^0.15.4
     tsx: ^4.20.5
@@ -90,11 +106,16 @@ catalogs:
     vite: ^7.1.7
   common:
     '@adonisjs/fold': ^10.2.0
+    '@graphql-tools/merge': ^9.1.3
+    '@radix-ui/react-slot': ^1.2.3
     chokidar: ^3.4.2
     citty: ^0.1.6
+    class-variance-authority: ^0.7.1
+    clsx: ^2.1.1
     consola: ^3.4.2
     dotenv: ^16.4.5
     dotenv-expand: ^11.0.6
+    drizzle-orm: ^0.45.1
     errx: ^0.1.0
     execa: ^8.0.1
     express: ^4.21.0
@@ -102,69 +123,54 @@ catalogs:
     fs-exists-cached: ^1.0.0
     fs-extra: ^11.2.0
     graphql: ^16.11.0
+    graphql-yoga: ^5.16.0
     is-valid-path: ^0.1.1
     jiti: ^2.6.1
     kysely: ^0.28.8
+    lucide-react: ^0.475.0
+    next-themes: ^0.4.6
     node-schedule: ^2.1.1
     pathe: ^2.0.3
+    pg: ^8.16.3
     pg-god: ^1.0.12
     prompts: ^2.4.2
     qs: ^6.11.2
+    react: ^19.1.1
+    react-dom: ^19.1.1
     request-ip: ^3.3.0
+    tailwind-merge: ^3.3.1
     tinyglobby: ^0.2.15
+    tw-animate-css: ^1.3.6
+    ulid: ^3.0.1
     uuid: ^9.0.0
     yargs: ^15.3.1
-  conflicts_cli_h5_4_14:
-    vite: ^5.4.14
-  conflicts_conflicts_react-dom_h18_2_0_h19_1_1:
-    react-dom: ^19.1.1
-  conflicts_conflicts_react_h18_2_0_h19_1_1:
-    react: ^19.1.1
-  conflicts_dev_5_2_2:
-    typescript: 5.2.2
-  conflicts_dev_h3_4_1:
-    tailwindcss: ^3.4.1
-  conflicts_react-dom_h18_2_0:
-    react-dom: ^18.2.0
-  conflicts_react_h18_2_0:
-    react: ^18.2.0
-  conflicts_testing_3_2_4:
-    vitest: 3.2.4
-  conflicts_testing_h3_0_5:
-    vitest: ^3.0.5
-  conflicts_types_h18_2_25:
-    '@types/react-dom': ^18.2.25
-  conflicts_types_h18_2_79:
-    '@types/react': ^18.2.79
-  conflicts_types_h20_11_15:
-    '@types/node': ^20.11.15
-  conflicts_types_h20_19_9:
-    '@types/node': ^20.19.9
-  conflicts_zod_3_25_76:
-    zod: 3.25.76
+    zod: ^4.1.11
   dev:
     '@antfu/eslint-config': ^5.4.1
+    '@eddeee888/gcg-typescript-resolver-files': ^0.14.0
     '@eslint-react/eslint-plugin': ^1.52.6
+    '@next/eslint-plugin-next': ^15.4.5
     '@swc/core': 1.5.7
     '@tailwindcss/postcss': ^4.1.11
     '@turbo/gen': ^2.5.5
+    drizzle-kit: ^0.31.8
     eslint-plugin-format: ^1.0.1
+    eslint-plugin-only-warn: ^1.1.0
     eslint-plugin-react-hooks: ^5.2.0
     eslint-plugin-react-refresh: ^0.4.20
+    eslint-plugin-turbo: ^2.5.5
     hookable: ^5.5.3
-    nitro: npm:nitro-nightly
+    kysely-codegen: ^0.19.0
+    kysely-ctl: ^0.19.0
+    nitro: latest
     tailwindcss: ^4.1.11
+    testcontainers: ^11.8.0
+    turbo: ^2.5.5
     typescript: ^5.9.2
     unbuild: 3.6.1
     unimport: ^5.4.1
   inlined:
     '@antfu/utils': ^9.2.1
-  medusa:
-    '@medusajs/core-flows': ^2.10.3
-    '@medusajs/deps': ^2.10.3
-    '@medusajs/framework': ^2.10.3
-    '@medusajs/telemetry': ^2.10.3
-    '@medusajs/utils': ^2.10.3
   testing:
     tinyexec: ^1.0.1
     vitest: ^3.2.4
@@ -175,6 +181,7 @@ catalogs:
     '@types/express': ^4.17.17
     '@types/node': ^24.5.2
     '@types/node-schedule': ^2.1.8
+    '@types/pg': ^8.16.0
     '@types/qs': ^6.14.0
     '@types/react': ^19.1.9
     '@types/react-dom': ^19.1.7
