@@ -1,0 +1,36 @@
+
+services:
+  app:
+    image: node:20-alpine
+    command: >
+      sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm dev"
+    volumes:
+      - /.:/c-zo
+    working_dir: /c-zo
+    tty: true
+    ports:
+      - "4000:4000"
+    environment:
+      HOST: 0.0.0.0
+    networks:
+      - c-zo
+  postgres:
+    image: postgres:17
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=db_password_manager
+    ports:
+      - "5432:5432"
+    networks:
+      - c-zo
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d $${POSTGRES_DB}"]
+      timeout: 1s
+      interval: 5s
+
+networks:
+  c-zo:
+    driver: bridge

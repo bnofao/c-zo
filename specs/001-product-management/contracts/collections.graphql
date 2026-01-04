@@ -1,0 +1,119 @@
+# Product Collection Type Definitions and Operations
+# API Version: v1
+# Rate Limits: 100-500 req/min per user
+
+"""
+Curated collection of products for marketing and merchandising
+"""
+type ProductCollection {
+  id: ID!
+  title: String!
+  handle: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relations
+  products: [Product!]!
+}
+
+"""
+Input for creating a new collection
+"""
+input CreateCollectionInput {
+  title: String!
+  handle: String
+  metadata: JSON
+}
+
+"""
+Input for updating an existing collection
+"""
+input UpdateCollectionInput {
+  title: String
+  handle: String
+  metadata: JSON
+  expectedUpdatedAt: DateTime!
+}
+
+"""
+Collection mutation response payload
+"""
+type CollectionPayload {
+  collection: ProductCollection
+  errors: [Error!]
+}
+
+# Query Examples:
+
+# Get a single collection
+# query GetCollection {
+#   collection(id: "col_123") {
+#     id
+#     title
+#     handle
+#     products {
+#       id
+#       title
+#       status
+#     }
+#   }
+# }
+
+# Get products by collection
+# query GetProductsByCollection {
+#   productsByCollection(
+#     collectionId: "col_summer2025"
+#     pagination: { limit: 50 }
+#   ) {
+#     nodes {
+#       id
+#       title
+#       thumbnail
+#     }
+#     pageInfo {
+#       hasNextPage
+#       totalCount
+#     }
+#   }
+# }
+
+# Mutation Examples:
+
+# Create a collection
+# mutation CreateCollection {
+#   createCollection(
+#     input: {
+#       title: "Summer Collection 2025"
+#       handle: "summer-2025"
+#       metadata: { season: "summer", year: 2025 }
+#     }
+#   ) {
+#     collection {
+#       id
+#       title
+#       handle
+#     }
+#     errors {
+#       message
+#     }
+#   }
+# }
+
+# Update a collection
+# mutation UpdateCollection {
+#   updateCollection(
+#     id: "col_123"
+#     input: {
+#       title: "Summer Collection 2025 - Extended"
+#       expectedUpdatedAt: "2025-11-02T10:00:00Z"
+#     }
+#   ) {
+#     collection {
+#       id
+#       title
+#       updatedAt
+#     }
+#   }
+# }
+

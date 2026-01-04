@@ -1,0 +1,98 @@
+# Product Category Type Definitions and Operations
+# User Story 3: Product Organization with Categories
+
+"""
+Hierarchical product category using adjacency list pattern
+"""
+type ProductCategory {
+  id: ID!
+  name: String!
+  description: String!
+  handle: String!
+  isActive: Boolean!
+  isInternal: Boolean!
+  rank: Int!
+  thumbnail: String
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relations
+  image: ProductImage
+  parent: ProductCategory
+  children: [ProductCategory!]!
+  products: [Product!]!
+}
+
+"""
+Category tree node with nested children
+"""
+type CategoryNode {
+  category: ProductCategory!
+  children: [CategoryNode!]!
+  depth: Int!
+}
+
+"""
+Input for creating a new category
+"""
+input CreateCategoryInput {
+  name: String!
+  description: String = ""
+  handle: String
+  parentId: ID
+  isActive: Boolean = false
+  isInternal: Boolean = false
+  rank: Int = 0
+  imageId: String
+  thumbnail: String
+  metadata: JSON
+}
+
+"""
+Input for updating an existing category
+"""
+input UpdateCategoryInput {
+  name: String
+  description: String
+  handle: String
+  parentId: ID
+  isActive: Boolean
+  isInternal: Boolean
+  rank: Int
+  imageId: String
+  thumbnail: String
+  metadata: JSON
+  expectedUpdatedAt: DateTime!
+}
+
+"""
+Category mutation response payload
+"""
+type CategoryPayload {
+  category: ProductCategory
+  errors: [Error!]
+}
+
+extend type Query {
+  """Get a single category by ID"""
+  category(id: ID!): ProductCategory
+  
+  """Get category tree starting from a root (or all roots if not specified)"""
+  categoryTree(rootCategoryId: ID): [CategoryNode!]!
+}
+
+extend type Mutation {
+  """Create a new category"""
+  createCategory(input: CreateCategoryInput!): CategoryPayload!
+  
+  """Update an existing category"""
+  updateCategory(id: ID!, input: UpdateCategoryInput!): CategoryPayload!
+  
+  """Soft-delete a category"""
+  deleteCategory(id: ID!): DeletePayload!
+  
+  """Assign a product to multiple categories"""
+  assignProductToCategories(productId: ID!, categoryIds: [ID!]!): ProductPayload!
+}
+

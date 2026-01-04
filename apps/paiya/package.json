@@ -1,7 +1,7 @@
 {
   "name": "web",
-  "version": "0.0.1",
   "type": "module",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "devs": "next dev --turbopack",
@@ -13,18 +13,18 @@
   },
   "dependencies": {
     "@workspace/ui": "workspace:*",
-    "lucide-react": "^0.475.0",
-    "next": "^15.4.5",
-    "next-themes": "^0.4.6",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "lucide-react": "catalog:common",
+    "next": "catalog:cli",
+    "next-themes": "catalog:common",
+    "react": "catalog:common",
+    "react-dom": "catalog:common"
   },
   "devDependencies": {
-    "@types/node": "^20.19.9",
-    "@types/react": "^19.1.9",
-    "@types/react-dom": "^19.1.7",
+    "@types/node": "catalog:types",
+    "@types/react": "catalog:types",
+    "@types/react-dom": "catalog:types",
     "@workspace/eslint-config": "workspace:^",
     "@workspace/typescript-config": "workspace:*",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:dev"
   }
 }

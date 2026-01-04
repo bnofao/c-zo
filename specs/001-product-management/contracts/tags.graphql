@@ -1,0 +1,96 @@
+# Product Tag Type Definitions and Operations
+# API Version: v1
+# Rate Limits: 100-200 req/min per user
+
+"""
+Reusable tag for flexible product categorization
+"""
+type ProductTag {
+  id: ID!
+  value: String!
+  metadata: JSON
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relations
+  products: [Product!]!
+}
+
+"""
+Tag filter input
+"""
+input TagFilter {
+  value: String
+  search: String
+}
+
+"""
+Tag mutation response payload
+"""
+type TagPayload {
+  tag: ProductTag
+  errors: [Error!]
+}
+
+# Query Examples:
+
+# Get a single tag
+# query GetTag {
+#   tag(id: "tag_123") {
+#     id
+#     value
+#     products {
+#       id
+#       title
+#     }
+#   }
+# }
+
+# List all tags
+# query ListTags {
+#   tags(filter: { search: "organic" }) {
+#     id
+#     value
+#   }
+# }
+
+# Mutation Examples:
+
+# Create a tag
+# mutation CreateTag {
+#   createTag(value: "organic") {
+#     tag {
+#       id
+#       value
+#     }
+#     errors {
+#       message
+#     }
+#   }
+# }
+
+# Assign tags to a product
+# mutation AssignTags {
+#   assignTagsToProduct(
+#     productId: "prod_123"
+#     tagIds: ["tag_organic", "tag_vegan", "tag_sustainable"]
+#   ) {
+#     product {
+#       id
+#       tags {
+#         id
+#         value
+#       }
+#     }
+#   }
+# }
+
+# Delete a tag
+# mutation DeleteTag {
+#   deleteTag(id: "tag_123") {
+#     success
+#     deletedAt
+#     message
+#   }
+# }
+
