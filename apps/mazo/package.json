@@ -1,5 +1,5 @@
 {
-  "name": "@czo/mazos",
+  "name": "@czo/mazo",
   "private": true,
   "scripts": {
     "build": "nitro build",

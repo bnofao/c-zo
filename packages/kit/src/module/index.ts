@@ -12,6 +12,6 @@ export default defineNitroModule({
       from: '@czo/kit/graphql',
       imports: ['registeredTypeDefs', 'registeredResolvers'],
     }, nitro)
-    // addPlugin(resolver.resolve('../plugin/index'), nitro)
+    addPlugin(resolver.resolve('../plugin/index'), nitro)
   },
 })
