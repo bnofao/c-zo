@@ -91,7 +91,7 @@ c-zo needs a flexible, dynamic attribute system that can be used across multiple
 - [ ] Reference type with `reference_entity` field
 - [ ] Unit support for NUMERIC type
 - [ ] Validation per attribute type
-- [ ] Hard delete on values (consumers manage their relations)
+- [ ] Hard delete on attributes and values (consumers manage their relations)
 - [ ] GraphQL API for attribute management
 - [ ] Filtering/faceted search support
 
@@ -150,11 +150,10 @@ packages/modules/attribute/
 | slug | VARCHAR(255) | Unique identifier |
 | type | ENUM | DROPDOWN, MULTISELECT, PLAIN_TEXT, RICH_TEXT, NUMERIC, BOOLEAN, FILE, REFERENCE, SWATCH, DATE, DATE_TIME |
 | reference_entity | VARCHAR(100) | Required for REFERENCE type, null otherwise |
-| unit | VARCHAR(50) | Unit for NUMERIC type (kg, cm, etc.) |
+| unit | ENUM | Unit for NUMERIC type (extensible enum: KILOGRAM, METER, LITER, etc.) |
 | is_required | BOOLEAN | Whether value is mandatory |
 | is_filterable | BOOLEAN | Whether attribute is used in faceted search |
 | metadata | JSONB | Additional config |
-| deleted_at | TIMESTAMP | Soft delete |
 | version | INT | Optimistic locking |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
@@ -166,9 +165,9 @@ packages/modules/attribute/
 |--------|------|-------------|
 | id | UUID | Primary key |
 | attribute_id | UUID | FK to attributes |
-| value | VARCHAR(255) | The choice value/label |
+| slug | VARCHAR(255) | Unique key per attribute (auto-generated from value if not provided) |
+| value | VARCHAR(255) | Display label |
 | position | INT | Display order |
-| metadata | JSONB | Additional data |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
 
@@ -177,11 +176,12 @@ packages/modules/attribute/
 |--------|------|-------------|
 | id | UUID | Primary key |
 | attribute_id | UUID | FK to attributes |
-| value | VARCHAR(255) | The swatch label |
+| slug | VARCHAR(255) | Unique key per attribute (auto-generated from value if not provided) |
+| value | VARCHAR(255) | Display label |
 | color | VARCHAR(7) | Hex color (nullable) |
-| image_url | VARCHAR(500) | Image URL (nullable) |
+| file_url | VARCHAR(2048) | File URL - image, pattern, etc. (nullable) |
+| mimetype | VARCHAR(100) | MIME type (required if file_url present) |
 | position | INT | Display order |
-| metadata | JSONB | Additional data |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
 
@@ -193,7 +193,7 @@ These tables are created in the attribute module and used by consumers to store 
 - `attribute_boolean_values` (BOOLEAN)
 - `attribute_date_values` (DATE, DATE_TIME)
 - `attribute_file_values` (FILE)
-- `attribute_reference_values` (REFERENCE)
+- `attribute_reference_values` (REFERENCE) - choix prédéfinis avec slug, value, reference_id
 
 Common structure:
 | Column | Type | Description |
@@ -279,7 +279,7 @@ The consumer decides how to handle deleted values (via `onDelete` strategy or ap
 - [x] Storage approach for assigned values? → **Typed value tables in @czo/attribute, consumers create junction tables**
 - [x] How to handle REFERENCE type? → **`reference_entity` field on Attribute**
 - [x] `input_type` naming? → **Renamed to `type`**
-- [x] Soft or hard delete on values? → **Hard delete, consumers manage their relations**
+- [x] Soft or hard delete? → **Hard delete on attributes AND values, consumers manage their relations**
 - [x] SWATCH storage? → **Separate table `attribute_swatch_values`**
 - [x] Entity-specific attributes? → **No `entity_type`, attributes are multi-consumer**
 - [x] Should `type` enum be extensible for custom types in the future? → **Yes, planned for future**
@@ -317,7 +317,7 @@ The consumer decides how to handle deleted values (via `onDelete` strategy or ap
 6. Position field for reordering DROPDOWN/MULTISELECT/SWATCH values
 7. `input_type` renamed to `type`
 8. No `entity_type` on attributes - an attribute can be used by multiple consumers simultaneously
-9. Hard delete on all value tables - consumers manage their own relations when values are deleted
+9. Hard delete on attributes AND all value tables - consumers manage their own relations when entities are deleted
 10. **Drizzle ORM** replaces Kysely as the database layer
 11. `type` enum will be **extensible** in the future for custom attribute types
 12. **Consumer junction pattern**: Two separate tables - one for attribute assignment (N:N with `attributes`), one for values (N:N with value tables + type discriminator)

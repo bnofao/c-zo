@@ -145,13 +145,54 @@ enum AttributeType {
   DATE_TIME
 }
 
+# Enum extensible - valeurs initiales pour le MVP
+# De nouvelles unités peuvent être ajoutées via migration
+enum AttributeUnit {
+  # Masse
+  KILOGRAM    # kg
+  GRAM        # g
+  POUND       # lb
+  OUNCE       # oz
+
+  # Longueur
+  METER       # m
+  CENTIMETER  # cm
+  MILLIMETER  # mm
+  INCH        # in
+  FOOT        # ft
+
+  # Volume
+  LITER       # L
+  MILLILITER  # mL
+  GALLON      # gal
+
+  # Surface
+  SQUARE_METER      # m²
+  SQUARE_CENTIMETER # cm²
+
+  # Autres
+  PIECE       # pièce/unité
+  PERCENT     # %
+}
+
+# Type partagé pour les fichiers (utilisé par SWATCH et FILE)
+type FileInfo {
+  url: String!               # URL du fichier
+  mimetype: String!          # Type MIME (image/png, application/pdf, etc.)
+}
+
+input FileInfoInput {
+  url: String!
+  mimetype: String!
+}
+
 type Attribute {
   id: ID!
   name: String!
   slug: String!
   type: AttributeType!
   referenceEntity: String
-  unit: String
+  unit: AttributeUnit          # Enum extensible, null si non NUMERIC
   isRequired: Boolean!
   isFilterable: Boolean!
   metadata: JSON
@@ -159,17 +200,53 @@ type Attribute {
   createdAt: DateTime!
   updatedAt: DateTime!
 
-  # Relations
-  values: [AttributeValue!]! # Pour DROPDOWN/MULTISELECT
-  swatchValues: [AttributeSwatchValue!]! # Pour SWATCH
+  # Sous-requête unifiée pour les valeurs prédéfinies
+  # Retourne AttributeValue (DROPDOWN/MULTISELECT) ou AttributeSwatchValue (SWATCH)
+  # Retourne une connexion vide pour les autres types
+  values(
+    where: AttributeChoiceWhereInput
+    search: String                  # Recherche rapide sur slug et value
+    orderBy: AttributeChoiceOrderByInput
+    first: Int
+    after: String
+  ): AttributeChoiceConnection!
+}
+
+# Union pour les valeurs prédéfinies (choix)
+# DROPDOWN/MULTISELECT → AttributeValue
+# SWATCH → AttributeSwatchValue
+# REFERENCE → AttributeReferenceValue
+union AttributeChoice = AttributeValue | AttributeSwatchValue | AttributeReferenceValue
+
+type AttributeChoiceConnection {
+  edges: [AttributeChoiceEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AttributeChoiceEdge {
+  node: AttributeChoice!
+  cursor: String!
+}
+
+input AttributeChoiceOrderByInput {
+  field: AttributeChoiceOrderField!
+  direction: OrderDirection!
+}
+
+enum AttributeChoiceOrderField {
+  POSITION
+  VALUE
+  SLUG
+  CREATED_AT
 }
 
 type AttributeValue {
   id: ID!
   attributeId: ID!
-  value: String!
+  slug: String!              # Clé unique par attribut, auto-générée si non fournie
+  value: String!             # Libellé d'affichage
   position: Int!
-  metadata: JSON
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -177,11 +254,11 @@ type AttributeValue {
 type AttributeSwatchValue {
   id: ID!
   attributeId: ID!
-  value: String!
-  color: String
-  imageUrl: String
+  slug: String!              # Clé unique par attribut, auto-générée si non fournie
+  value: String!             # Libellé d'affichage
+  color: String              # Couleur hex (#RRGGBB), optionnel
+  file: FileInfo             # Fichier (image, pattern, etc.), optionnel
   position: Int!
-  metadata: JSON
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -222,7 +299,7 @@ type AttributeDateValue {
 type AttributeFileValue {
   id: ID!
   attributeId: ID!
-  value: String! # URL du fichier
+  file: FileInfo!            # Fichier requis (URL + mimetype)
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -230,9 +307,115 @@ type AttributeFileValue {
 type AttributeReferenceValue {
   id: ID!
   attributeId: ID!
-  value: ID! # ID de l'entité référencée
+  slug: String!              # Clé unique par attribut, auto-générée depuis value
+  value: String!             # Libellé d'affichage (ex: nom de l'entité référencée)
+  referenceId: ID!           # ID de l'entité référencée (unique par attribut)
+  position: Int!             # Ordre d'affichage
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+# === Types de pagination (Relay-style) ===
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type AttributeConnection {
+  edges: [AttributeEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AttributeEdge {
+  node: Attribute!
+  cursor: String!
+}
+
+# Note: AttributeValueConnection et AttributeSwatchValueConnection sont
+# remplacés par AttributeChoiceConnection (union type) défini sur Attribute.values()
+
+# === Types de réponse (Payloads) ===
+
+interface MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+}
+
+type UserError {
+  field: String
+  code: String!
+  message: String!
+}
+
+type AttributePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attribute: Attribute
+}
+
+type AttributeValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeValue: AttributeValue
+}
+
+type AttributeSwatchValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeSwatchValue: AttributeSwatchValue
+}
+
+type AttributeValueReorderPayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeValues: [AttributeValue!]
+}
+
+type AttributeSwatchValueReorderPayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeSwatchValues: [AttributeSwatchValue!]
+}
+
+type AttributeReferenceValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeReferenceValue: AttributeReferenceValue
+}
+
+type AttributeReferenceValueReorderPayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeReferenceValues: [AttributeReferenceValue!]
+}
+
+type TypedValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  # Union discriminée - un seul champ non-null selon le type
+  # Note: REFERENCE n'est plus ici car c'est un choix prédéfini (voir AttributeReferenceValuePayload)
+  textValue: AttributeTextValue
+  numericValue: AttributeNumericValue
+  booleanValue: AttributeBooleanValue
+  dateValue: AttributeDateValue
+  fileValue: AttributeFileValue
+}
+
+type DeletePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  deletedId: ID
+}
+
+# === Enums additionnels ===
+
+enum OrderDirection {
+  ASC
+  DESC
 }
 ```
 
@@ -243,34 +426,143 @@ type Query {
   # Récupérer un attribut par ID ou slug
   attribute(id: ID, slug: String): Attribute
 
-  # Lister les attributs avec filtrage et pagination
+  # Lister les attributs avec filtrage avancé et pagination
   attributes(
-    filter: AttributeFilterInput
+    where: AttributeWhereInput
+    search: String                  # Recherche rapide sur name et slug
     first: Int
     after: String
     orderBy: AttributeOrderByInput
   ): AttributeConnection!
-
-  # Récupérer les valeurs d'un attribut DROPDOWN/MULTISELECT
-  attributeValues(
-    attributeId: ID!
-    first: Int
-    after: String
-  ): AttributeValueConnection!
-
-  # Récupérer les valeurs swatch d'un attribut
-  attributeSwatchValues(
-    attributeId: ID!
-    first: Int
-    after: String
-  ): AttributeSwatchValueConnection!
 }
 
-input AttributeFilterInput {
-  type: [AttributeType!]
-  isFilterable: Boolean
+# === Exemples de requêtes avec filtrage avancé ===
+#
+# Recherche simple :
+#   attributes(search: "coul") { ... }
+#
+# Filtrage par type :
+#   attributes(where: { type: { in: [DROPDOWN, MULTISELECT] } }) { ... }
+#
+# Filtrage composite avec AND :
+#   attributes(where: {
+#     AND: [
+#       { isFilterable: true }
+#       { type: { eq: DROPDOWN } }
+#       { name: { contains: "color" } }
+#     ]
+#   }) { ... }
+#
+# Filtrage avec OR :
+#   attributes(where: {
+#     OR: [
+#       { slug: { eq: "color" } }
+#       { slug: { eq: "size" } }
+#     ]
+#   }) { ... }
+#
+# Filtrage avec NOT :
+#   attributes(where: {
+#     NOT: { type: { eq: BOOLEAN } }
+#   }) { ... }
+#
+# Filtrage sur metadata :
+#   attributes(where: {
+#     metadata: [{ key: "category", value: "technical" }]
+#   }) { ... }
+#
+# Sous-requête values() avec filtre :
+#   attribute(slug: "color") {
+#     values(
+#       where: { hasColor: true }
+#       orderBy: { field: POSITION, direction: ASC }
+#     ) {
+#       edges {
+#         node {
+#           ... on AttributeSwatchValue { slug value color }
+#         }
+#       }
+#     }
+#   }
+
+# === Système de filtrage avancé ===
+
+# Filtre principal pour les attributs
+input AttributeWhereInput {
+  # Filtres par identifiants
+  ids: [ID!]
+
+  # Filtres textuels
+  name: StringFilterInput
+  slug: StringFilterInput
+
+  # Filtres enum
+  type: AttributeTypeFilterInput
+  unit: AttributeUnitFilterInput
+
+  # Filtres booléens
   isRequired: Boolean
-  search: String # Recherche sur name et slug
+  isFilterable: Boolean
+
+  # Filtre sur les choix (values/swatches)
+  withChoices: Boolean              # true = a des valeurs prédéfinies
+
+  # Filtre sur metadata JSONB
+  metadata: [MetadataFilterInput!]
+
+  # Opérateurs composites (récursifs)
+  AND: [AttributeWhereInput!]
+  OR: [AttributeWhereInput!]
+  NOT: AttributeWhereInput
+}
+
+# Filtre pour les chaînes de caractères
+input StringFilterInput {
+  eq: String                        # Égalité exacte
+  ne: String                        # Différent de
+  in: [String!]                     # Dans la liste
+  notIn: [String!]                  # Pas dans la liste
+  contains: String                  # Contient (ILIKE %value%)
+  notContains: String               # Ne contient pas
+  startsWith: String                # Commence par (LIKE value%)
+  endsWith: String                  # Finit par (LIKE %value)
+  isEmpty: Boolean                  # Est vide ou null
+}
+
+# Filtre pour les enums AttributeType
+input AttributeTypeFilterInput {
+  eq: AttributeType
+  ne: AttributeType
+  in: [AttributeType!]
+  notIn: [AttributeType!]
+}
+
+# Filtre pour les enums AttributeUnit
+input AttributeUnitFilterInput {
+  eq: AttributeUnit
+  ne: AttributeUnit
+  in: [AttributeUnit!]
+  notIn: [AttributeUnit!]
+  isNull: Boolean                   # Pour filtrer les attributs sans unité
+}
+
+# Filtre sur les métadonnées JSONB
+input MetadataFilterInput {
+  key: String!                      # Clé à rechercher
+  value: String                     # Valeur exacte (optionnel)
+}
+
+# Filtre pour les valeurs d'attribut (sous-requête values())
+input AttributeChoiceWhereInput {
+  slug: StringFilterInput
+  value: StringFilterInput
+
+  # Pour SWATCH uniquement
+  hasColor: Boolean
+  hasFile: Boolean
+
+  AND: [AttributeChoiceWhereInput!]
+  OR: [AttributeChoiceWhereInput!]
 }
 
 input AttributeOrderByInput {
@@ -280,6 +572,8 @@ input AttributeOrderByInput {
 
 enum AttributeOrderField {
   NAME
+  SLUG
+  TYPE
   CREATED_AT
   UPDATED_AT
 }
@@ -309,6 +603,13 @@ type Mutation {
   deleteAttributeSwatchValue(id: ID!): DeletePayload!
   reorderAttributeSwatchValues(attributeId: ID!, valueIds: [ID!]!): AttributeSwatchValueReorderPayload!
 
+  # === Gestion des valeurs REFERENCE ===
+
+  createAttributeReferenceValue(input: CreateAttributeReferenceValueInput!): AttributeReferenceValuePayload!
+  updateAttributeReferenceValue(id: ID!, input: UpdateAttributeReferenceValueInput!): AttributeReferenceValuePayload!
+  deleteAttributeReferenceValue(id: ID!): DeletePayload!
+  reorderAttributeReferenceValues(attributeId: ID!, valueIds: [ID!]!): AttributeReferenceValueReorderPayload!
+
   # === Gestion des valeurs typées ===
 
   createTypedValue(input: CreateTypedValueInput!): TypedValuePayload!
@@ -321,7 +622,7 @@ input CreateAttributeInput {
   slug: String # Auto-généré si non fourni
   type: AttributeType!
   referenceEntity: String # Requis pour REFERENCE
-  unit: String # Pour NUMERIC
+  unit: AttributeUnit # Pour NUMERIC, enum extensible
   isRequired: Boolean = false
   isFilterable: Boolean = false
   metadata: JSON
@@ -331,37 +632,51 @@ input UpdateAttributeInput {
   name: String
   isRequired: Boolean
   isFilterable: Boolean
-  unit: String
+  unit: AttributeUnit
   metadata: JSON
   version: Int! # Pour verrouillage optimiste
 }
 
 input CreateAttributeValueInput {
   attributeId: ID!
-  value: String!
-  position: Int # Auto-calculé si non fourni
-  metadata: JSON
+  slug: String               # Auto-généré à partir de value si non fourni
+  value: String!             # Libellé d'affichage
+  position: Int              # Auto-calculé si non fourni
 }
 
 input UpdateAttributeValueInput {
-  value: String
-  metadata: JSON
+  slug: String               # Peut être modifié (vérifie unicité)
+  value: String              # Libellé d'affichage
 }
 
 input CreateAttributeSwatchValueInput {
   attributeId: ID!
-  value: String!
-  color: String # Format hex #RRGGBB
-  imageUrl: String
-  position: Int
-  metadata: JSON
+  slug: String               # Auto-généré à partir de value si non fourni
+  value: String!             # Libellé d'affichage
+  color: String              # Format hex #RRGGBB, optionnel
+  file: FileInfoInput        # Fichier (image, pattern), optionnel
+  position: Int              # Auto-calculé si non fourni
 }
 
 input UpdateAttributeSwatchValueInput {
-  value: String
-  color: String
-  imageUrl: String
-  metadata: JSON
+  slug: String               # Peut être modifié (vérifie unicité)
+  value: String              # Libellé d'affichage
+  color: String              # Format hex #RRGGBB
+  file: FileInfoInput        # Fichier (image, pattern)
+}
+
+input CreateAttributeReferenceValueInput {
+  attributeId: ID!
+  slug: String               # Auto-généré à partir de value si non fourni
+  value: String!             # Libellé d'affichage (nom de l'entité)
+  referenceId: ID!           # ID de l'entité référencée
+  position: Int              # Auto-calculé si non fourni
+}
+
+input UpdateAttributeReferenceValueInput {
+  slug: String               # Peut être modifié (vérifie unicité)
+  value: String              # Libellé d'affichage
+  referenceId: ID            # Peut être modifié (vérifie unicité)
 }
 
 input CreateTypedValueInput {
@@ -372,8 +687,7 @@ input CreateTypedValueInput {
   numericValue: Float
   booleanValue: Boolean
   dateValue: DateTime
-  fileValue: String # URL
-  referenceValue: ID
+  file: FileInfoInput          # Pour type FILE
 }
 
 input UpdateTypedValueInput {
@@ -382,8 +696,7 @@ input UpdateTypedValueInput {
   numericValue: Float
   booleanValue: Boolean
   dateValue: DateTime
-  fileValue: String
-  referenceValue: ID
+  file: FileInfoInput          # Pour type FILE
 }
 ```
 
@@ -397,7 +710,7 @@ input UpdateTypedValueInput {
 | `ATTRIBUTE_VALUE_NOT_FOUND` | Valeur inexistante | ID de valeur invalide |
 | `VALIDATION_ERROR` | Erreur de validation | Données invalides selon le type |
 | `VERSION_CONFLICT` | Conflit de version | Verrouillage optimiste échoué |
-| `SWATCH_REQUIRES_COLOR_OR_IMAGE` | Swatch incomplet | Ni couleur ni image fournie |
+| `SWATCH_REQUIRES_COLOR_OR_FILE` | Swatch incomplet | Ni couleur ni fichier fourni |
 | `REFERENCE_ENTITY_REQUIRED` | Entité référencée manquante | REFERENCE sans referenceEntity |
 
 ## 4. Conception base de données
@@ -411,11 +724,10 @@ input UpdateTypedValueInput {
 | slug | VARCHAR(255) | NOT NULL, UNIQUE | Identifiant URL-safe |
 | type | attribute_type_enum | NOT NULL | Type d'attribut |
 | reference_entity | VARCHAR(100) | NULL | Type d'entité pour REFERENCE |
-| unit | VARCHAR(50) | NULL | Unité pour NUMERIC |
+| unit | attribute_unit_enum | NULL | Unité pour NUMERIC (enum extensible) |
 | is_required | BOOLEAN | NOT NULL DEFAULT FALSE | Valeur obligatoire |
 | is_filterable | BOOLEAN | NOT NULL DEFAULT FALSE | Utilisé dans les filtres |
 | metadata | JSONB | NULL | Configuration additionnelle |
-| deleted_at | TIMESTAMPTZ | NULL | Soft delete |
 | version | INTEGER | NOT NULL DEFAULT 1 | Verrouillage optimiste |
 | created_at | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Date de modification |
@@ -427,17 +739,30 @@ CREATE TYPE attribute_type_enum AS ENUM (
   'DATE', 'DATE_TIME'
 );
 
+-- Enum extensible : nouvelles unités ajoutées via ALTER TYPE ... ADD VALUE
+CREATE TYPE attribute_unit_enum AS ENUM (
+  -- Masse
+  'KILOGRAM', 'GRAM', 'POUND', 'OUNCE',
+  -- Longueur
+  'METER', 'CENTIMETER', 'MILLIMETER', 'INCH', 'FOOT',
+  -- Volume
+  'LITER', 'MILLILITER', 'GALLON',
+  -- Surface
+  'SQUARE_METER', 'SQUARE_CENTIMETER',
+  -- Autres
+  'PIECE', 'PERCENT'
+);
+
 CREATE TABLE attributes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(255) NOT NULL UNIQUE,
   type attribute_type_enum NOT NULL,
   reference_entity VARCHAR(100),
-  unit VARCHAR(50),
+  unit attribute_unit_enum,
   is_required BOOLEAN NOT NULL DEFAULT FALSE,
   is_filterable BOOLEAN NOT NULL DEFAULT FALSE,
   metadata JSONB,
-  deleted_at TIMESTAMPTZ,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -445,8 +770,37 @@ CREATE TABLE attributes (
   CONSTRAINT chk_reference_entity CHECK (
     (type = 'REFERENCE' AND reference_entity IS NOT NULL) OR
     (type != 'REFERENCE' AND reference_entity IS NULL)
+  ),
+  CONSTRAINT chk_unit_for_numeric CHECK (
+    (type = 'NUMERIC') OR (unit IS NULL)
   )
 );
+
+-- Note: Hard delete sur les attributs. Les consommateurs doivent gérer
+-- leurs propres relations via ON DELETE CASCADE ou logique applicative.
+
+-- Ajout d'une nouvelle unité (migration future) :
+-- ALTER TYPE attribute_unit_enum ADD VALUE 'NEW_UNIT';
+
+-- === Index pour les recherches ===
+
+-- Recherche textuelle sur name (préfixe et trigram)
+CREATE INDEX idx_attributes_name ON attributes(name);
+CREATE INDEX idx_attributes_name_trgm ON attributes USING GIN (name gin_trgm_ops);
+
+-- Recherche textuelle sur slug (trigram pour recherche floue)
+CREATE INDEX idx_attributes_slug_trgm ON attributes USING GIN (slug gin_trgm_ops);
+
+-- Filtrage par type (enum)
+CREATE INDEX idx_attributes_type ON attributes(type);
+
+-- Filtrage par flags
+CREATE INDEX idx_attributes_filterable ON attributes(is_filterable) WHERE is_filterable = TRUE;
+
+-- Recherche dans metadata (JSONB)
+CREATE INDEX idx_attributes_metadata ON attributes USING GIN (metadata);
+
+-- Note: slug a déjà un index BTREE via UNIQUE constraint pour recherche exacte
 ```
 
 ### Table : `attribute_values`
@@ -455,9 +809,9 @@ CREATE TABLE attributes (
 |---------|------|-------------|-------------|
 | id | UUID | PK | Identifiant unique |
 | attribute_id | UUID | FK NOT NULL | Référence à attributes |
-| value | VARCHAR(255) | NOT NULL | Valeur du choix |
+| slug | VARCHAR(255) | NOT NULL | Clé unique par attribut (auto-générée si non fournie) |
+| value | VARCHAR(255) | NOT NULL | Libellé d'affichage |
 | position | INTEGER | NOT NULL DEFAULT 0 | Ordre d'affichage |
-| metadata | JSONB | NULL | Données additionnelles |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
 
@@ -465,17 +819,27 @@ CREATE TABLE attributes (
 CREATE TABLE attribute_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+  slug VARCHAR(255) NOT NULL,
   value VARCHAR(255) NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
-  metadata JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT uq_attribute_value UNIQUE (attribute_id, value)
+  -- Slug unique par attribut (pas globalement)
+  CONSTRAINT uq_attribute_value_slug UNIQUE (attribute_id, slug)
 );
 
 CREATE INDEX idx_attribute_values_attribute_id ON attribute_values(attribute_id);
 CREATE INDEX idx_attribute_values_position ON attribute_values(attribute_id, position);
+
+-- Recherche textuelle sur slug (trigram pour recherche floue)
+CREATE INDEX idx_attribute_values_slug_trgm ON attribute_values USING GIN (slug gin_trgm_ops);
+
+-- Recherche textuelle sur value (préfixe et trigram)
+CREATE INDEX idx_attribute_values_value ON attribute_values(value);
+CREATE INDEX idx_attribute_values_value_trgm ON attribute_values USING GIN (value gin_trgm_ops);
+
+-- Note: slug a déjà un index BTREE via UNIQUE constraint (attribute_id, slug)
 ```
 
 ### Table : `attribute_swatch_values`
@@ -484,31 +848,51 @@ CREATE INDEX idx_attribute_values_position ON attribute_values(attribute_id, pos
 |---------|------|-------------|-------------|
 | id | UUID | PK | Identifiant unique |
 | attribute_id | UUID | FK NOT NULL | Référence à attributes |
-| value | VARCHAR(255) | NOT NULL | Libellé du swatch |
+| slug | VARCHAR(255) | NOT NULL | Clé unique par attribut (auto-générée si non fournie) |
+| value | VARCHAR(255) | NOT NULL | Libellé d'affichage |
 | color | VARCHAR(7) | NULL | Couleur hex (#RRGGBB) |
-| image_url | VARCHAR(500) | NULL | URL de l'image |
+| file_url | VARCHAR(2048) | NULL | URL du fichier (image, pattern, etc.) |
+| mimetype | VARCHAR(100) | NULL | Type MIME (image/png, image/svg+xml, etc.) |
 | position | INTEGER | NOT NULL | Ordre d'affichage |
-| metadata | JSONB | NULL | Données additionnelles |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
+
+**Mapping GraphQL** : Le champ `file: FileInfo` est mappé aux colonnes `file_url` et `mimetype`.
 
 ```sql
 CREATE TABLE attribute_swatch_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+  slug VARCHAR(255) NOT NULL,
   value VARCHAR(255) NOT NULL,
   color VARCHAR(7),
-  image_url VARCHAR(500),
+  file_url VARCHAR(2048),
+  mimetype VARCHAR(100),
   position INTEGER NOT NULL DEFAULT 0,
-  metadata JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT chk_swatch_has_visual CHECK (color IS NOT NULL OR image_url IS NOT NULL),
-  CONSTRAINT uq_swatch_value UNIQUE (attribute_id, value)
+  -- Slug unique par attribut
+  CONSTRAINT uq_swatch_slug UNIQUE (attribute_id, slug),
+  -- Au moins une représentation visuelle requise
+  CONSTRAINT chk_swatch_has_visual CHECK (color IS NOT NULL OR file_url IS NOT NULL),
+  -- Mimetype requis si file_url présent
+  CONSTRAINT chk_swatch_mimetype CHECK (
+    (file_url IS NULL) OR (file_url IS NOT NULL AND mimetype IS NOT NULL)
+  )
 );
 
 CREATE INDEX idx_swatch_values_attribute_id ON attribute_swatch_values(attribute_id);
+CREATE INDEX idx_swatch_values_position ON attribute_swatch_values(attribute_id, position);
+
+-- Recherche textuelle sur slug (trigram pour recherche floue)
+CREATE INDEX idx_swatch_values_slug_trgm ON attribute_swatch_values USING GIN (slug gin_trgm_ops);
+
+-- Recherche textuelle sur value (préfixe et trigram)
+CREATE INDEX idx_swatch_values_value ON attribute_swatch_values(value);
+CREATE INDEX idx_swatch_values_value_trgm ON attribute_swatch_values USING GIN (value gin_trgm_ops);
+
+-- Note: slug a déjà un index BTREE via UNIQUE constraint (attribute_id, slug)
 ```
 
 ### Tables de valeurs typées
@@ -573,11 +957,23 @@ CREATE INDEX idx_date_values_value ON attribute_date_values(attribute_id, value)
 
 #### `attribute_file_values`
 
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| id | UUID | PK | Identifiant unique |
+| attribute_id | UUID | FK NOT NULL | Référence à attributes |
+| file_url | VARCHAR(2048) | NOT NULL | URL du fichier |
+| mimetype | VARCHAR(100) | NOT NULL | Type MIME (application/pdf, image/png, etc.) |
+| created_at | TIMESTAMPTZ | NOT NULL | Date de création |
+| updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
+
+**Mapping GraphQL** : Le champ `file: FileInfo!` est mappé aux colonnes `file_url` et `mimetype`.
+
 ```sql
 CREATE TABLE attribute_file_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
-  value VARCHAR(2048) NOT NULL, -- URL du fichier
+  file_url VARCHAR(2048) NOT NULL,
+  mimetype VARCHAR(100) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -587,37 +983,94 @@ CREATE INDEX idx_file_values_attribute_id ON attribute_file_values(attribute_id)
 
 #### `attribute_reference_values`
 
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| id | UUID | PK | Identifiant unique |
+| attribute_id | UUID | FK NOT NULL | Référence à attributes |
+| slug | VARCHAR(255) | NOT NULL | Clé unique par attribut (auto-générée depuis value) |
+| value | VARCHAR(255) | NOT NULL | Libellé d'affichage (nom de l'entité référencée) |
+| reference_id | UUID | NOT NULL | ID de l'entité référencée (unique par attribut) |
+| position | INTEGER | NOT NULL | Ordre d'affichage |
+| created_at | TIMESTAMPTZ | NOT NULL | Date de création |
+| updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
+
 ```sql
 CREATE TABLE attribute_reference_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
-  value UUID NOT NULL, -- ID de l'entité référencée
+  slug VARCHAR(255) NOT NULL,
+  value VARCHAR(255) NOT NULL,
+  reference_id UUID NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- Slug unique par attribut
+  CONSTRAINT uq_reference_slug UNIQUE (attribute_id, slug),
+  -- Reference ID unique par attribut (même entité ne peut être référencée 2x)
+  CONSTRAINT uq_reference_id UNIQUE (attribute_id, reference_id)
 );
 
 CREATE INDEX idx_reference_values_attribute_id ON attribute_reference_values(attribute_id);
+CREATE INDEX idx_reference_values_position ON attribute_reference_values(attribute_id, position);
+CREATE INDEX idx_reference_values_reference_id ON attribute_reference_values(reference_id);
+
+-- Recherche textuelle sur slug et value (trigram)
+CREATE INDEX idx_reference_values_slug_trgm ON attribute_reference_values USING GIN (slug gin_trgm_ops);
 CREATE INDEX idx_reference_values_value ON attribute_reference_values(value);
+CREATE INDEX idx_reference_values_value_trgm ON attribute_reference_values USING GIN (value gin_trgm_ops);
 ```
 
 ### Stratégie de migration
 
-1. **Migration 001** : Création du type enum et de la table `attributes`
-2. **Migration 002** : Création de `attribute_values` et `attribute_swatch_values`
-3. **Migration 003** : Création des tables de valeurs typées
+1. **Migration 000** : Activation de l'extension `pg_trgm` (recherche floue)
+2. **Migration 001** : Création des types enum (`attribute_type_enum`, `attribute_unit_enum`) et de la table `attributes` avec index
+3. **Migration 002** : Création de `attribute_values`, `attribute_swatch_values` et `attribute_reference_values` avec index
+4. **Migration 003** : Création des tables de valeurs typées (text, numeric, boolean, date, file) avec index
 
 **Plan de rollback** : Chaque migration inclut une fonction `down()` pour annuler les changements. Les migrations sont versionnées et peuvent être annulées individuellement.
 
 ### Index
 
+**Prérequis** : Extension `pg_trgm` pour la recherche floue
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
 | Table | Index | Type | Objectif |
 |-------|-------|------|----------|
-| attributes | idx_attributes_slug | UNIQUE | Recherche par slug |
-| attributes | idx_attributes_type | BTREE | Filtrage par type |
-| attributes | idx_attributes_filterable | BTREE | Requêtes facettes |
-| attribute_values | idx_attribute_values_position | BTREE | Ordonnancement |
-| attribute_numeric_values | idx_numeric_values_value | BTREE | Filtrage par plage |
-| attribute_date_values | idx_date_values_value | BTREE | Filtrage par date |
+| **attributes** | | | |
+| | (slug) | UNIQUE | Recherche exacte par slug |
+| | idx_attributes_slug_trgm | GIN (trgm) | Recherche floue/contains sur slug |
+| | idx_attributes_name | BTREE | Recherche préfixe sur name |
+| | idx_attributes_name_trgm | GIN (trgm) | Recherche floue/contains sur name |
+| | idx_attributes_type | BTREE | Filtrage par type |
+| | idx_attributes_filterable | BTREE partiel | Attributs filtrables |
+| | idx_attributes_metadata | GIN | Recherche JSONB |
+| **attribute_values** | | | |
+| | (attribute_id, slug) | UNIQUE | Recherche exacte par slug |
+| | idx_attribute_values_slug_trgm | GIN (trgm) | Recherche floue/contains sur slug |
+| | idx_attribute_values_value | BTREE | Recherche préfixe sur value |
+| | idx_attribute_values_value_trgm | GIN (trgm) | Recherche floue/contains sur value |
+| | idx_attribute_values_position | BTREE | Ordonnancement |
+| **attribute_swatch_values** | | | |
+| | (attribute_id, slug) | UNIQUE | Recherche exacte par slug |
+| | idx_swatch_values_slug_trgm | GIN (trgm) | Recherche floue/contains sur slug |
+| | idx_swatch_values_value | BTREE | Recherche préfixe sur value |
+| | idx_swatch_values_value_trgm | GIN (trgm) | Recherche floue/contains sur value |
+| | idx_swatch_values_position | BTREE | Ordonnancement |
+| **attribute_numeric_values** | | | |
+| | idx_numeric_values_value | BTREE | Filtrage par plage |
+| **attribute_date_values** | | | |
+| | idx_date_values_value | BTREE | Filtrage par date |
+| **attribute_reference_values** | | | |
+| | (attribute_id, slug) | UNIQUE | Recherche exacte par slug |
+| | (attribute_id, reference_id) | UNIQUE | Unicité de l'entité référencée |
+| | idx_reference_values_slug_trgm | GIN (trgm) | Recherche floue/contains sur slug |
+| | idx_reference_values_value | BTREE | Recherche préfixe sur value |
+| | idx_reference_values_value_trgm | GIN (trgm) | Recherche floue/contains sur value |
+| | idx_reference_values_position | BTREE | Ordonnancement |
+| | idx_reference_values_reference_id | BTREE | Jointure entité référencée |
 
 ## 5. Sécurité
 
@@ -692,6 +1145,7 @@ CREATE INDEX idx_reference_values_value ON attribute_reference_values(value);
 
 ### Infrastructure
 - PostgreSQL 17 (via docker-compose.dev.yml)
+- Extension `pg_trgm` pour la recherche floue (incluse dans PostgreSQL)
 - Pas de services externes requis pour le MVP
 
 ## 9. Stratégie de test

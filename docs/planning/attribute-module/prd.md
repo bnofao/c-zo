@@ -129,7 +129,7 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 - [ ] Peut lire un attribut par ID ou slug
 - [ ] Peut lister les attributs avec filtrage et pagination
 - [ ] Peut modifier un attribut existant (nom, is_required, is_filterable, etc.)
-- [ ] Peut supprimer un attribut de manière réversible (soft delete)
+- [ ] Peut supprimer un attribut de manière définitive (hard delete)
 - [ ] Le slug est unique et auto-généré à partir du nom si non fourni
 - [ ] Les 11 types d'attributs sont pris en charge
 - [ ] L'attribut possède les indicateurs `is_required` et `is_filterable`
@@ -137,14 +137,21 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 
 ### Critères d'acceptation US-002
 - [ ] Peut ajouter, modifier et supprimer des choix pour les attributs DROPDOWN/MULTISELECT
-- [ ] Chaque choix a une valeur et des métadonnées optionnelles
+- [ ] Chaque choix a un `slug` (clé) et une `value` (libellé d'affichage)
+- [ ] Le slug est auto-généré à partir de la valeur si non fourni
+- [ ] Le slug est unique par attribut (pas globalement)
 - [ ] Les choix ont un champ `position` pour l'ordonnancement
 - [ ] Les choix sont stockés dans la table `attribute_values`
+- [ ] Pas de champ metadata sur les valeurs d'attribut
 - [ ] Suppression définitive sur les choix (les consommateurs gèrent leurs relations)
 
 ### Critères d'acceptation US-003
-- [ ] Peut créer des valeurs de nuancier avec libellé, couleur (hex) et/ou URL d'image
-- [ ] Au moins une couleur ou image_url doit être fournie
+- [ ] Peut créer des valeurs de nuancier avec `slug`, `value`, couleur (hex) et/ou fichier
+- [ ] Chaque swatch a un `slug` (clé) et une `value` (libellé d'affichage)
+- [ ] Le slug est auto-généré à partir de la valeur si non fourni
+- [ ] Le slug est unique par attribut (pas globalement)
+- [ ] Au moins une couleur ou file_url doit être fournie
+- [ ] Le mimetype est requis si file_url est présent
 - [ ] Les valeurs de nuancier sont stockées dans une table séparée `attribute_swatch_values`
 - [ ] Les valeurs de nuancier ont une position pour l'ordonnancement
 
@@ -154,13 +161,19 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 - [ ] Les attributs non filtrables sont exclus des requêtes de filtrage
 
 ### Critères d'acceptation US-005
-- [ ] Le type NUMERIC supporte un champ `unit` optionnel (ex. : "kg", "cm", "ml")
+- [ ] Le type NUMERIC supporte un champ `unit` optionnel (enum extensible : KILOGRAM, METER, LITER, etc.)
 - [ ] Les valeurs numériques sont stockées dans `attribute_numeric_values` avec précision décimale appropriée
 - [ ] L'unité est affichée à côté de la valeur dans les requêtes
+- [ ] De nouvelles unités peuvent être ajoutées via migration SQL
 
 ### Critères d'acceptation US-006
 - [ ] Le type REFERENCE requiert un champ `reference_entity` spécifiant le type d'entité cible
-- [ ] Les valeurs de référence sont stockées dans `attribute_reference_values` avec l'ID de l'entité cible
+- [ ] Les valeurs REFERENCE sont des choix prédéfinis (comme DROPDOWN/SWATCH)
+- [ ] Chaque valeur de référence a un `slug`, une `value` (libellé), et un `reference_id`
+- [ ] Le slug est auto-généré à partir de value si non fourni
+- [ ] Le slug est unique par attribut
+- [ ] Le reference_id est unique par attribut (même entité ne peut être référencée 2x)
+- [ ] Les valeurs de référence ont un champ `position` pour l'ordonnancement
 - [ ] La résolution des références est gérée par les modules consommateurs
 
 ### Critères d'acceptation US-007
@@ -172,10 +185,11 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 - [ ] NUMERIC : validation du format numérique avec précision décimale
 - [ ] BOOLEAN : valeurs strictement true/false
 - [ ] DATE/DATE_TIME : format ISO 8601 valide
-- [ ] FILE : URL valide ou chemin de fichier
-- [ ] SWATCH : couleur au format hex (#RRGGBB) ou image_url valide
+- [ ] FILE : URL valide
+- [ ] SWATCH : couleur au format hex (#RRGGBB) et/ou file_url valide avec mimetype
 - [ ] REFERENCE : ID d'entité existante du type spécifié
 - [ ] PLAIN_TEXT/RICH_TEXT : longueur maximale configurable
+- [ ] Slug : format URL-safe (alphanumériques, tirets)
 - [ ] Messages d'erreur clairs en cas de validation échouée
 
 ## 7. Notes techniques
@@ -254,7 +268,7 @@ Ce pattern est personnalisable par consommateur selon ses besoins spécifiques.
 - [x] Devons-nous supporter AttributeGroup ? → **Non, hors périmètre MVP**
 - [x] Approche de stockage pour les valeurs assignées ? → **Tables de valeurs typées dans @czo/attribute, les consommateurs créent des tables de jonction**
 - [x] Comment gérer le type REFERENCE ? → **Champ `reference_entity` sur Attribute**
-- [x] Suppression réversible ou définitive sur les valeurs ? → **Suppression définitive, les consommateurs gèrent leurs relations**
+- [x] Suppression réversible ou définitive ? → **Suppression définitive (hard delete) sur les attributs ET les valeurs, les consommateurs gèrent leurs relations**
 
 ### Références
 - [Guide API Attributs Saleor](https://docs.saleor.io/developer/attributes/api)
