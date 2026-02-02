@@ -1,10 +1,10 @@
 # TRD : Module Attribut
 
-**Statut** : Brouillon
-**Auteur** : Claude
-**Créé le** : 2026-01-30
-**Dernière mise à jour** : 2026-01-30
-**PRD associé** : [PRD Module Attribut](./prd.md)
+- **Statut** : Brouillon
+- **Auteur** : Claude
+- **Créé le** : 2026-01-30
+- **Dernière mise à jour** : 2026-01-30
+- **PRD associé** : [PRD Module Attribut](./prd.md)
 
 ---
 
@@ -195,6 +195,8 @@ type Attribute {
   unit: AttributeUnit          # Enum extensible, null si non NUMERIC
   isRequired: Boolean!
   isFilterable: Boolean!
+  externalSource: String       # Identifiant du système externe (ERP, PIM, etc.)
+  externalId: String           # ID dans le système externe
   metadata: JSON
   version: Int!
   createdAt: DateTime!
@@ -247,6 +249,8 @@ type AttributeValue {
   slug: String!              # Clé unique par attribut, auto-générée si non fournie
   value: String!             # Libellé d'affichage
   position: Int!
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -259,6 +263,8 @@ type AttributeSwatchValue {
   color: String              # Couleur hex (#RRGGBB), optionnel
   file: FileInfo             # Fichier (image, pattern, etc.), optionnel
   position: Int!
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -267,7 +273,10 @@ type AttributeSwatchValue {
 type AttributeTextValue {
   id: ID!
   attributeId: ID!
-  value: String!
+  plain: String!             # Texte brut (toujours renseigné)
+  rich: JSON                 # Texte structuré JSON (RICH_TEXT uniquement, null pour PLAIN_TEXT)
+  externalSource: String
+  externalId: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -276,6 +285,8 @@ type AttributeNumericValue {
   id: ID!
   attributeId: ID!
   value: Float!
+  externalSource: String
+  externalId: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -284,6 +295,8 @@ type AttributeBooleanValue {
   id: ID!
   attributeId: ID!
   value: Boolean!
+  externalSource: String
+  externalId: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -292,6 +305,8 @@ type AttributeDateValue {
   id: ID!
   attributeId: ID!
   value: DateTime!
+  externalSource: String
+  externalId: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -300,6 +315,8 @@ type AttributeFileValue {
   id: ID!
   attributeId: ID!
   file: FileInfo!            # Fichier requis (URL + mimetype)
+  externalSource: String
+  externalId: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -311,6 +328,8 @@ type AttributeReferenceValue {
   value: String!             # Libellé d'affichage (ex: nom de l'entité référencée)
   referenceId: ID!           # ID de l'entité référencée (unique par attribut)
   position: Int!             # Ordre d'affichage
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -393,16 +412,34 @@ type AttributeReferenceValueReorderPayload implements MutationPayload {
   attributeReferenceValues: [AttributeReferenceValue!]
 }
 
-type TypedValuePayload implements MutationPayload {
+type AttributeTextValuePayload implements MutationPayload {
   success: Boolean!
   errors: [UserError!]!
-  # Union discriminée - un seul champ non-null selon le type
-  # Note: REFERENCE n'est plus ici car c'est un choix prédéfini (voir AttributeReferenceValuePayload)
-  textValue: AttributeTextValue
-  numericValue: AttributeNumericValue
-  booleanValue: AttributeBooleanValue
-  dateValue: AttributeDateValue
-  fileValue: AttributeFileValue
+  attributeTextValue: AttributeTextValue
+}
+
+type AttributeNumericValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeNumericValue: AttributeNumericValue
+}
+
+type AttributeBooleanValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeBooleanValue: AttributeBooleanValue
+}
+
+type AttributeDateValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeDateValue: AttributeDateValue
+}
+
+type AttributeFileValuePayload implements MutationPayload {
+  success: Boolean!
+  errors: [UserError!]!
+  attributeFileValue: AttributeFileValue
 }
 
 type DeletePayload implements MutationPayload {
@@ -610,11 +647,35 @@ type Mutation {
   deleteAttributeReferenceValue(id: ID!): DeletePayload!
   reorderAttributeReferenceValues(attributeId: ID!, valueIds: [ID!]!): AttributeReferenceValueReorderPayload!
 
-  # === Gestion des valeurs typées ===
+  # === Gestion des valeurs TEXT (PLAIN_TEXT, RICH_TEXT) ===
 
-  createTypedValue(input: CreateTypedValueInput!): TypedValuePayload!
-  updateTypedValue(id: ID!, input: UpdateTypedValueInput!): TypedValuePayload!
-  deleteTypedValue(id: ID!, type: AttributeType!): DeletePayload!
+  createAttributeTextValue(input: CreateAttributeTextValueInput!): AttributeTextValuePayload!
+  updateAttributeTextValue(id: ID!, input: UpdateAttributeTextValueInput!): AttributeTextValuePayload!
+  deleteAttributeTextValue(id: ID!): DeletePayload!
+
+  # === Gestion des valeurs NUMERIC ===
+
+  createAttributeNumericValue(input: CreateAttributeNumericValueInput!): AttributeNumericValuePayload!
+  updateAttributeNumericValue(id: ID!, input: UpdateAttributeNumericValueInput!): AttributeNumericValuePayload!
+  deleteAttributeNumericValue(id: ID!): DeletePayload!
+
+  # === Gestion des valeurs BOOLEAN ===
+
+  createAttributeBooleanValue(input: CreateAttributeBooleanValueInput!): AttributeBooleanValuePayload!
+  updateAttributeBooleanValue(id: ID!, input: UpdateAttributeBooleanValueInput!): AttributeBooleanValuePayload!
+  deleteAttributeBooleanValue(id: ID!): DeletePayload!
+
+  # === Gestion des valeurs DATE (DATE, DATE_TIME) ===
+
+  createAttributeDateValue(input: CreateAttributeDateValueInput!): AttributeDateValuePayload!
+  updateAttributeDateValue(id: ID!, input: UpdateAttributeDateValueInput!): AttributeDateValuePayload!
+  deleteAttributeDateValue(id: ID!): DeletePayload!
+
+  # === Gestion des valeurs FILE ===
+
+  createAttributeFileValue(input: CreateAttributeFileValueInput!): AttributeFileValuePayload!
+  updateAttributeFileValue(id: ID!, input: UpdateAttributeFileValueInput!): AttributeFileValuePayload!
+  deleteAttributeFileValue(id: ID!): DeletePayload!
 }
 
 input CreateAttributeInput {
@@ -625,6 +686,8 @@ input CreateAttributeInput {
   unit: AttributeUnit # Pour NUMERIC, enum extensible
   isRequired: Boolean = false
   isFilterable: Boolean = false
+  externalSource: String # Identifiant du système externe
+  externalId: String # ID dans le système externe
   metadata: JSON
 }
 
@@ -633,6 +696,8 @@ input UpdateAttributeInput {
   isRequired: Boolean
   isFilterable: Boolean
   unit: AttributeUnit
+  externalSource: String
+  externalId: String
   metadata: JSON
   version: Int! # Pour verrouillage optimiste
 }
@@ -642,11 +707,15 @@ input CreateAttributeValueInput {
   slug: String               # Auto-généré à partir de value si non fourni
   value: String!             # Libellé d'affichage
   position: Int              # Auto-calculé si non fourni
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
 }
 
 input UpdateAttributeValueInput {
   slug: String               # Peut être modifié (vérifie unicité)
   value: String              # Libellé d'affichage
+  externalSource: String
+  externalId: String
 }
 
 input CreateAttributeSwatchValueInput {
@@ -656,6 +725,8 @@ input CreateAttributeSwatchValueInput {
   color: String              # Format hex #RRGGBB, optionnel
   file: FileInfoInput        # Fichier (image, pattern), optionnel
   position: Int              # Auto-calculé si non fourni
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
 }
 
 input UpdateAttributeSwatchValueInput {
@@ -663,6 +734,8 @@ input UpdateAttributeSwatchValueInput {
   value: String              # Libellé d'affichage
   color: String              # Format hex #RRGGBB
   file: FileInfoInput        # Fichier (image, pattern)
+  externalSource: String
+  externalId: String
 }
 
 input CreateAttributeReferenceValueInput {
@@ -671,32 +744,93 @@ input CreateAttributeReferenceValueInput {
   value: String!             # Libellé d'affichage (nom de l'entité)
   referenceId: ID!           # ID de l'entité référencée
   position: Int              # Auto-calculé si non fourni
+  externalSource: String     # Identifiant du système externe
+  externalId: String         # ID dans le système externe
 }
 
 input UpdateAttributeReferenceValueInput {
   slug: String               # Peut être modifié (vérifie unicité)
   value: String              # Libellé d'affichage
   referenceId: ID            # Peut être modifié (vérifie unicité)
+  externalSource: String
+  externalId: String
 }
 
-input CreateTypedValueInput {
+# === Inputs pour valeurs TEXT ===
+
+input CreateAttributeTextValueInput {
   attributeId: ID!
-  type: AttributeType!
-  # Union discriminée par type
-  textValue: String
-  numericValue: Float
-  booleanValue: Boolean
-  dateValue: DateTime
-  file: FileInfoInput          # Pour type FILE
+  plain: String!               # Texte brut (requis)
+  rich: JSON                   # Texte structuré JSON (requis pour RICH_TEXT, null pour PLAIN_TEXT)
+  externalSource: String
+  externalId: String
 }
 
-input UpdateTypedValueInput {
-  type: AttributeType!
-  textValue: String
-  numericValue: Float
-  booleanValue: Boolean
-  dateValue: DateTime
-  file: FileInfoInput          # Pour type FILE
+input UpdateAttributeTextValueInput {
+  plain: String
+  rich: JSON
+  externalSource: String
+  externalId: String
+}
+
+# === Inputs pour valeurs NUMERIC ===
+
+input CreateAttributeNumericValueInput {
+  attributeId: ID!
+  value: Float!
+  externalSource: String
+  externalId: String
+}
+
+input UpdateAttributeNumericValueInput {
+  value: Float
+  externalSource: String
+  externalId: String
+}
+
+# === Inputs pour valeurs BOOLEAN ===
+
+input CreateAttributeBooleanValueInput {
+  attributeId: ID!
+  value: Boolean!
+  externalSource: String
+  externalId: String
+}
+
+input UpdateAttributeBooleanValueInput {
+  value: Boolean
+  externalSource: String
+  externalId: String
+}
+
+# === Inputs pour valeurs DATE ===
+
+input CreateAttributeDateValueInput {
+  attributeId: ID!
+  value: DateTime!
+  externalSource: String
+  externalId: String
+}
+
+input UpdateAttributeDateValueInput {
+  value: DateTime
+  externalSource: String
+  externalId: String
+}
+
+# === Inputs pour valeurs FILE ===
+
+input CreateAttributeFileValueInput {
+  attributeId: ID!
+  file: FileInfoInput!         # URL + mimetype (requis)
+  externalSource: String
+  externalId: String
+}
+
+input UpdateAttributeFileValueInput {
+  file: FileInfoInput
+  externalSource: String
+  externalId: String
 }
 ```
 
@@ -727,10 +861,14 @@ input UpdateTypedValueInput {
 | unit | attribute_unit_enum | NULL | Unité pour NUMERIC (enum extensible) |
 | is_required | BOOLEAN | NOT NULL DEFAULT FALSE | Valeur obligatoire |
 | is_filterable | BOOLEAN | NOT NULL DEFAULT FALSE | Utilisé dans les filtres |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
 | metadata | JSONB | NULL | Configuration additionnelle |
 | version | INTEGER | NOT NULL DEFAULT 1 | Verrouillage optimiste |
 | created_at | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Date de modification |
+
+**Contrainte d'unicité** : `UNIQUE (external_source, external_id)` - un seul enregistrement par couple source/ID externe.
 
 ```sql
 CREATE TYPE attribute_type_enum AS ENUM (
@@ -762,6 +900,8 @@ CREATE TABLE attributes (
   unit attribute_unit_enum,
   is_required BOOLEAN NOT NULL DEFAULT FALSE,
   is_filterable BOOLEAN NOT NULL DEFAULT FALSE,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   metadata JSONB,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -773,7 +913,9 @@ CREATE TABLE attributes (
   ),
   CONSTRAINT chk_unit_for_numeric CHECK (
     (type = 'NUMERIC') OR (unit IS NULL)
-  )
+  ),
+  -- Unicité des identifiants externes (optionnelle mais unique si présente)
+  CONSTRAINT uq_attributes_external UNIQUE (external_source, external_id)
 );
 
 -- Note: Hard delete sur les attributs. Les consommateurs doivent gérer
@@ -801,6 +943,10 @@ CREATE INDEX idx_attributes_filterable ON attributes(is_filterable) WHERE is_fil
 CREATE INDEX idx_attributes_metadata ON attributes USING GIN (metadata);
 
 -- Note: slug a déjà un index BTREE via UNIQUE constraint pour recherche exacte
+
+-- Recherche par identifiants externes (index partiel pour ignorer les NULL)
+CREATE INDEX idx_attributes_external ON attributes(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 ### Table : `attribute_values`
@@ -812,6 +958,8 @@ CREATE INDEX idx_attributes_metadata ON attributes USING GIN (metadata);
 | slug | VARCHAR(255) | NOT NULL | Clé unique par attribut (auto-générée si non fournie) |
 | value | VARCHAR(255) | NOT NULL | Libellé d'affichage |
 | position | INTEGER | NOT NULL DEFAULT 0 | Ordre d'affichage |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
 
@@ -822,11 +970,15 @@ CREATE TABLE attribute_values (
   slug VARCHAR(255) NOT NULL,
   value VARCHAR(255) NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- Slug unique par attribut (pas globalement)
-  CONSTRAINT uq_attribute_value_slug UNIQUE (attribute_id, slug)
+  CONSTRAINT uq_attribute_value_slug UNIQUE (attribute_id, slug),
+  -- Unicité des identifiants externes
+  CONSTRAINT uq_attribute_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_attribute_values_attribute_id ON attribute_values(attribute_id);
@@ -839,7 +991,9 @@ CREATE INDEX idx_attribute_values_slug_trgm ON attribute_values USING GIN (slug 
 CREATE INDEX idx_attribute_values_value ON attribute_values(value);
 CREATE INDEX idx_attribute_values_value_trgm ON attribute_values USING GIN (value gin_trgm_ops);
 
--- Note: slug a déjà un index BTREE via UNIQUE constraint (attribute_id, slug)
+-- Recherche par identifiants externes
+CREATE INDEX idx_attribute_values_external ON attribute_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 ### Table : `attribute_swatch_values`
@@ -854,6 +1008,8 @@ CREATE INDEX idx_attribute_values_value_trgm ON attribute_values USING GIN (valu
 | file_url | VARCHAR(2048) | NULL | URL du fichier (image, pattern, etc.) |
 | mimetype | VARCHAR(100) | NULL | Type MIME (image/png, image/svg+xml, etc.) |
 | position | INTEGER | NOT NULL | Ordre d'affichage |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
 
@@ -869,6 +1025,8 @@ CREATE TABLE attribute_swatch_values (
   file_url VARCHAR(2048),
   mimetype VARCHAR(100),
   position INTEGER NOT NULL DEFAULT 0,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -879,7 +1037,9 @@ CREATE TABLE attribute_swatch_values (
   -- Mimetype requis si file_url présent
   CONSTRAINT chk_swatch_mimetype CHECK (
     (file_url IS NULL) OR (file_url IS NOT NULL AND mimetype IS NOT NULL)
-  )
+  ),
+  -- Unicité des identifiants externes
+  CONSTRAINT uq_swatch_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_swatch_values_attribute_id ON attribute_swatch_values(attribute_id);
@@ -892,23 +1052,50 @@ CREATE INDEX idx_swatch_values_slug_trgm ON attribute_swatch_values USING GIN (s
 CREATE INDEX idx_swatch_values_value ON attribute_swatch_values(value);
 CREATE INDEX idx_swatch_values_value_trgm ON attribute_swatch_values USING GIN (value gin_trgm_ops);
 
--- Note: slug a déjà un index BTREE via UNIQUE constraint (attribute_id, slug)
+-- Recherche par identifiants externes
+CREATE INDEX idx_swatch_values_external ON attribute_swatch_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 ### Tables de valeurs typées
 
 #### `attribute_text_values`
 
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| id | UUID | PK | Identifiant unique |
+| attribute_id | UUID | FK NOT NULL | Référence à attributes |
+| plain | TEXT | NOT NULL | Texte brut (PLAIN_TEXT et RICH_TEXT) |
+| rich | JSONB | NULL | Texte structuré JSON (RICH_TEXT uniquement) |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
+| created_at | TIMESTAMPTZ | NOT NULL | Date de création |
+| updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
+
+**Mapping GraphQL** : `plain` → texte brut toujours présent, `rich` → JSON structuré (ProseMirror, TipTap, etc.) pour RICH_TEXT uniquement.
+
 ```sql
 CREATE TABLE attribute_text_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
-  value TEXT NOT NULL,
+  plain TEXT NOT NULL,
+  rich JSONB,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_text_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_text_values_attribute_id ON attribute_text_values(attribute_id);
+CREATE INDEX idx_text_values_external ON attribute_text_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
+
+-- Recherche full-text sur le texte brut
+CREATE INDEX idx_text_values_plain_trgm ON attribute_text_values USING GIN (plain gin_trgm_ops);
+
+-- Index GIN pour les requêtes JSONB sur rich (si nécessaire)
+CREATE INDEX idx_text_values_rich ON attribute_text_values USING GIN (rich);
 ```
 
 #### `attribute_numeric_values`
@@ -918,12 +1105,17 @@ CREATE TABLE attribute_numeric_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
   value NUMERIC(20, 6) NOT NULL,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_numeric_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_numeric_values_attribute_id ON attribute_numeric_values(attribute_id);
 CREATE INDEX idx_numeric_values_value ON attribute_numeric_values(attribute_id, value);
+CREATE INDEX idx_numeric_values_external ON attribute_numeric_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 #### `attribute_boolean_values`
@@ -933,11 +1125,16 @@ CREATE TABLE attribute_boolean_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
   value BOOLEAN NOT NULL,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_boolean_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_boolean_values_attribute_id ON attribute_boolean_values(attribute_id);
+CREATE INDEX idx_boolean_values_external ON attribute_boolean_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 #### `attribute_date_values`
@@ -947,12 +1144,17 @@ CREATE TABLE attribute_date_values (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
   value TIMESTAMPTZ NOT NULL,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_date_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_date_values_attribute_id ON attribute_date_values(attribute_id);
 CREATE INDEX idx_date_values_value ON attribute_date_values(attribute_id, value);
+CREATE INDEX idx_date_values_external ON attribute_date_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 #### `attribute_file_values`
@@ -963,6 +1165,8 @@ CREATE INDEX idx_date_values_value ON attribute_date_values(attribute_id, value)
 | attribute_id | UUID | FK NOT NULL | Référence à attributes |
 | file_url | VARCHAR(2048) | NOT NULL | URL du fichier |
 | mimetype | VARCHAR(100) | NOT NULL | Type MIME (application/pdf, image/png, etc.) |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
 
@@ -974,11 +1178,16 @@ CREATE TABLE attribute_file_values (
   attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
   file_url VARCHAR(2048) NOT NULL,
   mimetype VARCHAR(100) NOT NULL,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_file_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_file_values_attribute_id ON attribute_file_values(attribute_id);
+CREATE INDEX idx_file_values_external ON attribute_file_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 #### `attribute_reference_values`
@@ -991,6 +1200,8 @@ CREATE INDEX idx_file_values_attribute_id ON attribute_file_values(attribute_id)
 | value | VARCHAR(255) | NOT NULL | Libellé d'affichage (nom de l'entité référencée) |
 | reference_id | UUID | NOT NULL | ID de l'entité référencée (unique par attribut) |
 | position | INTEGER | NOT NULL | Ordre d'affichage |
+| external_source | VARCHAR(100) | NULL | Identifiant du système externe |
+| external_id | VARCHAR(255) | NULL | ID dans le système externe |
 | created_at | TIMESTAMPTZ | NOT NULL | Date de création |
 | updated_at | TIMESTAMPTZ | NOT NULL | Date de modification |
 
@@ -1002,13 +1213,17 @@ CREATE TABLE attribute_reference_values (
   value VARCHAR(255) NOT NULL,
   reference_id UUID NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
+  external_source VARCHAR(100),
+  external_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- Slug unique par attribut
   CONSTRAINT uq_reference_slug UNIQUE (attribute_id, slug),
   -- Reference ID unique par attribut (même entité ne peut être référencée 2x)
-  CONSTRAINT uq_reference_id UNIQUE (attribute_id, reference_id)
+  CONSTRAINT uq_reference_id UNIQUE (attribute_id, reference_id),
+  -- Unicité des identifiants externes
+  CONSTRAINT uq_reference_values_external UNIQUE (external_source, external_id)
 );
 
 CREATE INDEX idx_reference_values_attribute_id ON attribute_reference_values(attribute_id);
@@ -1019,6 +1234,10 @@ CREATE INDEX idx_reference_values_reference_id ON attribute_reference_values(ref
 CREATE INDEX idx_reference_values_slug_trgm ON attribute_reference_values USING GIN (slug gin_trgm_ops);
 CREATE INDEX idx_reference_values_value ON attribute_reference_values(value);
 CREATE INDEX idx_reference_values_value_trgm ON attribute_reference_values USING GIN (value gin_trgm_ops);
+
+-- Recherche par identifiants externes
+CREATE INDEX idx_reference_values_external ON attribute_reference_values(external_source, external_id)
+  WHERE external_source IS NOT NULL;
 ```
 
 ### Stratégie de migration

@@ -1,9 +1,9 @@
 # PRD : Module Attribut
 
-**Statut** : Brouillon
-**Auteur** : Claude
-**Créé le** : 2026-01-30
-**Dernière mise à jour** : 2026-01-30
+- **Statut** : Brouillon
+- **Auteur** : Claude
+- **Créé le** : 2026-01-30
+- **Dernière mise à jour** : 2026-01-30
 
 ---
 
@@ -110,7 +110,7 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 
 ### US-007 : Réordonner les choix d'attributs
 **En tant que** marchand
-**Je veux** réordonner les choix pour les attributs dropdown/multiselect/swatch
+**Je veux** réordonner les choix pour les attributs dropdown/multiselect/swatch/reference
 **Afin que** les valeurs les plus importantes ou courantes apparaissent en premier
 
 **Priorité** : Moyenne
@@ -121,6 +121,13 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 **Afin de** garantir l'intégrité des données (ex. : format hex pour couleurs, URL valide pour fichiers)
 
 **Priorité** : Haute
+
+### US-009 : Intégrer avec des systèmes externes
+**En tant que** développeur d'intégration
+**Je veux** pouvoir associer des identifiants externes aux attributs et valeurs
+**Afin de** synchroniser les données avec des systèmes externes (ERP, PIM, etc.)
+
+**Priorité** : Moyenne
 
 ## 6. Critères d'acceptation
 
@@ -177,20 +184,29 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 - [ ] La résolution des références est gérée par les modules consommateurs
 
 ### Critères d'acceptation US-007
-- [ ] Peut mettre à jour le champ `position` sur attribute_values et attribute_swatch_values
+- [ ] Peut mettre à jour le champ `position` sur attribute_values, attribute_swatch_values et attribute_reference_values
 - [ ] Les valeurs sont retournées ordonnées par position dans les requêtes
-- [ ] Les mises à jour de position supportent les opérations par lot
+- [ ] Les mises à jour de position supportent les opérations par lot (reorderAttributeValues, reorderAttributeSwatchValues, reorderAttributeReferenceValues)
 
 ### Critères d'acceptation US-008
 - [ ] NUMERIC : validation du format numérique avec précision décimale
 - [ ] BOOLEAN : valeurs strictement true/false
 - [ ] DATE/DATE_TIME : format ISO 8601 valide
-- [ ] FILE : URL valide
+- [ ] FILE : URL valide avec mimetype requis (FileInfo)
 - [ ] SWATCH : couleur au format hex (#RRGGBB) et/ou file_url valide avec mimetype
 - [ ] REFERENCE : ID d'entité existante du type spécifié
-- [ ] PLAIN_TEXT/RICH_TEXT : longueur maximale configurable
+- [ ] PLAIN_TEXT : champ `plain` requis, longueur maximale configurable
+- [ ] RICH_TEXT : champs `plain` (requis) et `rich` (JSON structuré requis), validation du format JSON
 - [ ] Slug : format URL-safe (alphanumériques, tirets)
 - [ ] Messages d'erreur clairs en cas de validation échouée
+
+### Critères d'acceptation US-009
+- [ ] Chaque table (attributes, attribute_values, attribute_swatch_values, attribute_reference_values, attribute_*_values) possède les colonnes `external_source` et `external_id`
+- [ ] Les deux colonnes sont optionnelles (nullable)
+- [ ] Contrainte d'unicité sur `(external_source, external_id)` par table
+- [ ] Peut créer/mettre à jour un enregistrement avec ses identifiants externes
+- [ ] Peut rechercher un enregistrement par `external_source` + `external_id`
+- [ ] Supporte les opérations d'upsert basées sur les identifiants externes
 
 ## 7. Notes techniques
 
@@ -204,15 +220,15 @@ Le module Attribut fournit un système d'attributs flexible et agnostique qui pe
 **Tables principales (dans @czo/attribute) :**
 - `attributes` - Définitions d'attributs avec type, indicateurs et métadonnées
 - `attribute_values` - Choix prédéfinis pour DROPDOWN/MULTISELECT
-- `attribute_swatch_values` - Valeurs de nuancier avec couleur et image_url
+- `attribute_swatch_values` - Valeurs de nuancier avec couleur et fichier
+- `attribute_reference_values` - Valeurs de référence prédéfinies pour REFERENCE
 
 **Tables de valeurs typées (dans @czo/attribute) :**
-- `attribute_text_values` - Pour PLAIN_TEXT, RICH_TEXT
+- `attribute_text_values` - Pour PLAIN_TEXT, RICH_TEXT (plain: texte brut, rich: JSON structuré)
 - `attribute_numeric_values` - Pour NUMERIC
 - `attribute_boolean_values` - Pour BOOLEAN
 - `attribute_date_values` - Pour DATE, DATE_TIME
-- `attribute_file_values` - Pour FILE
-- `attribute_reference_values` - Pour REFERENCE
+- `attribute_file_values` - Pour FILE (file_url + mimetype)
 
 ### Pattern d'intégration consommateur
 Les consommateurs créent leurs propres tables de jonction pour lier les entités aux attributs :
@@ -223,9 +239,9 @@ Ce pattern est personnalisable par consommateur selon ses besoins spécifiques.
 
 ### Modifications de l'API
 - Nouveau type `Attribute` avec opérations CRUD
-- Nouveaux types `AttributeValue` et `AttributeSwatchValue`
+- Nouveaux types `AttributeValue`, `AttributeSwatchValue` et `AttributeReferenceValue`
 - Requêtes pour lister et filtrer les attributs
-- Mutations pour gérer les attributs et leurs valeurs
+- Mutations pour gérer les attributs et leurs valeurs (CRUD + reorder)
 
 ### Considérations de sécurité
 - Le slug de l'attribut doit être validé pour prévenir l'injection
