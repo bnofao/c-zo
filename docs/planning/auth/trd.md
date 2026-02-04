@@ -168,6 +168,165 @@ Client                    Middleware              GraphQL Yoga           Resolve
 | Notifications | Novu | Emails (verification, reset, invite) | @novu/node |
 | OAuth | Google, GitHub | Social authentication | better-auth plugins |
 
+### ActorTypeProvider Pattern
+
+Les modules de domaine implémentent `ActorTypeProvider` pour indiquer quels utilisateurs ont quel type d'acteur.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AuthRestrictionRegistry (@czo/auth)                      │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────────────┐   │
+│  │ actorConfigs                │  │ actorProviders                      │   │
+│  │ Map<string, ActorAuthConfig>│  │ Map<string, ActorTypeProvider>      │   │
+│  └─────────────────────────────┘  └─────────────────────────────────────┘   │
+│        ▲ registerActorType()            ▲ registerActorProvider()           │
+└────────┼────────────────────────────────┼───────────────────────────────────┘
+         │                                │
+    ┌────┴────┐    ┌─────────┐    ┌───────┴───────┐
+    │@czo/    │    │@czo/    │    │@czo/          │
+    │customer │    │admin    │    │merchant       │
+    └─────────┘    └─────────┘    └───────────────┘
+```
+
+#### Interface
+
+```typescript
+interface ActorTypeProvider {
+  /** Le type d'acteur géré par ce provider */
+  actorType: string
+
+  /**
+   * Détermine si un utilisateur a ce type d'acteur
+   * Appelé lors de l'authentification et du switch-actor
+   */
+  hasActorType(userId: string): Promise<boolean>
+}
+```
+
+#### Exemples d'implémentation
+
+```typescript
+// @czo/admin - Un user est admin s'il existe dans admin_users
+const adminActorProvider: ActorTypeProvider = {
+  actorType: 'admin',
+  async hasActorType(userId: string): Promise<boolean> {
+    const row = await db.query.adminUsers.findFirst({
+      where: eq(adminUsers.userId, userId),
+    })
+    return !!row
+  },
+}
+
+// @czo/merchant - Un user est merchant s'il est membre d'une org merchant
+const merchantActorProvider: ActorTypeProvider = {
+  actorType: 'merchant',
+  async hasActorType(userId: string): Promise<boolean> {
+    const membership = await db
+      .select()
+      .from(members)
+      .innerJoin(organizations, eq(members.organizationId, organizations.id))
+      .where(and(
+        eq(members.userId, userId),
+        eq(organizations.type, 'merchant')
+      ))
+      .limit(1)
+    return membership.length > 0
+  },
+}
+
+// @czo/customer - Tous les users sont potentiellement customers
+const customerActorProvider: ActorTypeProvider = {
+  actorType: 'customer',
+  async hasActorType(userId: string): Promise<boolean> {
+    return true // ou vérifier un profil customer
+  },
+}
+```
+
+#### Enregistrement au boot
+
+```typescript
+// @czo/admin/plugins/index.ts
+export default defineNitroPlugin(async () => {
+  const registry = useAuthRestrictionRegistry()
+
+  // Config des restrictions
+  registry.registerActorType('admin', {
+    allowedMethods: ['email-password', 'oauth:github'],
+    priority: 100,
+    require2FA: true,
+  })
+
+  // Provider pour déterminer qui est admin
+  registry.registerActorProvider(adminActorProvider)
+})
+```
+
+#### Utilisation dans le flow d'auth
+
+```typescript
+// POST /api/auth/[actor]/sign-in/email
+const user = await verifyCredentials(email, password)
+
+// Vérifier que l'utilisateur a bien ce type d'acteur
+const hasActorType = await registry.hasActorType(user.id, actor)
+if (!hasActorType) {
+  throw createError({
+    statusCode: 403,
+    message: `User is not registered as ${actor}`,
+    data: { code: 'ACTOR_TYPE_MISMATCH' },
+  })
+}
+```
+
+### Actor Type Evolution
+
+Quand un utilisateur acquiert un nouveau type d'acteur (ex: customer crée une boutique → devient merchant) :
+
+```
+Customer (Google)  →  Crée boutique  →  Customer + Merchant
+     │                     │                    │
+     │                     │                    ▼
+     │                     │            POST /api/auth/switch-actor
+     │                     │            { actorType: "merchant" }
+     │                     │                    │
+     │                     │         ┌──────────┴──────────┐
+     │                     │         │                     │
+     │                     │    Méthode OK?           Méthode KO?
+     │                     │    (Google ✓)           (ex: admin+GitHub)
+     │                     │         │                     │
+     │                     │         ▼                     ▼
+     │                     │    Nouvelle session     REAUTH_REQUIRED
+     │                     │    merchant créée       → login admin
+     │                     │
+```
+
+**Points clés :**
+
+1. **Évaluation dynamique** - `hasActorType()` est appelé à chaque vérification, pas seulement au login
+2. **Sessions existantes préservées** - La session customer reste valide
+3. **Switch-actor** - Permet de changer de contexte si la méthode d'auth est compatible
+4. **Notification recommandée** - Le module de domaine doit notifier le user de son nouveau rôle
+
+**Implémentation côté module de domaine :**
+
+```typescript
+// Quand un user acquiert un nouveau type d'acteur
+async function onActorTypeAcquired(userId: string, actorType: string, context: any) {
+  // Notifier via Novu
+  await novu.trigger('actor-type-granted', {
+    to: { subscriberId: userId },
+    payload: {
+      actorType,
+      message: `You now have ${actorType} access!`,
+      switchUrl: '/api/auth/switch-actor',
+      loginUrl: `/api/auth/${actorType}/sign-in`,
+      ...context,
+    },
+  })
+}
+```
+
 ## 3. API Specification
 
 ### REST Endpoints (Public)
