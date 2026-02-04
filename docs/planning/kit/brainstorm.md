@@ -1069,6 +1069,8 @@ events.on('user.registered', async ({ user }) => {
 
 **Objectif** : Permettre l'extension de c-zo avec des intégrations tierces (comme Saleor Apps).
 
+**Dépendance** : Les permissions sont définies et gérées par `@czo/auth`. Le système d'apps déclare les permissions requises dans le manifest, et auth vérifie les accès.
+
 #### Architecture Globale
 
 ```
@@ -1145,13 +1147,9 @@ interface AppManifest {
   configSchema?: JSONSchema
 }
 
-type Permission =
-  | 'MANAGE_PRODUCTS'
-  | 'MANAGE_ORDERS'
-  | 'MANAGE_CUSTOMERS'
-  | 'MANAGE_PAYMENTS'
-  | 'MANAGE_SHIPPING'
-  | 'MANAGE_SETTINGS'
+// Permissions définies et gérées par @czo/auth
+// Les apps déclarent les permissions requises, auth les vérifie
+import type { Permission } from '@czo/auth'
 
 interface WebhookSubscription {
   event: string           // Event to subscribe to
