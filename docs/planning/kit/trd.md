@@ -524,7 +524,6 @@ export type Repository<T, CreateInput, UpdateInput> = ReturnType<
   typeof createRepository<T, CreateInput, UpdateInput, any>
 >
 ```
-```
 
 #### Usage Examples
 
