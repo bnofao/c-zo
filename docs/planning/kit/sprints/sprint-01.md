@@ -1,9 +1,9 @@
 ---
 name: Sprint-01
-milestone: null
+milestone: 2
 start_date: 2026-02-04
 end_date: 2026-02-14
-status: planning
+status: active
 prd: kit
 ---
 
