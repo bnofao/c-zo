@@ -111,33 +111,50 @@ Client                    Nitro (mazo)                 better-auth           Red
   │                            │                            │ 3. Create session     │
   │                            │                            │ ──────────────────────▶
   │                            │◀───────────────────────────│                       │
-  │                            │ 4. Set session cookie      │                       │
+  │                            │ 4. Set cookie + return token                       │
   │◀────────────────────────────                            │                       │
-  │ { user, session }          │                            │                       │
+  │ Set-Cookie: czo_session=xxx│                            │                       │
+  │ { user, session, token }   │  ← Client choisit sa méthode                       │
 ```
+
+**Response format:**
+- `Set-Cookie: czo_session=<token>` (header) - Pour browsers avec cookies
+- `{ token, tokenType: "Bearer" }` (body) - Pour SPA/mobile qui préfèrent Bearer
 
 #### GraphQL Request Flow
 ```
 Client                    Middleware              GraphQL Yoga           Resolver
   │                            │                       │                    │
   │ POST /graphql              │                       │                    │
-  │ Cookie: session=...        │                       │                    │
+  │ Authorization: Bearer xxx  │  ← Prioritaire        │                    │
+  │ (ou Cookie: session=xxx)   │  ← Fallback           │                    │
   │ ──────────────────────────▶│                       │                    │
-  │                            │ 1. Validate session   │                    │
+  │                            │ 1. Extract credentials│                    │
+  │                            │    Bearer > Cookie    │                    │
+  │                            │                       │                    │
+  │                            │ 2. Validate session   │                    │
   │                            │    from Redis         │                    │
   │                            │                       │                    │
-  │                            │ 2. No session?        │                    │
+  │                            │ 3. No session?        │                    │
   │                            │    → 401 Unauthorized │                    │
   │                            │                       │                    │
-  │                            │ 3. Session valid      │                    │
+  │                            │ 4. Session valid      │                    │
   │                            │    → Add to context   │                    │
   │                            │ ──────────────────────▶                    │
-  │                            │                       │ 4. Execute query   │
+  │                            │                       │ 5. Execute query   │
   │                            │                       │ ──────────────────▶│
   │                            │                       │◀──────────────────│
   │◀───────────────────────────────────────────────────│                    │
   │ { data: ... }              │                       │                    │
 ```
+
+**Méthodes d'authentification supportées (par priorité):**
+
+| Priorité | Méthode | Usage | Client |
+|----------|---------|-------|--------|
+| 1 | `Authorization: Bearer <token>` | Session token | Browser SPA, Mobile |
+| 2 | `Authorization: Bearer czo_<key>` | Clé API | Intégrations |
+| 3 | `Cookie: czo_session=<token>` | Cookie HTTP-only | Browser SSR |
 
 ### Components
 
@@ -201,6 +218,13 @@ Client                    Middleware              GraphQL Yoga           Resolve
 ```
 
 **Response** (200):
+
+Headers:
+```
+Set-Cookie: czo_session=<token>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800
+```
+
+Body:
 ```json
 {
   "user": {
@@ -213,9 +237,13 @@ Client                    Middleware              GraphQL Yoga           Resolve
     "actorType": "string",
     "expiresAt": "ISO8601"
   },
+  "token": "string - session token for Bearer auth",
+  "tokenType": "Bearer",
   "requires2FA": "boolean - true if 2FA enabled"
 }
 ```
+
+> **Note**: Le client peut utiliser soit le cookie (automatique pour browsers), soit le token dans le header `Authorization: Bearer <token>` (SPA, mobile).
 
 **Error Codes**:
 - `400` - Invalid credentials
@@ -626,11 +654,23 @@ export async function down(db: Database) {
 | TOTP 2FA | All (required for Admin) | better-auth two-factor plugin |
 | API Keys | API Consumer | better-auth api-key plugin, prefix `czo_` |
 
+### Session Transport
+
+Le serveur supporte deux méthodes de transport de session (le client choisit) :
+
+| Méthode | Header/Cookie | Usage | Avantages |
+|---------|---------------|-------|-----------|
+| Bearer Token | `Authorization: Bearer <token>` | SPA, Mobile, Postman | Contrôle explicite, cross-origin |
+| Cookie | `Cookie: czo_session=<token>` | SSR, Same-origin | Automatique, HttpOnly (XSS-safe) |
+
+**Priorité d'extraction** : Bearer > Cookie (si les deux sont présents, Bearer gagne)
+
 ### Authorization
 
 ```typescript
 // Middleware chain for GraphQL
 export const authMiddleware = [
+  extractCredentials,   // Bearer token > Cookie > API key
   validateSession,      // Reject if no valid session
   loadUserContext,      // Add user, org to context
   checkActorPermissions // Verify actorType allows operation
@@ -642,6 +682,7 @@ interface GraphQLContext {
   user: User
   actorType: string           // 'customer' | 'admin' | 'merchant'
   organization: Organization | null
+  authSource: 'bearer' | 'cookie' | 'api-key'  // How the client authenticated
 }
 ```
 
