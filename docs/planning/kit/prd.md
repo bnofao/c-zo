@@ -81,19 +81,24 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
   - [ ] Import sélectif pour minimiser l'API surface
 - **Dependencies:** Drizzle ORM, @czo/kit/cache (optional)
 
-#### Feature 2: CacheManager Multi-Backend
-- **Description:** Gestionnaire de cache basé sur unstorage avec support memory (dev) et Redis (prod)
+#### Feature 2: Cache Hybride (Nitro + CacheManager)
+- **Description:** Approche hybride exploitant le cache natif Nitro (`defineCachedFunction`) avec un wrapper léger pour l'invalidation
 - **User Story:** As a developer, I want transparent caching so that frequent reads don't hit the database
 - **Acceptance Criteria:**
-  - [ ] Interface `CacheManager` avec `get`, `set`, `delete`, `has`
-  - [ ] Pattern `getOrSet(key, factory, options)` pour cache-aside
-  - [ ] Invalidation par pattern `invalidate(pattern)`
-  - [ ] Bulk operations: `getMany`, `setMany`, `deleteMany`
-  - [ ] Namespace support via `namespace(prefix)`
-  - [ ] TTL et tags support
-  - [ ] Drivers: memory (dev), Redis (prod)
-  - [ ] Configuration par environnement
-- **Dependencies:** unstorage, ioredis
+  - [ ] **Nitro Cache pour les reads déclaratifs :**
+    - [ ] Utilisation de `defineCachedFunction` pour les queries
+    - [ ] SWR (stale-while-revalidate) activé par défaut
+    - [ ] Configuration TTL via `maxAge`
+    - [ ] Custom cache keys via `getKey()`
+  - [ ] **CacheManager léger pour l'invalidation :**
+    - [ ] `delete(key)` : suppression d'une clé
+    - [ ] `deleteMany(keys)` : suppression en batch
+    - [ ] `invalidate(pattern)` : invalidation par pattern glob
+    - [ ] `has(key)` : vérification d'existence
+    - [ ] `getOrSet(key, factory, ttl)` : pour les cas hors `defineCachedFunction`
+  - [ ] Namespace support via `useCacheManager(prefix)`
+  - [ ] Configuration storage dans `nitro.config.ts` (memory/Redis)
+- **Dependencies:** nitropack/runtime (useStorage, defineCachedFunction)
 
 #### Feature 3: EventEmitter Typé
 - **Description:** Système d'events synchrones et asynchrones pour communication inter-modules
@@ -137,14 +142,15 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 ### Should-Have Features (P1)
 
-#### Feature 6: Stale-While-Revalidate Cache
-- **Description:** Pattern SWR pour cache avec background refresh
-- **User Story:** As a user, I want fast responses even when cache is stale
+#### Feature 6: Cache Tags et Invalidation Groupée
+- **Description:** Invalidation de cache par tags pour les données liées
+- **User Story:** As a developer, I want to invalidate related cache entries together
 - **Acceptance Criteria:**
-  - [ ] Option `staleWhileRevalidate` dans CacheOptions
-  - [ ] Background refresh quand TTL proche
-  - [ ] Serve stale data pendant refresh
+  - [ ] Support tags dans les options de cache
+  - [ ] `invalidateByTag(tag)` pour invalidation groupée
+  - [ ] Intégration avec les events (auto-invalidation sur mutations)
 - **Dependencies:** CacheManager
+- **Note:** SWR est maintenant inclus dans P0 via Nitro Cache natif
 
 ### Nice-to-Have Features (P2)
 
@@ -211,10 +217,10 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 - **Browser/Platform Support:**
   - Server-side only (Nitro/Node.js)
 - **Integrations:**
-  - unstorage (cache)
+  - Nitro Cache natif (`defineCachedFunction`, `useStorage`)
   - hookable (events/hooks)
   - bullmq (async events, webhook retries)
-  - Redis
+  - Redis (storage backend prod)
   - @czo/auth (app permissions)
 
 ## 8. Security & Compliance
@@ -265,7 +271,9 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 ### Open Questions
 - [x] Optimistic locking strategy? → **Version number**
-- [x] Cache backend? → **unstorage (multi-backend)**
+- [x] Cache backend? → **Nitro Cache natif** (`defineCachedFunction` + `useStorage`)
+- [x] Cache approach? → **Hybride** : Nitro pour reads, CacheManager léger pour invalidation
+- [x] SWR? → **Built-in avec Nitro** (P0, pas P1)
 - [x] Events sync/async? → **Les deux, avec BullMQ pour async**
 - [x] Hooks library? → **hookable**
 - [x] Apps model? → **Self-hosted avec webhooks, extensions UI**

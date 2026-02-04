@@ -488,160 +488,180 @@ class OptimisticLockError extends Error {
 
 ---
 
-### 2. Gestion de Cache
+### 2. Gestion de Cache (Approche Hybride Nitro)
 
-**Objectif** : Cache multi-backend avec `unstorage`, support au niveau repository et service.
+**Objectif** : Exploiter le cache natif de Nitro v3 (`defineCachedFunction`) avec un wrapper léger pour l'invalidation.
 
-#### API Proposée
+**Pourquoi Nitro Cache ?**
+- Nitro utilise déjà unstorage en interne
+- `defineCachedFunction` offre SWR (stale-while-revalidate) par défaut
+- Configuration storage centralisée dans `nitro.config.ts`
+- Moins de code à maintenir
+
+#### Nitro Cache Natif (pour les reads)
 
 ```typescript
-// @czo/kit/cache
+// @czo/product/services/product.queries.ts
+import { defineCachedFunction } from 'nitropack/runtime'
 
-import { createStorage, Storage } from 'unstorage'
+// Cache déclaratif avec SWR intégré
+export const getProductById = defineCachedFunction(
+  async (id: string) => {
+    const db = useDatabase()
+    const result = await db.select().from(products).where(eq(products.id, id)).limit(1)
+    return result[0] ?? null
+  },
+  {
+    maxAge: 300,           // 5 min TTL
+    swr: true,             // Serve stale pendant refresh (défaut)
+    staleMaxAge: 3600,     // Stale acceptable 1h
+    getKey: (id) => `product:${id}`,
+    name: 'getProductById',
+  }
+)
 
-interface CacheManager {
-  // Opérations de base
-  get<T>(key: string): Promise<T | null>
-  set<T>(key: string, value: T, options?: CacheOptions): Promise<void>
-  has(key: string): Promise<boolean>
-  delete(key: string): Promise<void>
+// Cache pour données enrichies
+export const getProductWithRecommendations = defineCachedFunction(
+  async (id: string) => {
+    const product = await getProductById(id)
+    if (!product) return null
 
-  // Patterns avancés
-  getOrSet<T>(key: string, factory: () => Promise<T>, options?: CacheOptions): Promise<T>
-  invalidate(pattern: string): Promise<number>  // Retourne nombre de clés supprimées
-
-  // Bulk operations
-  getMany<T>(keys: string[]): Promise<Map<string, T | null>>
-  setMany<T>(entries: Array<{ key: string; value: T; options?: CacheOptions }>): Promise<void>
-  deleteMany(keys: string[]): Promise<void>
-
-  // Namespace
-  namespace(prefix: string): CacheManager
-}
-
-interface CacheOptions {
-  ttl?: number          // Secondes
-  tags?: string[]       // Pour invalidation groupée
-  staleWhileRevalidate?: number  // SWR pattern
-}
+    const recommendations = await computeRecommendations(product)
+    return { ...product, recommendations }
+  },
+  {
+    maxAge: 600,
+    swr: true,
+    getKey: (id) => `product:${id}:with-reco`,
+  }
+)
 ```
 
-#### Configuration Multi-Backend
+#### CacheManager Léger (pour l'invalidation)
 
 ```typescript
 // @czo/kit/cache/manager.ts
+import { useStorage } from 'nitropack/runtime'
 
-import { createStorage } from 'unstorage'
-import redisDriver from 'unstorage/drivers/redis'
-import memoryDriver from 'unstorage/drivers/memory'
-import fsDriver from 'unstorage/drivers/fs'
-
-export function createCacheManager(config: CacheConfig): CacheManager {
-  const driver = config.driver === 'redis'
-    ? redisDriver({ url: config.redis.url })
-    : config.driver === 'fs'
-    ? fsDriver({ base: config.fs.path })
-    : memoryDriver()
-
-  const storage = createStorage({ driver })
-
-  return new CacheManagerImpl(storage, config)
+export interface CacheManager {
+  delete(key: string): Promise<void>
+  deleteMany(keys: string[]): Promise<void>
+  invalidate(pattern: string): Promise<number>
+  has(key: string): Promise<boolean>
+  // Pour les cas où defineCachedFunction ne convient pas
+  getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T>
 }
 
-// Configuration par environnement
-const cacheConfig: CacheConfig = {
-  driver: process.env.NODE_ENV === 'production' ? 'redis' : 'memory',
-  redis: {
-    url: process.env.REDIS_URL,
-  },
-  defaultTtl: 300,  // 5 minutes
+export function useCacheManager(namespace?: string): CacheManager {
+  const storage = useStorage('cache')  // Accès au storage Nitro
+  const prefix = namespace ? `${namespace}:` : ''
+
+  return {
+    async delete(key: string): Promise<void> {
+      await storage.removeItem(`${prefix}${key}`)
+    },
+
+    async deleteMany(keys: string[]): Promise<void> {
+      await Promise.all(keys.map(k => storage.removeItem(`${prefix}${k}`)))
+    },
+
+    async invalidate(pattern: string): Promise<number> {
+      const keys = await storage.getKeys(`${prefix}${pattern}`)
+      await Promise.all(keys.map(k => storage.removeItem(k)))
+      return keys.length
+    },
+
+    async has(key: string): Promise<boolean> {
+      return storage.hasItem(`${prefix}${key}`)
+    },
+
+    async getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
+      const fullKey = `${prefix}${key}`
+      const cached = await storage.getItem<T>(fullKey)
+      if (cached !== null) return cached
+
+      const value = await factory()
+      await storage.setItem(fullKey, value, { ttl })
+      return value
+    },
+  }
 }
 ```
 
-#### Cache au Niveau Repository (Transparent)
+#### Configuration Storage (nitro.config.ts)
 
 ```typescript
-// @czo/kit/repository/cached.repository.ts
-
-export function withCache<T extends BaseRepository<any, any, any, any>>(
-  Repository: new (...args: any[]) => T,
-  cacheConfig: RepositoryCacheConfig
-): new (...args: any[]) => T {
-  return class CachedRepository extends Repository {
-    private cache: CacheManager
-
-    constructor(...args: any[]) {
-      super(...args)
-      this.cache = args[args.length - 1] // Cache passed as last arg
-    }
-
-    async findById(id: string) {
-      const cacheKey = `${cacheConfig.prefix}:${id}`
-
-      return this.cache.getOrSet(
-        cacheKey,
-        () => super.findById(id),
-        { ttl: cacheConfig.ttl }
-      )
-    }
-
-    async update(id: string, input: any) {
-      const result = await super.update(id, input)
-      await this.cache.delete(`${cacheConfig.prefix}:${id}`)
-      return result
-    }
-
-    async delete(id: string) {
-      const result = await super.delete(id)
-      await this.cache.delete(`${cacheConfig.prefix}:${id}`)
-      return result
-    }
-  }
-}
-
-// Utilisation
-const CachedProductRepository = withCache(ProductRepository, {
-  prefix: 'product',
-  ttl: 300,
+// apps/mazo/nitro.config.ts
+export default defineNitroConfig({
+  storage: {
+    cache: {
+      // Dev: filesystem
+      driver: process.env.NODE_ENV === 'development' ? 'fs' : 'redis',
+      // Prod: Redis
+      ...(process.env.REDIS_URL && {
+        url: process.env.REDIS_URL,
+      }),
+    },
+  },
 })
 ```
 
-#### Cache au Niveau Service (Explicite)
+#### Cache au Niveau Repository (via createCachedQueries)
+
+```typescript
+// Le builder createCachedQueries utilise defineCachedFunction en interne
+export function createCachedQueries<T extends BaseEntity, TTable extends PgTable>(
+  db: DrizzleDatabase,
+  config: BaseConfig<TTable> & { cache: { prefix: string; ttl?: number } }
+) {
+  const queries = createQueries<T, TTable>(db, config)
+  const { prefix, ttl = 300 } = config.cache
+
+  // Wrap findById avec Nitro cache
+  const findById = defineCachedFunction(
+    (id: string) => queries.findById(id),
+    {
+      maxAge: ttl,
+      swr: true,
+      getKey: (id) => `${prefix}:${id}`,
+      name: `${prefix}:findById`,
+    }
+  )
+
+  return {
+    ...queries,
+    findById,
+    // Invalidation helper
+    invalidateCache: async (id: string) => {
+      const cache = useCacheManager()
+      await cache.delete(`${prefix}:${id}`)
+    },
+  }
+}
+```
+
+#### Invalidation après Mutations
 
 ```typescript
 // @czo/product/services/product.service.ts
 
 export class ProductService {
-  constructor(
-    private repo: ProductRepository,
-    private cache: CacheManager
-  ) {}
-
-  async getProductWithRecommendations(id: string): Promise<ProductWithReco> {
-    // Cache explicite pour données enrichies
-    return this.cache.getOrSet(
-      `product:${id}:with-recommendations`,
-      async () => {
-        const product = await this.repo.findById(id)
-        if (!product) throw new NotFoundError()
-
-        const recommendations = await this.computeRecommendations(product)
-        return { ...product, recommendations }
-      },
-      { ttl: 600, tags: ['product', `product:${id}`] }
-    )
-  }
+  private cache = useCacheManager('product')
 
   async updateProduct(id: string, input: UpdateProductInput): Promise<Product> {
     const product = await this.repo.update(id, input)
 
     // Invalider les caches liés
-    await this.cache.invalidate(`product:${id}:*`)
+    await this.cache.invalidate(`${id}:*`)  // product:123:*, product:123:with-reco, etc.
 
     return product
   }
+
+  async deleteProduct(id: string): Promise<void> {
+    await this.repo.delete(id)
+    await this.cache.invalidate(`${id}:*`)
+  }
 }
-```
 
 ---
 
@@ -1619,7 +1639,8 @@ app.post('/webhooks/checkout', async (req, res) => {
 ## Questions Ouvertes
 
 - [x] Optimistic locking strategy? → **Version number**
-- [x] Cache backend? → **unstorage (multi-backend)**
+- [x] Cache backend? → **Nitro Cache natif** (`defineCachedFunction` + `useStorage`)
+- [x] Cache approach? → **Hybride** : Nitro pour reads déclaratifs, CacheManager léger pour invalidation
 - [x] Events sync/async? → **Les deux, avec BullMQ pour async**
 - [x] Hooks library? → **hookable**
 - [x] Apps model? → **Self-hosted avec webhooks, extensions UI**
@@ -1676,18 +1697,19 @@ import { useAppRegistry } from '@czo/kit/apps'
 **Décisions clés prises:**
 
 1. **Priorité** : Repository → Cache → Events → Hooks → Apps
-2. **Repository** : Approche fonctionnelle avec `createRepository()` factory
+2. **Repository** : Builders séparés (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
 3. **Optimistic Locking** : Version number (entier incrémenté)
-4. **Cache** : unstorage pour multi-backend, cache à 2 niveaux (repo + service)
-5. **Events** : Sync + async (BullMQ), intégration avec hooks
-6. **Hooks** : Basé sur hookable, before/after/onError
-7. **Apps** : Self-hosted, webhooks + extensions UI
-8. **Naming** : `@czo/kit/db/repository` (repository sous le namespace db)
-9. **Exports** : Sous-packages séparés pour tree-shaking et clarté
-10. **Pattern** : Fonctionnel (composition) plutôt que OOP (héritage)
-11. **Permissions Apps** : Délégation complète à `@czo/auth` via `PermissionService`
-12. **App Scope** : Apps installées par shop, permissions scopées au shop
-13. **Permission Format** : `{ resource, actions[], scope }` aligné avec le plugin `access`
+4. **Cache** : **Approche hybride Nitro** - `defineCachedFunction` pour reads, `CacheManager` léger pour invalidation
+5. **SWR** : Gratuit avec Nitro Cache (built-in)
+6. **Events** : Sync + async (BullMQ), intégration avec hooks
+7. **Hooks** : Basé sur hookable, before/after/onError
+8. **Apps** : Self-hosted, webhooks + extensions UI
+9. **Naming** : `@czo/kit/db/repository` (repository sous le namespace db)
+10. **Exports** : Sous-packages séparés pour tree-shaking et clarté
+11. **Pattern** : Fonctionnel (composition) plutôt que OOP (héritage)
+12. **Permissions Apps** : Délégation complète à `@czo/auth` via `PermissionService`
+13. **App Scope** : Apps installées par shop, permissions scopées au shop
+14. **Permission Format** : `{ resource, actions[], scope }` aligné avec le plugin `access`
 
 ---
 
