@@ -85,6 +85,7 @@ c-zo a besoin d'un système complet d'authentification et d'autorisation qui sup
 - **two-factor** - 2FA basé sur TOTP pour une sécurité renforcée
 - **api-key** - Accès programmatique pour les intégrations
 - **admin** - Gestion des utilisateurs et impersonation pour le support
+- **access** - Système de permissions basé sur des statements déclaratifs
 
 ### Idées Écartées
 - Auth custom: Risque de sécurité, charge de maintenance
@@ -327,6 +328,504 @@ export default defineEventHandler(async (event) => {
   event.context.session = session
   event.context.user = session.user
 })
+```
+
+### Système de Rôles et Permissions
+
+#### Philosophie: Rôles par Domaine
+
+Plutôt qu'un rôle unique par type d'acteur (customer, merchant, admin), le système utilise des **rôles granulaires par module**. Chaque module définit ses propres rôles et permissions.
+
+**Avantages:**
+- Un merchant peut être `product-manager` mais pas `finance-admin`
+- Délégation fine des responsabilités dans une équipe
+- Chaque module reste autonome dans la gestion de ses permissions
+
+#### Architecture du Système de Permissions
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     @czo/auth - Access Control                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Core Statements (auth module)                                   │
+│  ├── user: [read, update, ban, delete]                          │
+│  ├── session: [read, revoke, revoke-all]                        │
+│  └── api-key: [create, read, revoke]                            │
+├─────────────────────────────────────────────────────────────────┤
+│  Module Statements (registered via provider pattern)             │
+│  ├── @czo/product → product, category, inventory                │
+│  ├── @czo/order → order, refund, fulfillment                    │
+│  ├── @czo/shop → shop, staff, settings                          │
+│  └── @czo/finance → payment, payout, invoice                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Plugin `access` de better-auth
+
+Le plugin `access` utilise une approche **déclarative** basée sur des statements:
+
+```typescript
+import { createAccessControl } from "better-auth/plugins/access";
+
+// 1. Définir les statements (ressources + actions possibles)
+const statement = {
+  product: ["create", "read", "update", "delete", "publish", "archive"],
+  category: ["create", "read", "update", "delete", "reorder"],
+  inventory: ["read", "update", "transfer", "audit"],
+} as const;
+
+const ac = createAccessControl(statement);
+
+// 2. Définir les rôles avec leurs permissions
+export const productViewer = ac.newRole({
+  product: ["read"],
+  category: ["read"],
+  inventory: ["read"],
+});
+
+export const productManager = ac.newRole({
+  product: ["create", "read", "update", "delete", "publish", "archive"],
+  category: ["create", "read", "update", "delete", "reorder"],
+  inventory: ["read", "update", "transfer", "audit"],
+});
+```
+
+#### Héritage de Rôles par Composition
+
+better-auth n'a pas d'héritage natif. L'héritage est simulé via composition:
+
+```typescript
+// packages/modules/auth/src/access/role-builder.ts
+import { createAccessControl } from "better-auth/plugins/access";
+
+type Statements = Record<string, readonly string[]>;
+type RolePermissions<S extends Statements> = {
+  [K in keyof S]?: S[K][number][];
+};
+
+/**
+ * Crée un builder de rôles avec support de l'héritage
+ */
+export function createRoleBuilder<S extends Statements>(statements: S) {
+  const ac = createAccessControl(statements);
+
+  type Permissions = RolePermissions<S>;
+
+  return {
+    statements,
+    ac,
+
+    /**
+     * Crée une hiérarchie de rôles avec héritage automatique
+     * L'ordre définit l'héritage : viewer → editor → manager
+     */
+    createHierarchy<N extends string>(
+      hierarchy: { name: N; permissions: Permissions }[]
+    ): Record<N, ReturnType<typeof ac.newRole>> {
+      const roles = {} as Record<N, ReturnType<typeof ac.newRole>>;
+      let accumulated: Permissions = {};
+
+      for (const { name, permissions } of hierarchy) {
+        // Merge avec les permissions accumulées (héritage)
+        accumulated = mergePermissions(accumulated, permissions);
+        roles[name] = ac.newRole(accumulated as any);
+      }
+
+      return roles;
+    },
+  };
+}
+
+function mergePermissions<P extends RolePermissions<any>>(base: P, additions: P): P {
+  const result = { ...base } as P;
+
+  for (const [resource, actions] of Object.entries(additions)) {
+    const existing = result[resource as keyof P] as string[] | undefined;
+    const newActions = actions as string[];
+
+    result[resource as keyof P] = existing
+      ? [...new Set([...existing, ...newActions])]
+      : newActions;
+  }
+
+  return result;
+}
+```
+
+**Exemple de hiérarchie avec héritage:**
+
+```typescript
+// packages/modules/product/src/access/index.ts
+import { createRoleBuilder } from "@czo/auth/access";
+
+export const productStatements = {
+  product: ["create", "read", "update", "delete", "publish", "archive"],
+  category: ["create", "read", "update", "delete", "reorder"],
+  inventory: ["read", "update", "transfer", "audit"],
+} as const;
+
+const builder = createRoleBuilder(productStatements);
+
+// Hiérarchie : viewer → editor → manager
+// Chaque niveau hérite du précédent
+export const productRoles = builder.createHierarchy([
+  {
+    name: "product:viewer",
+    permissions: {
+      product: ["read"],
+      category: ["read"],
+      inventory: ["read"],
+    },
+  },
+  {
+    name: "product:editor",
+    permissions: {
+      product: ["create", "update"],
+      inventory: ["update"],
+    },
+    // Hérite de viewer → peut aussi read
+  },
+  {
+    name: "product:manager",
+    permissions: {
+      product: ["delete", "publish", "archive"],
+      category: ["create", "update", "delete", "reorder"],
+      inventory: ["transfer", "audit"],
+    },
+    // Hérite de editor → peut create, update, read
+  },
+]);
+
+// Résultat après héritage:
+// product:viewer  → product: [read], category: [read], inventory: [read]
+// product:editor  → product: [read, create, update], category: [read], inventory: [read, update]
+// product:manager → product: [read, create, update, delete, publish, archive], category: [...], inventory: [...]
+```
+
+#### Scoping des Permissions par Shop
+
+Les permissions sont **scopées par shop**. Un utilisateur peut avoir différents rôles dans différents shops.
+
+**Schéma `shop_members`:**
+
+```typescript
+// packages/modules/shop/src/database/schema.ts
+import { pgTable, text, timestamp, primaryKey } from "drizzle-orm/pg-core";
+
+export const shopMembers = pgTable(
+  "shop_members",
+  {
+    shopId: text("shop_id").notNull().references(() => shops.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    roles: text("roles").array().notNull().default([]),  // ["product:editor", "order:viewer"]
+    invitedBy: text("invited_by").references(() => users.id),
+    joinedAt: timestamp("joined_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.shopId, table.userId] }),
+  })
+);
+
+// Type pour les rôles d'un utilisateur
+export interface UserShopRoles {
+  global: string[];                    // Rôles plateforme (platform-admin)
+  shops: Record<string, string[]>;     // { shopId: [roles] }
+}
+```
+
+**Exemple multi-shop:**
+
+```typescript
+// Un utilisateur peut avoir différents rôles dans différents shops
+const userRolesExample = {
+  userId: "user-123",
+  globalRoles: [],  // Pas admin plateforme
+  shopMemberships: [
+    {
+      shopId: "shop-abc",
+      roles: ["product:manager", "order:editor"],  // Manager produits
+    },
+    {
+      shopId: "shop-xyz",
+      roles: ["product:viewer"],  // Simple viewer dans un autre shop
+    },
+  ],
+};
+
+// Requête sur shop-abc → peut delete product ✓
+// Requête sur shop-xyz → ne peut PAS delete product ✗
+```
+
+#### Service de Vérification des Permissions
+
+```typescript
+// packages/modules/auth/src/services/permission.service.ts
+
+export interface PermissionCheckContext {
+  userId: string;
+  shopId?: string;
+}
+
+export interface PermissionService {
+  /**
+   * Vérifie si l'utilisateur a la permission dans le contexte donné
+   */
+  hasPermission(
+    ctx: PermissionCheckContext,
+    resource: string,
+    action: string
+  ): Promise<boolean>;
+
+  /**
+   * Vérifie plusieurs permissions d'un coup
+   */
+  hasPermissions(
+    ctx: PermissionCheckContext,
+    permissions: Record<string, string[]>
+  ): Promise<boolean>;
+
+  /**
+   * Récupère tous les rôles d'un utilisateur pour un shop
+   */
+  getUserShopRoles(userId: string, shopId: string): Promise<string[]>;
+
+  /**
+   * Récupère les permissions effectives (après résolution de l'héritage)
+   */
+  getEffectivePermissions(
+    ctx: PermissionCheckContext
+  ): Promise<Record<string, string[]>>;
+}
+
+export function createPermissionService(
+  db: Database,
+  ac: AccessControl
+): PermissionService {
+  return {
+    async hasPermission(ctx, resource, action) {
+      const roles = await this.resolveRoles(ctx);
+
+      // Vérifier si au moins un rôle a la permission
+      for (const role of roles) {
+        const rolePermissions = ac.getRolePermissions(role);
+        if (rolePermissions?.[resource]?.includes(action)) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+
+    async hasPermissions(ctx, permissions) {
+      for (const [resource, actions] of Object.entries(permissions)) {
+        for (const action of actions) {
+          if (!(await this.hasPermission(ctx, resource, action))) {
+            return false;
+          }
+        }
+      }
+      return true;
+    },
+
+    async resolveRoles(ctx: PermissionCheckContext): Promise<string[]> {
+      const roles: string[] = [];
+
+      // 1. Rôles globaux (admin plateforme)
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, ctx.userId),
+      });
+      if (user?.globalRoles) {
+        roles.push(...user.globalRoles);
+      }
+
+      // 2. Rôles scopés au shop
+      if (ctx.shopId) {
+        const membership = await db.query.shopMembers.findFirst({
+          where: and(
+            eq(shopMembers.userId, ctx.userId),
+            eq(shopMembers.shopId, ctx.shopId)
+          ),
+        });
+        if (membership?.roles) {
+          roles.push(...membership.roles);
+        }
+      }
+
+      return roles;
+    },
+
+    // ... autres méthodes
+  };
+}
+```
+
+#### Intégration dans le Contexte GraphQL
+
+```typescript
+// packages/modules/auth/src/graphql/context.ts
+export interface AuthContext {
+  session: Session | null;
+  actor: Actor | null;
+
+  /**
+   * Helper pour vérifier les permissions dans les resolvers
+   * Throw ForbiddenError si pas autorisé
+   */
+  requirePermission(
+    resource: string,
+    action: string,
+    shopId?: string
+  ): Promise<void>;
+
+  /**
+   * Vérifie sans throw - retourne boolean
+   */
+  canDo(
+    resource: string,
+    action: string,
+    shopId?: string
+  ): Promise<boolean>;
+}
+
+// Usage dans un resolver
+const resolvers = {
+  Mutation: {
+    updateProduct: async (_, { shopId, id, input }, ctx: AuthContext) => {
+      // Vérifie et throw ForbiddenError si pas autorisé
+      await ctx.requirePermission("product", "update", shopId);
+
+      // ... logique métier
+    },
+
+    deleteProduct: async (_, { shopId, id }, ctx: AuthContext) => {
+      await ctx.requirePermission("product", "delete", shopId);
+      // ...
+    },
+  },
+
+  Query: {
+    products: async (_, { shopId }, ctx: AuthContext) => {
+      // Lecture possible pour viewer et au-dessus
+      await ctx.requirePermission("product", "read", shopId);
+      // ...
+    },
+  },
+};
+```
+
+#### Diagramme de Résolution des Permissions
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Permission Resolution Flow                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Request: updateProduct(shopId: "shop-abc", ...)               │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  1. Extract userId from session       │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  2. Load global roles (platform)      │                      │
+│   │     user.globalRoles → ["admin"]?     │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  3. Load shop-scoped roles            │                      │
+│   │     shop_members WHERE                │                      │
+│   │       userId = X AND shopId = Y       │                      │
+│   │     → ["product:editor"]              │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  4. Merge all roles                   │                      │
+│   │     ["product:editor"]                │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  5. Resolve inherited permissions     │                      │
+│   │     product:editor includes:          │                      │
+│   │     - product: [read, create, update] │                      │
+│   │     - category: [read]                │                      │
+│   │     - inventory: [read, update]       │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  6. Check: product.update ∈ perms?    │                      │
+│   │     ✓ YES → Allow                     │                      │
+│   └──────────────────────────────────────┘                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Vérification côté Client
+
+Le plugin `access` permet aussi des vérifications côté client sans round-trip serveur:
+
+```typescript
+// Vérification synchrone côté client
+const canCreateProject = authClient.admin.checkRolePermission({
+  role: "product:editor",
+  permissions: {
+    product: ["create"]
+  }
+});
+
+// Vérification asynchrone (interroge le serveur)
+const hasPermission = await authClient.admin.hasPermission({
+  permissions: {
+    product: ["delete"]
+  }
+});
+```
+
+#### Enregistrement des Statements par Module
+
+```typescript
+// packages/modules/auth/src/access/registry.ts
+
+export interface AccessStatementProvider {
+  name: string;
+  statements: Record<string, readonly string[]>;
+  roles: Record<string, unknown>;
+}
+
+const statementProviders: AccessStatementProvider[] = [];
+
+export function registerAccessStatements(provider: AccessStatementProvider) {
+  statementProviders.push(provider);
+}
+
+// Agrégation de tous les statements au boot
+export function buildAccessControl() {
+  const allStatements = statementProviders.reduce(
+    (acc, provider) => ({ ...acc, ...provider.statements }),
+    { ...defaultStatements }
+  );
+
+  return createAccessControl(allStatements as const);
+}
+
+// packages/modules/product/src/plugins/index.ts
+import { registerAccessStatements } from "@czo/auth/access";
+import { productStatements, productRoles } from "../access";
+
+export default defineNitroPlugin(async () => {
+  registerAccessStatements({
+    name: "product",
+    statements: productStatements,
+    roles: productRoles,
+  });
+});
 ```
 
 ### Structure du Module
@@ -990,6 +1489,16 @@ interface RateLimitConfig {
 - [ ] Query GraphQL `myAuthConfig` (authentifié uniquement)
 - [ ] Freeze du registry après boot des modules
 
+**Système de Rôles et Permissions (plugin `access`):**
+- [ ] Rôles par domaine (chaque module définit ses propres rôles)
+- [ ] Permissions scopées par shop (table `shop_members`)
+- [ ] Héritage de rôles par composition (`createRoleBuilder`)
+- [ ] Service `PermissionService` avec `hasPermission()` et `hasPermissions()`
+- [ ] Helpers GraphQL `requirePermission()` et `canDo()` dans le contexte
+- [ ] Enregistrement des statements par module via `registerAccessStatements()`
+- [ ] Vérification côté client via `checkRolePermission()` (synchrone)
+- [ ] Rôles globaux (platform-admin) + rôles scopés (shop-specific)
+
 **Intégration:**
 - [ ] Module Nitro (`@czo/auth`)
 - [ ] Routes REST par acteur (`/api/auth/[actor]/<action>`)
@@ -1015,11 +1524,11 @@ interface RateLimitConfig {
 
 ### Non-Objectifs
 
-- **Définitions de rôles spécifiques au domaine** - Auth fournit des rôles génériques; la sémantique marchand/client/admin appartient aux modules de domaine
-- **Application des permissions** - Auth fournit les données de rôle; les modules de domaine appliquent leurs propres permissions
 - **Profils utilisateurs étendus** - Au-delà des champs auth (email, name); les modules de domaine étendent les données utilisateur via leurs propres tables
 - **Gating paiement/abonnement** - Préoccupation facturation séparée
 - **Multi-région/résidence des données** - Préoccupation infrastructure
+- **Permissions dynamiques à runtime** - Les statements et rôles sont définis au boot, pas modifiables dynamiquement
+- **UI de gestion des permissions** - MVP se concentre sur l'API; admin UI viendra plus tard
 
 ### Critères de Succès
 
@@ -1042,6 +1551,9 @@ interface RateLimitConfig {
 - [ ] Les hooks better-auth permettent d'intercepter et rejeter les méthodes d'auth non autorisées
 - [ ] La résolution par priorité couvre tous les cas de conflits multi-rôles
 - [ ] L'ordre de boot des modules Nitro est déterministe pour le registry
+- [ ] Le plugin `access` de better-auth supporte l'extension des statements par module
+- [ ] La composition de rôles pour l'héritage est performante (pas de recalcul à chaque requête)
+- [ ] La table `shop_members` scale bien avec beaucoup de shops et d'utilisateurs
 
 ### Risques de Sécurité
 | Risque | Probabilité | Impact | Mitigation |
@@ -1078,12 +1590,15 @@ interface RateLimitConfig {
 
 - [x] Table users unique ou séparée par acteur? --> **Table unique avec rôles**
 - [x] Rôles spécifiques au domaine ou génériques? --> **Génériques, les modules de domaine interprètent**
-- [x] Quels plugins better-auth pour MVP? --> **organization, two-factor, api-key, admin**
+- [x] Quels plugins better-auth pour MVP? --> **organization, two-factor, api-key, admin, access**
 - [x] OAuth Provider dans MVP? --> **Reporté à v1.1**
 - [x] Choix du service email? --> **Novu** (orchestration email/notifications)
 - [x] Providers sociaux pour MVP? --> **Google** (customer/merchant) + **GitHub** (admin), autres en v1.1
 - [x] Implémentation rate limiting? --> **Niveau app** (dans le module auth)
 - [x] Stockage session? --> **Redis** (performance pour validations fréquentes)
+- [x] Architecture des permissions? --> **Rôles par domaine** (chaque module définit ses propres rôles)
+- [x] Scoping des permissions? --> **Par shop** (table `shop_members`)
+- [x] Héritage des rôles? --> **Par composition** avec `createRoleBuilder`
 
 ---
 
@@ -1092,6 +1607,7 @@ interface RateLimitConfig {
 - [Documentation better-auth](https://www.better-auth.com/)
 - [Plugin Organization better-auth](https://www.better-auth.com/docs/plugins/organization)
 - [Plugin API Key better-auth](https://www.better-auth.com/docs/plugins/api-key)
+- [Plugin Access better-auth](https://www.better-auth.com/docs/plugins/admin) - Système de permissions basé sur statements
 - [Adaptateur Drizzle better-auth](https://www.better-auth.com/docs/adapters/drizzle)
 - [Documentation Novu](https://docs.novu.co/) - Orchestration notifications
 - [OWASP Authentication Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
@@ -1106,7 +1622,7 @@ interface RateLimitConfig {
 1. **Table users unique** avec différenciation par rôles
 2. **Rôles domain-agnostic** - auth fournit les primitives, les modules de domaine interprètent
 3. **Organisations génériques** - pas liées aux marchands spécifiquement
-4. **better-auth** avec plugins: organization, two-factor, api-key, admin
+4. **better-auth** avec plugins: organization, two-factor, api-key, admin, **access**
 5. **Redis** pour le stockage des sessions
 6. **Novu** pour l'orchestration des emails/notifications
 7. **Rate limiting au niveau app** (dans le module auth)
@@ -1120,14 +1636,22 @@ interface RateLimitConfig {
 15. **Session porte le contexte acteur** - `actorType` dans la session pour permissions contextuelles
 16. **ActorTypeProvider** - interface que les modules de domaine implémentent pour déterminer les types d'acteurs
 17. **Pas de query availableAuthMethods** - évite l'énumération utilisateur, config statique côté frontend
+18. **Rôles par domaine** - chaque module définit ses propres rôles et permissions (pas un rôle unique par acteur)
+19. **Permissions scopées par shop** - un user peut avoir différents rôles dans différents shops
+20. **Héritage de rôles par composition** - viewer → editor → manager via `createRoleBuilder`
+21. **Plugin `access` de better-auth** - système de permissions basé sur statements déclaratifs
+22. **Table `shop_members`** - stocke les associations user-shop-roles
+23. **Rôles globaux vs scopés** - `platform-admin` (global) vs `product:manager` (shop-specific)
 
 ---
 
 ## Prochaines Étapes
 
-- [ ] Créer PRD: `/manager:prd create auth`
-- [ ] Créer TRD: `/manager:trd create auth`
+- [x] Créer PRD: `/manager:prd create auth`
+- [x] Créer TRD: `/manager:trd create auth`
 - [ ] Spike: prototype intégration better-auth + Nitro
 - [ ] Spike: prototype `AuthRestrictionRegistry` avec hooks better-auth
+- [ ] Spike: prototype plugin `access` avec `createRoleBuilder` pour héritage
+- [ ] Spike: prototype table `shop_members` et `PermissionService`
 - [ ] Définir schéma GraphQL pour les opérations auth
 - [ ] Concevoir interface contrat module de domaine

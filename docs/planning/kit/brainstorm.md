@@ -1069,7 +1069,12 @@ events.on('user.registered', async ({ user }) => {
 
 **Objectif** : Permettre l'extension de c-zo avec des intégrations tierces (comme Saleor Apps).
 
-**Dépendance** : Les permissions sont définies et gérées par `@czo/auth`. Le système d'apps déclare les permissions requises dans le manifest, et auth vérifie les accès.
+**Dépendance** : Les permissions sont définies et gérées par `@czo/auth` via le plugin `access` de better-auth. Le système utilise :
+- **Rôles par domaine** : chaque module définit ses propres rôles (ex: `product:manager`, `order:editor`)
+- **Permissions scopées par shop** : un user peut avoir différents rôles dans différents shops
+- **Héritage par composition** : `viewer → editor → manager`
+
+Les apps déclarent les permissions requises dans leur manifest, et auth vérifie les accès via `PermissionService`.
 
 #### Architecture Globale
 
@@ -1127,8 +1132,8 @@ interface AppManifest {
   appUrl: string          // App's base URL
   manifestUrl?: string    // URL to fetch this manifest
 
-  // Permissions
-  permissions: Permission[]
+  // Permissions requises (définies par @czo/auth)
+  permissions: AppPermission[]
 
   // Webhooks
   webhooks: WebhookSubscription[]
@@ -1147,9 +1152,16 @@ interface AppManifest {
   configSchema?: JSONSchema
 }
 
-// Permissions définies et gérées par @czo/auth
-// Les apps déclarent les permissions requises, auth les vérifie
-import type { Permission } from '@czo/auth'
+/**
+ * Permission requise par une app
+ * Utilise le système de permissions de @czo/auth (plugin access)
+ * Format: { resource: [actions] }
+ */
+interface AppPermission {
+  resource: string      // Ex: 'product', 'order', 'shop'
+  actions: string[]     // Ex: ['read', 'update', 'delete']
+  scope?: 'global' | 'shop'  // global = cross-shop, shop = scoped au shop installé
+}
 
 interface WebhookSubscription {
   event: string           // Event to subscribe to
@@ -1162,7 +1174,7 @@ interface DashboardExtension {
   label: string
   mount: 'PRODUCT_DETAILS' | 'ORDER_DETAILS' | 'NAVIGATION' | 'SETTINGS'
   url: string             // URL to load in iframe
-  permissions: Permission[]
+  permissions: AppPermission[]  // Permissions pour afficher cette extension
 }
 ```
 
@@ -1170,31 +1182,39 @@ interface DashboardExtension {
 
 ```typescript
 // @czo/kit/apps/registry.ts
+import type { PermissionService } from '@czo/auth'
 
 interface AppRegistry {
   // Installation
-  install(manifestUrl: string): Promise<InstalledApp>
-  uninstall(appId: string): Promise<void>
+  install(manifestUrl: string, shopId: string): Promise<InstalledApp>
+  uninstall(appId: string, shopId: string): Promise<void>
 
   // Management
   getApp(appId: string): Promise<InstalledApp | null>
-  listApps(): Promise<InstalledApp[]>
+  listApps(shopId?: string): Promise<InstalledApp[]>
   updateApp(appId: string): Promise<InstalledApp>
 
   // Configuration
   setAppConfig(appId: string, config: Record<string, unknown>): Promise<void>
   getAppConfig(appId: string): Promise<Record<string, unknown>>
 
-  // Permissions
-  hasPermission(appId: string, permission: Permission): Promise<boolean>
+  // Permissions - délègue à @czo/auth
+  checkAppPermission(
+    appId: string,
+    permission: AppPermission,
+    shopId: string
+  ): Promise<boolean>
 }
 
 interface InstalledApp {
   id: string
   manifest: AppManifest
+  shopId: string          // App installée pour un shop spécifique
   installedAt: Date
+  installedBy: string     // userId qui a installé
   status: 'active' | 'disabled' | 'error'
-  authToken: string       // Token for app to call c-zo API
+  authToken: string       // Token for app to call c-zo API (scoped au shop)
+  grantedPermissions: AppPermission[]  // Permissions accordées à l'installation
   config: Record<string, unknown>
 }
 ```
@@ -1301,6 +1321,103 @@ export class WebhookDispatcherImpl implements WebhookDispatcher {
 }
 ```
 
+#### Vérification des Permissions (intégration @czo/auth)
+
+```typescript
+// @czo/kit/apps/permission-checker.ts
+import { usePermissionService } from '@czo/auth'
+
+export class AppPermissionChecker {
+  constructor(private permissionService: PermissionService) {}
+
+  /**
+   * Vérifie si une app a les permissions pour une action
+   * L'app agit au nom de l'utilisateur qui l'a installée
+   */
+  async checkAppPermission(
+    app: InstalledApp,
+    permission: AppPermission
+  ): Promise<boolean> {
+    // Les permissions de l'app sont scopées au shop où elle est installée
+    const context = {
+      userId: app.installedBy,  // L'app agit au nom de l'installeur
+      shopId: app.shopId,
+    }
+
+    // Vérifier chaque action requise
+    for (const action of permission.actions) {
+      const hasPermission = await this.permissionService.hasPermission(
+        context,
+        permission.resource,
+        action
+      )
+
+      if (!hasPermission) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Vérifie les permissions lors de l'installation
+   * L'utilisateur doit avoir toutes les permissions que l'app demande
+   */
+  async validateInstallation(
+    manifest: AppManifest,
+    userId: string,
+    shopId: string
+  ): Promise<{ valid: boolean; missing: AppPermission[] }> {
+    const missing: AppPermission[] = []
+
+    for (const permission of manifest.permissions) {
+      const context = { userId, shopId }
+
+      for (const action of permission.actions) {
+        const hasPermission = await this.permissionService.hasPermission(
+          context,
+          permission.resource,
+          action
+        )
+
+        if (!hasPermission) {
+          missing.push(permission)
+          break
+        }
+      }
+    }
+
+    return {
+      valid: missing.length === 0,
+      missing,
+    }
+  }
+}
+
+// Utilisation lors de l'installation
+async function installApp(manifestUrl: string, userId: string, shopId: string) {
+  const manifest = await fetchManifest(manifestUrl)
+  const checker = new AppPermissionChecker(usePermissionService())
+
+  // Vérifier que l'utilisateur peut accorder ces permissions
+  const { valid, missing } = await checker.validateInstallation(manifest, userId, shopId)
+
+  if (!valid) {
+    throw new InsufficientPermissionsError(
+      `Cannot install app: missing permissions for ${missing.map(p => p.resource).join(', ')}`
+    )
+  }
+
+  // Installer l'app avec les permissions accordées
+  return registry.install(manifest, {
+    shopId,
+    installedBy: userId,
+    grantedPermissions: manifest.permissions,
+  })
+}
+```
+
 #### Intégration avec le Système d'Events
 
 ```typescript
@@ -1333,7 +1450,10 @@ export function setupAppIntegration(
   "version": "1.0.0",
   "author": "c-zo",
   "appUrl": "https://stripe-app.example.com",
-  "permissions": ["MANAGE_PAYMENTS", "MANAGE_ORDERS"],
+  "permissions": [
+    { "resource": "payment", "actions": ["create", "read", "refund"], "scope": "shop" },
+    { "resource": "order", "actions": ["read", "update"], "scope": "shop" }
+  ],
   "webhooks": [
     { "event": "checkout.completed", "targetUrl": "/webhooks/checkout" },
     { "event": "order.refund_requested", "targetUrl": "/webhooks/refund" }
@@ -1345,7 +1465,9 @@ export function setupAppIntegration(
         "label": "Payment Details",
         "mount": "ORDER_DETAILS",
         "url": "/extensions/order-details",
-        "permissions": ["MANAGE_PAYMENTS"]
+        "permissions": [
+          { "resource": "payment", "actions": ["read"], "scope": "shop" }
+        ]
       }
     ]
   },
@@ -1428,12 +1550,13 @@ app.post('/webhooks/checkout', async (req, res) => {
 - [ ] Tests unitaires
 
 **Phase 5 : Apps**
-- [ ] `AppManifest` schema
-- [ ] `AppRegistry` pour installation/gestion
+- [ ] `AppManifest` schema avec `AppPermission[]`
+- [ ] `AppRegistry` pour installation/gestion (scopé par shop)
 - [ ] `WebhookDispatcher` pour envoi d'events
 - [ ] Signature des webhooks
 - [ ] Retries avec queue
-- [ ] Permissions basiques
+- [ ] `AppPermissionChecker` intégré avec `@czo/auth`
+- [ ] Validation des permissions à l'installation
 - [ ] Tests unitaires
 
 ### Hors Scope (Futur)
@@ -1470,7 +1593,8 @@ app.post('/webhooks/checkout', async (req, res) => {
 - [ ] `unstorage` supporte bien notre use-case multi-backend
 - [ ] `hookable` peut gérer before/after avec modification de contexte
 - [ ] BullMQ est le bon choix pour les queues (vs autres solutions)
-- [ ] Le modèle de permissions des apps est suffisant
+- [ ] L'intégration avec `@czo/auth` pour les permissions apps fonctionne bien
+- [ ] Le scoping des apps par shop est suffisamment flexible
 
 ### Risques Techniques
 
@@ -1488,6 +1612,7 @@ app.post('/webhooks/checkout', async (req, res) => {
 - `bullmq` pour les queues
 - `drizzle-orm` (déjà installé)
 - Redis pour cache et queues
+- `@czo/auth` pour le système de permissions des apps (plugin `access` de better-auth)
 
 ---
 
@@ -1500,6 +1625,8 @@ app.post('/webhooks/checkout', async (req, res) => {
 - [x] Apps model? → **Self-hosted avec webhooks, extensions UI**
 - [x] Naming? → **`@czo/kit/db/repository`** (sous le namespace db)
 - [x] Export? → **Sous-packages séparés**
+- [x] Permissions apps? → **Délégation à `@czo/auth`** (plugin `access`, format `{ resource, actions[], scope }`)
+- [x] Scope apps? → **Par shop** (apps installées pour un shop spécifique)
 
 ---
 
@@ -1539,6 +1666,8 @@ import { useAppRegistry } from '@czo/kit/apps'
 - [BullMQ Documentation](https://docs.bullmq.io/)
 - [Saleor Apps Architecture](https://docs.saleor.io/developer/extending/apps/architecture/overview)
 - [Drizzle ORM Documentation](https://orm.drizzle.team/)
+- [Plugin Access better-auth](https://www.better-auth.com/docs/plugins/admin) - Système de permissions
+- [Brainstorm Auth c-zo](../auth/brainstorm.md) - Architecture permissions (rôles par domaine, scoping shop)
 
 ---
 
@@ -1556,6 +1685,9 @@ import { useAppRegistry } from '@czo/kit/apps'
 8. **Naming** : `@czo/kit/db/repository` (repository sous le namespace db)
 9. **Exports** : Sous-packages séparés pour tree-shaking et clarté
 10. **Pattern** : Fonctionnel (composition) plutôt que OOP (héritage)
+11. **Permissions Apps** : Délégation complète à `@czo/auth` via `PermissionService`
+12. **App Scope** : Apps installées par shop, permissions scopées au shop
+13. **Permission Format** : `{ resource, actions[], scope }` aligné avec le plugin `access`
 
 ---
 

@@ -3,7 +3,7 @@
 **Status**: Draft
 **Author**: Claude (Briana)
 **Created**: 2026-02-03
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-04
 **Brainstorm**: [brainstorm.md](./brainstorm.md)
 
 ---
@@ -43,12 +43,12 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 - [ ] Permettre aux modules de domaine de configurer les restrictions d'auth
 
 ### Non-Goals (Out of Scope)
-- Définitions de rôles spécifiques au domaine (customer/merchant/admin = modules de domaine)
-- Application des permissions (modules de domaine appliquent leurs propres règles)
 - Profils utilisateurs étendus (modules de domaine étendent via leurs tables)
 - Gating paiement/abonnement (module billing séparé)
 - Multi-région/résidence des données (infrastructure)
 - Magic link, Passkey/WebAuthn, SSO/SAML (v1.1+)
+- Permissions dynamiques à runtime (statements/rôles définis au boot)
+- UI de gestion des permissions (MVP = API uniquement)
 
 ## 4. Success Metrics
 
@@ -174,9 +174,24 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
   - [ ] Audit trail des actions admin
 - **Dependencies:** better-auth plugin admin
 
+#### Feature 11: Système de Rôles et Permissions
+- **Description:** Permissions granulaires par domaine avec scoping par shop et héritage de rôles
+- **User Story:** As a merchant, I want to give my team member product editing rights but not order management so that they can only do their job
+- **Acceptance Criteria:**
+  - [ ] Rôles par domaine (chaque module définit ses rôles: `product:viewer`, `product:editor`, `product:manager`)
+  - [ ] Héritage de rôles par composition (`viewer → editor → manager`)
+  - [ ] Permissions scopées par shop (table `shop_members`)
+  - [ ] Rôles globaux pour admins plateforme (`platform-admin`)
+  - [ ] `PermissionService` avec `hasPermission()` et `hasPermissions()`
+  - [ ] Helpers GraphQL `requirePermission()` et `canDo()` dans le contexte
+  - [ ] Enregistrement des statements par module via `registerAccessStatements()`
+  - [ ] Vérification côté client via `checkRolePermission()` (synchrone)
+  - [ ] `createRoleBuilder` pour définir des hiérarchies de rôles
+- **Dependencies:** better-auth plugin access
+
 ### Should-Have Features (P1)
 
-#### Feature 11: Rate Limiting
+#### Feature 12: Rate Limiting
 - **Description:** Protection contre les attaques brute-force
 - **User Story:** As a security engineer, I want rate limiting so that brute-force attacks are mitigated
 - **Acceptance Criteria:**
@@ -189,7 +204,7 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 
 ### Nice-to-Have Features (P2)
 
-#### Feature 12: Notifications de Sécurité
+#### Feature 13: Notifications de Sécurité
 - **Description:** Alertes pour événements de sécurité
 - **User Story:** As a user, I want security alerts so that I know if my account is compromised
 - **Acceptance Criteria:**
@@ -303,6 +318,7 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 | Phase 3 | Organizations + 2FA | TBD | Pending |
 | Phase 4 | API Keys + Admin | TBD | Pending |
 | Phase 5 | AuthRestrictionRegistry | TBD | Pending |
+| Phase 6 | Système de Permissions (plugin access) | TBD | Pending |
 | Launch | Production ready | TBD | Pending |
 
 ---
@@ -311,17 +327,22 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 
 ### Open Questions
 - [x] Table users unique ou séparée par acteur? → **Table unique avec rôles**
-- [x] Rôles spécifiques au domaine ou génériques? → **Génériques**
-- [x] Quels plugins better-auth? → **organization, two-factor, api-key, admin**
+- [x] Rôles spécifiques au domaine ou génériques? → **Rôles par domaine** (chaque module définit ses rôles)
+- [x] Quels plugins better-auth? → **organization, two-factor, api-key, admin, access**
 - [x] Providers sociaux MVP? → **Google (customer/merchant) + GitHub (admin)**
 - [x] Stockage session? → **Redis**
 - [x] Service email? → **Novu**
+- [x] Architecture permissions? → **Rôles par domaine, scopés par shop, héritage par composition**
+- [x] Scoping des permissions? → **Par shop** (table `shop_members`)
+- [x] Héritage des rôles? → **Par composition** avec `createRoleBuilder`
 
 ### References
 - [Brainstorm Auth](./brainstorm.md)
 - [Documentation better-auth](https://www.better-auth.com/)
+- [Plugin Access better-auth](https://www.better-auth.com/docs/plugins/admin) - Système de permissions
 - [OWASP Authentication Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 - [Module Attribute c-zo](../attribute/brainstorm.md) - Pattern de référence
+- [Brainstorm Kit c-zo](../kit/brainstorm.md) - Intégration apps + permissions
 
 ### Stakeholders & Approvals
 | Name | Role | Date | Signature |

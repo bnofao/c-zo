@@ -3,14 +3,18 @@
 **Status**: Draft
 **Author**: Claude (Briana)
 **Created**: 2026-02-03
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-04
 **Related PRD**: [prd.md](./prd.md)
 
 ---
 
 ## 1. Overview
 
-Le module Auth implémente un système d'authentification basé sur **better-auth** avec stockage sessions Redis, intégré à Nitro via `defineNitroModule`. L'architecture sépare les endpoints REST publics (authentification) de l'endpoint GraphQL protégé (données métier). Un `AuthRestrictionRegistry` permet aux modules de domaine de configurer les restrictions d'auth par type d'acteur.
+Le module Auth implémente un système d'authentification basé sur **better-auth** avec stockage sessions Redis, intégré à Nitro via `defineNitroModule`. L'architecture sépare les endpoints REST publics (authentification) de l'endpoint GraphQL protégé (données métier).
+
+**Composants clés :**
+- **AuthRestrictionRegistry** : Permet aux modules de domaine de configurer les restrictions d'auth par type d'acteur
+- **PermissionService** : Système de permissions granulaires par domaine, scopées par shop, avec héritage de rôles (plugin `access` de better-auth)
 
 ## 2. Architecture
 
@@ -80,7 +84,13 @@ packages/modules/auth/
 │   │   ├── auth.service.ts
 │   │   ├── session.service.ts
 │   │   ├── api-key.service.ts
-│   │   └── restriction-registry.ts  # AuthRestrictionRegistry
+│   │   ├── restriction-registry.ts  # AuthRestrictionRegistry
+│   │   └── permission.service.ts    # PermissionService (plugin access)
+│   ├── access/                      # Permission system
+│   │   ├── index.ts                 # createAccessControl, buildAccessControl
+│   │   ├── role-builder.ts          # createRoleBuilder (héritage)
+│   │   ├── registry.ts              # registerAccessStatements
+│   │   └── types.ts                 # AppPermission, RolePermissions
 │   ├── providers/                   # ActorTypeProvider implementations
 │   │   └── base-actor.provider.ts
 │   ├── middleware/
@@ -164,9 +174,10 @@ Client                    Middleware              GraphQL Yoga           Resolve
 | REST Routes | Nitro routes | Public auth endpoints | better-auth |
 | GraphQL Schema | graphql-yoga | Protected queries/mutations | Session middleware |
 | Session Store | Redis | Session storage & validation | ioredis |
-| Database | PostgreSQL + Drizzle | Users, orgs, API keys | @czo/kit database utils |
+| Database | PostgreSQL + Drizzle | Users, orgs, API keys, shop_members | @czo/kit database utils |
 | Notifications | Novu | Emails (verification, reset, invite) | @novu/node |
 | OAuth | Google, GitHub | Social authentication | better-auth plugins |
+| Permission Service | better-auth plugin access | Role-based permissions, shop-scoped | better-auth |
 
 ### ActorTypeProvider Pattern
 
@@ -325,6 +336,238 @@ async function onActorTypeAcquired(userId: string, actorType: string, context: a
     },
   })
 }
+```
+
+### Permission System (plugin `access`)
+
+Le système de permissions utilise le plugin `access` de better-auth avec une architecture de rôles par domaine, scopés par shop, avec héritage.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     @czo/auth - Access Control                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Core Statements (auth module)                                               │
+│  ├── user: [read, update, ban, delete]                                      │
+│  ├── session: [read, revoke, revoke-all]                                    │
+│  └── api-key: [create, read, revoke]                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Module Statements (registered via provider pattern)                         │
+│  ├── @czo/product → product, category, inventory                            │
+│  ├── @czo/order → order, refund, fulfillment                                │
+│  ├── @czo/shop → shop, staff, settings                                      │
+│  └── @czo/finance → payment, payout, invoice                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Role Builder avec Héritage
+
+```typescript
+// @czo/auth/access/role-builder.ts
+export function createRoleBuilder<S extends Statements>(statements: S) {
+  const ac = createAccessControl(statements);
+
+  return {
+    statements,
+    ac,
+
+    /**
+     * Crée une hiérarchie de rôles avec héritage automatique
+     * L'ordre définit l'héritage : viewer → editor → manager
+     */
+    createHierarchy<N extends string>(
+      hierarchy: { name: N; permissions: RolePermissions<S> }[]
+    ): Record<N, Role> {
+      const roles = {} as Record<N, Role>;
+      let accumulated: RolePermissions<S> = {};
+
+      for (const { name, permissions } of hierarchy) {
+        // Merge avec les permissions accumulées (héritage)
+        accumulated = mergePermissions(accumulated, permissions);
+        roles[name] = ac.newRole(accumulated);
+      }
+
+      return roles;
+    },
+  };
+}
+```
+
+#### Exemple de définition de rôles par module
+
+```typescript
+// @czo/product/src/access/index.ts
+import { createRoleBuilder } from "@czo/auth/access";
+
+export const productStatements = {
+  product: ["create", "read", "update", "delete", "publish", "archive"],
+  category: ["create", "read", "update", "delete", "reorder"],
+  inventory: ["read", "update", "transfer", "audit"],
+} as const;
+
+const builder = createRoleBuilder(productStatements);
+
+// Hiérarchie : viewer → editor → manager
+export const productRoles = builder.createHierarchy([
+  {
+    name: "product:viewer",
+    permissions: {
+      product: ["read"],
+      category: ["read"],
+      inventory: ["read"],
+    },
+  },
+  {
+    name: "product:editor",
+    permissions: {
+      product: ["create", "update"],
+      inventory: ["update"],
+    },
+    // Hérite de viewer → peut aussi read
+  },
+  {
+    name: "product:manager",
+    permissions: {
+      product: ["delete", "publish", "archive"],
+      category: ["create", "update", "delete", "reorder"],
+      inventory: ["transfer", "audit"],
+    },
+    // Hérite de editor → peut create, update, read
+  },
+]);
+```
+
+#### Permission Resolution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Permission Resolution Flow                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Request: updateProduct(shopId: "shop-abc", ...)               │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  1. Extract userId from session       │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  2. Load global roles (platform)      │                      │
+│   │     user.globalRoles → ["admin"]?     │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  3. Load shop-scoped roles            │                      │
+│   │     shop_members WHERE                │                      │
+│   │       userId = X AND shopId = Y       │                      │
+│   │     → ["product:editor"]              │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  4. Merge all roles                   │                      │
+│   │     ["product:editor"]                │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  5. Resolve inherited permissions     │                      │
+│   │     product:editor includes:          │                      │
+│   │     - product: [read, create, update] │                      │
+│   │     - category: [read]                │                      │
+│   │     - inventory: [read, update]       │                      │
+│   └──────────────────────────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│   ┌──────────────────────────────────────┐                      │
+│   │  6. Check: product.update ∈ perms?    │                      │
+│   │     ✓ YES → Allow                     │                      │
+│   └──────────────────────────────────────┘                      │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### PermissionService Interface
+
+```typescript
+// @czo/auth/services/permission.service.ts
+
+export interface PermissionCheckContext {
+  userId: string;
+  shopId?: string;
+}
+
+export interface PermissionService {
+  /**
+   * Vérifie si l'utilisateur a la permission dans le contexte donné
+   */
+  hasPermission(
+    ctx: PermissionCheckContext,
+    resource: string,
+    action: string
+  ): Promise<boolean>;
+
+  /**
+   * Vérifie plusieurs permissions d'un coup
+   */
+  hasPermissions(
+    ctx: PermissionCheckContext,
+    permissions: Record<string, string[]>
+  ): Promise<boolean>;
+
+  /**
+   * Récupère tous les rôles d'un utilisateur pour un shop
+   */
+  getUserShopRoles(userId: string, shopId: string): Promise<string[]>;
+
+  /**
+   * Récupère les permissions effectives (après résolution de l'héritage)
+   */
+  getEffectivePermissions(
+    ctx: PermissionCheckContext
+  ): Promise<Record<string, string[]>>;
+}
+```
+
+#### Intégration GraphQL Context
+
+```typescript
+// Helpers disponibles dans le contexte GraphQL
+export interface AuthContext {
+  session: Session | null;
+  actor: Actor | null;
+
+  /**
+   * Vérifie et throw ForbiddenError si pas autorisé
+   */
+  requirePermission(
+    resource: string,
+    action: string,
+    shopId?: string
+  ): Promise<void>;
+
+  /**
+   * Vérifie sans throw - retourne boolean
+   */
+  canDo(
+    resource: string,
+    action: string,
+    shopId?: string
+  ): Promise<boolean>;
+}
+
+// Usage dans un resolver
+const resolvers = {
+  Mutation: {
+    updateProduct: async (_, { shopId, id, input }, ctx: AuthContext) => {
+      await ctx.requirePermission("product", "update", shopId);
+      // ... logique métier
+    },
+  },
+};
 ```
 
 ## 3. API Specification
@@ -766,6 +1009,27 @@ type EffectiveAuthConfig {
 
 **Index**: `INDEX(prefix)` for lookup
 
+#### `shop_members` (c-zo extension - permissions scopées)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| shop_id | text | PK, FK → shop.id | Shop |
+| user_id | text | PK, FK → user.id | Member |
+| roles | text[] | NOT NULL, DEFAULT '{}' | Roles: ['product:editor', 'order:viewer'] |
+| invited_by | text | FK → user.id | Who invited this member |
+| joined_at | timestamp | NOT NULL | Join time |
+| created_at | timestamp | NOT NULL | Creation time |
+| updated_at | timestamp | NOT NULL | Last update time |
+
+**Constraint**: `PRIMARY KEY (shop_id, user_id)`
+**Index**: `INDEX(user_id)` for user lookups
+
+#### `user` extension (global roles)
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| global_roles | text[] | DEFAULT '{}' | Platform-wide roles: ['platform-admin'] |
+
+> Note: Cette colonne est ajoutée à la table `user` de better-auth via migration
+
 ### Migrations
 
 ```typescript
@@ -798,6 +1062,42 @@ export async function down(db: Database) {
     DROP COLUMN auth_method,
     DROP COLUMN organization_id
   `)
+}
+```
+
+```typescript
+// migrations/0002_create_permission_tables.ts
+import { sql } from 'drizzle-orm'
+
+export async function up(db: Database) {
+  // Add global_roles to user table
+  await db.execute(sql`
+    ALTER TABLE "user"
+    ADD COLUMN global_roles TEXT[] NOT NULL DEFAULT '{}'
+  `)
+
+  // Create shop_members table for shop-scoped permissions
+  await db.execute(sql`
+    CREATE TABLE shop_members (
+      shop_id TEXT NOT NULL REFERENCES shop(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+      roles TEXT[] NOT NULL DEFAULT '{}',
+      invited_by TEXT REFERENCES "user"(id),
+      joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (shop_id, user_id)
+    )
+  `)
+
+  await db.execute(sql`
+    CREATE INDEX idx_shop_members_user_id ON shop_members(user_id)
+  `)
+}
+
+export async function down(db: Database) {
+  await db.execute(sql`DROP TABLE shop_members`)
+  await db.execute(sql`ALTER TABLE "user" DROP COLUMN global_roles`)
 }
 ```
 
@@ -983,7 +1283,7 @@ const authMetrics = {
 |---------|---------|---------|
 | better-auth | ^1.x | Core auth library |
 | @better-auth/drizzle | ^1.x | Drizzle adapter |
-| @better-auth/plugins | ^1.x | org, 2fa, api-key, admin plugins |
+| @better-auth/plugins | ^1.x | org, 2fa, api-key, admin, access plugins |
 | ioredis | ^5.x | Redis client |
 | @novu/node | ^2.x | Notification service |
 | otplib | ^12.x | TOTP generation/validation |
@@ -1097,7 +1397,14 @@ thresholds:
    - Domain module integration
    - Admin capabilities (impersonation)
 
-5. **Launch** (Week 7)
+5. **Phase 5: Permission System** (Week 7)
+   - Plugin access integration
+   - shop_members table and migrations
+   - PermissionService implementation
+   - createRoleBuilder with inheritance
+   - GraphQL context helpers (requirePermission, canDo)
+
+6. **Launch** (Week 8)
    - Production deployment
    - Monitoring enabled
    - Documentation published
@@ -1120,17 +1427,25 @@ thresholds:
 - [x] better-auth hooks support actor validation? → **Yes, via `after` hooks**
 - [x] Session extension fields in Drizzle? → **ALTER TABLE after better-auth init**
 - [x] Rate limiting library? → **Custom with Redis (not external lib)**
+- [x] Permission architecture? → **Rôles par domaine, scopés par shop, héritage par composition**
+- [x] Permission storage? → **Table `shop_members` avec colonne `roles` (array)**
+- [x] Global vs scoped roles? → **`global_roles` sur user + `roles` par shop**
 
 ### ADRs
 
 - **ADR-001**: REST for auth, GraphQL protected → Security and simplicity
 - **ADR-002**: Actor-based endpoints → Early validation, no user enumeration
 - **ADR-003**: AuthRestrictionRegistry → Domain module independence
+- **ADR-004**: Roles per domain → Each module defines its own roles for flexibility
+- **ADR-005**: Shop-scoped permissions → User can have different roles in different shops
+- **ADR-006**: Role inheritance by composition → `createRoleBuilder` with cumulative permissions
 
 ### References
 
 - [better-auth Documentation](https://www.better-auth.com/)
 - [better-auth Drizzle Adapter](https://www.better-auth.com/docs/adapters/drizzle)
+- [better-auth Plugin Access](https://www.better-auth.com/docs/plugins/admin) - Permission system
 - [OWASP Authentication Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 - [Brainstorm Auth](./brainstorm.md)
 - [PRD Auth](./prd.md)
+- [Brainstorm Kit](../kit/brainstorm.md) - App integration with permissions
