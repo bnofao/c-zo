@@ -141,6 +141,35 @@ packages/kit/
 
 ### 3.1 Repository
 
+#### Architecture: Builders Séparés
+
+Le repository utilise des **builders séparés** pour permettre une composition granulaire et un tree-shaking optimal :
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Repository Builders                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   createQueries()          createMutations()                    │
+│   ├── findById             ├── create                           │
+│   ├── findByIds            ├── createMany                       │
+│   ├── findOne              ├── update                           │
+│   ├── findMany             ├── delete                           │
+│   ├── count                ├── hardDelete                       │
+│   └── exists               └── restore (si softDelete)          │
+│                                                                  │
+│   createCachedQueries()    createRepository()                   │
+│   └── Queries + cache      └── All-in-one (queries + mutations) │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Avantages :**
+- **Tree-shaking** : Importer uniquement ce qu'on utilise
+- **Type safety** : Chaque builder a son propre type de retour
+- **Read-only repos** : `createQueries()` seul pour les vues
+- **Flexibilité** : Composer les méthodes à la carte
+
 #### Types
 
 ```typescript
@@ -173,49 +202,40 @@ export interface PaginatedResult<T> {
   }
 }
 
-export interface RepositoryConfig<T extends BaseEntity, TTable extends PgTable> {
+export interface BaseConfig<TTable extends PgTable> {
   table: TTable
   softDelete?: boolean     // Default: true
-  cache?: {
-    manager: CacheManager
-    prefix: string
-    ttl?: number           // Default: 300 (5 min)
-  }
+}
+
+export interface CacheConfig {
+  manager: CacheManager
+  prefix: string
+  ttl?: number             // Default: 300 (5 min)
+}
+
+export interface RepositoryConfig<TTable extends PgTable> extends BaseConfig<TTable> {
+  cache?: CacheConfig
 }
 ```
 
-#### Factory Implementation
+#### Builders Implementation
+
+##### createQueries (Read-only operations)
 
 ```typescript
-// @czo/kit/db/repository/create-repository.ts
+// @czo/kit/db/repository/queries.ts
 
-export function createRepository<
-  T extends BaseEntity,
-  CreateInput,
-  UpdateInput,
-  TTable extends PgTable
->(
+export function createQueries<T extends BaseEntity, TTable extends PgTable>(
   db: DrizzleDatabase,
-  config: RepositoryConfig<T, TTable>
+  config: BaseConfig<TTable>
 ) {
-  const { table, cache, softDelete = true } = config
-
-  // === Queries ===
+  const { table, softDelete = true } = config
 
   const findById = async (id: string): Promise<T | null> => {
-    const cacheKey = cache ? `${cache.prefix}:${id}` : null
-
-    const fetch = async () => {
-      let query = db.select().from(table).where(eq(table.id, id))
-      if (softDelete) query = query.where(isNull(table.deletedAt))
-      const result = await query.limit(1)
-      return (result[0] as T) ?? null
-    }
-
-    if (cacheKey && cache) {
-      return cache.manager.getOrSet(cacheKey, fetch, { ttl: cache.ttl })
-    }
-    return fetch()
+    let query = db.select().from(table).where(eq(table.id, id))
+    if (softDelete) query = query.where(isNull(table.deletedAt))
+    const result = await query.limit(1)
+    return (result[0] as T) ?? null
   }
 
   const findByIds = async (ids: string[]): Promise<T[]> => {
@@ -272,7 +292,74 @@ export function createRepository<
     return result !== null
   }
 
-  // === Mutations ===
+  return {
+    findById,
+    findByIds,
+    findOne,
+    findMany,
+    count,
+    exists,
+    _db: db,
+    _table: table,
+    _config: config,
+  }
+}
+
+export type Queries<T> = ReturnType<typeof createQueries<T, any>>
+```
+
+##### createCachedQueries (Queries with cache)
+
+```typescript
+// @czo/kit/db/repository/cached-queries.ts
+
+export function createCachedQueries<T extends BaseEntity, TTable extends PgTable>(
+  db: DrizzleDatabase,
+  config: BaseConfig<TTable> & { cache: CacheConfig }
+) {
+  const { cache, ...baseConfig } = config
+  const queries = createQueries<T, TTable>(db, baseConfig)
+
+  const findById = async (id: string): Promise<T | null> => {
+    const cacheKey = `${cache.prefix}:${id}`
+    return cache.manager.getOrSet(cacheKey, () => queries.findById(id), { ttl: cache.ttl })
+  }
+
+  const invalidateCache = async (id: string): Promise<void> => {
+    await cache.manager.delete(`${cache.prefix}:${id}`)
+  }
+
+  const invalidateAllCache = async (): Promise<number> => {
+    return cache.manager.invalidate(`${cache.prefix}:*`)
+  }
+
+  return {
+    ...queries,
+    findById,  // Override with cached version
+    invalidateCache,
+    invalidateAllCache,
+    _cache: cache,
+  }
+}
+
+export type CachedQueries<T> = ReturnType<typeof createCachedQueries<T, any>>
+```
+
+##### createMutations (Write operations)
+
+```typescript
+// @czo/kit/db/repository/mutations.ts
+
+export function createMutations<
+  T extends BaseEntity,
+  CreateInput,
+  UpdateInput,
+  TTable extends PgTable
+>(
+  db: DrizzleDatabase,
+  config: BaseConfig<TTable> & { cache?: CacheConfig }
+) {
+  const { table, softDelete = true, cache } = config
 
   const create = async (input: CreateInput): Promise<T> => {
     const result = await db.insert(table).values({
@@ -348,71 +435,100 @@ export function createRepository<
     return { success: true, deletedAt }
   }
 
-  const restore = async (id: string): Promise<T> => {
-    if (!softDelete) throw new Error('Restore not available without soft delete')
-
-    const result = await db
-      .update(table)
-      .set({ deletedAt: null, updatedAt: new Date() })
-      .where(eq(table.id, id))
-      .returning()
-
-    if (result.length === 0) {
-      throw new NotFoundError(id)
-    }
-
-    return result[0] as T
-  }
-
   const hardDelete = async (id: string): Promise<boolean> => {
     const result = await db.delete(table).where(eq(table.id, id)).returning()
     if (cache) await cache.manager.delete(`${cache.prefix}:${id}`)
     return result.length > 0
   }
 
-  // === Transactions ===
+  // Soft-delete specific methods (only if softDelete enabled)
+  const restore = softDelete
+    ? async (id: string): Promise<T> => {
+        const result = await db
+          .update(table)
+          .set({ deletedAt: null, updatedAt: new Date() })
+          .where(eq(table.id, id))
+          .returning()
 
-  const transaction = async <R>(
-    fn: (repo: ReturnType<typeof createRepository>) => Promise<R>
-  ): Promise<R> => {
-    return db.transaction(async (tx) => {
-      const txRepo = createRepository(tx as any, config)
-      return fn(txRepo)
-    })
-  }
+        if (result.length === 0) {
+          throw new NotFoundError(id)
+        }
 
-  // Return repository object
-  return {
-    // Queries
-    findById,
-    findByIds,
-    findOne,
-    findMany,
-    count,
-    exists,
-    // Mutations
+        return result[0] as T
+      }
+    : undefined
+
+  // Build mutations object conditionally
+  const mutations = {
     create,
     createMany,
     update,
     delete: remove,
-    restore,
     hardDelete,
-    // Transactions
-    transaction,
-    // Expose internals for extension
+    ...(restore && { restore }),
     _db: db,
     _table: table,
     _config: config,
   }
+
+  return mutations
 }
 
-// Type helper
+export type Mutations<T, CreateInput, UpdateInput> = ReturnType<
+  typeof createMutations<T, CreateInput, UpdateInput, any>
+>
+```
+
+##### createRepository (All-in-one convenience)
+
+```typescript
+// @czo/kit/db/repository/create-repository.ts
+
+export function createRepository<
+  T extends BaseEntity,
+  CreateInput,
+  UpdateInput,
+  TTable extends PgTable
+>(
+  db: DrizzleDatabase,
+  config: RepositoryConfig<TTable>
+) {
+  const { cache, ...baseConfig } = config
+
+  // Create queries (with or without cache)
+  const queries = cache
+    ? createCachedQueries<T, TTable>(db, { ...baseConfig, cache })
+    : createQueries<T, TTable>(db, baseConfig)
+
+  // Create mutations
+  const mutations = createMutations<T, CreateInput, UpdateInput, TTable>(db, config)
+
+  // Transaction helper
+  const transaction = async <R>(
+    fn: (repo: Repository<T, CreateInput, UpdateInput>) => Promise<R>
+  ): Promise<R> => {
+    return db.transaction(async (tx) => {
+      const txRepo = createRepository<T, CreateInput, UpdateInput, TTable>(tx as any, config)
+      return fn(txRepo)
+    })
+  }
+
+  return {
+    ...queries,
+    ...mutations,
+    transaction,
+  }
+}
+
 export type Repository<T, CreateInput, UpdateInput> = ReturnType<
   typeof createRepository<T, CreateInput, UpdateInput, any>
 >
 ```
+```
 
-#### Usage Example
+#### Usage Examples
+
+##### Example 1: Full Repository (All-in-one)
 
 ```typescript
 // @czo/product/repositories/product.repository.ts
@@ -444,6 +560,111 @@ export function createProductRepository(db: DrizzleDatabase, cache?: CacheManage
 }
 
 export type ProductRepository = ReturnType<typeof createProductRepository>
+```
+
+##### Example 2: Read-Only Repository (Queries only)
+
+```typescript
+// @czo/analytics/repositories/product-stats.repository.ts
+import { createQueries } from '@czo/kit/db/repository'
+
+// Read-only view - no mutations needed
+export function createProductStatsRepository(db: DrizzleDatabase) {
+  const queries = createQueries<ProductStats, typeof productStats>(db, {
+    table: productStats,
+    softDelete: false,  // Stats don't have soft-delete
+  })
+
+  const findTopSelling = async (limit = 10): Promise<ProductStats[]> => {
+    const result = await queries.findMany({
+      orderBy: { totalSales: 'desc' },
+      limit,
+    })
+    return result.nodes
+  }
+
+  return {
+    ...queries,
+    findTopSelling,
+  }
+}
+```
+
+##### Example 3: Cached Queries + Custom Mutations
+
+```typescript
+// @czo/catalog/repositories/category.repository.ts
+import { createCachedQueries, createMutations } from '@czo/kit/db/repository'
+
+export function createCategoryRepository(db: DrizzleDatabase, cache: CacheManager) {
+  // Cached queries for frequent reads
+  const queries = createCachedQueries<Category, typeof categories>(db, {
+    table: categories,
+    softDelete: true,
+    cache: { manager: cache, prefix: 'category', ttl: 600 },  // 10 min cache
+  })
+
+  // Only create and update mutations (no delete allowed)
+  const { create, update } = createMutations<Category, CreateCategoryInput, UpdateCategoryInput, typeof categories>(
+    db,
+    { table: categories, softDelete: true, cache: { manager: cache, prefix: 'category' } }
+  )
+
+  return {
+    ...queries,
+    create,
+    update,
+    // No delete, restore, hardDelete exposed
+  }
+}
+```
+
+##### Example 4: Minimal Repository (Cherry-pick methods)
+
+```typescript
+// @czo/inventory/repositories/stock.repository.ts
+import { createQueries, createMutations } from '@czo/kit/db/repository'
+
+export function createStockRepository(db: DrizzleDatabase) {
+  const { findById, findMany } = createQueries<Stock, typeof stocks>(db, {
+    table: stocks,
+    softDelete: false,
+  })
+
+  const { update } = createMutations<Stock, CreateStockInput, UpdateStockInput, typeof stocks>(
+    db,
+    { table: stocks, softDelete: false }
+  )
+
+  // Only expose what's needed
+  return {
+    findById,
+    findMany,
+    update,  // Stock is updated, never created/deleted directly
+  }
+}
+```
+
+##### Example 5: GraphQL DataLoader Integration
+
+```typescript
+// @czo/product/loaders/product.loader.ts
+import { createCachedQueries } from '@czo/kit/db/repository'
+import DataLoader from 'dataloader'
+
+export function createProductLoader(db: DrizzleDatabase, cache: CacheManager) {
+  const { findByIds } = createCachedQueries<Product, typeof products>(db, {
+    table: products,
+    softDelete: true,
+    cache: { manager: cache, prefix: 'product', ttl: 60 },
+  })
+
+  return new DataLoader<string, Product | null>(async (ids) => {
+    const products = await findByIds([...ids])
+    const productMap = new Map(products.map(p => [p.id, p]))
+    return ids.map(id => productMap.get(id) ?? null)
+  })
+}
 ```
 
 ### 3.2 Cache
