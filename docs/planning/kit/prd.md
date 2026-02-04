@@ -4,6 +4,7 @@
 **Author**: Claude (Briana)
 **Created**: 2026-02-04
 **Last Updated**: 2026-02-04
+**TRD**: [trd.md](./trd.md)
 **Brainstorm**: [brainstorm.md](./brainstorm.md)
 
 ---
@@ -22,7 +23,7 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 - Intégrations tierces codées en dur
 
 ### Target State
-- Repository fonctionnel générique avec `createRepository()`
+- Repository fonctionnel avec **builders composables** (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
 - Cache transparent via unstorage (memory/Redis)
 - Events synchrones et asynchrones inter-modules
 - Hooks before/after/onError pour interception
@@ -64,18 +65,20 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 ### Must-Have Features (P0)
 
 #### Feature 1: Repository Générique Fonctionnel
-- **Description:** Factory `createRepository()` pour éliminer le code CRUD répétitif avec support Drizzle, soft-delete, optimistic locking (version number), et pagination
+- **Description:** Système de **builders composables** pour éliminer le code CRUD répétitif avec support Drizzle, soft-delete, optimistic locking (version number), et pagination
 - **User Story:** As a module developer, I want a generic repository so that I don't have to write the same CRUD code in every module
 - **Acceptance Criteria:**
-  - [ ] `createRepository<T, CreateInput, UpdateInput>()` factory
-  - [ ] Queries: `findById`, `findByIds`, `findOne`, `findMany`, `count`, `exists`
-  - [ ] Mutations: `create`, `createMany`, `update`, `delete`, `restore`, `hardDelete`
+  - [ ] **Builders séparés pour tree-shaking et composition granulaire :**
+    - [ ] `createQueries()` : `findById`, `findByIds`, `findOne`, `findMany`, `count`, `exists`
+    - [ ] `createCachedQueries()` : queries + cache layer avec invalidation
+    - [ ] `createMutations()` : `create`, `createMany`, `update`, `delete`, `restore`, `hardDelete`
+    - [ ] `createRepository()` : all-in-one convenience (queries + mutations)
   - [ ] Pagination offset + cursor avec `PaginatedResult<T>`
   - [ ] Optimistic locking via `version` number (integer)
   - [ ] Soft delete via `deletedAt` timestamp
   - [ ] Support transactions via `transaction()` method
   - [ ] Composition facile pour extensions (spread operator)
-  - [ ] Cache optionnel intégré via config
+  - [ ] Import sélectif pour minimiser l'API surface
 - **Dependencies:** Drizzle ORM, @czo/kit/cache (optional)
 
 #### Feature 2: CacheManager Multi-Backend
@@ -160,12 +163,17 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 #### Module Developer: Using Repository
 ```
-1. Import createRepository from @czo/kit/db/repository
-2. Define entity type, create/update inputs
-3. Call createRepository(db, config) with table and options
-4. Extend with custom methods via composition (spread)
-5. Register in IoC container as singleton
-6. Use in services via useContainer().make()
+1. Choose builder(s) based on need:
+   - createQueries() for read-only access
+   - createCachedQueries() for cached reads
+   - createMutations() for write operations
+   - createRepository() for full CRUD
+2. Import selected builder(s) from @czo/kit/db/repository
+3. Define entity type, create/update inputs
+4. Call builder(db, config) with table and options
+5. Extend with custom methods via composition (spread)
+6. Register in IoC container as singleton
+7. Use in services via useContainer().make()
 ```
 
 #### Module Developer: Emitting Events
@@ -228,7 +236,7 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 ## 9. Dependencies
 
-**TRD:** [trd.md](./trd.md) (to create)
+**TRD:** [trd.md](./trd.md)
 
 ### Blockers
 - @czo/auth module with PermissionService (for app permissions)
@@ -261,7 +269,7 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 - [x] Events sync/async? → **Les deux, avec BullMQ pour async**
 - [x] Hooks library? → **hookable**
 - [x] Apps model? → **Self-hosted avec webhooks, extensions UI**
-- [x] Repository pattern? → **Fonctionnel** (composition, pas classes)
+- [x] Repository pattern? → **Builders séparés** (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
 - [x] Permissions apps? → **Délégation à @czo/auth** (plugin access)
 
 ### References
