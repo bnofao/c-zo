@@ -1,5 +1,2 @@
 // CacheManager
-export { createTestCacheManager, useCacheManager } from './manager'
-
-// Types
-export type { CacheManager, NitroCacheOptions } from './types'
+export { useStorage as useCache } from 'nitro/storage'

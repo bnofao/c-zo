@@ -1,54 +1,19 @@
 import type { NodePgClient } from 'drizzle-orm/node-postgres'
 import type { DrizzleConfig } from 'drizzle-orm/utils'
 import type { Pool } from 'pg'
+import process from 'node:process'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { withReplicas } from 'drizzle-orm/pg-core'
 
-// let db: Kysely<any> | null = null
+export type Database<
+  TSchema extends Record<string, unknown> = Record<string, never>,
+  TClient extends NodePgClient = Pool,
+> = ReturnType<typeof createDatabase<TSchema, TClient>>
 
-/**
- * Get or create the database connection singleton
- * @returns Kysely database instance
- */
-// export function useDatabase<DB>(): Kysely<DB> {
-//   if (!db) {
-//     db = new Kysely<DB>({
-//       dialect: new PostgresDialect({
-//         pool: new Pool({
-//           connectionString: process.env.DATABASE_URL,
-//           max: 20,
-//           idleTimeoutMillis: 30000,
-//           connectionTimeoutMillis: 2000,
-//         }),
-//       }),
-//       log: process.env.NODE_ENV === 'development'
-//         ? (event) => {
-//             if (event.level === 'query') {
-//               console.log('SQL:', event.query.sql)
-//               console.log('Parameters:', event.query.parameters)
-//             }
-//           }
-//         : undefined,
-//     })
-//   }
-//   return db
-// }
-
-/**
- * Close the database connection
- */
-// export async function closeDatabase(): Promise<void> {
-//   if (db) {
-//     await db.destroy()
-//     db = null
-//   }
-// }
-
-// eslint-disable-next-line react-hooks-extra/no-unnecessary-use-prefix
 export function useDatabase<
   TSchema extends Record<string, unknown> = Record<string, never>,
   TClient extends NodePgClient = Pool,
->(config?: DrizzleConfig<TSchema>): ReturnType<typeof createDatabase<TSchema, TClient>> {
+>(config?: DrizzleConfig<TSchema>): Database<TSchema, TClient> {
   if (config) {
     return ((useDatabase as any).__instance__ = createDatabase<TSchema, TClient>(config))
   }

@@ -26,10 +26,6 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
-    "./db/repository": {
-      "types": "./src/db/repository/index.ts",
-      "default": "./dist/db/repository/index.mjs"
-    },
     "./cache": {
       "types": "./src/cache/index.ts",
       "default": "./dist/cache/index.mjs"
@@ -55,8 +51,17 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
+  "peerDependencies": {
+    "nitro": "^2.0.0 || ^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "nitro": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",

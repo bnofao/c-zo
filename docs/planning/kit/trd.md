@@ -1,21 +1,26 @@
 # TRD: Module Kit (@czo/kit)
 
-**Status**: Draft
+**Status**: In Progress
 **Author**: Claude (Briana)
 **Created**: 2026-02-04
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-08
 **Related PRD**: [prd.md](./prd.md)
 
 ---
 
 ## 1. Overview
 
-Le module `@czo/kit` est le toolkit fondamental de c-zo. Cette évolution ajoute cinq composants majeurs :
-- **Repository** : Pattern fonctionnel pour CRUD avec Drizzle
-- **Cache** : Nitro Cache natif + CacheManager léger
+Le module `@czo/kit` est le toolkit fondamental de c-zo. Cette évolution ajoute les composants suivants :
+
+**Implémentés (Sprint-01) :**
+- **Repository** : Classe abstraite `Repository<T,U,V>` pour CRUD avec Drizzle, optimistic locking, soft delete, hooks lifecycle
+- **Cache** : Export de `useCache` (alias de `useStorage` de Nitro)
+
+**À implémenter :**
 - **Events** : Sync (hookable) + async (BullMQ)
-- **Hooks** : Interception before/after/onError
 - **Apps** : Système d'applications tierces avec webhooks
+
+> **Note Sprint-01** : L'approche a pivoté de builders fonctionnels vers une classe abstraite. Les hooks sont maintenant intégrés dans la classe Repository plutôt qu'un système séparé.
 
 ## 2. Architecture
 
@@ -55,7 +60,7 @@ Le module `@czo/kit` est le toolkit fondamental de c-zo. Cette évolution ajoute
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Diagram
+### Component Diagram (Implémentation Actuelle)
 
 ```
 packages/kit/
@@ -63,87 +68,281 @@ packages/kit/
 │   ├── index.ts                      # Main exports (module, ioc, logger)
 │   │
 │   ├── db/
-│   │   ├── index.ts                  # useDatabase export
-│   │   └── repository/
-│   │       ├── index.ts              # createRepository export
-│   │       ├── create-repository.ts  # Factory implementation
-│   │       ├── types.ts              # BaseEntity, FindManyOptions, etc.
-│   │       ├── errors.ts             # OptimisticLockError, NotFoundError
-│   │       └── utils.ts              # applyWhere, applyOrderBy helpers
+│   │   ├── index.ts                  # useDatabase + Repository exports
+│   │   ├── manager.ts                # useDatabase implementation (master/replicas)
+│   │   └── repository.ts             # ✅ Classe abstraite Repository<T,U,V>
+│   │                                  #    - CRUD: findFirst, findMany, create, update, delete
+│   │                                  #    - Optimistic locking: version + expectedVersion
+│   │                                  #    - Soft delete: soft param + restore()
+│   │                                  #    - Hooks: beforeCreate, afterUpdate, etc.
+│   │                                  #    - Errors: OptimisticLockError, DatabaseError
 │   │
 │   ├── cache/
-│   │   ├── index.ts                  # useCacheManager export
-│   │   ├── manager.ts                # CacheManager implementation
-│   │   ├── types.ts                  # CacheOptions, CacheConfig
-│   │   └── drivers/
-│   │       ├── memory.ts             # Development driver
-│   │       └── redis.ts              # Production driver
+│   │   └── index.ts                  # ✅ Export useCache (alias useStorage)
 │   │
-│   ├── events/
+│   ├── events/                       # 🔲 À implémenter
 │   │   ├── index.ts                  # useEvents export
 │   │   ├── emitter.ts                # EventEmitter implementation
-│   │   ├── types.ts                  # EventMap, EventContext, EventHandler
 │   │   └── queue.ts                  # BullMQ integration for async
 │   │
-│   ├── hooks/
-│   │   ├── index.ts                  # useHooks export
-│   │   ├── registry.ts               # HookRegistry implementation
-│   │   └── types.ts                  # HookMap, HookContext, BeforeHook
-│   │
-│   ├── apps/
+│   ├── apps/                         # 🔲 À implémenter
 │   │   ├── index.ts                  # useAppRegistry export
 │   │   ├── registry.ts               # AppRegistry implementation
 │   │   ├── dispatcher.ts             # WebhookDispatcher
-│   │   ├── permission-checker.ts     # AppPermissionChecker (uses @czo/auth)
-│   │   ├── types.ts                  # AppManifest, InstalledApp, etc.
-│   │   └── signature.ts              # HMAC signing utilities
+│   │   └── permission-checker.ts     # AppPermissionChecker (uses @czo/auth)
 │   │
-│   └── graphql/                      # Existing GraphQL utilities
+│   ├── graphql/                      # ✅ Existant
+│   │   └── ...
+│   │
+│   └── module/                       # ✅ Existant
 │       └── ...
 │
-├── package.json
+├── package.json                      # ✅ peerDependencies: nitro (optional)
 └── tests/
-    ├── repository.test.ts
-    ├── cache.test.ts
-    ├── events.test.ts
-    ├── hooks.test.ts
-    └── apps.test.ts
+    └── ...
 ```
 
-### Package Exports
+**Légende:** ✅ Implémenté | 🔲 À faire
+
+### Package Exports (Actuels)
 
 ```json
 {
   "exports": {
-    ".": "./dist/index.mjs",
-    "./db": "./dist/db/index.mjs",
-    "./db/repository": "./dist/db/repository/index.mjs",
-    "./cache": "./dist/cache/index.mjs",
-    "./events": "./dist/events/index.mjs",
-    "./hooks": "./dist/hooks/index.mjs",
-    "./apps": "./dist/apps/index.mjs",
-    "./graphql": "./dist/graphql/index.mjs"
+    ".": "./dist/index.mjs",           // Core: module, ioc, logger
+    "./db": "./dist/db/index.mjs",     // ✅ useDatabase, Repository, errors
+    "./cache": "./dist/cache/index.mjs", // ✅ useCache (alias useStorage)
+    "./graphql": "./dist/graphql/index.mjs", // ✅ registerResolvers, etc.
+    "./module": "./dist/module/index.mjs"    // ✅ defineNitroModule
+  },
+  "peerDependencies": {
+    "nitro": "^2.0.0 || ^3.0.0"        // ✅ Optional pour cache
   }
 }
 ```
 
+**Note :** Le sous-export `./db/repository` a été supprimé - Repository est exporté depuis `./db`.
+
 ### Components
 
-| Component | Technology | Purpose | Dependencies |
-|-----------|------------|---------|--------------|
-| Repository | createRepository() | Generic CRUD with Drizzle | drizzle-orm |
-| Cache | CacheManager | Invalidation + fallback | nitropack/runtime (useStorage) |
-| Events | EventEmitter | Inter-module communication | hookable, bullmq |
-| Hooks | HookRegistry | Operation interception | hookable |
-| Apps | AppRegistry | Third-party integrations | @czo/auth, bullmq |
+| Component | Technology | Purpose | Status | Dependencies |
+|-----------|------------|---------|--------|--------------|
+| Repository | Classe abstraite `Repository<T,U,V>` | Generic CRUD with Drizzle | ✅ Done | drizzle-orm |
+| Cache | `useCache` (alias useStorage) | Accès au cache Nitro | ✅ Done | nitro (peer) |
+| Events | EventEmitter | Inter-module communication | 🔲 TODO | hookable, bullmq |
+| Apps | AppRegistry | Third-party integrations | 🔲 TODO | @czo/auth, bullmq |
+
+**Note :** Le composant Hooks est maintenant intégré dans Repository (méthodes lifecycle).
 
 ## 3. Detailed Design
 
 ### 3.1 Repository
 
-#### Architecture: Builders Séparés
+> **⚠️ PIVOT Sprint-01** : L'architecture a changé de "builders séparés" vers une "classe abstraite".
+> La documentation ci-dessous reflète l'implémentation actuelle.
 
-Le repository utilise des **builders séparés** pour permettre une composition granulaire et un tree-shaking optimal :
+#### Architecture Actuelle: Classe Abstraite
+
+Le repository utilise une **classe abstraite** que les modules étendent :
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               Repository<T, U, V, TClient>                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Queries                          Mutations                     │
+│   ├── findFirst(opts?)             ├── create(value, opts?)     │
+│   ├── findMany(opts?)              ├── createMany(values, opts?)│
+│   ├── paginateByOffset(opts?)      ├── update(value, opts?)     │
+│   └── [columns getter]             ├── delete(opts?)            │
+│                                    └── restore(opts?)           │
+│                                                                  │
+│   Hooks (à override)               Features                     │
+│   ├── beforeCreate(row)            ├── Optimistic locking       │
+│   ├── afterCreate(row)             │   (version + expectedVersion│
+│   ├── beforeUpdate(row)            ├── Soft delete              │
+│   ├── afterUpdate(row)             │   (soft: true + restore)   │
+│   ├── afterDelete(row)             └── Transactions (opts.tx)   │
+│   └── afterFind(row)                                            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Avantages de cette approche :**
+- **Hooks intégrés** : beforeCreate, afterUpdate, etc. comme méthodes à override
+- **API familière** : Pattern OOP classique, facile à comprendre
+- **Pragmatisme** : Réutilisation de code existant éprouvé
+
+**Trade-offs acceptés :**
+- ❌ Moins de tree-shaking (toute la classe est importée)
+- ❌ Testing avec mocking de classes
+- ✅ Moins de boilerplate que les builders
+
+#### Types Implémentés
+
+```typescript
+// Erreurs
+export class DatabaseError extends Error {
+  fieldErrors: Record<string, string[] | undefined>
+}
+
+export class OptimisticLockError extends Error {
+  readonly entityId: string
+  readonly expectedVersion: number
+  readonly actualVersion: number | null
+}
+
+// Config types
+export type FindFirstQueryConfig<T, U> = DBQueryConfig<...> & {
+  tx?: Transaction<T>
+  includeDeleted?: boolean  // Inclure les soft-deleted
+}
+
+export type FindManyQueryConfig<T, U> = DBQueryConfig<...> & {
+  tx?: Transaction<T>
+  includeDeleted?: boolean
+}
+
+export type PaginateByOffsetQueryConfig<T, U> = ... & {
+  page?: number
+  perPage?: number
+  sortBy?: keyof columns
+  sortDirection?: 'asc' | 'desc'
+  tx?: Transaction<T>
+  includeDeleted?: boolean
+}
+```
+
+#### Classe Repository
+
+```typescript
+// @czo/kit/db/repository.ts
+
+export abstract class Repository<
+  T extends Record<string, unknown>,  // Schema type (pour relations)
+  U extends PgTableWithColumns<any>,  // Table type
+  V extends keyof ExtractTablesWithRelations<T>,  // Model name
+  TClient extends NodePgClient = Pool,
+> {
+  db: Database<T, TClient>
+  table: U
+
+  constructor(db: Database<T, TClient>, table: U)
+
+  // === Queries ===
+
+  async findFirst<QConfig>(opts?: FindFirstOpts<QConfig>)
+  // - Utilise db.query[modelName].findFirst()
+  // - Supporte relations via opts.with
+  // - Filtre auto deletedAt IS NULL si includeDeleted !== true
+
+  async findMany<QConfig>(opts?: FindManyOpts<QConfig>)
+  // - Pagination via limit/offset
+  // - Filtre auto soft-deleted
+
+  async paginateByOffset<QConfig>(opts?: PaginateByOffsetOpts<QConfig>)
+  // - Pagination page/perPage
+  // - Retourne { rows, next, previous, page, perPage, totalPages, totalRows }
+
+  // === Mutations ===
+
+  async create(value, opts?)
+  // - Auto version: 1 si colonne existe
+  // - Appelle beforeCreate/afterCreate
+
+  async createMany(values, opts?)
+  // - Batch insert
+  // - Appelle beforeCreate/afterCreate pour chaque row
+
+  async update(value, opts?)
+  // - expectedVersion?: number pour locking
+  // - Auto version = version + 1
+  // - Throw OptimisticLockError si version mismatch
+  // - Appelle beforeUpdate/afterUpdate
+
+  async delete(opts?)
+  // - soft?: boolean → SET deletedAt = NOW() au lieu de DELETE
+  // - Appelle afterDelete
+
+  async restore(opts?)
+  // - SET deletedAt = NULL
+  // - Uniquement si table a deletedAt
+
+  // === Hooks (à override) ===
+
+  async beforeCreate(row: PgInsertValue<U>) {}
+  async afterCreate(row: InferSelectModel<U>) {}
+  async beforeUpdate(row: PgUpdateSetSource<U>) {}
+  async afterUpdate(row: InferSelectModel<U>) {}
+  async afterDelete(row: InferSelectModel<U>) {}
+  async afterFind(row: InferSelectModel<U>) {}
+}
+```
+
+#### Exemple d'Utilisation
+
+```typescript
+// @czo/product/repositories/product.repository.ts
+
+import { Repository } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db'
+import { products } from '../database/schema'
+import type { Schema } from '../database/schema'
+
+export class ProductRepository extends Repository<
+  Schema,
+  typeof products,
+  'products'
+> {
+  constructor(db: Database<Schema>) {
+    super(db, products)
+  }
+
+  // Hook: validation avant création
+  async beforeCreate(row: typeof products.$inferInsert) {
+    if (row.price && row.price < 0) {
+      throw new Error('Price cannot be negative')
+    }
+  }
+
+  // Hook: logging après création
+  async afterCreate(row: typeof products.$inferSelect) {
+    console.log(`Product created: ${row.id}`)
+  }
+
+  // Méthode custom
+  async findByHandle(handle: string) {
+    return this.findFirst({
+      where: (columns, { eq }) => eq(columns.handle, handle),
+    })
+  }
+
+  // Méthode custom avec update optimiste
+  async publish(id: string, expectedVersion: number) {
+    return this.update(
+      { status: 'published' },
+      {
+        where: (columns, { eq }) => eq(columns.id, id),
+        expectedVersion,
+      }
+    )
+  }
+}
+
+// Enregistrement dans le container
+container.singleton('productRepository', () => {
+  const db = useDatabase<Schema>()
+  return new ProductRepository(db)
+})
+```
+
+---
+
+#### ~~Architecture Historique: Builders Séparés~~ (Abandonné)
+
+> La section ci-dessous documente l'approche initialement planifiée mais abandonnée lors du Sprint-01.
+
+Le repository utilisait des **builders séparés** pour permettre une composition granulaire et un tree-shaking optimal :
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -693,31 +892,32 @@ export function createProductLoader(db: DrizzleDatabase) {
 }
 ```
 
-### 3.2 Cache (Approche Hybride Nitro)
+### 3.2 Cache (Approche Simplifiée)
 
-L'approche cache exploite **Nitro Cache natif** pour les reads déclaratifs et un **CacheManager léger** pour l'invalidation.
+> **⚠️ PIVOT Sprint-01** : L'approche CacheManager complexe a été abandonnée. Kit exporte simplement `useCache` (alias de `useStorage` de Nitro). Les modules gèrent leur cache directement avec les APIs Nitro.
 
-#### Architecture
+#### Architecture Actuelle
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Cache Strategy                            │
+│                    Cache (Simplifié)                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│   Reads (déclaratif)              Writes (invalidation)          │
-│   ┌─────────────────────┐        ┌─────────────────────┐        │
-│   │ defineCachedFunction│        │    CacheManager     │        │
-│   │ ├── maxAge (TTL)    │        │ ├── delete(key)     │        │
-│   │ ├── swr (default)   │        │ ├── deleteMany()    │        │
-│   │ ├── staleMaxAge     │        │ ├── invalidate()    │        │
-│   │ └── getKey()        │        │ └── has()           │        │
-│   └──────────┬──────────┘        └──────────┬──────────┘        │
-│              │                              │                    │
-│              └──────────────┬───────────────┘                    │
+│   @czo/kit/cache                                                 │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  export { useStorage as useCache } from 'nitro/runtime'  │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                             │                                    │
 │                             ▼                                    │
-│                    ┌─────────────────┐                           │
-│                    │   useStorage()  │  ← Nitro storage API      │
-│                    └────────┬────────┘                           │
+│   Modules utilisent directement les APIs Nitro :                 │
+│   ┌─────────────────────┐  ┌─────────────────────────────┐      │
+│   │ useCache()          │  │ defineCachedFunction()      │      │
+│   │ ├── getItem()       │  │ ├── Wrap function avec SWR  │      │
+│   │ ├── setItem()       │  │ ├── maxAge, staleMaxAge     │      │
+│   │ ├── removeItem()    │  │ └── getKey()                │      │
+│   │ └── getKeys()       │  │                             │      │
+│   └─────────────────────┘  └─────────────────────────────┘      │
+│                             │                                    │
 │                             ▼                                    │
 │              ┌──────────────────────────────┐                    │
 │              │      nitro.config.ts         │                    │
@@ -734,41 +934,30 @@ L'approche cache exploite **Nitro Cache natif** pour les reads déclaratifs et u
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Types
+#### Implementation (Implémentée)
 
 ```typescript
-// @czo/kit/cache/types.ts
+// @czo/kit/cache/index.ts
 
 /**
- * CacheManager léger pour l'invalidation
- * Les reads utilisent directement defineCachedFunction de Nitro
+ * Export direct de useStorage de Nitro comme useCache
+ * Les modules gèrent leur cache directement avec les APIs Nitro
  */
-export interface CacheManager {
-  // Invalidation operations
-  delete(key: string): Promise<void>
-  deleteMany(keys: string[]): Promise<void>
-  invalidate(pattern: string): Promise<number>
-  has(key: string): Promise<boolean>
-
-  // Fallback pour cas hors defineCachedFunction
-  getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T>
-}
-
-/**
- * Options pour defineCachedFunction (Nitro natif)
- * Référence: https://v3.nitro.build/docs/cache
- */
-export interface NitroCacheOptions {
-  maxAge: number              // TTL en secondes
-  swr?: boolean               // Stale-while-revalidate (default: true)
-  staleMaxAge?: number        // Durée max du stale (-1 = illimité)
-  name?: string               // Nom du cache entry
-  getKey?: (...args: any[]) => string  // Custom cache key
-  varies?: string[]           // Headers qui varient le cache
-}
+export { useStorage as useCache } from 'nitro/runtime'
 ```
 
-#### Configuration Storage (nitro.config.ts)
+**Avantages de cette approche :**
+- ✅ Zéro abstraction supplémentaire
+- ✅ Accès direct aux APIs Nitro puissantes
+- ✅ Configuration centralisée dans `nitro.config.ts`
+- ✅ SWR intégré via `defineCachedFunction`
+- ✅ Moins de code à maintenir
+
+**Trade-offs acceptés :**
+- ❌ Moins d'uniformité entre modules (chacun gère son cache)
+- ❌ Pas d'invalidation par tags built-in (à faire si besoin)
+
+#### Configuration Storage (À faire - Issue #38)
 
 ```typescript
 // apps/mazo/nitro.config.ts
@@ -794,7 +983,45 @@ export default defineNitroConfig({
 })
 ```
 
-#### Nitro Cache pour Reads (defineCachedFunction)
+#### Usage dans les Modules
+
+##### Exemple 1: Cache manuel avec useCache
+
+```typescript
+// @czo/product/services/product.service.ts
+
+import { useCache } from '@czo/kit/cache'
+
+export class ProductService {
+  async getProductById(id: string): Promise<Product | null> {
+    const cache = useCache()
+    const cacheKey = `product:${id}`
+
+    // Check cache first
+    const cached = await cache.getItem<Product>(cacheKey)
+    if (cached) return cached
+
+    // Fetch from DB
+    const product = await this.repo.findFirst({
+      where: (columns, { eq }) => eq(columns.id, id),
+    })
+
+    // Cache result
+    if (product) {
+      await cache.setItem(cacheKey, product, { ttl: 300 })
+    }
+
+    return product
+  }
+
+  async invalidateProduct(id: string): Promise<void> {
+    const cache = useCache()
+    await cache.removeItem(`product:${id}`)
+  }
+}
+```
+
+##### Exemple 2: SWR avec defineCachedFunction
 
 ```typescript
 // @czo/product/queries/product.queries.ts
@@ -802,17 +1029,15 @@ export default defineNitroConfig({
 import { defineCachedFunction } from 'nitropack/runtime'
 
 /**
- * Query cachée avec SWR - pattern recommandé pour les reads
+ * Query cachée avec SWR - pattern recommandé pour les reads fréquents
  */
 export const getProductById = defineCachedFunction(
   async (id: string): Promise<Product | null> => {
     const db = useDatabase()
-    const result = await db
-      .select()
-      .from(products)
-      .where(eq(products.id, id))
-      .limit(1)
-    return result[0] ?? null
+    const result = await db.query.products.findFirst({
+      where: (columns, { eq }) => eq(columns.id, id),
+    })
+    return result ?? null
   },
   {
     maxAge: 300,           // 5 min
@@ -822,105 +1047,17 @@ export const getProductById = defineCachedFunction(
     name: 'getProductById',
   }
 )
-
-/**
- * Query avec données enrichies
- */
-export const getProductWithVariants = defineCachedFunction(
-  async (id: string): Promise<ProductWithVariants | null> => {
-    const product = await getProductById(id)
-    if (!product) return null
-
-    const variants = await getVariantsByProductId(product.id)
-    return { ...product, variants }
-  },
-  {
-    maxAge: 300,
-    swr: true,
-    getKey: (id) => `product:${id}:with-variants`,
-  }
-)
 ```
 
-#### CacheManager Implementation
+#### ~~CacheManager~~ (Abandonné)
 
-```typescript
-// @czo/kit/cache/manager.ts
+> L'approche CacheManager avec wrapper autour de Nitro storage a été abandonnée.
+> Les modules utilisent directement `useCache()` ou `defineCachedFunction()`.
 
-import { useStorage } from 'nitropack/runtime'
-
-/**
- * CacheManager léger - wrapper autour de Nitro storage
- * Utilisé principalement pour l'invalidation après mutations
- */
-export function useCacheManager(namespace?: string): CacheManager {
-  const storage = useStorage('cache')
-  const prefix = namespace ? `${namespace}:` : ''
-
-  const prefixKey = (key: string) => `${prefix}${key}`
-
-  return {
-    async delete(key: string): Promise<void> {
-      await storage.removeItem(prefixKey(key))
-    },
-
-    async deleteMany(keys: string[]): Promise<void> {
-      await Promise.all(keys.map(k => storage.removeItem(prefixKey(k))))
-    },
-
-    async invalidate(pattern: string): Promise<number> {
-      const allKeys = await storage.getKeys(prefixKey(pattern))
-      await Promise.all(allKeys.map(k => storage.removeItem(k)))
-      return allKeys.length
-    },
-
-    async has(key: string): Promise<boolean> {
-      return storage.hasItem(prefixKey(key))
-    },
-
-    async getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
-      const fullKey = prefixKey(key)
-      const cached = await storage.getItem<T>(fullKey)
-      if (cached !== null) return cached
-
-      const value = await factory()
-      await storage.setItem(fullKey, value, ttl ? { ttl } : undefined)
-      return value
-    },
-  }
-}
-```
-
-#### Usage dans les Services (Invalidation)
-
-```typescript
-// @czo/product/services/product.service.ts
-
-export class ProductService {
-  private cache = useCacheManager('product')
-
-  constructor(private repo: ProductRepository) {}
-
-  async updateProduct(id: string, input: UpdateProductInput): Promise<Product> {
-    const product = await this.repo.update(id, input)
-
-    // Invalider tous les caches liés à ce produit
-    await this.cache.invalidate(`${id}:*`)
-
-    return product
-  }
-
-  async deleteProduct(id: string): Promise<void> {
-    await this.repo.delete(id)
-    await this.cache.invalidate(`${id}:*`)
-  }
-
-  async bulkUpdateProducts(updates: Array<{ id: string; input: UpdateProductInput }>): Promise<void> {
-    await Promise.all(updates.map(u => this.repo.update(u.id, u.input)))
-    await this.cache.deleteMany(updates.map(u => u.id))
-  }
-}
-```
+~~```typescript
+// @czo/kit/cache/manager.ts - ABANDONNÉ
+export function useCacheManager(namespace?: string): CacheManager { ... }
+```~~
 
 ### 3.3 Events
 
@@ -1073,10 +1210,16 @@ export function createEventEmitter(config: EventConfig): EventEmitter {
 
 ### 3.4 Hooks
 
-#### Types
+> **⚠️ PIVOT Sprint-01** : L'approche HookRegistry séparée a été abandonnée.
+> Les hooks lifecycle sont maintenant **intégrés dans la classe Repository** comme méthodes à override :
+> `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `afterDelete`, `afterFind`.
+>
+> Voir **Section 3.1 Repository** pour l'implémentation actuelle des hooks.
+
+#### ~~Types~~ (Architecture Historique - Abandonné)
 
 ```typescript
-// @czo/kit/hooks/types.ts
+// @czo/kit/hooks/types.ts - ABANDONNÉ
 
 export interface HookRegistry {
   before<T extends keyof HookMap>(
@@ -1678,28 +1821,32 @@ describe('Apps + Auth', () => {
 
 ### Deployment Stages
 
-1. **Phase 1: Repository** (Week 1)
-   - createRepository factory
-   - Integration with existing modules
+1. **Phase 1: Repository** (Sprint-01) ✅ **DONE**
+   - ~~createRepository factory~~
+   - Classe abstraite `Repository<T,U,V>`
+   - Optimistic locking (version)
+   - Soft delete (soft param + restore)
+   - Hooks lifecycle intégrés
 
-2. **Phase 2: Cache** (Week 2)
-   - CacheManager implementation
-   - Repository cache integration
+2. **Phase 2: Cache** (Sprint-01) ✅ **DONE**
+   - ~~CacheManager implementation~~
+   - Export `useCache` (alias useStorage)
+   - Configuration Redis → Issue #38 (open)
 
-3. **Phase 3: Events** (Week 3)
+3. **Phase 3: Events** (TBD)
    - EventEmitter with hookable
    - BullMQ async queue
 
-4. **Phase 4: Hooks** (Week 4)
-   - HookRegistry implementation
-   - Integration with repository
+4. **~~Phase 4: Hooks~~** ✅ **MERGED INTO PHASE 1**
+   - ~~HookRegistry implementation~~
+   - Hooks intégrés dans Repository
 
-5. **Phase 5: Apps** (Week 5-6)
+5. **Phase 4: Apps** (TBD)
    - AppRegistry and WebhookDispatcher
    - Permission integration with @czo/auth
    - Stripe app demo
 
-6. **Launch** (Week 7)
+6. **Launch** (TBD)
    - Production deployment
    - Documentation
 
@@ -1717,19 +1864,23 @@ describe('Apps + Auth', () => {
 
 ### Open Questions
 
-- [x] Repository pattern? → **Functional with createRepository()**
-- [x] Optimistic locking? → **Version number**
-- [x] Cache backend? → **Nitro Cache natif** (defineCachedFunction + useStorage)
-- [x] Events library? → **hookable + BullMQ**
-- [x] App permissions? → **Via @czo/auth PermissionService**
+- [x] Repository pattern? → **~~Functional with createRepository()~~** **PIVOT: Classe abstraite `Repository<T,U,V>`**
+- [x] Optimistic locking? → **Version number** (champ `version`, `expectedVersion` sur update)
+- [x] Soft delete? → **Paramètre `soft?: boolean`** sur delete, `restore()` pour annuler
+- [x] Cache backend? → **Nitro Cache natif** (export `useCache` = `useStorage`)
+- [x] Cache approach? → **~~CacheManager complexe~~** **PIVOT: Export simple, modules gèrent leur cache**
+- [x] Hooks? → **~~HookRegistry séparé~~** **PIVOT: Intégrés dans Repository** (beforeCreate, afterUpdate, etc.)
+- [x] Events library? → **hookable + BullMQ** (à implémenter)
+- [x] App permissions? → **Via @czo/auth PermissionService** (à implémenter)
 
 ### ADRs
 
-- **ADR-001**: Functional repository → Composition over inheritance
-- **ADR-002**: Nitro Cache natif → SWR built-in, configuration centralisée, moins de code
-- **ADR-003**: hookable for events/hooks → Lightweight, TypeScript-first
-- **ADR-004**: BullMQ for async → Redis-based, battle-tested
-- **ADR-005**: App permissions via @czo/auth → Centralized permission system
+- **ADR-001**: ~~Functional repository~~ → **PIVOT: Classe abstraite Repository** → API familière, hooks intégrés, pragmatisme
+- **ADR-002**: Nitro Cache simplifié → Export direct de `useStorage`, pas de wrapper custom
+- **ADR-003**: hookable for events/hooks → Lightweight, TypeScript-first (events à implémenter)
+- **ADR-004**: BullMQ for async → Redis-based, battle-tested (à implémenter)
+- **ADR-005**: App permissions via @czo/auth → Centralized permission system (à implémenter)
+- **ADR-006**: Hooks lifecycle dans Repository → Méthodes à override plutôt que registry séparé
 
 ### References
 

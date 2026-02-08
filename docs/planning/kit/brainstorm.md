@@ -1697,26 +1697,95 @@ import { useAppRegistry } from '@czo/kit/apps'
 **Décisions clés prises:**
 
 1. **Priorité** : Repository → Cache → Events → Hooks → Apps
-2. **Repository** : Builders séparés (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
-3. **Optimistic Locking** : Version number (entier incrémenté)
-4. **Cache** : **Approche hybride Nitro** - `defineCachedFunction` pour reads, `CacheManager` léger pour invalidation
+2. ~~**Repository** : Builders séparés (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)~~ → **PIVOT Sprint-01** : Classe abstraite `Repository<T,U,V>`
+3. **Optimistic Locking** : Version number (entier incrémenté) ✅ Implémenté
+4. ~~**Cache** : Approche hybride Nitro - `defineCachedFunction` pour reads, `CacheManager` léger pour invalidation~~ → **SIMPLIFIÉ** : Re-export direct de `useStorage` comme `useCache`
 5. **SWR** : Gratuit avec Nitro Cache (built-in)
 6. **Events** : Sync + async (BullMQ), intégration avec hooks
-7. **Hooks** : Basé sur hookable, before/after/onError
+7. **Hooks** : ~~Basé sur hookable~~ → Méthodes override dans la classe Repository (`beforeCreate`, `afterCreate`, etc.)
 8. **Apps** : Self-hosted, webhooks + extensions UI
-9. **Naming** : `@czo/kit/db/repository` (repository sous le namespace db)
-10. **Exports** : Sous-packages séparés pour tree-shaking et clarté
-11. **Pattern** : Fonctionnel (composition) plutôt que OOP (héritage)
+9. **Naming** : `@czo/kit/db` (repository exporté depuis db, pas de sous-package séparé)
+10. **Exports** : Consolidés (db inclut repository)
+11. ~~**Pattern** : Fonctionnel (composition)~~ → **PIVOT** : OOP (classe abstraite avec héritage)
 12. **Permissions Apps** : Délégation complète à `@czo/auth` via `PermissionService`
 13. **App Scope** : Apps installées par shop, permissions scopées au shop
 14. **Permission Format** : `{ resource, actions[], scope }` aligné avec le plugin `access`
+15. **Soft Delete** : Paramètre `soft?: boolean` sur `delete()`, méthode `restore()`, filtrage auto via `includeDeleted?: boolean` ✅ Implémenté
+
+---
+
+## Pivot Sprint-01 (2026-02-08)
+
+### Décision : Classe Abstraite vs Builders Fonctionnels
+
+**Contexte** : Durant l'implémentation du Sprint-01, un pivot a été fait vers une approche class-based.
+
+**Raisons du pivot :**
+- Code existant mature disponible (pattern Repository classique)
+- Hooks intégrés naturellement comme méthodes à override
+- Moins de complexité pour la v1
+- Pragmatisme : livrer rapidement avec du code éprouvé
+
+**Trade-offs acceptés :**
+- ❌ Moins de tree-shaking possible
+- ❌ Testing avec mocking de classes (vs fonctions pures)
+- ✅ API familière pour développeurs OOP
+- ✅ Hooks lifecycle intégrés (`beforeCreate`, `afterUpdate`, etc.)
+
+### Implémentation Finale Repository
+
+```typescript
+// Classe abstraite à étendre
+export abstract class Repository<T, U, V, TClient> {
+  // Queries
+  findFirst(opts?)           // Avec relations Drizzle
+  findMany(opts?)            // Avec limit/offset
+  paginateByOffset(opts?)    // Pagination page/perPage
+
+  // Mutations
+  create(value, opts?)       // Auto version: 1
+  createMany(values, opts?)
+  update(value, opts?)       // Avec expectedVersion pour locking
+  delete(opts?)              // soft?: boolean pour soft delete
+  restore(opts?)             // Annuler soft delete
+
+  // Hooks (à override)
+  beforeCreate(row), afterCreate(row)
+  beforeUpdate(row), afterUpdate(row)
+  afterDelete(row), afterFind(row)
+}
+```
+
+### Fonctionnalités Implémentées
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| CRUD de base | ✅ | findFirst, findMany, create, update, delete |
+| Pagination offset | ✅ | paginateByOffset avec page/perPage |
+| Optimistic Locking | ✅ | Champ `version`, `expectedVersion` sur update |
+| Soft Delete | ✅ | `soft: true`, `restore()`, `includeDeleted` |
+| Transactions | ✅ | Via `opts.tx` |
+| Relations Drizzle | ✅ | Via `opts.with` |
+| Hooks lifecycle | ✅ | Méthodes à override |
+| Cache intégré | ❌ | Reporté - utiliser `useCache` séparément |
+
+### Cache Simplifié
+
+```typescript
+// @czo/kit/cache
+export { useStorage as useCache } from 'nitro/storage'
+```
+
+L'approche CacheManager avec `defineCachedFunction` est reportée. Pour l'instant, les modules utilisent directement `useCache()` (alias de `useStorage` de Nitro).
 
 ---
 
 ## Prochaines Étapes
 
-- [ ] Créer PRD: `/manager:prd create kit`
-- [ ] Créer TRD: `/manager:trd create kit`
-- [ ] Spike: prototype BaseRepository avec Drizzle
-- [ ] Spike: prototype CacheManager avec unstorage
-- [ ] Migrer ProductService vers le nouveau pattern
+- [x] Créer PRD: `/manager:prd create kit`
+- [x] Créer TRD: `/manager:trd create kit`
+- [x] ~~Spike: prototype BaseRepository avec Drizzle~~ → Implémenté comme classe `Repository`
+- [ ] ~~Spike: prototype CacheManager avec unstorage~~ → Simplifié à `useCache`
+- [ ] Migrer ProductService vers le nouveau pattern Repository
+- [ ] Implémenter Events (Phase 3)
+- [ ] Implémenter Apps (Phase 5)

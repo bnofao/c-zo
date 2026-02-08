@@ -18,7 +18,6 @@ export default defineBuildConfig({
     'src/module/index',
     'src/graphql/index',
     'src/db/index',
-    'src/db/repository/index',
     'src/cache/index',
     'src/cli',
     {

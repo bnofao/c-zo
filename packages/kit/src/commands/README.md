@@ -77,6 +77,3 @@ await runCommand(publishCommand, {
   rawArgs: ['--dirs', 'src,lib', '--outdir', 'dist']
 })
 ```
-
-
-

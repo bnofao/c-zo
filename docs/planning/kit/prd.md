@@ -1,9 +1,9 @@
 # PRD: Module Kit (@czo/kit)
 
-**Status**: Draft
+**Status**: In Progress
 **Author**: Claude (Briana)
 **Created**: 2026-02-04
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-08
 **TRD**: [trd.md](./trd.md)
 **Brainstorm**: [brainstorm.md](./brainstorm.md)
 
@@ -23,10 +23,10 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 - Intégrations tierces codées en dur
 
 ### Target State
-- Repository fonctionnel avec **builders composables** (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
-- Cache transparent via unstorage (memory/Redis)
+- **Classe abstraite `Repository`** avec CRUD, optimistic locking (version), soft delete, et hooks lifecycle intégrés
+- Cache via **Nitro Storage** (`useCache` alias de `useStorage`)
 - Events synchrones et asynchrones inter-modules
-- Hooks before/after/onError pour interception
+- Hooks lifecycle intégrés dans Repository (`beforeCreate`, `afterUpdate`, etc.)
 - Système d'apps extensible avec webhooks et UI extensions
 
 ### Impact
@@ -64,41 +64,48 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 ### Must-Have Features (P0)
 
-#### Feature 1: Repository Générique Fonctionnel
-- **Description:** Système de **builders composables** pour éliminer le code CRUD répétitif avec support Drizzle, soft-delete, optimistic locking (version number), et pagination
+#### Feature 1: Repository Générique (Classe Abstraite)
+- **Description:** Classe abstraite `Repository<T,U,V>` pour éliminer le code CRUD répétitif avec support Drizzle, soft-delete, optimistic locking (version number), pagination, et hooks lifecycle intégrés
 - **User Story:** As a module developer, I want a generic repository so that I don't have to write the same CRUD code in every module
 - **Acceptance Criteria:**
-  - [ ] **Builders séparés pour tree-shaking et composition granulaire :**
-    - [ ] `createQueries()` : `findById`, `findByIds`, `findOne`, `findMany`, `count`, `exists`
-    - [ ] `createCachedQueries()` : queries + cache layer avec invalidation
-    - [ ] `createMutations()` : `create`, `createMany`, `update`, `delete`, `restore`, `hardDelete`
-    - [ ] `createRepository()` : all-in-one convenience (queries + mutations)
-  - [ ] Pagination offset + cursor avec `PaginatedResult<T>`
-  - [ ] Optimistic locking via `version` number (integer)
-  - [ ] Soft delete via `deletedAt` timestamp
-  - [ ] Support transactions via `transaction()` method
-  - [ ] Composition facile pour extensions (spread operator)
-  - [ ] Import sélectif pour minimiser l'API surface
-- **Dependencies:** Drizzle ORM, @czo/kit/cache (optional)
+  - [x] **Classe abstraite avec méthodes CRUD :**
+    - [x] `findFirst(opts?)` : premier enregistrement avec relations Drizzle
+    - [x] `findMany(opts?)` : plusieurs enregistrements avec limit/offset
+    - [x] `paginateByOffset(opts?)` : pagination page/perPage avec totalCount
+    - [x] `create(value, opts?)` : insertion avec `version: 1` auto
+    - [x] `createMany(values, opts?)` : insertion batch
+    - [x] `update(value, opts?)` : avec `expectedVersion` pour locking
+    - [x] `delete(opts?)` : avec `soft?: boolean` pour soft delete
+    - [x] `restore(opts?)` : annuler le soft delete
+  - [x] Pagination offset via `paginateByOffset` avec page/perPage
+  - [x] Optimistic locking via `version` number + `expectedVersion` sur update
+  - [x] Soft delete via `deletedAt` + paramètre `soft: true` sur delete
+  - [x] Filtrage auto des soft-deleted via `includeDeleted?: boolean`
+  - [x] Support transactions via `opts.tx`
+  - [x] **Hooks lifecycle intégrés (méthodes à override) :**
+    - [x] `beforeCreate(row)`, `afterCreate(row)`
+    - [x] `beforeUpdate(row)`, `afterUpdate(row)`
+    - [x] `afterDelete(row)`, `afterFind(row)`
+  - [x] Erreurs typées : `OptimisticLockError`, `DatabaseError`
+- **Dependencies:** Drizzle ORM
+- **Status:** ✅ Implémenté (Sprint-01)
 
-#### Feature 2: Cache Hybride (Nitro + CacheManager)
-- **Description:** Approche hybride exploitant le cache natif Nitro (`defineCachedFunction`) avec un wrapper léger pour l'invalidation
+#### Feature 2: Cache (Nitro Storage)
+- **Description:** Export direct de `useStorage` de Nitro comme `useCache` pour une utilisation simple du cache
 - **User Story:** As a developer, I want transparent caching so that frequent reads don't hit the database
 - **Acceptance Criteria:**
-  - [ ] **Nitro Cache pour les reads déclaratifs :**
-    - [ ] Utilisation de `defineCachedFunction` pour les queries
-    - [ ] SWR (stale-while-revalidate) activé par défaut
-    - [ ] Configuration TTL via `maxAge`
-    - [ ] Custom cache keys via `getKey()`
-  - [ ] **CacheManager léger pour l'invalidation :**
-    - [ ] `delete(key)` : suppression d'une clé
-    - [ ] `deleteMany(keys)` : suppression en batch
-    - [ ] `invalidate(pattern)` : invalidation par pattern glob
-    - [ ] `has(key)` : vérification d'existence
-    - [ ] `getOrSet(key, factory, ttl)` : pour les cas hors `defineCachedFunction`
-  - [ ] Namespace support via `useCacheManager(prefix)`
-  - [ ] Configuration storage dans `nitro.config.ts` (memory/Redis)
-- **Dependencies:** nitropack/runtime (useStorage, defineCachedFunction)
+  - [x] **Export `useCache` depuis `@czo/kit/cache` :**
+    - [x] Alias de `useStorage` de Nitro
+    - [x] Accès direct au storage configuré dans `nitro.config.ts`
+  - [ ] **Configuration storage dans `nitro.config.ts` :**
+    - [ ] Driver `memory` pour dev
+    - [ ] Driver `redis` pour prod
+  - [ ] **Modules utilisent directement l'API Nitro :**
+    - [ ] `defineCachedFunction` pour SWR
+    - [ ] `useCache().setItem/getItem` pour cache manuel
+- **Dependencies:** nitro (peer dependency, optional)
+- **Status:** ✅ Export implémenté, configuration Redis à faire
+- **Note:** L'approche CacheManager complexe a été simplifiée. Les modules gèrent leur cache directement avec les APIs Nitro.
 
 #### Feature 3: EventEmitter Typé
 - **Description:** Système d'events synchrones et asynchrones pour communication inter-modules
@@ -113,18 +120,22 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
   - [ ] Fallback sync si queue non configurée
 - **Dependencies:** hookable, bullmq, Redis
 
-#### Feature 4: HookRegistry
-- **Description:** Système de hooks pour intercepter les opérations avec before/after/onError
+#### Feature 4: Hooks Lifecycle (intégrés dans Repository)
+- **Description:** Hooks lifecycle intégrés dans la classe Repository comme méthodes à override
 - **User Story:** As a developer, I want to intercept operations so that I can add validation, logging, or enrichment
 - **Acceptance Criteria:**
-  - [ ] Interface `HookRegistry` avec `before`, `after`, `onError`
-  - [ ] Method `run(hook, context, fn)` pour exécution avec hooks
-  - [ ] Before hooks peuvent modifier le context
-  - [ ] After hooks peuvent modifier le result
-  - [ ] Error hooks pour logging/recovery
-  - [ ] Type safety via module augmentation (`HookMap`)
-  - [ ] Unsubscribe via returned function
-- **Dependencies:** hookable
+  - [x] **Hooks comme méthodes de classe :**
+    - [x] `beforeCreate(row)` : validation/enrichissement avant insertion
+    - [x] `afterCreate(row)` : post-processing après insertion
+    - [x] `beforeUpdate(row)` : validation avant update
+    - [x] `afterUpdate(row)` : post-processing après update
+    - [x] `afterDelete(row)` : cleanup après suppression
+    - [x] `afterFind(row)` : enrichissement des résultats de lecture
+  - [x] Override dans les sous-classes pour personnalisation
+  - [x] Erreurs propagées correctement
+- **Dependencies:** Aucune (intégré dans Repository)
+- **Status:** ✅ Implémenté (Sprint-01)
+- **Note:** L'approche HookRegistry séparée (hookable) a été simplifiée. Les hooks sont maintenant des méthodes de la classe Repository.
 
 #### Feature 5: Système d'Applications
 - **Description:** Infrastructure pour apps tierces avec webhooks, permissions (via @czo/auth), et UI extensions
@@ -169,17 +180,25 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 #### Module Developer: Using Repository
 ```
-1. Choose builder(s) based on need:
-   - createQueries() for read-only access
-   - createCachedQueries() for cached reads
-   - createMutations() for write operations
-   - createRepository() for full CRUD
-2. Import selected builder(s) from @czo/kit/db/repository
-3. Define entity type, create/update inputs
-4. Call builder(db, config) with table and options
-5. Extend with custom methods via composition (spread)
+1. Create a class extending Repository<T, U, V>:
+   - T = schema type (for relations)
+   - U = table type (PgTableWithColumns)
+   - V = model name key
+2. Import Repository from @czo/kit/db
+3. Pass db and table to super()
+4. Override hooks as needed (beforeCreate, afterUpdate, etc.)
+5. Add domain-specific methods
 6. Register in IoC container as singleton
 7. Use in services via useContainer().make()
+
+Example:
+  class ProductRepository extends Repository<Schema, typeof products, 'products'> {
+    constructor(db: Database) {
+      super(db, products)
+    }
+    async beforeCreate(row) { /* validation */ }
+    async findByHandle(handle: string) { return this.findFirst({ where: { handle } }) }
+  }
 ```
 
 #### Module Developer: Emitting Events
@@ -258,10 +277,10 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 
 | Milestone | Description | Target Date | Status |
 |-----------|-------------|-------------|--------|
-| Phase 1 | Repository générique | TBD | Pending |
-| Phase 2 | CacheManager | TBD | Pending |
+| Phase 1 | Repository classe abstraite | 2026-02-08 | ✅ Done |
+| Phase 2 | Cache (useCache export) | 2026-02-08 | ✅ Done |
 | Phase 3 | EventEmitter | TBD | Pending |
-| Phase 4 | HookRegistry | TBD | Pending |
+| Phase 4 | ~~HookRegistry~~ → Intégré dans Repository | 2026-02-08 | ✅ Done |
 | Phase 5 | App System | TBD | Pending |
 | Launch | Production ready | TBD | Pending |
 
@@ -270,15 +289,20 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 ## Appendix
 
 ### Open Questions
-- [x] Optimistic locking strategy? → **Version number**
-- [x] Cache backend? → **Nitro Cache natif** (`defineCachedFunction` + `useStorage`)
-- [x] Cache approach? → **Hybride** : Nitro pour reads, CacheManager léger pour invalidation
-- [x] SWR? → **Built-in avec Nitro** (P0, pas P1)
-- [x] Events sync/async? → **Les deux, avec BullMQ pour async**
-- [x] Hooks library? → **hookable**
-- [x] Apps model? → **Self-hosted avec webhooks, extensions UI**
-- [x] Repository pattern? → **Builders séparés** (`createQueries`, `createCachedQueries`, `createMutations`, `createRepository`)
+- [x] Optimistic locking strategy? → **Version number** (implémenté)
+- [x] Cache backend? → **Nitro Storage** (`useStorage` exporté comme `useCache`)
+- [x] Cache approach? → **Simplifié** : export direct de useStorage, modules gèrent leur cache
+- [x] SWR? → **Built-in avec Nitro** (via `defineCachedFunction`)
+- [x] Events sync/async? → **Les deux, avec BullMQ pour async** (à implémenter)
+- [x] Hooks library? → **Intégrés dans Repository** (pas de hookable séparé)
+- [x] Apps model? → **Self-hosted avec webhooks, extensions UI** (à implémenter)
+- [x] Repository pattern? → **PIVOT : Classe abstraite** (pas builders fonctionnels)
 - [x] Permissions apps? → **Délégation à @czo/auth** (plugin access)
+
+### Sprint-01 Pivot (2026-02-08)
+- **Décision** : Classe abstraite `Repository<T,U,V>` au lieu de builders fonctionnels
+- **Raison** : Pragmatisme, code existant éprouvé, hooks intégrés naturellement
+- **Trade-offs** : Moins de tree-shaking, mais API plus familière et plus simple
 
 ### References
 - [Brainstorm Kit](./brainstorm.md)

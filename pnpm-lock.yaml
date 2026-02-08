@@ -46,6 +46,9 @@ catalogs:
     '@radix-ui/react-slot':
       specifier: ^1.2.3
       version: 1.2.4
+    change-case:
+      specifier: ^5.4.4
+      version: 5.4.4
     citty:
       specifier: ^0.1.6
       version: 0.1.6
@@ -384,6 +387,9 @@ importers:
       '@adonisjs/fold':
         specifier: catalog:common
         version: 10.2.1
+      change-case:
+        specifier: catalog:common
+        version: 5.4.4
       citty:
         specifier: catalog:common
         version: 0.1.6

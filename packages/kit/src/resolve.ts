@@ -51,8 +51,8 @@ export function directoryToURL(dir: string): URL {
  *
  * If a path cannot be resolved, normalized input will be returned unless the `fallbackToOriginal` option is set to `true`,
  * in which case the original input path will be returned.
- * 
- * 
+ *
+ *
  */
 export async function resolvePath(path: string, nitro?: Nitro, opts: ResolvePathOptions = {}): Promise<string> {
   const { type = 'file' } = opts
