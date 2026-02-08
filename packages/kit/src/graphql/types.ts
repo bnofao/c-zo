@@ -1,6 +1,6 @@
 import type { DocumentNode } from 'graphql'
 
-const typeDefs: Array<DocumentNode|string> = [
+const typeDefs: Array<DocumentNode | string> = [
   `
     type Query {
       _empty: String
@@ -11,10 +11,10 @@ const typeDefs: Array<DocumentNode|string> = [
   `,
 ]
 
-export function registerTypeDefs (typeDef: DocumentNode) {
+export function registerTypeDefs(typeDef: DocumentNode) {
   typeDefs.push(typeDef)
 }
 
-export function registeredTypeDefs () {
+export function registeredTypeDefs() {
   return typeDefs
 }

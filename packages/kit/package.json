@@ -21,6 +21,14 @@
     "./graphql": {
       "types": "./src/graphql/index.ts",
       "default": "./dist/graphql/index.mjs"
+    },
+    "./db": {
+      "types": "./src/db/index.ts",
+      "default": "./dist/db/index.mjs"
+    },
+    "./cache": {
+      "types": "./src/cache/index.ts",
+      "default": "./dist/cache/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -38,10 +46,22 @@
     "build": "unbuild",
     "_dev": "NODE_ENV=development unbuild",
     "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "nitro": "^2.0.0 || ^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "nitro": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
@@ -54,11 +74,13 @@
   },
   "devDependencies": {
     "@types/pg": "catalog:types",
+    "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
     "hookable": "catalog:dev",
     "nitro": "catalog:dev",
-    "unimport": "catalog:dev"
+    "unimport": "catalog:dev",
+    "vitest": "catalog:testing"
   }
 }

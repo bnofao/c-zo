@@ -8,6 +8,6 @@ export function registerResolvers<T extends Resolver<unknown>>(resolver: T) {
   resolvers.push(resolver)
 }
 
-export function registeredResolvers () {
+export function registeredResolvers() {
   return resolvers
 }

@@ -2,7 +2,6 @@ import type { NitroHooks } from 'nitro/types'
 import type { Container } from './ioc'
 
 export * from './commands'
-export * from './db'
 export * from './ioc'
 export { logger, useLogger } from './logger'
 export * from './module'
