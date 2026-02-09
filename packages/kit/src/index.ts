@@ -1,4 +1,5 @@
 import type { NitroHooks } from 'nitro/types'
+import type { EventEmitter } from './events/types'
 import type { Container } from './ioc'
 
 export * from './commands'
@@ -13,6 +14,7 @@ export * from './types'
 declare module 'nitro/types' {
   interface NitroApp {
     container: Container<Record<any, any>>
+    events: EventEmitter
   }
   interface NitroRuntimeHooks {
     // 'czo:register': <T extends Record<any, any>>(container: Container<T>) => void

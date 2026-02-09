@@ -29,6 +29,14 @@
     "./cache": {
       "types": "./src/cache/index.ts",
       "default": "./dist/cache/index.mjs"
+    },
+    "./events": {
+      "types": "./src/events/index.ts",
+      "default": "./dist/events/index.mjs"
+    },
+    "./queue": {
+      "types": "./src/queue/index.ts",
+      "default": "./dist/queue/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -52,9 +60,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.0.0",
     "nitro": "^2.0.0 || ^3.0.0"
   },
   "peerDependenciesMeta": {
+    "bullmq": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
     "nitro": {
       "optional": true
     }
@@ -66,6 +82,7 @@
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
     "exsolve": "catalog:common",
+    "hookable": "catalog:dev",
     "jiti": "catalog:common",
     "kysely": "catalog:common",
     "pathe": "catalog:common",
@@ -78,7 +95,6 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
-    "hookable": "catalog:dev",
     "nitro": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"

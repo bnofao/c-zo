@@ -19,6 +19,8 @@ export default defineBuildConfig({
     'src/graphql/index',
     'src/db/index',
     'src/cache/index',
+    'src/events/index',
+    'src/queue/index',
     'src/cli',
     {
       input: 'src/plugin/',
@@ -39,6 +41,8 @@ export default defineBuildConfig({
     'nitro/runtime',
     'unimport',
     'graphql',
+    'bullmq',
+    'ioredis',
     'citty',
     // 'jiti',
     // 'pathe',

@@ -123,3 +123,21 @@ docker compose -f docker-compose.dev.yml up
 ```
 
 Provides PostgreSQL 17 on port 5432.
+
+## Rule: always use qmd before reading files
+
+Before reading files or exploring directories, always use qmd to search for information in local projects.
+
+Available tools:
+- `qmd search “query”` — fast keyword search (BM25)
+- `qmd query “query”` — hybrid search with reranking (best quality)
+- `qmd vsearch “query”` — semantic vector search
+- `qmd get <file>` — retrieve a specific document
+
+Use qmd search for quick lookups and qmd query for complex questions.
+
+Use Read/Glob only if qmd doesn’t return enough results.
+
+Once this is in place, Claude will always search the index first. It will only fall back to reading full files when it genuinely can’t find what it needs through the
+
+index.
