@@ -3,14 +3,14 @@
 **Status**: Draft
 **Author**: Claude (Briana)
 **Created**: 2026-02-03
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-10
 **Related PRD**: [prd.md](./prd.md)
 
 ---
 
 ## 1. Overview
 
-Le module Auth implémente un système d'authentification basé sur **better-auth** avec stockage sessions Redis, intégré à Nitro via `defineNitroModule`. L'architecture sépare les endpoints REST publics (authentification) de l'endpoint GraphQL protégé (données métier).
+Le module Auth implémente un système d'authentification basé sur **better-auth** avec architecture **dual-token** (JWT stateless + refresh token Redis), intégré à Nitro via `defineNitroModule`. L'architecture sépare les endpoints REST publics (authentification) de l'endpoint GraphQL protégé par JWT (données métier). Des **auth events** sont publiés via EventBus pour le découplage inter-modules. Le design est prêt pour l'extraction en microservice (Epic #43).
 
 **Composants clés :**
 - **AuthRestrictionRegistry** : Permet aux modules de domaine de configurer les restrictions d'auth par type d'acteur
@@ -72,6 +72,8 @@ packages/modules/auth/
 │   │       │   ├── enable.post.ts
 │   │       │   ├── verify.post.ts
 │   │       │   └── disable.post.ts
+│   │       ├── token/
+│   │       │   └── refresh.post.ts      # JWT refresh endpoint
 │   │       └── api-keys/
 │   │           ├── index.post.ts
 │   │           └── [id].delete.ts
@@ -83,9 +85,11 @@ packages/modules/auth/
 │   ├── services/
 │   │   ├── auth.service.ts
 │   │   ├── session.service.ts
+│   │   ├── token.service.ts         # JWT ES256 sign/verify/refresh
 │   │   ├── api-key.service.ts
 │   │   ├── restriction-registry.ts  # AuthRestrictionRegistry
-│   │   └── permission.service.ts    # PermissionService (plugin access)
+│   │   ├── permission.service.ts    # PermissionService (plugin access)
+│   │   └── auth-events.service.ts   # EventBus publishing for auth events
 │   ├── access/                      # Permission system
 │   │   ├── index.ts                 # createAccessControl, buildAccessControl
 │   │   ├── role-builder.ts          # createRoleBuilder (héritage)
@@ -105,7 +109,7 @@ packages/modules/auth/
 
 ### Data Flow
 
-#### Authentication Flow (REST)
+#### Authentication Flow (REST) — Dual-Token
 ```
 Client                    Nitro (mazo)                 better-auth           Redis/PostgreSQL
   │                            │                            │                       │
@@ -119,36 +123,75 @@ Client                    Nitro (mazo)                 better-auth           Red
   │                            │                            │ ──────────────────────▶
   │                            │                            │◀──────────────────────│
   │                            │                            │ 3. Create session     │
+  │                            │                            │    (refresh token)    │
   │                            │                            │ ──────────────────────▶
   │                            │◀───────────────────────────│                       │
-  │                            │ 4. Set cookie + return token                       │
+  │                            │ 4. Sign JWT (ES256)        │                       │
+  │                            │    + return tokens         │                       │
   │◀────────────────────────────                            │                       │
-  │ Set-Cookie: czo_session=xxx│                            │                       │
-  │ { user, session, token }   │  ← Client choisit sa méthode                       │
+  │ { accessToken: "eyJ...",   │                            │                       │
+  │   refreshToken: "czo_rt_...",                           │                       │
+  │   expiresIn: 900 }         │                            │                       │
+  │                            │ 5. Publish auth.session.   │                       │
+  │                            │    created event           │                       │
 ```
 
 **Response format:**
-- `Set-Cookie: czo_session=<token>` (header) - Pour browsers avec cookies
-- `{ token, tokenType: "Bearer" }` (body) - Pour SPA/mobile qui préfèrent Bearer
+- `accessToken` (JWT, 15min) — pour `Authorization: Bearer <jwt>` sur toutes les requêtes
+- `refreshToken` (opaque, 7j) — pour `POST /api/auth/token/refresh` quand le JWT expire
 
-#### GraphQL Request Flow
+#### Token Refresh Flow
+```
+Client                    Auth Service                     Redis
+  │                            │                              │
+  │ POST /api/auth/token/      │                              │
+  │      refresh               │                              │
+  │ { refreshToken }           │                              │
+  │ ──────────────────────────▶│                              │
+  │                            │ 1. Validate refresh token    │
+  │                            │ ────────────────────────────▶│
+  │                            │◀────────────────────────────│
+  │                            │ 2. Load session + user       │
+  │                            │ 3. Rotate refresh token      │
+  │                            │ ────────────────────────────▶│
+  │                            │ 4. Sign new JWT (ES256)      │
+  │◀────────────────────────────                              │
+  │ { accessToken: "eyJ...",   │                              │
+  │   refreshToken: "czo_rt_new",                             │
+  │   expiresIn: 900 }         │                              │
+```
+
+#### JWT Revocation Flow
+```
+Admin/User revokes session:
+  1. Delete session from Redis (kills refresh token)
+  2. Add jti to blocklist: SET czo:blocklist:<jti> 1 EX 900  (TTL = JWT maxAge)
+  3. Publish auth.session.revoked event
+
+Request with revoked JWT:
+  1. Verify signature → OK
+  2. Check blocklist: GET czo:blocklist:<jti> → EXISTS
+  3. → 401 Unauthorized
+```
+
+#### GraphQL Request Flow (JWT)
 ```
 Client                    Middleware              GraphQL Yoga           Resolver
   │                            │                       │                    │
   │ POST /graphql              │                       │                    │
-  │ Authorization: Bearer xxx  │  ← Prioritaire        │                    │
-  │ (ou Cookie: session=xxx)   │  ← Fallback           │                    │
+  │ Authorization: Bearer eyJ..│  ← JWT                │                    │
   │ ──────────────────────────▶│                       │                    │
-  │                            │ 1. Extract credentials│                    │
-  │                            │    Bearer > Cookie    │                    │
+  │                            │ 1. Verify JWT         │                    │
+  │                            │    signature (ES256)  │                    │
+  │                            │    + expiration       │                    │
   │                            │                       │                    │
-  │                            │ 2. Validate session   │                    │
-  │                            │    from Redis         │                    │
+  │                            │ 2. Check blocklist    │                    │
+  │                            │    (optional, Redis)  │                    │
   │                            │                       │                    │
-  │                            │ 3. No session?        │                    │
+  │                            │ 3. Invalid JWT?       │                    │
   │                            │    → 401 Unauthorized │                    │
   │                            │                       │                    │
-  │                            │ 4. Session valid      │                    │
+  │                            │ 4. Decode claims      │                    │
   │                            │    → Add to context   │                    │
   │                            │ ──────────────────────▶                    │
   │                            │                       │ 5. Execute query   │
@@ -162,9 +205,8 @@ Client                    Middleware              GraphQL Yoga           Resolve
 
 | Priorité | Méthode | Usage | Client |
 |----------|---------|-------|--------|
-| 1 | `Authorization: Bearer <token>` | Session token | Browser SPA, Mobile |
-| 2 | `Authorization: Bearer czo_<key>` | Clé API | Intégrations |
-| 3 | `Cookie: czo_session=<token>` | Cookie HTTP-only | Browser SSR |
+| 1 | `Authorization: Bearer <jwt>` | JWT access token | Browser SPA, Mobile, Services |
+| 2 | `Authorization: Bearer czo_<key>` | Clé API | Intégrations programmatiques |
 
 ### Components
 
@@ -172,9 +214,11 @@ Client                    Middleware              GraphQL Yoga           Resolve
 |-----------|------------|---------|--------------|
 | Auth Module | @czo/auth (Nitro module) | Authentication primitives | @czo/kit, better-auth |
 | REST Routes | Nitro routes | Public auth endpoints | better-auth |
-| GraphQL Schema | graphql-yoga | Protected queries/mutations | Session middleware |
-| Session Store | Redis | Session storage & validation | ioredis |
+| Token Service | jose (ES256) | JWT sign/verify/refresh | ES256 key pair |
+| GraphQL Schema | graphql-yoga | Protected queries/mutations | JWT middleware |
+| Session Store | Redis | Refresh tokens & JWT blocklist | ioredis |
 | Database | PostgreSQL + Drizzle | Users, orgs, API keys, shop_members | @czo/kit database utils |
+| Auth Events | @czo/kit EventBus | Domain event publishing | EventBus (hookable/RabbitMQ) |
 | Notifications | Novu | Emails (verification, reset, invite) | @novu/node |
 | OAuth | Google, GitHub | Social authentication | better-auth plugins |
 | Permission Service | better-auth plugin access | Role-based permissions, shop-scoped | better-auth |
@@ -537,8 +581,11 @@ export interface PermissionService {
 ```typescript
 // Helpers disponibles dans le contexte GraphQL
 export interface AuthContext {
-  session: Session | null;
-  actor: Actor | null;
+  claims: JWTClaims;        // Decoded JWT claims
+  userId: string;           // claims.sub
+  actorType: string;        // claims.act
+  organizationId?: string;  // claims.org
+  roles: string[];          // claims.roles
 
   /**
    * Vérifie et throw ForbiddenError si pas autorisé
@@ -621,12 +668,6 @@ const resolvers = {
 
 **Response** (200):
 
-Headers:
-```
-Set-Cookie: czo_session=<token>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800
-```
-
-Body:
 ```json
 {
   "user": {
@@ -639,13 +680,29 @@ Body:
     "actorType": "string",
     "expiresAt": "ISO8601"
   },
-  "token": "string - session token for Bearer auth",
+  "accessToken": "string - JWT ES256 (15min)",
+  "refreshToken": "string - opaque token (czo_rt_..., 7j)",
+  "expiresIn": 900,
   "tokenType": "Bearer",
   "requires2FA": "boolean - true if 2FA enabled"
 }
 ```
 
-> **Note**: Le client peut utiliser soit le cookie (automatique pour browsers), soit le token dans le header `Authorization: Bearer <token>` (SPA, mobile).
+> **Note**: Le client envoie `Authorization: Bearer <accessToken>` pour chaque requête. Quand le JWT expire, il appelle `POST /api/auth/token/refresh` avec le `refreshToken`.
+
+**JWT Claims** (embarqués dans l'accessToken) :
+```typescript
+interface JWTClaims {
+  sub: string        // userId
+  act: string        // actorType
+  org?: string       // organizationId
+  roles: string[]    // ['product:editor', 'order:viewer']
+  method: string     // authMethod
+  iat: number        // issued at
+  exp: number        // expires at (15min)
+  jti: string        // unique token ID (for blocklist)
+}
+```
 
 **Error Codes**:
 - `400` - Invalid credentials
@@ -740,7 +797,36 @@ Redirect to `redirectUri` with session cookie set
 ```
 
 **Error Codes**:
-- `401` - No active session
+- `401` - No active session (invalid or expired JWT)
+
+---
+
+#### `POST /api/auth/token/refresh`
+**Description**: Refresh an expired JWT access token using a valid refresh token
+
+**Request**:
+```json
+{
+  "refreshToken": "string - czo_rt_... refresh token"
+}
+```
+
+**Response** (200):
+```json
+{
+  "accessToken": "string - new JWT ES256 (15min)",
+  "refreshToken": "string - rotated refresh token (czo_rt_new...)",
+  "expiresIn": 900,
+  "tokenType": "Bearer"
+}
+```
+
+**Error Codes**:
+- `401` - Invalid or expired refresh token
+- `401` - Session revoked
+- `429` - Rate limit exceeded
+
+> **Note**: Le refresh token est **rotatif** — chaque appel invalide l'ancien et en émet un nouveau. Si un refresh token est réutilisé (signe de vol), toute la session est révoquée.
 
 ---
 
@@ -858,7 +944,7 @@ type Mutation {
   stopImpersonation: Session!
 }
 
-type User {
+type User @key(fields: "id") {
   id: ID!
   email: String!
   name: String!
@@ -879,7 +965,7 @@ type Session {
   isCurrent: Boolean!
 }
 
-type Organization {
+type Organization @key(fields: "id") {
   id: ID!
   name: String!
   slug: String!
@@ -1113,35 +1199,45 @@ export async function down(db: Database) {
 | TOTP 2FA | All (required for Admin) | better-auth two-factor plugin |
 | API Keys | API Consumer | better-auth api-key plugin, prefix `czo_` |
 
-### Session Transport
+### Token Architecture (Dual-Token)
 
-Le serveur supporte deux méthodes de transport de session (le client choisit) :
+| Token | Format | Durée | Stockage Client | Stockage Serveur |
+|-------|--------|-------|-----------------|------------------|
+| Access Token | JWT ES256 | 15min | Memory / Header | Aucun (stateless) |
+| Refresh Token | Opaque (`czo_rt_...`) | 7j | Secure storage | Redis (session) |
 
-| Méthode | Header/Cookie | Usage | Avantages |
-|---------|---------------|-------|-----------|
-| Bearer Token | `Authorization: Bearer <token>` | SPA, Mobile, Postman | Contrôle explicite, cross-origin |
-| Cookie | `Cookie: czo_session=<token>` | SSR, Same-origin | Automatique, HttpOnly (XSS-safe) |
+**Algorithme** : ES256 (ECDSA P-256) — clé privée pour signer (auth service), clé publique pour vérifier (tout service).
 
-**Priorité d'extraction** : Bearer > Cookie (si les deux sont présents, Bearer gagne)
+**Transport** : `Authorization: Bearer <jwt>` pour toutes les requêtes API.
+
+**Révocation immédiate** : Redis blocklist avec TTL = JWT maxAge (15min).
+```
+SET czo:blocklist:<jti> 1 EX 900
+```
+
+**Rotation refresh token** : À chaque refresh, l'ancien token est invalidé. Réutilisation d'un ancien token → révocation complète de la session (détection de vol).
 
 ### Authorization
 
 ```typescript
 // Middleware chain for GraphQL
 export const authMiddleware = [
-  extractCredentials,   // Bearer token > Cookie > API key
-  validateSession,      // Reject if no valid session
-  loadUserContext,      // Add user, org to context
+  extractJWT,           // Extract JWT from Authorization: Bearer <jwt>
+  verifyJWT,            // Verify ES256 signature + expiration
+  checkBlocklist,       // Optional: check Redis blocklist for jti
+  decodeClaimsToContext, // Add decoded claims to context
   checkActorPermissions // Verify actorType allows operation
 ]
 
-// Context available in resolvers
+// Context available in resolvers (from JWT claims)
 interface GraphQLContext {
-  session: Session
-  user: User
-  actorType: string           // 'customer' | 'admin' | 'merchant'
-  organization: Organization | null
-  authSource: 'bearer' | 'cookie' | 'api-key'  // How the client authenticated
+  claims: JWTClaims           // Decoded JWT claims
+  userId: string              // claims.sub
+  actorType: string           // claims.act — 'customer' | 'admin' | 'merchant'
+  organizationId: string | null // claims.org
+  roles: string[]             // claims.roles — ['product:editor', 'order:viewer']
+  authMethod: string          // claims.method
+  authSource: 'jwt' | 'api-key'
 }
 ```
 
@@ -1153,7 +1249,10 @@ interface GraphQLContext {
 | TOTP Secrets | AES-256-GCM encryption at rest |
 | Backup Codes | bcrypt hashed |
 | API Keys | SHA-256 hashed, only prefix stored readable |
-| Sessions | Redis with TTL, no sensitive data |
+| JWT Signing Key | ES256 private key, env variable or file, never in DB |
+| JWT Verification Key | ES256 public key, distributable to all services |
+| Refresh Tokens | Redis with TTL (7j), rotated on each use |
+| JWT Blocklist | Redis with TTL (15min), for immediate revocation |
 | OAuth Tokens | Encrypted in database |
 
 ### Threat Model
@@ -1161,10 +1260,12 @@ interface GraphQLContext {
 | Threat | Mitigation |
 |--------|------------|
 | Credential Stuffing | Rate limiting (5/15min), 2FA promotion |
-| Session Hijacking | Secure cookies, HTTPS only, IP binding optional |
-| CSRF | SameSite cookies, CSRF tokens for mutations |
+| JWT Token Theft | Short-lived (15min), blocklist for immediate revocation |
+| Refresh Token Theft | Rotation on each use, reuse detection → session revocation |
+| JWT Key Compromise | ES256 key rotation, short expiry limits exposure window |
+| CSRF | JWT in Authorization header (not cookies), no CSRF needed |
 | User Enumeration | Generic error messages, no email existence check |
-| Privilege Escalation | Actor type validated per-request, domain modules enforce |
+| Privilege Escalation | Actor type + roles in JWT claims, validated per-request |
 | API Key Leakage | Prefix for detection (czo_), rotation support, scoped to org |
 | OAuth State Tampering | Encrypted state with actor type, HMAC validation |
 | 2FA Bypass | Limited backup codes, rate limited verification |
@@ -1176,8 +1277,9 @@ interface GraphQLContext {
 | Metric | Target | Method |
 |--------|--------|--------|
 | Login latency | < 200ms p95 | APM |
-| Session validation | < 50ms p95 | APM |
-| GraphQL auth overhead | < 10ms | APM |
+| JWT verification | < 5ms p95 | APM (local ES256 verify, no network) |
+| Token refresh | < 50ms p95 | APM |
+| GraphQL auth overhead | < 10ms | APM (JWT verify + optional blocklist check) |
 | API key validation | < 20ms p95 | APM |
 
 ### Scaling Strategy
@@ -1202,27 +1304,36 @@ interface GraphQLContext {
          └─────────┘          └───────────┘
 ```
 
-- **Stateless Nitro instances** - Sessions in Redis, scale horizontally
-- **Redis Cluster** - Session reads, rate limit counters
+- **JWT Stateless verification** - Each instance (or future microservice) verifies JWT locally with ES256 public key — no network call
+- **Redis** - Refresh tokens, JWT blocklist, rate limit counters
 - **Connection pooling** - PostgreSQL via Drizzle
 
 ### Caching
 
 | Data | Cache | TTL | Invalidation |
 |------|-------|-----|--------------|
-| Sessions | Redis | 7 days | On logout, explicit revoke |
+| Refresh tokens | Redis | 7 days | On logout, explicit revoke, rotation |
+| JWT blocklist | Redis | 15 min (= JWT maxAge) | Auto-expire |
 | User by ID | Redis | 5 min | On profile update |
 | Org membership | Redis | 5 min | On member add/remove |
 | Rate limit counters | Redis | Window duration | Auto-expire |
 
 ```typescript
-// Session config
-const sessionConfig = {
-  redis: {
-    keyPrefix: 'czo:session:',
+// Token config
+const tokenConfig = {
+  jwt: {
+    algorithm: 'ES256',
+    expiresIn: 900,              // 15 minutes
+    issuer: 'czo-auth',
   },
-  maxAge: 7 * 24 * 60 * 60,      // 7 days
-  refreshThreshold: 24 * 60 * 60, // Refresh if < 1 day left
+  refresh: {
+    keyPrefix: 'czo:session:',
+    maxAge: 7 * 24 * 60 * 60,   // 7 days
+  },
+  blocklist: {
+    keyPrefix: 'czo:blocklist:',
+    ttl: 900,                    // 15 min (= JWT maxAge)
+  },
 }
 ```
 
@@ -1242,6 +1353,33 @@ const sessionConfig = {
 | Impersonation start | WARN | adminId, targetUserId |
 | Impersonation end | INFO | adminId, duration |
 
+### Auth Events (EventBus)
+
+Le module auth publie des domain events via `EventBus.publish()` pour chaque action significative. En monolithe, le provider hookable (in-process) est utilisé. En microservices, RabbitMQ prend le relais.
+
+```typescript
+// auth-events.service.ts
+const AUTH_EVENTS = {
+  USER_REGISTERED:    'auth.user.registered',    // { userId, email, actorType }
+  USER_UPDATED:       'auth.user.updated',       // { userId, changes }
+  SESSION_CREATED:    'auth.session.created',     // { sessionId, userId, actorType, authMethod }
+  SESSION_REVOKED:    'auth.session.revoked',     // { sessionId, userId, reason }
+  ORG_CREATED:        'auth.org.created',         // { orgId, name, ownerId }
+  ORG_MEMBER_ADDED:   'auth.org.member_added',    // { orgId, userId, role }
+  ORG_MEMBER_REMOVED: 'auth.org.member_removed',  // { orgId, userId }
+  ROLE_CHANGED:       'auth.role.changed',        // { userId, shopId?, oldRoles, newRoles }
+} as const
+
+// Usage example
+await eventBus.publish(createDomainEvent({
+  type: AUTH_EVENTS.SESSION_CREATED,
+  source: 'auth',
+  data: { sessionId, userId, actorType, authMethod },
+}))
+```
+
+> **Note**: Auth est **producteur uniquement** — il ne consomme aucun event externe. Cela garantit l'absence de dépendances circulaires.
+
 ### Metrics
 
 ```typescript
@@ -1249,10 +1387,14 @@ const sessionConfig = {
 const authMetrics = {
   login_total: Counter({ labels: ['actor_type', 'method', 'status'] }),
   login_duration: Histogram({ labels: ['actor_type', 'method'] }),
+  token_refresh_total: Counter({ labels: ['status'] }),
+  token_revocation_total: Counter({ labels: ['reason'] }),
+  jwt_blocklist_size: Gauge(),
   session_active: Gauge({ labels: ['actor_type'] }),
   rate_limit_hits: Counter({ labels: ['endpoint'] }),
   two_factor_enabled: Gauge(),
   api_key_active: Gauge({ labels: ['org_id'] }),
+  auth_events_published: Counter({ labels: ['event_type'] }),
 }
 ```
 
@@ -1284,16 +1426,21 @@ const authMetrics = {
 | better-auth | ^1.x | Core auth library |
 | @better-auth/drizzle | ^1.x | Drizzle adapter |
 | @better-auth/plugins | ^1.x | org, 2fa, api-key, admin, access plugins |
+| jose | ^6.x | JWT ES256 sign/verify (Web Crypto API) |
 | ioredis | ^5.x | Redis client |
 | @novu/node | ^2.x | Notification service |
 | otplib | ^12.x | TOTP generation/validation |
 | bcrypt | ^5.x | Password hashing |
+| @czo/kit | workspace | EventBus for auth events |
 
 ### Infrastructure
 
-- Redis 7+ (sessions, rate limiting)
+- Redis 7+ (refresh tokens, JWT blocklist, rate limiting)
 - PostgreSQL 17+ (user data)
-- Environment variables for secrets
+- Environment variables for secrets:
+  - `AUTH_JWT_PRIVATE_KEY` — ES256 private key (PEM or JWK)
+  - `AUTH_JWT_PUBLIC_KEY` — ES256 public key (distributed to all services)
+  - `AUTH_JWT_ISSUER` — JWT issuer claim (default: `czo-auth`)
 
 ## 9. Testing Strategy
 
@@ -1316,6 +1463,26 @@ describe('SessionService', () => {
   it('handles switch-actor with compatible method')
   it('rejects switch-actor with incompatible method')
 })
+
+// services/token.service.test.ts
+describe('TokenService', () => {
+  it('signs JWT with ES256 and correct claims')
+  it('verifies valid JWT and returns claims')
+  it('rejects expired JWT')
+  it('rejects JWT with invalid signature')
+  it('checks blocklist and rejects revoked jti')
+  it('refreshes token and rotates refresh token')
+  it('detects refresh token reuse and revokes session')
+})
+
+// services/auth-events.service.test.ts
+describe('AuthEventsService', () => {
+  it('publishes auth.user.registered on signup')
+  it('publishes auth.session.created on login')
+  it('publishes auth.session.revoked on logout')
+  it('publishes auth.role.changed on role update')
+  it('includes correlationId from context')
+})
 ```
 
 ### Integration Tests
@@ -1334,9 +1501,17 @@ describe('Auth Routes', () => {
     it('rejects Google OAuth for admin')
   })
 
+  describe('POST /api/auth/token/refresh', () => {
+    it('returns new JWT + rotated refresh token')
+    it('rejects expired refresh token')
+    it('revokes session on refresh token reuse')
+  })
+
   describe('GraphQL Protection', () => {
-    it('rejects unauthenticated requests')
-    it('allows authenticated requests with context')
+    it('rejects requests without JWT')
+    it('rejects requests with expired JWT')
+    it('allows requests with valid JWT and populates context')
+    it('rejects revoked JWT (jti in blocklist)')
   })
 })
 ```
@@ -1378,14 +1553,16 @@ thresholds:
 
 ### Deployment Stages
 
-1. **Phase 1: Core Auth** (Week 1-2)
+1. **Phase 1: Core Auth + JWT** (Week 1-2)
    - Email/password registration and login
-   - Session management with Redis
-   - GraphQL protection middleware
+   - JWT dual-token architecture (ES256 access + refresh)
+   - Token refresh endpoint
+   - GraphQL protection middleware (JWT verification)
 
-2. **Phase 2: OAuth + Organizations** (Week 3-4)
+2. **Phase 2: OAuth + Events** (Week 3-4)
    - Google OAuth for customer/merchant
    - GitHub OAuth for admin
+   - Auth events via EventBus (8 events)
    - Organization CRUD and invitations
 
 3. **Phase 3: 2FA + API Keys** (Week 5)
@@ -1414,9 +1591,10 @@ thresholds:
 | Issue | Rollback Action |
 |-------|-----------------|
 | better-auth breaking change | Pin to previous version, hotfix |
-| Redis failure | Deploy with in-memory session fallback (degraded) |
+| Redis failure | JWT still works (stateless), refresh fails gracefully, re-login required |
+| JWT key compromise | Rotate ES256 key pair, all JWTs invalid (15min max exposure) |
 | OAuth provider outage | Disable OAuth flag, email/password only |
-| Critical security vuln | Immediate invalidate all sessions, force re-auth |
+| Critical security vuln | Add all active jti to blocklist, force re-auth |
 
 ---
 
@@ -1430,6 +1608,11 @@ thresholds:
 - [x] Permission architecture? → **Rôles par domaine, scopés par shop, héritage par composition**
 - [x] Permission storage? → **Table `shop_members` avec colonne `roles` (array)**
 - [x] Global vs scoped roles? → **`global_roles` sur user + `roles` par shop**
+- [x] Token strategy? → **JWT dual-token** (ES256 access 15min + opaque refresh 7j)
+- [x] JWT algorithm? → **ES256** (asymmetric, public key distributable to microservices)
+- [x] JWT revocation? → **Redis blocklist** (TTL = JWT maxAge = 15min)
+- [x] Auth events? → **8 events via EventBus** (hookable in monolith, RabbitMQ in microservices)
+- [x] Cookie-based auth? → **Dropped** — JWT in Authorization header eliminates CSRF risk
 
 ### ADRs
 
@@ -1439,6 +1622,10 @@ thresholds:
 - **ADR-004**: Roles per domain → Each module defines its own roles for flexibility
 - **ADR-005**: Shop-scoped permissions → User can have different roles in different shops
 - **ADR-006**: Role inheritance by composition → `createRoleBuilder` with cumulative permissions
+- **ADR-007**: JWT stateless (ES256) over session cookies → Microservice-ready, no network call for validation, eliminates CSRF
+- **ADR-008**: Dual-token pattern (JWT access + opaque refresh) → Short exposure window (15min) + long session (7j) via rotation
+- **ADR-009**: Auth events via EventBus from day one → Enables loose coupling with domain modules, ready for RabbitMQ extraction
+- **ADR-010**: GraphQL @key directives → Zero-cost federation readiness for GraphQL Mesh
 
 ### References
 
@@ -1448,4 +1635,6 @@ thresholds:
 - [OWASP Authentication Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 - [Brainstorm Auth](./brainstorm.md)
 - [PRD Auth](./prd.md)
+- [Brainstorm Microservices](../kit/brainstorm-microservices.md) - Service extraction strategy
 - [Brainstorm Kit](../kit/brainstorm.md) - App integration with permissions
+- [jose Documentation](https://github.com/panva/jose) - JWT ES256 library

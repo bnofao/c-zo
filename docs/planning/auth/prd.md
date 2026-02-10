@@ -3,7 +3,7 @@
 **Status**: Draft
 **Author**: Claude (Briana)
 **Created**: 2026-02-03
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-10
 **Brainstorm**: [brainstorm.md](./brainstorm.md)
 
 ---
@@ -23,8 +23,11 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 - Système d'authentification unifié pour tous les acteurs
 - Table users unique avec différenciation par rôles
 - Organisations génériques supportant le multi-tenant
-- REST pour auth, GraphQL protégé par session
+- REST pour auth, GraphQL protégé par JWT
+- Architecture dual-token : JWT stateless (15min) + refresh token (7j)
+- Auth events publiés via EventBus pour découplage inter-modules
 - Restrictions d'authentification configurables par type d'acteur
+- Prêt pour extraction en microservice (Epic #43)
 
 ### Impact
 - **Customers**: Inscription et connexion simples et sécurisées
@@ -55,7 +58,8 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 | Metric | Target | Measurement Method | Timeline |
 |--------|--------|-------------------|----------|
 | Temps de connexion | < 200ms | APM monitoring | MVP |
-| Validation session | < 50ms | APM monitoring | MVP |
+| Validation JWT | < 5ms | APM monitoring | MVP |
+| Token refresh | < 50ms | APM monitoring | MVP |
 | Couverture de tests | 80%+ | Jest coverage report | MVP |
 | Checklist OWASP Auth | 100% | Security audit | MVP |
 | Adoption API keys | 10+ intégrations | API analytics | 3 mois post-launch |
@@ -85,16 +89,21 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
   - [ ] Liaison compte existant si même email
 - **Dependencies:** Google OAuth, GitHub OAuth
 
-#### Feature 3: Gestion des Sessions
-- **Description:** Sessions avec contexte acteur stockées dans Redis
+#### Feature 3: Gestion des Sessions et JWT
+- **Description:** Architecture dual-token : JWT stateless (access, 15min) + refresh token (session Redis, 7j)
 - **User Story:** As a user, I want to see my active sessions so that I can manage my security
 - **Acceptance Criteria:**
+  - [ ] Login retourne JWT access token (ES256, 15min) + refresh token (7j)
+  - [ ] JWT Claims : `{ sub, act, org, roles[], method, iat, exp, jti }`
   - [ ] Session porte `actorType`, `authMethod`, `organizationId`
+  - [ ] Endpoint `POST /api/auth/token/refresh` pour renouveler le JWT
+  - [ ] Rotation du refresh token à chaque refresh
+  - [ ] Révocation immédiate via blocklist Redis (TTL = JWT maxAge)
   - [ ] Lister les sessions actives (appareils)
-  - [ ] Révoquer une session spécifique
+  - [ ] Révoquer une session spécifique (+ ajouter jti à la blocklist)
   - [ ] Révoquer toutes les autres sessions
   - [ ] Déconnexion (session unique ou toutes)
-- **Dependencies:** Redis pour stockage sessions
+- **Dependencies:** Redis pour stockage sessions + blocklist, jose pour JWT ES256
 
 #### Feature 4: Endpoints REST par Acteur
 - **Description:** Structure `/api/auth/[actor]/<action>` pour validation précoce
@@ -106,17 +115,20 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
   - [ ] Validation des restrictions AVANT l'authentification
   - [ ] `/api/auth/switch-actor` pour multi-rôles
   - [ ] `/api/auth/session` pour session courante
-- **Dependencies:** better-auth
+  - [ ] `/api/auth/token/refresh` pour renouveler le JWT access token
+- **Dependencies:** better-auth, jose
 
 #### Feature 5: Protection Endpoint GraphQL
-- **Description:** L'endpoint GraphQL requiert une session valide
+- **Description:** L'endpoint GraphQL requiert un JWT valide ; types annotés `@key` pour fédération future
 - **User Story:** As a security engineer, I want GraphQL protected so that unauthenticated users can't access business data
 - **Acceptance Criteria:**
-  - [ ] Middleware rejette requêtes sans session valide
-  - [ ] Contexte GraphQL inclut session, user, actorType, organization
+  - [ ] Middleware valide le JWT (signature ES256 + expiration) ; rejette si absent/invalide
+  - [ ] Vérifie optionnellement la blocklist Redis (jti) pour révocations immédiates
+  - [ ] Contexte GraphQL inclut JWT claims (userId, actorType, roles, organizationId)
+  - [ ] Types `User` et `Organization` annotés `@key(fields: "id")` pour fédération GraphQL Mesh
   - [ ] Introspection désactivée en production
   - [ ] Introspection autorisée en dev uniquement
-- **Dependencies:** graphql-yoga middleware
+- **Dependencies:** graphql-yoga middleware, jose
 
 #### Feature 6: Organisations et Membres
 - **Description:** Multi-tenant via organisations génériques avec invitations
@@ -189,9 +201,25 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
   - [ ] `createRoleBuilder` pour définir des hiérarchies de rôles
 - **Dependencies:** better-auth plugin access
 
+#### Feature 12: Auth Events via EventBus
+- **Description:** Le module auth publie des domain events pour chaque action significative, permettant aux autres modules de réagir sans couplage direct
+- **User Story:** As a domain module developer, I want to react to auth events (user registered, role changed) without depending on the auth module's internals
+- **Acceptance Criteria:**
+  - [ ] `auth.user.registered` — publié à l'inscription (userId, email, actorType)
+  - [ ] `auth.user.updated` — publié lors de la mise à jour profil (userId, changes)
+  - [ ] `auth.session.created` — publié à chaque login (sessionId, userId, actorType, authMethod)
+  - [ ] `auth.session.revoked` — publié à chaque déconnexion/révocation (sessionId, userId, reason)
+  - [ ] `auth.org.created` — publié à la création d'organisation (orgId, name, ownerId)
+  - [ ] `auth.org.member_added` — publié à l'ajout de membre (orgId, userId, role)
+  - [ ] `auth.org.member_removed` — publié au retrait de membre (orgId, userId)
+  - [ ] `auth.role.changed` — publié au changement de rôle (userId, shopId?, oldRoles, newRoles)
+  - [ ] Events publiés via `EventBus.publish()` (hookable en monolithe, RabbitMQ en microservices)
+  - [ ] Auth est producteur uniquement — pas de consumer d'events externes
+- **Dependencies:** @czo/kit EventBus
+
 ### Should-Have Features (P1)
 
-#### Feature 12: Rate Limiting
+#### Feature 13: Rate Limiting
 - **Description:** Protection contre les attaques brute-force
 - **User Story:** As a security engineer, I want rate limiting so that brute-force attacks are mitigated
 - **Acceptance Criteria:**
@@ -204,7 +232,7 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 
 ### Nice-to-Have Features (P2)
 
-#### Feature 13: Notifications de Sécurité
+#### Feature 14: Notifications de Sécurité
 - **Description:** Alertes pour événements de sécurité
 - **User Story:** As a user, I want security alerts so that I know if my account is compromised
 - **Acceptance Criteria:**
@@ -261,18 +289,22 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 
 - **Performance Requirements:**
   - Connexion < 200ms
-  - Validation session < 50ms
+  - Validation JWT < 5ms (vérification locale de signature ES256)
+  - Token refresh < 50ms
 - **Scalability:**
-  - Sessions Redis pour scalabilité horizontale
-  - Stateless authentication pour API consumers
+  - JWT stateless : chaque service vérifie localement (pas de call réseau)
+  - Refresh tokens dans Redis pour scalabilité horizontale
+  - Prêt pour extraction microservice (Epic #43)
 - **Browser/Platform Support:**
   - Tous navigateurs modernes (Chrome, Firefox, Safari, Edge)
   - Applications mobiles via API
 - **Integrations:**
   - better-auth (core auth)
-  - Redis (sessions)
+  - jose (JWT ES256 signing/verification)
+  - Redis (sessions/refresh tokens, blocklist, rate limiting)
   - Novu (emails/notifications)
   - Google OAuth, GitHub OAuth
+  - @czo/kit EventBus (auth events)
 
 ## 8. Security & Compliance
 
@@ -281,13 +313,16 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
   - OAuth (Google, GitHub selon acteur)
   - TOTP 2FA
   - API keys avec préfixe détectable
+  - JWT access tokens (ES256, 15min) — vérification stateless
 - **Authorization:**
-  - Session avec contexte acteur (`actorType`)
+  - JWT claims embarquent actorType, roles[], organizationId
   - Validation méthode d'auth par acteur
-  - Endpoint GraphQL protégé
+  - Endpoint GraphQL protégé par JWT
+  - Blocklist Redis pour révocation immédiate (TTL = JWT maxAge)
 - **Data Privacy:**
   - Passwords hashés (bcrypt/argon2)
-  - Sessions stockées dans Redis (pas en DB)
+  - Refresh tokens dans Redis (pas en DB)
+  - ES256 key pair (clé privée protégée, clé publique distribuée)
   - Tokens de vérification à usage unique
 - **Compliance:**
   - OWASP Authentication Cheatsheet
@@ -313,11 +348,11 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 
 | Milestone | Description | Target Date | Status |
 |-----------|-------------|-------------|--------|
-| Phase 1 | Setup better-auth + email/password | TBD | Pending |
-| Phase 2 | OAuth + Sessions Redis | TBD | Pending |
+| Phase 1 | Setup better-auth + JWT dual-token + email/password | TBD | Pending |
+| Phase 2 | OAuth + Auth Events via EventBus | TBD | Pending |
 | Phase 3 | Organizations + 2FA | TBD | Pending |
 | Phase 4 | API Keys + Admin | TBD | Pending |
-| Phase 5 | AuthRestrictionRegistry | TBD | Pending |
+| Phase 5 | AuthRestrictionRegistry (+ service discovery ready) | TBD | Pending |
 | Phase 6 | Système de Permissions (plugin access) | TBD | Pending |
 | Launch | Production ready | TBD | Pending |
 
@@ -335,6 +370,10 @@ Le module Auth fournit un système complet d'authentification et d'autorisation 
 - [x] Architecture permissions? → **Rôles par domaine, scopés par shop, héritage par composition**
 - [x] Scoping des permissions? → **Par shop** (table `shop_members`)
 - [x] Héritage des rôles? → **Par composition** avec `createRoleBuilder`
+- [x] Token strategy? → **JWT dual-token** (ES256 access 15min + refresh 7j)
+- [x] Auth events? → **8 events via EventBus** dès le MVP (producteur uniquement)
+- [x] GraphQL federation? → **@key directives** sur User/Organization
+- [x] Microservices readiness? → **5 décisions MS-1 à MS-5** dans brainstorm
 
 ### References
 - [Brainstorm Auth](./brainstorm.md)

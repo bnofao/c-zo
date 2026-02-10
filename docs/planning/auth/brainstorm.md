@@ -1,8 +1,8 @@
 # Brainstorm: Module Auth
 
-- **Date:** 2026-02-03
+- **Date:** 2026-02-03 (updated 2026-02-10)
 - **Participants:** Claude (Briana), Utilisateur
-- **Statut:** Prêt pour PRD
+- **Statut:** Finalized (+ Microservices Readiness)
 
 ---
 
@@ -1642,6 +1642,155 @@ interface RateLimitConfig {
 21. **Plugin `access` de better-auth** - système de permissions basé sur statements déclaratifs
 22. **Table `shop_members`** - stocke les associations user-shop-roles
 23. **Rôles globaux vs scopés** - `platform-admin` (global) vs `product:manager` (shop-specific)
+24. **Service discovery pour AuthRestrictionRegistry** - chaque service annonce sa config d'acteur via czo.system au démarrage
+25. **JWT stateless (ES256)** - access token 15min + refresh token 7j, vérifié localement par chaque service
+26. **Auth centralise authorization** - PermissionService + shop_members restent dans auth, domain services définissent statements
+27. **Auth events via EventBus** - 8 events publiés dès le monolithe (auth.user.registered, auth.session.created, etc.)
+28. **GraphQL Federation ready** - `@key(fields: "id")` sur User et Organization dès le design
+
+---
+
+## Microservices Readiness
+
+> Ces décisions garantissent que le module auth, bien que développé dans le monolithe, est **prêt pour l'extraction** en service standalone (Phase 1 de l'Epic #43 — Architecture Microservices).
+
+### Décision MS-1 : AuthRestrictionRegistry → Service Discovery
+
+**Monolithe :** Les modules de domaine enregistrent leurs restrictions au boot via `registry.registerActorType()`. Fonctionne tel quel.
+
+**Microservices :** Chaque service annonce sa config d'acteur au démarrage via l'exchange `czo.system` (fanout). Le service auth agrège dynamiquement.
+
+```
+Admin Service boots → publie sur czo.system:
+  { type: 'auth.actor-type.register',
+    data: { actorType: 'admin', config: { allowedMethods: ['email-password', 'oauth:github'], require2FA: true, priority: 100 } } }
+
+Auth Service écoute auth.system queue → agrège les configs
+  → heartbeat TTL pour détecter les services down
+  → registration idempotente (upsert par actorType)
+  → queue durable pour rattraper les messages au redémarrage
+```
+
+**Impact sur le code MVP :** Aucun. Le pattern register-at-boot est l'équivalent local du service discovery.
+
+### Décision MS-2 : PermissionService → Auth centralise Identity + Authorization
+
+**Auth service possède :**
+- users, sessions, organizations, global_roles, shop_members
+- PermissionService (résolution centralisée)
+- Cache Redis des permissions résolues (TTL 5min)
+
+**Domain services définissent :**
+- Leurs statements dans des packages partagés (`@czo/product/access`)
+- Enregistrés dans auth au boot (monolithe) ou via service discovery (microservices)
+
+**Résolution des permissions :**
+- Monolithe : `ctx.requirePermission()` appelle le PermissionService local
+- Microservices : le JWT embarque les permissions (claims `roles[]`) ; pour les checks fins, tRPC call vers auth service
+
+### Décision MS-3 : Auth Events → Publier dès le monolithe via EventBus
+
+Le module auth publie ces events via `EventBus.publish()` dès le MVP :
+
+| Event | Routing Key | Data |
+|-------|-------------|------|
+| User registered | `auth.user.registered` | `{ userId, email, actorType }` |
+| User updated | `auth.user.updated` | `{ userId, changes }` |
+| Session created | `auth.session.created` | `{ sessionId, userId, actorType, authMethod }` |
+| Session revoked | `auth.session.revoked` | `{ sessionId, userId, reason }` |
+| Org created | `auth.org.created` | `{ orgId, name, ownerId }` |
+| Member added | `auth.org.member_added` | `{ orgId, userId, role }` |
+| Member removed | `auth.org.member_removed` | `{ orgId, userId }` |
+| Role changed | `auth.role.changed` | `{ userId, shopId?, oldRoles, newRoles }` |
+
+**Auth est producteur uniquement** — pas de consumer d'events externes (aligné avec le brainstorm microservices).
+
+En monolithe : hookable provider (in-process). En microservices : RabbitMQ.
+
+### Décision MS-4 : Token Validation → JWT Stateless (ES256)
+
+**Architecture dual-token :**
+- **Access token (JWT)** : short-lived (15min), signé ES256, vérifié localement par chaque service
+- **Refresh token** : long-lived (7j), stocké dans Redis via session better-auth
+
+```
+Login → Auth service:
+  1. Vérifie credentials
+  2. Crée session Redis (refresh token, 7j)
+  3. Émet JWT (access token, 15min)
+  → Response: { accessToken: "eyJ...", refreshToken: "czo_rt_...", expiresIn: 900 }
+
+Request → Service quelconque:
+  Authorization: Bearer eyJ... (JWT)
+  → Vérifie signature localement (clé publique ES256)
+  → Décode claims: { sub, act, org, roles, method, exp }
+  → Pas de call réseau
+
+Refresh → Auth service:
+  POST /api/auth/token/refresh
+  → Vérifie refresh token dans Redis
+  → Émet nouveau JWT + rotation du refresh token
+
+Révocation immédiate:
+  → Blocklist Redis courte (TTL = JWT maxAge = 15min)
+  → Check optionnel: si jti dans blocklist → rejeter
+```
+
+**JWT Claims :**
+```typescript
+interface JWTClaims {
+  sub: string        // userId
+  act: string        // actorType
+  org?: string       // organizationId
+  roles: string[]    // ['product:editor', 'order:viewer']
+  method: string     // authMethod
+  iat: number        // issued at
+  exp: number        // expires at (15min)
+  jti: string        // unique token ID (for blocklist)
+}
+```
+
+**Compatibilité better-auth :** La session better-auth devient le refresh token. Le JWT est une couche ajoutée au-dessus.
+
+**Impact :** En monolithe, le JWT fonctionne déjà (pas besoin d'attendre). En microservices, chaque service embarque la clé publique et vérifie localement.
+
+### Décision MS-5 : GraphQL Federation → `@key` directives dès le design
+
+Les types auth sont annotés pour la fédération GraphQL Mesh :
+
+```graphql
+type User @key(fields: "id") {
+  id: ID!
+  email: String!
+  name: String!
+}
+
+type Organization @key(fields: "id") {
+  id: ID!
+  name: String!
+  slug: String!
+}
+```
+
+En monolithe : les directives sont ignorées. En microservices : GraphQL Mesh les utilise pour composer les schémas fédérés. D'autres services étendent ces types :
+
+```graphql
+# Catalog Service
+extend type User @key(fields: "id") {
+  id: ID! @external
+  recentlyViewed: [Product!]!
+}
+```
+
+### Résumé des impacts sur le MVP
+
+| Décision | Impact sur le code MVP | Coût |
+|----------|------------------------|------|
+| MS-1 Service Discovery | Aucun (register-at-boot = équivalent local) | Nul |
+| MS-2 Auth centralise | Aucun (c'est déjà le design prévu) | Nul |
+| MS-3 Auth Events | Ajouter `EventBus.publish()` dans les services auth | Faible |
+| MS-4 JWT Stateless | Ajouter génération/validation JWT au flow de login | Moyen |
+| MS-5 GraphQL Federation | Ajouter `@key` directives au schema GraphQL | Nul |
 
 ---
 
@@ -1649,9 +1798,10 @@ interface RateLimitConfig {
 
 - [x] Créer PRD: `/manager:prd create auth`
 - [x] Créer TRD: `/manager:trd create auth`
-- [ ] Spike: prototype intégration better-auth + Nitro
-- [ ] Spike: prototype `AuthRestrictionRegistry` avec hooks better-auth
-- [ ] Spike: prototype plugin `access` avec `createRoleBuilder` pour héritage
-- [ ] Spike: prototype table `shop_members` et `PermissionService`
-- [ ] Définir schéma GraphQL pour les opérations auth
-- [ ] Concevoir interface contrat module de domaine
+- [x] Créer Epic + Issues GitHub
+- [ ] Spike: prototype intégration better-auth + Nitro (deferred to implementation Phase 1)
+- [ ] Spike: prototype `AuthRestrictionRegistry` avec hooks better-auth (deferred to implementation Phase 4)
+- [ ] Spike: prototype plugin `access` avec `createRoleBuilder` pour héritage (deferred to implementation Phase 5)
+- [ ] Spike: prototype table `shop_members` et `PermissionService` (deferred to implementation Phase 5)
+- [ ] Définir schéma GraphQL pour les opérations auth (deferred to implementation Phase 1)
+- [ ] Concevoir interface contrat module de domaine (deferred to implementation Phase 4)
