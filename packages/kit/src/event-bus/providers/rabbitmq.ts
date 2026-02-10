@@ -87,25 +87,29 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
 
   async function setupConsumer(record: SubscriptionRecord): Promise<void> {
     try {
-      const { queue } = await channel.assertQueue('', {
+      // Capture channel at setup time — the outer `channel` variable may be
+      // reassigned during reconnection while a handler is still executing.
+      const consumerChannel = channel
+
+      const { queue } = await consumerChannel.assertQueue('', {
         exclusive: true,
         durable: false,
         arguments: { 'x-dead-letter-exchange': dlx },
       })
 
-      await channel.bindQueue(queue, exchange, record.pattern)
+      await consumerChannel.bindQueue(queue, exchange, record.pattern)
 
-      const result = await channel.consume(queue, async (msg) => {
+      const result = await consumerChannel.consume(queue, async (msg) => {
         if (!msg)
           return
 
         try {
           const event = JSON.parse(msg.content.toString()) as DomainEvent
           await record.handler(event)
-          channel.ack(msg)
+          consumerChannel.ack(msg)
         }
         catch {
-          channel.nack(msg, false, false)
+          consumerChannel.nack(msg, false, false)
         }
       })
 

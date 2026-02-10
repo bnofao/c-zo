@@ -39,6 +39,7 @@ const mockConfig = {
     provider: 'hookable' as const,
     source: 'monolith',
     dualWrite: false,
+    rabbitmq: undefined as { url: string } | undefined,
   },
 }
 
@@ -61,6 +62,7 @@ describe('useEventBus', () => {
       provider: 'hookable',
       source: 'monolith',
       dualWrite: false,
+      rabbitmq: undefined,
     }
 
     vi.resetModules()
@@ -105,6 +107,7 @@ describe('useEventBus', () => {
     it('should use rabbitmq provider when configured', async () => {
       mockConfig.eventBus.provider = 'rabbitmq'
       mockConfig.eventBus.dualWrite = false
+      mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
 
       const mod = await import('./use-event-bus')
@@ -118,10 +121,35 @@ describe('useEventBus', () => {
     })
   })
 
+  describe('config validation', () => {
+    it('should throw when dualWrite is true but rabbitmq config is missing', async () => {
+      mockConfig.eventBus.provider = 'hookable'
+      ;(mockConfig.eventBus as any).dualWrite = true
+      vi.resetModules()
+
+      const mod = await import('./use-event-bus')
+      mod.resetEventBus()
+
+      await expect(mod.useEventBus()).rejects.toThrow('rabbitmq config is required')
+    })
+
+    it('should throw when provider is rabbitmq but rabbitmq config is missing', async () => {
+      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.dualWrite = false
+      vi.resetModules()
+
+      const mod = await import('./use-event-bus')
+      mod.resetEventBus()
+
+      await expect(mod.useEventBus()).rejects.toThrow('rabbitmq config is required')
+    })
+  })
+
   describe('dual-write mode', () => {
     it('should publish to both hookable and rabbitmq when dualWrite is true', async () => {
       mockConfig.eventBus.provider = 'rabbitmq'
       mockConfig.eventBus.dualWrite = true
+      mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
 
       const mod = await import('./use-event-bus')
@@ -135,9 +163,28 @@ describe('useEventBus', () => {
       expect(lastRabbitBus.publish).toHaveBeenCalledWith(event)
     })
 
+    it('should propagate publish errors in dual-write mode', async () => {
+      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.dualWrite = true
+      mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
+      vi.resetModules()
+
+      const mod = await import('./use-event-bus')
+      mod.resetEventBus()
+
+      const bus = await mod.useEventBus()
+
+      // Make rabbitmq publish fail
+      vi.mocked(lastRabbitBus.publish).mockRejectedValueOnce(new Error('rabbit down'))
+
+      const event = makeEvent('product.created')
+      await expect(bus.publish(event)).rejects.toThrow('rabbit down')
+    })
+
     it('should subscribe to hookable only in dual-write mode', async () => {
       mockConfig.eventBus.provider = 'rabbitmq'
       mockConfig.eventBus.dualWrite = true
+      mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
 
       const mod = await import('./use-event-bus')
@@ -167,6 +214,7 @@ describe('useEventBus', () => {
     it('should shut down both buses in dual-write mode', async () => {
       mockConfig.eventBus.provider = 'rabbitmq'
       mockConfig.eventBus.dualWrite = true
+      mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
 
       const mod = await import('./use-event-bus')

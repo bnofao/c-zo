@@ -16,21 +16,36 @@ async function createBus(): Promise<EventBus> {
     return hookableBus
   }
 
+  if (!config.rabbitmq) {
+    throw new Error('EventBus: rabbitmq config is required when provider is "rabbitmq" or dualWrite is enabled')
+  }
+
   if (config.provider === 'rabbitmq' && !config.dualWrite) {
-    rabbitBus = await createRabbitMQEventBus(config.rabbitmq!)
+    rabbitBus = await createRabbitMQEventBus(config.rabbitmq)
     return rabbitBus
   }
 
   // Dual-write mode: publish to both, subscribe from primary (rabbitmq)
   hookableBus = await createHookableEventBus()
-  rabbitBus = await createRabbitMQEventBus(config.rabbitmq!)
+  rabbitBus = await createRabbitMQEventBus(config.rabbitmq)
 
   const dualWriteBus: EventBus = {
     async publish(event: DomainEvent): Promise<void> {
-      await Promise.allSettled([
+      const [hookableResult, rabbitResult] = await Promise.allSettled([
         hookableBus!.publish(event),
         rabbitBus!.publish(event),
       ])
+
+      if (rabbitResult.status === 'rejected') {
+        throw rabbitResult.reason instanceof Error
+          ? rabbitResult.reason
+          : new Error(String(rabbitResult.reason))
+      }
+      if (hookableResult.status === 'rejected') {
+        throw hookableResult.reason instanceof Error
+          ? hookableResult.reason
+          : new Error(String(hookableResult.reason))
+      }
     },
 
     subscribe(pattern: string, handler: DomainEventHandler): Unsubscribe {
