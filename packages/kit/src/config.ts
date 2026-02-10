@@ -1,4 +1,5 @@
 import type { EventBusConfig, RabbitMQConfig } from './event-bus/types'
+import type { TelemetryConfig } from './telemetry/types'
 import process from 'node:process'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 
@@ -10,6 +11,19 @@ export interface CzoConfig {
     defaultAttempts: number
   }
   eventBus: EventBusConfig
+  telemetry: TelemetryConfig
+}
+
+const isProduction = process.env.NODE_ENV === 'production'
+
+export const telemetryConfigDefaults: TelemetryConfig = {
+  enabled: true,
+  serviceName: 'czo',
+  serviceVersion: '0.0.0',
+  endpoint: 'http://localhost:4318',
+  protocol: 'http',
+  samplingRatio: isProduction ? 0.1 : 1.0,
+  logBridge: false,
 }
 
 export const czoConfigDefaults: CzoConfig = {
@@ -24,6 +38,7 @@ export const czoConfigDefaults: CzoConfig = {
     source: 'monolith',
     dualWrite: false,
   },
+  telemetry: { ...telemetryConfigDefaults },
 }
 
 /**
@@ -43,6 +58,7 @@ export function useCzoConfig(): CzoConfig {
         defaultAttempts: czo?.queue?.defaultAttempts ?? czoConfigDefaults.queue.defaultAttempts,
       },
       eventBus: buildEventBusConfig(czo?.eventBus),
+      telemetry: buildTelemetryConfig(czo?.telemetry),
     }
   }
   catch {
@@ -52,7 +68,24 @@ export function useCzoConfig(): CzoConfig {
       redisUrl: process.env.REDIS_URL || '',
       queue: czoConfigDefaults.queue,
       eventBus: buildEventBusConfig(),
+      telemetry: buildTelemetryConfig(),
     }
+  }
+}
+
+export function buildTelemetryConfig(partial?: Partial<TelemetryConfig>): TelemetryConfig {
+  if (!partial) {
+    return { ...telemetryConfigDefaults }
+  }
+
+  return {
+    enabled: partial.enabled ?? telemetryConfigDefaults.enabled,
+    serviceName: partial.serviceName ?? process.env.OTEL_SERVICE_NAME ?? telemetryConfigDefaults.serviceName,
+    serviceVersion: partial.serviceVersion ?? telemetryConfigDefaults.serviceVersion,
+    endpoint: partial.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? telemetryConfigDefaults.endpoint,
+    protocol: partial.protocol ?? telemetryConfigDefaults.protocol,
+    samplingRatio: partial.samplingRatio ?? telemetryConfigDefaults.samplingRatio,
+    logBridge: partial.logBridge ?? telemetryConfigDefaults.logBridge,
   }
 }
 

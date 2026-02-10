@@ -45,6 +45,10 @@
     "./event-bus": {
       "types": "./src/event-bus/index.ts",
       "default": "./dist/event-bus/index.mjs"
+    },
+    "./telemetry": {
+      "types": "./src/telemetry/index.ts",
+      "default": "./dist/telemetry/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -68,12 +72,36 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-metrics": "^1.30.0",
+    "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
     "ioredis": "^5.0.0",
     "nitro": "^2.0.0 || ^3.0.0"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/exporter-metrics-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    },
+    "@opentelemetry/resources": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-metrics": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-node": {
+      "optional": true
+    },
+    "@opentelemetry/semantic-conventions": {
+      "optional": true
+    },
     "amqplib": {
       "optional": true
     },
@@ -89,6 +117,7 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "@opentelemetry/api": "catalog:common",
     "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
