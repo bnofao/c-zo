@@ -74,6 +74,21 @@ export interface EventBusConfig {
   rabbitmq?: RabbitMQConfig
 }
 
+export interface RabbitMQReconnectConfig {
+  /** Whether auto-reconnection is enabled (default: true) */
+  enabled?: boolean
+  /** Initial delay before first reconnection attempt in ms (default: 1000) */
+  initialDelayMs?: number
+  /** Maximum delay between reconnection attempts in ms (default: 30000) */
+  maxDelayMs?: number
+  /** Multiplier for exponential backoff (default: 2) */
+  multiplier?: number
+  /** Maximum number of reconnection attempts, 0 = infinite (default: 0) */
+  maxAttempts?: number
+  /** Maximum number of events buffered during reconnection (default: 1000) */
+  publishBufferSize?: number
+}
+
 export interface RabbitMQConfig {
   /** AMQP connection URL, e.g. "amqp://guest:guest@localhost:5672" */
   url: string
@@ -85,4 +100,6 @@ export interface RabbitMQConfig {
   prefetch?: number
   /** Whether to use publisher confirms (default: true) */
   publisherConfirms?: boolean
+  /** Reconnection configuration */
+  reconnect?: RabbitMQReconnectConfig
 }

@@ -20,6 +20,7 @@ export type {
   EventBusProvider,
   EventMetadata,
   RabbitMQConfig,
+  RabbitMQReconnectConfig,
   Unsubscribe,
 } from './types'
 export { resetEventBus, shutdownEventBus, useEventBus } from './use-event-bus'
