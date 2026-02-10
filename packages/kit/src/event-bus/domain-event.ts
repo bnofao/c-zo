@@ -1,5 +1,5 @@
 import type { ZodSafeParseResult } from 'zod'
-import type { DomainEvent, EventMetadata } from './types'
+import type { DomainEvent, EventMap, EventMetadata } from './types'
 import { z } from 'zod'
 
 export interface CreateDomainEventOptions<T = unknown> {
@@ -17,7 +17,16 @@ const metadataDefaults: EventMetadata = {
 /**
  * Create a DomainEvent with auto-generated id and timestamp.
  * The returned object is frozen (immutable).
+ *
+ * When the EventMap is populated via declaration merging, the overload
+ * narrows the payload type based on the event type string.
  */
+export function createDomainEvent<K extends keyof EventMap>(
+  options: CreateDomainEventOptions<EventMap[K]> & { type: K & string },
+): DomainEvent<EventMap[K]>
+export function createDomainEvent<T = unknown>(
+  options: CreateDomainEventOptions<T>,
+): DomainEvent<T>
 export function createDomainEvent<T = unknown>(
   options: CreateDomainEventOptions<T>,
 ): DomainEvent<T> {
@@ -29,6 +38,7 @@ export function createDomainEvent<T = unknown>(
     metadata: {
       ...metadataDefaults,
       ...options.metadata,
+      correlationId: options.metadata?.correlationId ?? crypto.randomUUID(),
     },
   }
 
@@ -46,6 +56,9 @@ export const domainEventSchema = z.object({
     correlationId: z.string().optional(),
     causationId: z.string().optional(),
     version: z.number().int().min(1),
+    shopId: z.string().optional(),
+    actorId: z.string().optional(),
+    actorType: z.enum(['user', 'app', 'system']).optional(),
   }),
 })
 
