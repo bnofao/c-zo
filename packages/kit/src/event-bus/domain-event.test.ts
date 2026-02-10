@@ -64,6 +64,58 @@ describe('createDomainEvent', () => {
 
     expect(Object.isFrozen(event)).toBe(true)
   })
+
+  it('should auto-generate correlationId when not provided', () => {
+    const event = createDomainEvent({
+      type: 'product.created',
+      payload: {},
+    })
+
+    expect(event.metadata.correlationId).toBe(MOCK_UUID)
+  })
+
+  it('should not override explicit correlationId', () => {
+    const event = createDomainEvent({
+      type: 'product.created',
+      payload: {},
+      metadata: { correlationId: 'explicit-corr-id' },
+    })
+
+    expect(event.metadata.correlationId).toBe('explicit-corr-id')
+  })
+
+  it('should accept shopId in metadata', () => {
+    const event = createDomainEvent({
+      type: 'product.created',
+      payload: {},
+      metadata: { shopId: 'shop-123' },
+    })
+
+    expect(event.metadata.shopId).toBe('shop-123')
+  })
+
+  it('should accept actorId and actorType in metadata', () => {
+    const event = createDomainEvent({
+      type: 'order.placed',
+      payload: {},
+      metadata: { actorId: 'user-456', actorType: 'user' },
+    })
+
+    expect(event.metadata.actorId).toBe('user-456')
+    expect(event.metadata.actorType).toBe('user')
+  })
+
+  it('should accept all actor types', () => {
+    for (const actorType of ['user', 'app', 'system'] as const) {
+      const event = createDomainEvent({
+        type: 'test.event',
+        payload: {},
+        metadata: { actorType },
+      })
+
+      expect(event.metadata.actorType).toBe(actorType)
+    }
+  })
 })
 
 describe('validateDomainEvent', () => {
@@ -167,6 +219,59 @@ describe('validateDomainEvent', () => {
 
   it('should reject null input', () => {
     const result = validateDomainEvent(null)
+    expect(result.success).toBe(false)
+  })
+
+  it('should validate event with shopId metadata', () => {
+    const input = {
+      id: MOCK_UUID,
+      type: 'product.created',
+      timestamp: new Date().toISOString(),
+      payload: {},
+      metadata: { source: 'test', version: 1, shopId: 'shop-abc' },
+    }
+
+    const result = validateDomainEvent(input)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.metadata.shopId).toBe('shop-abc')
+    }
+  })
+
+  it('should validate event with actor metadata', () => {
+    const input = {
+      id: MOCK_UUID,
+      type: 'order.placed',
+      timestamp: new Date().toISOString(),
+      payload: {},
+      metadata: {
+        source: 'order-service',
+        version: 1,
+        actorId: 'user-789',
+        actorType: 'app',
+      },
+    }
+
+    const result = validateDomainEvent(input)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.metadata.actorId).toBe('user-789')
+      expect(result.data.metadata.actorType).toBe('app')
+    }
+  })
+
+  it('should reject invalid actorType', () => {
+    const input = {
+      id: MOCK_UUID,
+      type: 'product.created',
+      timestamp: new Date().toISOString(),
+      payload: {},
+      metadata: { source: 'test', version: 1, actorType: 'robot' },
+    }
+
+    const result = validateDomainEvent(input)
     expect(result.success).toBe(false)
   })
 })

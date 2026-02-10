@@ -23,7 +23,34 @@ export interface EventMetadata {
   causationId?: string
   /** Schema version for payload evolution (default: 1) */
   version: number
+  /** Tenant identifier for multi-tenant routing */
+  shopId?: string
+  /** Identity of the actor who triggered the event */
+  actorId?: string
+  /** Type of actor: human user, third-party app, or internal system */
+  actorType?: 'user' | 'app' | 'system'
 }
+
+/**
+ * Extensible event map — modules extend via declaration merging.
+ *
+ * @example
+ * declare module '@czo/kit' {
+ *   interface EventMap {
+ *     'product.created': { id: string; title: string }
+ *     'product.deleted': { id: string }
+ *   }
+ * }
+ */
+export interface EventMap {
+  // Extend via declaration merging in module packages
+}
+
+/** Resolves to EventMap keys when populated, or string when empty */
+export type EventType = keyof EventMap extends never ? string : keyof EventMap & string
+
+/** Resolves payload type from event type string */
+export type EventPayload<K extends string> = K extends keyof EventMap ? EventMap[K] : unknown
 
 /** A handler that processes a domain event */
 export type DomainEventHandler<T = unknown> = (event: DomainEvent<T>) => Promise<void> | void
