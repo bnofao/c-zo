@@ -1,3 +1,4 @@
+import type { EventBusConfig, RabbitMQConfig } from './event-bus/types'
 import process from 'node:process'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 
@@ -8,6 +9,7 @@ export interface CzoConfig {
     prefix: string
     defaultAttempts: number
   }
+  eventBus: EventBusConfig
 }
 
 export const czoConfigDefaults: CzoConfig = {
@@ -16,6 +18,11 @@ export const czoConfigDefaults: CzoConfig = {
   queue: {
     prefix: 'czo',
     defaultAttempts: 3,
+  },
+  eventBus: {
+    provider: 'hookable',
+    source: 'monolith',
+    dualWrite: false,
   },
 }
 
@@ -35,6 +42,7 @@ export function useCzoConfig(): CzoConfig {
         prefix: czo?.queue?.prefix ?? czoConfigDefaults.queue.prefix,
         defaultAttempts: czo?.queue?.defaultAttempts ?? czoConfigDefaults.queue.defaultAttempts,
       },
+      eventBus: buildEventBusConfig(czo?.eventBus),
     }
   }
   catch {
@@ -43,6 +51,20 @@ export function useCzoConfig(): CzoConfig {
       databaseUrl: process.env.DATABASE_URL || '',
       redisUrl: process.env.REDIS_URL || '',
       queue: czoConfigDefaults.queue,
+      eventBus: czoConfigDefaults.eventBus,
     }
+  }
+}
+
+function buildEventBusConfig(partial?: Partial<EventBusConfig>): EventBusConfig {
+  if (!partial) {
+    return { ...czoConfigDefaults.eventBus }
+  }
+
+  return {
+    provider: partial.provider ?? czoConfigDefaults.eventBus.provider,
+    source: partial.source ?? czoConfigDefaults.eventBus.source,
+    dualWrite: partial.dualWrite ?? czoConfigDefaults.eventBus.dualWrite,
+    ...(partial.rabbitmq ? { rabbitmq: partial.rabbitmq as RabbitMQConfig } : {}),
   }
 }

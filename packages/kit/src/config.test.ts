@@ -115,4 +115,82 @@ describe('useCzoConfig', () => {
     expect(config.databaseUrl).toBe('')
     expect(config.redisUrl).toBe('')
   })
+
+  describe('eventBus config', () => {
+    it('should return eventBus defaults when no config is provided', () => {
+      mockUseRuntimeConfig.mockReturnValue({})
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus).toEqual(czoConfigDefaults.eventBus)
+      expect(config.eventBus.provider).toBe('hookable')
+      expect(config.eventBus.source).toBe('monolith')
+      expect(config.eventBus.dualWrite).toBe(false)
+    })
+
+    it('should read eventBus provider from runtimeConfig', () => {
+      mockUseRuntimeConfig.mockReturnValue({
+        czo: {
+          eventBus: {
+            provider: 'rabbitmq',
+            source: 'order-service',
+            dualWrite: true,
+          },
+        },
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus.provider).toBe('rabbitmq')
+      expect(config.eventBus.source).toBe('order-service')
+      expect(config.eventBus.dualWrite).toBe(true)
+    })
+
+    it('should read rabbitmq config when provided', () => {
+      mockUseRuntimeConfig.mockReturnValue({
+        czo: {
+          eventBus: {
+            provider: 'rabbitmq',
+            rabbitmq: {
+              url: 'amqp://localhost:5672',
+              exchange: 'custom.events',
+              prefetch: 20,
+            },
+          },
+        },
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus.rabbitmq?.url).toBe('amqp://localhost:5672')
+      expect(config.eventBus.rabbitmq?.exchange).toBe('custom.events')
+      expect(config.eventBus.rabbitmq?.prefetch).toBe(20)
+    })
+
+    it('should use eventBus defaults when useRuntimeConfig throws', () => {
+      mockUseRuntimeConfig.mockImplementation(() => {
+        throw new Error('Nitro runtime not available')
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus).toEqual(czoConfigDefaults.eventBus)
+    })
+
+    it('should merge partial eventBus config with defaults', () => {
+      mockUseRuntimeConfig.mockReturnValue({
+        czo: {
+          eventBus: {
+            source: 'custom-source',
+          },
+        },
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus.provider).toBe('hookable')
+      expect(config.eventBus.source).toBe('custom-source')
+      expect(config.eventBus.dualWrite).toBe(false)
+    })
+  })
 })

@@ -1,5 +1,6 @@
 import type { NitroHooks } from 'nitro/types'
 import type { CzoConfig } from './config'
+import type { EventBus } from './event-bus/types'
 import type { EventEmitter } from './events/types'
 import type { Container } from './ioc'
 
@@ -18,6 +19,7 @@ declare module 'nitro/types' {
   interface NitroApp {
     container: Container<Record<any, any>>
     events: EventEmitter
+    eventBus: EventBus
   }
   interface NitroRuntimeConfig {
     czo?: Partial<CzoConfig>
