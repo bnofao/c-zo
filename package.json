@@ -23,7 +23,8 @@
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "start:mazo": "pnpm --filter @czo/mazo start",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "turbo check-types"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:dev",

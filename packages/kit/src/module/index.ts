@@ -1,6 +1,7 @@
-import { addPlugin, createResolver, defineNitroModule } from '@czo/kit'
-import { czoConfigDefaults } from '../config'
-import { addImportsSources } from '../nitro'
+import { czoConfigDefaults } from '../config-defaults'
+import { defineNitroModule } from '../module'
+import { addImportsSources, addPlugin } from '../nitro'
+import { createResolver } from '../resolve'
 
 export default defineNitroModule({
   setup: (nitro) => {

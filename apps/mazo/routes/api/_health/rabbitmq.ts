@@ -1,4 +1,4 @@
-import { defineHandler } from 'nitro/deps/h3'
+import { defineHandler } from 'nitro/h3'
 import { checkRabbitMQHealth } from '@czo/kit/event-bus'
 import { useCzoConfig } from '@czo/kit'
 
