@@ -14,6 +14,18 @@ export default defineNitroConfig({
         prefix: 'czo',
         defaultAttempts: 3,
       },
+      eventBus: {
+        provider: 'hookable',
+        source: 'monolith',
+        dualWrite: false,
+        rabbitmq: {
+          url: '',         // ← mapped from NITRO_CZO_EVENT_BUS_RABBITMQ_URL
+          exchange: 'czo.events',
+          deadLetterExchange: 'czo.dlx',
+          systemExchange: 'czo.system',
+          prefetch: 10,
+        },
+      },
     },
   },
 

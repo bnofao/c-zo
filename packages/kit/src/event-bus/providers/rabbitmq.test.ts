@@ -125,6 +125,14 @@ describe('createRabbitMQEventBus', () => {
       )
     })
 
+    it('should assert the system fanout exchange', () => {
+      expect(mockChannel.assertExchange).toHaveBeenCalledWith(
+        'czo.system',
+        'fanout',
+        { durable: true },
+      )
+    })
+
     it('should set consumer prefetch', () => {
       expect(mockChannel.prefetch).toHaveBeenCalledWith(10)
     })
@@ -469,6 +477,7 @@ describe('createRabbitMQEventBus', () => {
 
       expect(freshChannel.assertExchange).toHaveBeenCalledWith('czo.events', 'topic', { durable: true })
       expect(freshChannel.assertExchange).toHaveBeenCalledWith('czo.dlx', 'topic', { durable: true })
+      expect(freshChannel.assertExchange).toHaveBeenCalledWith('czo.system', 'fanout', { durable: true })
       expect(freshChannel.prefetch).toHaveBeenCalledWith(10)
     })
 
