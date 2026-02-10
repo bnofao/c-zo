@@ -29,11 +29,11 @@ interface TestEntity {
 }
 
 // Mock table with all columns
-const createMockTable = (options?: {
+function createMockTable(options?: {
   hasVersion?: boolean
   hasDeletedAt?: boolean
   hasUpdatedAt?: boolean
-}) => {
+}) {
   const { hasVersion = true, hasDeletedAt = true, hasUpdatedAt = true } = options ?? {}
 
   const table: Record<string, unknown> = {
@@ -69,7 +69,7 @@ let mockDeleteResult: any[] = []
 const createMockWhere = () => ({ queryChunks: ['mock', 'where'] } as any)
 
 // Create a thenable (Promise-like) chain that resolves to the result
-const createThenableChain = (getResult: () => any[]) => {
+function createThenableChain(getResult: () => any[]) {
   const chain: any = {
     values: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
@@ -86,7 +86,7 @@ const createThenableChain = (getResult: () => any[]) => {
 }
 
 // Create mock database with proper chaining
-const createMockDb = () => {
+function createMockDb() {
   const mockQueryBuilder = {
     findFirst: vi.fn().mockImplementation(async () => mockQueryRows[0] || null),
     findMany: vi.fn().mockImplementation(async () => [...mockQueryRows]),
@@ -163,7 +163,7 @@ class TestRepository extends Repository<
   }
 }
 
-describe('Repository', () => {
+describe('repository', () => {
   let db: ReturnType<typeof createMockDb>
   let table: PgTableWithColumns<any>
   let repository: TestRepository
@@ -181,7 +181,7 @@ describe('Repository', () => {
     repository.resetHookCalls()
   })
 
-  describe('OptimisticLockError', () => {
+  describe('optimisticLockError', () => {
     it('should create error with expected properties', () => {
       const error = new OptimisticLockError('entity-123', 5, 3)
 
@@ -202,7 +202,7 @@ describe('Repository', () => {
     })
   })
 
-  describe('DatabaseError', () => {
+  describe('databaseError', () => {
     it('should create error with message only', () => {
       const error = new DatabaseError('Database connection failed')
 
@@ -960,5 +960,4 @@ describe('Repository', () => {
       expect(result).toHaveLength(1)
     })
   })
-
 })

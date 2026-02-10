@@ -1,9 +1,9 @@
 import type { NodePgClient } from 'drizzle-orm/node-postgres'
 import type { DrizzleConfig } from 'drizzle-orm/utils'
 import type { Pool } from 'pg'
-import process from 'node:process'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { withReplicas } from 'drizzle-orm/pg-core'
+import { useCzoConfig } from '../config'
 
 export type Database<
   TSchema extends Record<string, unknown> = Record<string, never>,
@@ -24,12 +24,16 @@ function createDatabase<
   TSchema extends Record<string, unknown> = Record<string, never>,
   TClient extends NodePgClient = Pool,
 >(config?: DrizzleConfig<TSchema>) {
-  const connections = process.env.DATABASE_URL?.split(',') ?? []
+  const { databaseUrl } = useCzoConfig()
+  const connections = databaseUrl?.split(',') ?? []
   const master = connections[0]
   const replicas = connections.slice(1)
 
   if (!master) {
-    throw new Error('DATABASE_URL is not set')
+    throw new Error(
+      'Database URL is required. '
+      + 'Set NITRO_CZO_DATABASE_URL or configure runtimeConfig.czo.databaseUrl',
+    )
   }
 
   // @ts-expect-error config must be undefined

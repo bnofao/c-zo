@@ -5,6 +5,18 @@ import kitModule from "@czo/kit/module"
 export default defineNitroConfig({
   scanDirs: ['./'],
   preset: "standard",
+
+  runtimeConfig: {
+    czo: {
+      databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
+      redisUrl: '',        // ← mapped from NITRO_CZO_REDIS_URL
+      queue: {
+        prefix: 'czo',
+        defaultAttempts: 3,
+      },
+    },
+  },
+
   plugins: [
     // '@czo/kit/plugins/ioc',
     // 'old/tests.js',
