@@ -41,6 +41,10 @@
     "./config": {
       "types": "./src/config.ts",
       "default": "./dist/config.mjs"
+    },
+    "./event-bus": {
+      "types": "./src/event-bus/index.ts",
+      "default": "./dist/event-bus/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -64,11 +68,15 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
+    "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
     "ioredis": "^5.0.0",
     "nitro": "^2.0.0 || ^3.0.0"
   },
   "peerDependenciesMeta": {
+    "amqplib": {
+      "optional": true
+    },
     "bullmq": {
       "optional": true
     },
@@ -91,9 +99,11 @@
     "kysely": "catalog:common",
     "pathe": "catalog:common",
     "pg": "catalog:common",
-    "tinyglobby": "catalog:common"
+    "tinyglobby": "catalog:common",
+    "zod": "catalog:common"
   },
   "devDependencies": {
+    "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",

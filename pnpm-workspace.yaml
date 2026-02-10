@@ -38,6 +38,7 @@ catalog:
   '@tanstack/react-query': 5.64.2
   '@tanstack/react-table': 8.20.5
   '@tanstack/react-virtual': ^3.8.3
+  '@types/amqplib': ^0.10.0
   '@types/jest': ^29.5.13
   '@uiw/react-json-view': ^2.0.0-alpha.17
   '@vitejs/plugin-react': 4.2.1
@@ -180,6 +181,7 @@ catalogs:
     yaml: ^2.8.1
   types:
     '@medusajs/types': 2.10.3
+    '@types/amqplib': ^0.10.0
     '@types/express': ^4.17.17
     '@types/node': ^24.5.2
     '@types/node-schedule': ^2.1.8

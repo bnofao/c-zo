@@ -3,7 +3,7 @@ name: "Phase 0 - Préparer le Monolithe"
 milestone: 4
 start_date: 2026-02-10
 end_date: 2026-02-24
-status: planning
+status: active
 prd: kit-microservices
 ---
 
