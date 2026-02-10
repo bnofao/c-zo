@@ -1,4 +1,5 @@
 import type { DomainEvent, DomainEventHandler, EventBus, Unsubscribe } from '../types'
+import { runWithContext } from '../../telemetry/context'
 
 interface Subscription {
   pattern: string
@@ -71,7 +72,10 @@ export async function createHookableEventBus(): Promise<EventBus> {
     await Promise.allSettled(
       matching.map(async (sub) => {
         try {
-          await sub.handler(event)
+          const ctx = {
+            correlationId: event.metadata.correlationId ?? crypto.randomUUID(),
+          }
+          await runWithContext(ctx, () => sub.handler(event))
         }
         catch {
           // Swallow — domain event handlers must not break publishers

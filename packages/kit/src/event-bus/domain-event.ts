@@ -1,6 +1,7 @@
 import type { ZodSafeParseResult } from 'zod'
 import type { DomainEvent, EventMap, EventMetadata } from './types'
 import { z } from 'zod'
+import { getCorrelationId } from '../telemetry/context'
 
 export interface CreateDomainEventOptions<T = unknown> {
   type: string
@@ -38,7 +39,7 @@ export function createDomainEvent<T = unknown>(
     metadata: {
       ...metadataDefaults,
       ...options.metadata,
-      correlationId: options.metadata?.correlationId ?? crypto.randomUUID(),
+      correlationId: options.metadata?.correlationId ?? getCorrelationId() ?? crypto.randomUUID(),
     },
   }
 

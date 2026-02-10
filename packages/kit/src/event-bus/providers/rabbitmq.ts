@@ -2,6 +2,7 @@ import type { DomainEvent, DomainEventHandler, EventBus, RabbitMQConfig, Unsubsc
 import { Buffer } from 'node:buffer'
 import amqplib from 'amqplib'
 import { useLogger } from '../../logger'
+import { getContext, runWithContext } from '../../telemetry/context'
 
 type BusState = 'connected' | 'reconnecting' | 'closed'
 
@@ -108,7 +109,13 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
 
         try {
           const event = JSON.parse(msg.content.toString()) as DomainEvent
-          await record.handler(event)
+          const msgHeaders = (msg.properties.headers ?? {}) as Record<string, string | undefined>
+          const ctx = {
+            correlationId: msgHeaders['x-correlation-id'] ?? event.metadata.correlationId ?? crypto.randomUUID(),
+            traceId: msgHeaders['x-trace-id'],
+            parentSpanId: msgHeaders['x-parent-span-id'],
+          }
+          await runWithContext(ctx, () => record.handler(event))
           consumerChannel.ack(msg)
         }
         catch {
@@ -296,6 +303,15 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
     }
 
     const buffer = Buffer.from(JSON.stringify(event))
+    const ctx = getContext()
+    const headers: Record<string, string> = {}
+    if (ctx?.correlationId)
+      headers['x-correlation-id'] = ctx.correlationId
+    if (ctx?.traceId)
+      headers['x-trace-id'] = ctx.traceId
+    if (ctx?.parentSpanId)
+      headers['x-parent-span-id'] = ctx.parentSpanId
+
     await new Promise<void>((resolve, reject) => {
       channel.publish(
         exchange,
@@ -306,6 +322,7 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
           contentType: 'application/json',
           messageId: event.id,
           timestamp: toUnixSeconds(event.timestamp),
+          headers,
         },
         (err) => {
           if (err)

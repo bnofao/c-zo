@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["DATABASE_URL", "REDIS_URL", "RABBITMQ_URL", "NODE_ENV"],
+  "globalEnv": ["DATABASE_URL", "REDIS_URL", "RABBITMQ_URL", "NODE_ENV", "OTEL_SERVICE_NAME", "OTEL_EXPORTER_OTLP_ENDPOINT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
