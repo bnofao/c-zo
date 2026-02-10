@@ -1,4 +1,4 @@
-import { defineHandler, html } from "nitro/deps/h3"
+import { defineHandler, html } from 'nitro/h3'
 
 export default defineHandler((event) => {
   console.log('index route');

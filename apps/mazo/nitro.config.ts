@@ -36,7 +36,7 @@ export default defineNitroConfig({
   ],
   modules: [
     // productModule,
-    '@czo/product',
+    // '@czo/product',
     kitModule,
   ],
   imports: {
