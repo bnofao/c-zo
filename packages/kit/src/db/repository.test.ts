@@ -960,4 +960,123 @@ describe('repository', () => {
       expect(result).toHaveLength(1)
     })
   })
+
+  describe('#toDatabaseError (via create/update)', () => {
+    it('should wrap PG 23505 unique violation with field info', async () => {
+      const pgModule = await import('pg')
+      const pgError = new pgModule.default.DatabaseError(
+        'duplicate key value violates unique constraint',
+        'error',
+        'error',
+      )
+      ;(pgError as any).code = '23505'
+      ;(pgError as any).detail = 'Key (email)=(test@example.com) already exists.'
+
+      // Make insert throw a pg.DatabaseError
+      db.insert.mockImplementationOnce(() => {
+        const chain = createThenableChain(() => {
+          throw pgError
+        })
+        return chain
+      })
+
+      await expect(
+        repository.create({ id: 'test-1', name: 'Test' }),
+      ).rejects.toBeInstanceOf(DatabaseError)
+    })
+
+    it('should re-throw non-PG errors as-is', async () => {
+      const genericError = new Error('Connection reset')
+
+      db.insert.mockImplementationOnce(() => {
+        const chain = createThenableChain(() => {
+          throw genericError
+        })
+        return chain
+      })
+
+      await expect(
+        repository.create({ id: 'test-1', name: 'Test' }),
+      ).rejects.toBe(genericError)
+    })
+
+    it('should re-throw OptimisticLockError without wrapping in update', async () => {
+      mockUpdateResult = []
+      mockQueryRows = [{ id: 'test-1', name: 'Original', version: 5 }]
+
+      await expect(
+        repository.update(
+          { name: 'Updated' },
+          { where: createMockWhere(), expectedVersion: 1 },
+        ),
+      ).rejects.toBeInstanceOf(OptimisticLockError)
+    })
+
+    it('should wrap non-OptimisticLock errors in update via #toDatabaseError', async () => {
+      const genericError = new TypeError('unexpected null')
+
+      db.update.mockImplementationOnce(() => {
+        const chain = createThenableChain(() => {
+          throw genericError
+        })
+        return chain
+      })
+
+      await expect(
+        repository.update({ name: 'Updated' }),
+      ).rejects.toBe(genericError)
+    })
+  })
+
+  describe('paginateByOffset edge cases', () => {
+    beforeEach(() => {
+      db.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ count: 0 }]),
+        }),
+      })
+    })
+
+    it('should return zero totals when no rows exist', async () => {
+      mockQueryRows = []
+      db.query.testEntities.findMany.mockResolvedValueOnce([])
+
+      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
+
+      expect(result.rows).toEqual([])
+      expect(result.totalRows).toBe(0)
+      expect(result.totalPages).toBe(0)
+      expect(result.next).toBe(false)
+      expect(result.previous).toBe(false)
+    })
+
+    it('should have next=false when rows exactly fill the page', async () => {
+      // 10 rows with perPage=10 → fetches limit=11 but gets 10 → next=false
+      const rows = Array.from({ length: 10 }, (_, i) => ({
+        id: `test-${i}`,
+        name: `Test ${i}`,
+      }))
+      mockQueryRows = rows
+      db.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ count: 10 }]),
+        }),
+      })
+
+      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
+
+      expect(result.next).toBe(false)
+      expect(result.rows).toHaveLength(10)
+    })
+
+    it('should use default page=1 and perPage=10 when not specified', async () => {
+      mockQueryRows = []
+      db.query.testEntities.findMany.mockResolvedValueOnce([])
+
+      const result = await repository.paginateByOffset()
+
+      expect(result.page).toBe(1)
+      expect(result.perPage).toBe(10)
+    })
+  })
 })
