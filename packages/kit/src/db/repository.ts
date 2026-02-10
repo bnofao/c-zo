@@ -237,7 +237,7 @@ export abstract class Repository<
     this.db = db
     this.table = table
 
-    Object.getOwnPropertySymbols(table).e((k) => {
+    Object.getOwnPropertySymbols(table).forEach((k) => {
       if (k.toString() === 'Symbol(drizzle:Name)') {
         // Replace graphile-worker's table prefix.
         this.#modelName = camelCase(
