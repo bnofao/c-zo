@@ -51,7 +51,7 @@ export function useCzoConfig(): CzoConfig {
       databaseUrl: process.env.DATABASE_URL || '',
       redisUrl: process.env.REDIS_URL || '',
       queue: czoConfigDefaults.queue,
-      eventBus: czoConfigDefaults.eventBus,
+      eventBus: buildEventBusConfig(),
     }
   }
 }
@@ -61,10 +61,19 @@ function buildEventBusConfig(partial?: Partial<EventBusConfig>): EventBusConfig 
     return { ...czoConfigDefaults.eventBus }
   }
 
+  const rabbitmqUrl = partial.rabbitmq?.url || process.env.RABBITMQ_URL || ''
+
   return {
     provider: partial.provider ?? czoConfigDefaults.eventBus.provider,
     source: partial.source ?? czoConfigDefaults.eventBus.source,
     dualWrite: partial.dualWrite ?? czoConfigDefaults.eventBus.dualWrite,
-    ...(partial.rabbitmq ? { rabbitmq: partial.rabbitmq as RabbitMQConfig } : {}),
+    ...(rabbitmqUrl
+      ? {
+          rabbitmq: {
+            ...partial.rabbitmq,
+            url: rabbitmqUrl,
+          } as RabbitMQConfig,
+        }
+      : {}),
   }
 }

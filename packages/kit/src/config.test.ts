@@ -192,5 +192,35 @@ describe('useCzoConfig', () => {
       expect(config.eventBus.source).toBe('custom-source')
       expect(config.eventBus.dualWrite).toBe(false)
     })
+
+    it('should fall back to RABBITMQ_URL env var when rabbitmq.url is empty', () => {
+      vi.stubEnv('RABBITMQ_URL', 'amqp://env-rabbit:5672')
+      mockUseRuntimeConfig.mockReturnValue({
+        czo: {
+          eventBus: {
+            provider: 'rabbitmq',
+            rabbitmq: { url: '' },
+          },
+        },
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus.rabbitmq?.url).toBe('amqp://env-rabbit:5672')
+    })
+
+    it('should not include rabbitmq config when no URL is available', () => {
+      mockUseRuntimeConfig.mockReturnValue({
+        czo: {
+          eventBus: {
+            provider: 'hookable',
+          },
+        },
+      })
+
+      const config = useCzoConfig()
+
+      expect(config.eventBus.rabbitmq).toBeUndefined()
+    })
   })
 })

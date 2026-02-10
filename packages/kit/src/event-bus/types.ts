@@ -100,6 +100,8 @@ export interface RabbitMQConfig {
   prefetch?: number
   /** Whether to use publisher confirms (default: true) */
   publisherConfirms?: boolean
+  /** System fanout exchange for infrastructure events (default: "czo.system") */
+  systemExchange?: string
   /** Reconnection configuration */
   reconnect?: RabbitMQReconnectConfig
 }

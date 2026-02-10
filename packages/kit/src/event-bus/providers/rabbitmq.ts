@@ -23,6 +23,7 @@ interface BufferedPublish {
 const DEFAULTS = {
   exchange: 'czo.events',
   deadLetterExchange: 'czo.dlx',
+  systemExchange: 'czo.system',
   prefetch: 10,
   publisherConfirms: true,
 } as const
@@ -52,6 +53,7 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
 
   const exchange = config.exchange ?? DEFAULTS.exchange
   const dlx = config.deadLetterExchange ?? DEFAULTS.deadLetterExchange
+  const systemExchange = config.systemExchange ?? DEFAULTS.systemExchange
   const prefetch = config.prefetch ?? DEFAULTS.prefetch
 
   const reconnectConfig = {
@@ -68,6 +70,7 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
 
   await channel.assertExchange(exchange, 'topic', { durable: true })
   await channel.assertExchange(dlx, 'topic', { durable: true })
+  await channel.assertExchange(systemExchange, 'fanout', { durable: true })
   channel.prefetch(prefetch)
 
   let state: BusState = 'connected'
@@ -252,6 +255,7 @@ export async function createRabbitMQEventBus(config: RabbitMQConfig): Promise<Ev
 
         await channel.assertExchange(exchange, 'topic', { durable: true })
         await channel.assertExchange(dlx, 'topic', { durable: true })
+        await channel.assertExchange(systemExchange, 'fanout', { durable: true })
         channel.prefetch(prefetch)
 
         attachListeners()

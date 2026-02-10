@@ -9,6 +9,9 @@ export type {
   ValidatedDomainEvent,
 } from './domain-event'
 
+export { checkRabbitMQHealth } from './health'
+export type { RabbitMQHealthResult } from './health'
+
 export { createHookableEventBus } from './providers/hookable'
 
 export { createRabbitMQEventBus } from './providers/rabbitmq'
