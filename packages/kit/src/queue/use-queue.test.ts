@@ -13,13 +13,22 @@ const MockRedis = vi.fn().mockReturnValue(mockRedisInstance)
 vi.mock('bullmq', () => ({ Queue: MockQueue }))
 vi.mock('ioredis', () => ({ default: MockRedis }))
 
+const mockConfig = {
+  databaseUrl: '',
+  redisUrl: 'redis://localhost:6379',
+  queue: { prefix: 'czo', defaultAttempts: 3 },
+}
+vi.mock('../config', () => ({
+  useCzoConfig: vi.fn(() => ({ ...mockConfig })),
+}))
+
 describe('useQueue', () => {
   let useQueue: typeof import('./use-queue').useQueue
   let resetQueues: typeof import('./use-queue').resetQueues
   let closeQueues: typeof import('./use-queue').closeQueues
 
   beforeEach(async () => {
-    vi.stubEnv('REDIS_URL', 'redis://localhost:6379')
+    mockConfig.redisUrl = 'redis://localhost:6379'
     MockQueue.mockClear()
     MockRedis.mockClear()
     mockRedisInstance.disconnect.mockClear()
@@ -69,11 +78,11 @@ describe('useQueue', () => {
     expect(MockRedis).toHaveBeenCalledOnce()
   })
 
-  it('should throw when REDIS_URL is missing', () => {
-    vi.stubEnv('REDIS_URL', '')
+  it('should throw when redisUrl is missing', () => {
+    mockConfig.redisUrl = ''
     resetQueues()
 
-    expect(() => useQueue('orders')).toThrow('REDIS_URL')
+    expect(() => useQueue('orders')).toThrow('Redis URL is required')
   })
 
   it('should pass queue options through to BullMQ', () => {

@@ -37,6 +37,10 @@
     "./queue": {
       "types": "./src/queue/index.ts",
       "default": "./dist/queue/index.mjs"
+    },
+    "./config": {
+      "types": "./src/config.ts",
+      "default": "./dist/config.mjs"
     }
   },
   "main": "./dist/index.mjs",

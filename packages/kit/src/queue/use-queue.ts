@@ -1,7 +1,7 @@
 import type { QueueOptions } from 'bullmq'
-import process from 'node:process'
 import { Queue } from 'bullmq'
 import Redis from 'ioredis'
+import { useCzoConfig } from '../config'
 
 type CachedQueue = Queue<any, any, string>
 
@@ -10,9 +10,12 @@ let connection: Redis | undefined
 
 function getConnection(): Redis {
   if (!connection) {
-    const redisUrl = process.env.REDIS_URL
+    const { redisUrl } = useCzoConfig()
     if (!redisUrl) {
-      throw new Error('REDIS_URL environment variable is required for queue support')
+      throw new Error(
+        'Redis URL is required for queue support. '
+        + 'Set NITRO_CZO_REDIS_URL or configure runtimeConfig.czo.redisUrl',
+      )
     }
     // maxRetriesPerRequest: null prevents ioredis from throwing
     // MaxRetriesPerRequestError during BullMQ blocking commands (BRPOPLPUSH)

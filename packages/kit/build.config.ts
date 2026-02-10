@@ -21,6 +21,7 @@ export default defineBuildConfig({
     'src/cache/index',
     'src/events/index',
     'src/queue/index',
+    'src/config',
     'src/cli',
     {
       input: 'src/plugin/',
@@ -39,6 +40,7 @@ export default defineBuildConfig({
     'nitropack/runtime',
     'nitro',
     'nitro/runtime',
+    'nitro/runtime-config',
     'unimport',
     'graphql',
     'bullmq',

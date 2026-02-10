@@ -237,7 +237,7 @@ export abstract class Repository<
     this.db = db
     this.table = table
 
-    Object.getOwnPropertySymbols(table).map((k) => {
+    Object.getOwnPropertySymbols(table).e((k) => {
       if (k.toString() === 'Symbol(drizzle:Name)') {
         // Replace graphile-worker's table prefix.
         this.#modelName = camelCase(
@@ -246,7 +246,7 @@ export abstract class Repository<
       }
     })
 
-    // @ts-expect-error
+    // @ts-expect-error unknown
     this.#relations = this.db.schema[`${this.#modelName}Relations`].config(
       createTableRelationsHelpers(this.table),
     )
@@ -268,8 +268,8 @@ export abstract class Repository<
   async #cleanUpStorage(rows: Array<InferSelectModel<U>>): Promise<any> {
     const promises: Promise<any>[] = []
 
-    rows.map((row) => {
-      Object.values(row).map((value) => {
+    rows.forEach((row) => {
+      Object.values(row).forEach((value) => {
         if (
           value
           && typeof value === 'object'
@@ -305,7 +305,7 @@ export abstract class Repository<
    * Convert the unknown error to DatabaseError class with best efforts.
    *
    * @param {unknown} err The unknown error.
-   * @returns {unknown | DatabaseError}
+   * @returns {unknown | DatabaseError} error object
    */
   #toDatabaseError(err: unknown) {
     /**
@@ -321,21 +321,23 @@ export abstract class Repository<
 
           if (keyMatch && valueMatch) {
             const keys = keyMatch?.[1]?.split(', ').map(key => key.trim())
+            // eslint-disable-next-line unused-imports/no-unused-vars
             const values = valueMatch?.[1]
               ?.split(', ')
               .map(value => value.trim())
             const fieldErrors: Record<string, string[]> = {}
+            // eslint-disable-next-line unused-imports/no-unused-vars
             const isComposite = keys?.length && keys.length > 1
 
             // TODO: Finish up composite key error handling.
             // keys.forEach((key, _idx) => {
-            // 	fieldErrors[
-            // 		`${pluralize.singular(this.#tableName)}.${camel(key)}`
-            // 	] = [
-            // 		isComposite
-            // 			? "app:errors.dbUniqueCompositeConstraint"
-            // 			: "app:errors.dbUniqueConstraint",
-            // 	] satisfies I18nKeys[];
+            //  fieldErrors[
+            //    `${pluralize.singular(this.#tableName)}.${camel(key)}`
+            //  ] = [
+            //    isComposite
+            //      ? "app:errors.dbUniqueCompositeConstraint"
+            //      : "app:errors.dbUniqueConstraint",
+            //  ] satisfies I18nKeys[];
             // });
 
             return new DatabaseError(err.message, fieldErrors)
@@ -350,26 +352,26 @@ export abstract class Repository<
   /**
    * A hook that is invoked right before a row is inserted.
    *
-   * @param {PgInsertValue<U>} row
+   * @param {PgInsertValue<U>} _
    * @returns {Promise<void>}
    */
-  async beforeCreate(row: PgInsertValue<U>) {}
+  async beforeCreate(_: PgInsertValue<U>): Promise<void> {}
 
   /**
    * A hook that is invoked after a row is inserted and right before returning to the caller.
    *
-   * @param {InferSelectModel<U>} row
-   * @returns {Promise<InferSelectModel<U>>}
+   * @param {InferSelectModel<U>} _
+   * @returns {Promise<InferSelectModel<U>>} model
    */
-  async afterCreate(row: InferSelectModel<U>) {}
+  async afterCreate(_: InferSelectModel<U>): Promise<InferSelectModel<U>> { return _ }
 
   /**
    * A hook that is invoked after a row is deleted and right before returning to the caller.
    *
-   * @param {InferSelectModel<U>} row
+   * @param {InferSelectModel<U>} _
    * @returns {Promise<void>}
    */
-  async afterDelete(row: InferSelectModel<U>) {}
+  async afterDelete(_: InferSelectModel<U>): Promise<void> {}
 
   /**
    * A hook that is invoked right before returning to the caller which applies to:
@@ -382,26 +384,26 @@ export abstract class Repository<
    *
    * - post process s3 storage path to a private s3 URL and cache it
    *
-   * @param {InferSelectModel<U>} row
+   * @param {InferSelectModel<U>} _
    * @returns {Promise<void>}
    */
-  async afterFind(row: InferSelectModel<U>) {}
+  async afterFind(_: InferSelectModel<U>) {}
 
   /**
    * A hook that is invoked right before a row is updated.
    *
-   * @param {PgUpdateSetSource<U>} row
+   * @param {PgUpdateSetSource<U>} _
    * @returns {Promise<void>}
    */
-  async beforeUpdate(row: PgUpdateSetSource<U>) {}
+  async beforeUpdate(_: PgUpdateSetSource<U>) {}
 
   /**
    * A hook that is invoked after a row is updated and right before returning to the caller.
    *
-   * @param {InferSelectModel<U>} row
+   * @param {InferSelectModel<U>} _
    * @returns {Promise<void>}
    */
-  async afterUpdate(row: InferSelectModel<U>) {}
+  async afterUpdate(_: InferSelectModel<U>) {}
 
   /**
    * Insert 1 value into the database.
@@ -746,7 +748,7 @@ export abstract class Repository<
    * @param {SQL<unknown>} [opts.where] The where filter.
    * @param {object} [opts.with] The relations to include in query.
    * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
+   * @returns result
    */
   async findFirst<QConfig extends FindFirstQueryConfig<T, V>>(
     opts?: FindFirstOpts<QConfig>,
@@ -798,7 +800,7 @@ export abstract class Repository<
    * @param {SQL<unknown>} [opts.where] The where filter.
    * @param {object} [opts.with] The relations to include in query.
    * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
+   * @returns result
    */
   async findMany<QConfig extends FindManyQueryConfig<T, V>>(
     opts?: FindManyOpts<QConfig>,
@@ -866,7 +868,7 @@ export abstract class Repository<
    * @param {number} [opts.page] The current page.
    * @param {number} [opts.perPage] The current page size.
    * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
+   * @returns result
    */
   async paginateByOffset<QConfig extends PaginateByOffsetQueryConfig<T, V>>(
     opts?: PaginateByOffsetOpts<QConfig>,

@@ -60,6 +60,14 @@ Le module `@czo/kit` fournit les fondations partagées pour tous les modules c-z
 - [ ] #35 Implement WebhookDispatcher with HMAC signing
 - [ ] #36 Create database migration for apps tables
 
+### Worker Process Separation (Sprint-03)
+- [ ] Implement worker-runner entry point
+- [ ] Implement `czo workers:dev` CLI command (HMR)
+- [ ] Implement `czo workers:start` CLI command (production)
+- [ ] Add build hook for worker entry generation
+- [ ] Convention-based worker file discovery (`server/workers/*.ts`)
+- [ ] Graceful shutdown (SIGINT/SIGTERM)
+
 ### Infrastructure
 - [ ] #37 Configure package exports for @czo/kit
 - [ ] #38 Configure Redis storage in nitro.config.ts

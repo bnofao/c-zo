@@ -1648,6 +1648,7 @@ app.post('/webhooks/checkout', async (req, res) => {
 - [x] Export? → **Sous-packages séparés**
 - [x] Permissions apps? → **Délégation à `@czo/auth`** (plugin `access`, format `{ resource, actions[], scope }`)
 - [x] Scope apps? → **Par shop** (apps installées pour un shop spécifique)
+- [x] Configuration Redis/Queue? → **runtimeConfig.czo** avec defaults dans le module (Approche C), helper `useCzoConfig()`
 
 ---
 
@@ -1711,6 +1712,7 @@ import { useAppRegistry } from '@czo/kit/apps'
 13. **App Scope** : Apps installées par shop, permissions scopées au shop
 14. **Permission Format** : `{ resource, actions[], scope }` aligné avec le plugin `access`
 15. **Soft Delete** : Paramètre `soft?: boolean` sur `delete()`, méthode `restore()`, filtrage auto via `includeDeleted?: boolean` ✅ Implémenté
+16. **Configuration** : Approche C — `runtimeConfig.czo` avec defaults injectés par le module kit dans `setup()`. Helper `useCzoConfig()`. Env vars `NITRO_CZO_*` pour override automatique
 
 ---
 
@@ -1777,6 +1779,170 @@ export { useStorage as useCache } from 'nitro/storage'
 ```
 
 L'approche CacheManager avec `defineCachedFunction` est reportée. Pour l'instant, les modules utilisent directement `useCache()` (alias de `useStorage` de Nitro).
+
+---
+
+## Sprint-02 : Configuration Nitro-native (2026-02-09)
+
+### Décision : runtimeConfig + defaults dans le module (Approche C)
+
+**Contexte** : kit est fortement couplé à Nitro. Les connexions (Redis, DB) sont actuellement lues via `process.env` directement dans le code. Cela ne respecte pas le pattern Nitro et empêche la configuration via `nitro.config.ts`.
+
+**Approche retenue** : Le kit module injecte des defaults dans `runtimeConfig` pendant `setup()`, et le code runtime lit depuis `useRuntimeConfig()`. Les env vars `NITRO_CZO_*` overrident automatiquement les valeurs.
+
+#### Forme de la Configuration
+
+```typescript
+// apps/mazo/nitro.config.ts
+export default defineNitroConfig({
+  modules: [kitModule],
+  runtimeConfig: {
+    czo: {
+      // Database — surcharge via NITRO_CZO_DATABASE_URL
+      databaseUrl: '',
+
+      // Redis — surcharge via NITRO_CZO_REDIS_URL
+      redisUrl: '',
+
+      // Queue — surcharges via NITRO_CZO_QUEUE_*
+      queue: {
+        prefix: 'czo',
+        defaultAttempts: 3,
+      },
+    },
+  },
+})
+```
+
+#### Injection des defaults par le module
+
+```typescript
+// packages/kit/src/module/index.ts
+import { defu } from 'defu'
+
+export default defineNitroModule({
+  setup: (nitro) => {
+    // Injecter les defaults dans runtimeConfig
+    nitro.options.runtimeConfig.czo = defu(
+      nitro.options.runtimeConfig.czo ?? {},
+      {
+        databaseUrl: '',
+        redisUrl: '',
+        queue: {
+          prefix: 'czo',
+          defaultAttempts: 3,
+        },
+      }
+    )
+  },
+})
+```
+
+#### Accès runtime : helper `useCzoConfig()`
+
+```typescript
+// @czo/kit/config.ts
+import { useRuntimeConfig } from 'nitro/runtime'
+
+export interface CzoConfig {
+  databaseUrl: string
+  redisUrl: string
+  queue: {
+    prefix: string
+    defaultAttempts: number
+  }
+}
+
+/**
+ * Access czo config from runtimeConfig.
+ * At boot time (plugins), reads from globalThis.__nitro_config__.
+ * At request time (handlers), uses useRuntimeConfig(event).
+ */
+export function useCzoConfig(): CzoConfig {
+  const config = useRuntimeConfig()
+  return config.czo as CzoConfig
+}
+```
+
+#### Migration des consumers
+
+**Avant (process.env direct) :**
+```typescript
+// queue/use-queue.ts
+const redisUrl = process.env.REDIS_URL
+```
+
+**Après (runtimeConfig) :**
+```typescript
+// queue/use-queue.ts
+import { useCzoConfig } from '../config'
+
+function getConnection(): Redis {
+  if (!connection) {
+    const { redisUrl } = useCzoConfig()
+    if (!redisUrl) {
+      throw new Error('czo.redisUrl is required — set NITRO_CZO_REDIS_URL or configure runtimeConfig.czo.redisUrl')
+    }
+    connection = new Redis(redisUrl, { maxRetriesPerRequest: null })
+  }
+  return connection
+}
+```
+
+**DB manager :**
+```typescript
+// db/manager.ts
+import { useCzoConfig } from '../config'
+
+function createDatabase<...>(config?) {
+  const { databaseUrl } = useCzoConfig()
+  const connections = databaseUrl?.split(',') ?? []
+  // ...
+}
+```
+
+#### Variables d'environnement (mapping automatique Nitro)
+
+| Config key | Env var | Description |
+|-----------|---------|-------------|
+| `czo.databaseUrl` | `NITRO_CZO_DATABASE_URL` | PostgreSQL connection(s) |
+| `czo.redisUrl` | `NITRO_CZO_REDIS_URL` | Redis pour queue et cache |
+| `czo.queue.prefix` | `NITRO_CZO_QUEUE_PREFIX` | Prefix des queues BullMQ |
+| `czo.queue.defaultAttempts` | `NITRO_CZO_QUEUE_DEFAULT_ATTEMPTS` | Retries par défaut |
+
+#### Rétrocompatibilité
+
+Pendant la transition, supporter les deux :
+```typescript
+export function useCzoConfig(): CzoConfig {
+  const config = useRuntimeConfig()
+  const czo = config.czo as CzoConfig
+
+  // Fallback process.env pour rétrocompatibilité
+  return {
+    databaseUrl: czo.databaseUrl || process.env.DATABASE_URL || '',
+    redisUrl: czo.redisUrl || process.env.REDIS_URL || '',
+    queue: czo.queue,
+  }
+}
+```
+
+#### Raisons du choix
+
+- **Standard Nitro** : `runtimeConfig` est le pattern officiel pour la config runtime
+- **Env-var mapping automatique** : `NITRO_CZO_*` résolu sans code custom
+- **Centralisé** : toute la config czo dans un seul namespace
+- **Testable** : mock `useRuntimeConfig()` vs stub `process.env`
+- **Deployment-friendly** : compatible avec tous les presets Nitro (Cloudflare, Vercel, etc.)
+
+---
+
+### Questions ouvertes Sprint-02
+
+- [x] Comment configurer Redis/BullMQ ? → **runtimeConfig.czo** avec defaults dans le module (Approche C)
+- [ ] HookRegistry standalone vs events-only ? → À trancher
+- [ ] `emitAsync()` intégration avec `useQueue` ? → À designer
+- [ ] Config storage cache doit-elle aussi passer par `runtimeConfig.czo` ? → Probablement oui pour cohérence
 
 ---
 

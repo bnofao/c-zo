@@ -13,13 +13,22 @@ const MockRedis = vi.fn().mockReturnValue(mockRedisInstance)
 vi.mock('bullmq', () => ({ Worker: MockWorker }))
 vi.mock('ioredis', () => ({ default: MockRedis }))
 
+const mockConfig = {
+  databaseUrl: '',
+  redisUrl: 'redis://localhost:6379',
+  queue: { prefix: 'czo', defaultAttempts: 3 },
+}
+vi.mock('../config', () => ({
+  useCzoConfig: vi.fn(() => ({ ...mockConfig })),
+}))
+
 describe('useWorker', () => {
   let useWorker: typeof import('./use-worker').useWorker
   let resetWorkers: typeof import('./use-worker').resetWorkers
   let closeWorkers: typeof import('./use-worker').closeWorkers
 
   beforeEach(async () => {
-    vi.stubEnv('REDIS_URL', 'redis://localhost:6379')
+    mockConfig.redisUrl = 'redis://localhost:6379'
     MockWorker.mockClear()
     MockRedis.mockClear()
     mockRedisInstance.disconnect.mockClear()
@@ -89,11 +98,11 @@ describe('useWorker', () => {
     expect(MockRedis).toHaveBeenCalledOnce()
   })
 
-  it('should throw when REDIS_URL is missing', () => {
-    vi.stubEnv('REDIS_URL', '')
+  it('should throw when redisUrl is missing', () => {
+    mockConfig.redisUrl = ''
     resetWorkers()
 
-    expect(() => useWorker('orders', vi.fn())).toThrow('REDIS_URL')
+    expect(() => useWorker('orders', vi.fn())).toThrow('Redis URL is required')
   })
 
   it('should pass worker options through to BullMQ', () => {
