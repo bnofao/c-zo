@@ -13,6 +13,10 @@ export const JWT_EXPIRATION_SECONDS = 900
 export const JWT_EXPIRATION_TIME = '15m'
 
 export function createAuthConfig(db: unknown, options: AuthConfigOptions): BetterAuthOptions {
+  return buildAuthConfig(db, options)
+}
+
+function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
   return {
     secret: options.secret,
     baseURL: options.baseUrl,
@@ -32,7 +36,7 @@ export function createAuthConfig(db: unknown, options: AuthConfigOptions): Bette
       jwt({
         jwks: {
           keyPairConfig: {
-            alg: 'ES256',
+            alg: 'ES256' as const,
           },
         },
         jwt: {
@@ -47,11 +51,11 @@ export function createAuthConfig(db: unknown, options: AuthConfigOptions): Bette
         },
       }),
     ],
-  }
+  } satisfies BetterAuthOptions
 }
 
 export function createAuth(db: unknown, options: AuthConfigOptions) {
-  return betterAuth(createAuthConfig(db, options))
+  return betterAuth(buildAuthConfig(db, options))
 }
 
 export type Auth = ReturnType<typeof createAuth>
