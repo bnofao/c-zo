@@ -1,9 +1,39 @@
 import { defineBuildConfig } from 'unbuild'
 
+const dirImport = {
+  addRelativeDeclarationExtensions: true,
+  // eslint-disable-next-line node/prefer-global/process
+  ext: process.env.NODE_ENV === 'development' ? 'ts' : 'js',
+  pattern: [
+    '**',
+    '!**/*.{spec,test}.{js,cts,mts,ts,jsx,tsx}',
+  ],
+}
+
 export default defineBuildConfig({
   declaration: 'node16',
   entries: [
     'src/module',
+    {
+      input: 'src/plugins/',
+      outDir: 'dist/plugins',
+      ...dirImport,
+    },
+    {
+      input: 'src/routes/',
+      outDir: 'dist/routes',
+      ...dirImport,
+    },
+    {
+      input: 'src/config/',
+      outDir: 'dist/config',
+      ...dirImport,
+    },
+    {
+      input: 'src/database/',
+      outDir: 'dist/database',
+      ...dirImport,
+    },
   ],
   externals: [
     'nitropack',
