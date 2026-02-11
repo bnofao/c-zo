@@ -34,6 +34,11 @@ export default defineBuildConfig({
       outDir: 'dist/database',
       ...dirImport,
     },
+    {
+      input: 'src/services/',
+      outDir: 'dist/services',
+      ...dirImport,
+    },
   ],
   externals: [
     'nitropack',
@@ -50,5 +55,7 @@ export default defineBuildConfig({
     '@czo/kit/config',
     'drizzle-orm',
     'drizzle-orm/pg-core',
+    'ioredis',
+    'better-auth/crypto',
   ],
 })

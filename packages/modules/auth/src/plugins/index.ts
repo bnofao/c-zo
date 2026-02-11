@@ -3,6 +3,10 @@ import { useCzoConfig } from '@czo/kit/config'
 import { useDatabase } from '@czo/kit/db'
 import { definePlugin } from 'nitro'
 import { createAuth } from '../config/auth.config'
+import { ConsoleEmailService } from '../services/email.service'
+import { createJwtBlocklist } from '../services/jwt-blocklist'
+import { useAuthRedis } from '../services/redis'
+import { createTokenRotationService } from '../services/token-rotation'
 
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')
@@ -24,9 +28,27 @@ export default definePlugin(async (nitroApp) => {
     return
   }
 
+  const emailService = new ConsoleEmailService()
+  container.bind('auth:email', () => emailService)
+
+  try {
+    const redis = useAuthRedis()
+    const blocklist = createJwtBlocklist(redis)
+    container.bind('auth:blocklist', () => blocklist)
+
+    const rotation = createTokenRotationService(redis)
+    container.bind('auth:rotation', () => rotation)
+
+    logger.info('Auth Redis services initialized (blocklist + rotation)')
+  }
+  catch (err) {
+    logger.warn('Redis unavailable — JWT blocklist and token rotation disabled.', (err as Error).message)
+  }
+
   const auth = createAuth(db, {
     secret: authConfig.secret,
     baseUrl: authConfig.baseUrl || 'http://localhost:4000',
+    emailService,
   })
 
   container.bind('auth', () => auth)

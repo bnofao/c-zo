@@ -29,12 +29,16 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:latest": "drizzle-kit migrate",
+    "migrate:status": "drizzle-kit check"
   },
   "dependencies": {
     "@czo/kit": "workspace:*",
     "better-auth": "catalog:common",
-    "drizzle-orm": "catalog:common"
+    "drizzle-orm": "catalog:common",
+    "ioredis": "catalog:common"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "catalog:testing",
