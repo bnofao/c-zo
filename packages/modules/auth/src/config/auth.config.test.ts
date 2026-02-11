@@ -119,13 +119,30 @@ describe('auth config', () => {
       })
     })
 
-    it('should configure drizzle adapter with pg provider', () => {
+    it('should configure drizzle adapter with pg provider and schema mappings', () => {
       createAuthConfig(mockDb, options)
 
       expect(mockDrizzleAdapter).toHaveBeenCalledWith(
         mockDb,
-        expect.objectContaining({ provider: 'pg' }),
+        expect.objectContaining({
+          provider: 'pg',
+          schema: expect.objectContaining({
+            user: expect.anything(),
+            session: expect.anything(),
+            account: expect.anything(),
+            verification: expect.anything(),
+          }),
+        }),
       )
+    })
+
+    it('should set modelName mappings for plural table names', () => {
+      const config = createAuthConfig(mockDb, options) as Record<string, any>
+
+      expect(config.user).toEqual({ modelName: 'users' })
+      expect(config.session.modelName).toBe('sessions')
+      expect(config.account).toEqual({ modelName: 'accounts' })
+      expect(config.verification).toEqual({ modelName: 'verifications' })
     })
 
     it('should include the JWT plugin', () => {

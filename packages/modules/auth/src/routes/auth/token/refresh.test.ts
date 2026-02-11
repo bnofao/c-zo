@@ -25,7 +25,7 @@ vi.mock('../../../config/auth.config', () => ({
 }))
 
 vi.mock('../../../database/schema', () => ({
-  session: { id: 'session_id_col' },
+  sessions: { id: 'session_id_col' },
 }))
 
 vi.mock('drizzle-orm', () => ({

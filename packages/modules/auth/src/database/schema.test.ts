@@ -4,13 +4,13 @@ import { describe, expect, it } from 'vitest'
 import * as schema from './schema'
 
 describe('auth database schema', () => {
-  describe('user table', () => {
-    it('should be named "user"', () => {
-      expect(getTableName(schema.user)).toBe('user')
+  describe('users table', () => {
+    it('should be named "users"', () => {
+      expect(getTableName(schema.users)).toBe('users')
     })
 
     it('should have required columns', () => {
-      const config = getTableConfig(schema.user)
+      const config = getTableConfig(schema.users)
       const columnNames = config.columns.map(c => c.name)
 
       expect(columnNames).toContain('id')
@@ -23,19 +23,19 @@ describe('auth database schema', () => {
     })
 
     it('should have email as unique', () => {
-      const config = getTableConfig(schema.user)
+      const config = getTableConfig(schema.users)
       const emailCol = config.columns.find(c => c.name === 'email')
       expect(emailCol?.isUnique).toBe(true)
     })
   })
 
-  describe('session table', () => {
-    it('should be named "session"', () => {
-      expect(getTableName(schema.session)).toBe('session')
+  describe('sessions table', () => {
+    it('should be named "sessions"', () => {
+      expect(getTableName(schema.sessions)).toBe('sessions')
     })
 
     it('should have required columns', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       const columnNames = config.columns.map(c => c.name)
 
       expect(columnNames).toContain('id')
@@ -52,7 +52,7 @@ describe('auth database schema', () => {
     })
 
     it('should have actor_type with default "customer"', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       const col = config.columns.find(c => c.name === 'actor_type')
       expect(col).toBeDefined()
       expect(col!.notNull).toBe(true)
@@ -60,7 +60,7 @@ describe('auth database schema', () => {
     })
 
     it('should have auth_method with default "email"', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       const col = config.columns.find(c => c.name === 'auth_method')
       expect(col).toBeDefined()
       expect(col!.notNull).toBe(true)
@@ -68,33 +68,33 @@ describe('auth database schema', () => {
     })
 
     it('should have organization_id as nullable', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       const col = config.columns.find(c => c.name === 'organization_id')
       expect(col).toBeDefined()
       expect(col!.notNull).toBe(false)
     })
 
     it('should have token as unique', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       const tokenCol = config.columns.find(c => c.name === 'token')
       expect(tokenCol?.isUnique).toBe(true)
     })
 
     it('should have a foreign key to user with cascade delete', () => {
-      const config = getTableConfig(schema.session)
+      const config = getTableConfig(schema.sessions)
       expect(config.foreignKeys.length).toBeGreaterThan(0)
       const fk = config.foreignKeys[0]!
       expect(fk.onDelete).toBe('cascade')
     })
   })
 
-  describe('account table', () => {
-    it('should be named "account"', () => {
-      expect(getTableName(schema.account)).toBe('account')
+  describe('accounts table', () => {
+    it('should be named "accounts"', () => {
+      expect(getTableName(schema.accounts)).toBe('accounts')
     })
 
     it('should have required columns', () => {
-      const config = getTableConfig(schema.account)
+      const config = getTableConfig(schema.accounts)
       const columnNames = config.columns.map(c => c.name)
 
       expect(columnNames).toContain('id')
@@ -107,20 +107,20 @@ describe('auth database schema', () => {
     })
 
     it('should have a foreign key to user with cascade delete', () => {
-      const config = getTableConfig(schema.account)
+      const config = getTableConfig(schema.accounts)
       expect(config.foreignKeys.length).toBeGreaterThan(0)
       const fk = config.foreignKeys[0]!
       expect(fk.onDelete).toBe('cascade')
     })
   })
 
-  describe('verification table', () => {
-    it('should be named "verification"', () => {
-      expect(getTableName(schema.verification)).toBe('verification')
+  describe('verifications table', () => {
+    it('should be named "verifications"', () => {
+      expect(getTableName(schema.verifications)).toBe('verifications')
     })
 
     it('should have required columns', () => {
-      const config = getTableConfig(schema.verification)
+      const config = getTableConfig(schema.verifications)
       const columnNames = config.columns.map(c => c.name)
 
       expect(columnNames).toContain('id')
@@ -147,10 +147,10 @@ describe('auth database schema', () => {
   })
 
   it('should export all 5 tables', () => {
-    expect(schema.user).toBeDefined()
-    expect(schema.session).toBeDefined()
-    expect(schema.account).toBeDefined()
-    expect(schema.verification).toBeDefined()
+    expect(schema.users).toBeDefined()
+    expect(schema.sessions).toBeDefined()
+    expect(schema.accounts).toBeDefined()
+    expect(schema.verifications).toBeDefined()
     expect(schema.jwks).toBeDefined()
   })
 })
