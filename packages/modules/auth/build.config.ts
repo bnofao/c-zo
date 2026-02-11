@@ -14,6 +14,7 @@ export default defineBuildConfig({
   declaration: 'node16',
   entries: [
     'src/module',
+    'src/types',
     {
       input: 'src/plugins/',
       outDir: 'dist/plugins',
@@ -57,5 +58,6 @@ export default defineBuildConfig({
     'drizzle-orm/pg-core',
     'ioredis',
     'better-auth/crypto',
+    'graphql',
   ],
 })

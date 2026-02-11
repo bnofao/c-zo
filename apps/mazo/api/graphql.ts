@@ -1,56 +1,37 @@
-import { createYoga, createSchema } from "graphql-yoga";
-import { defineHandler, fromNodeHandler, html } from "nitro/h3";
-import { mergeTypeDefs, mergeResolvers } from "@graphql-tools/merge";
+import { NoSchemaIntrospectionCustomRule } from 'graphql'
+import { createYoga, createSchema } from 'graphql-yoga'
+import { defineHandler } from 'nitro/h3'
+import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
+import { validateGraphQLAuth } from '@czo/auth/graphql-auth'
 
-// console.log('registeredTypeDefs', registeredTypeDefs(), registeredResolvers())
+const isDev = process.env.NODE_ENV !== 'production'
 
 const schema = createSchema({
   typeDefs: mergeTypeDefs(registeredTypeDefs()),
   resolvers: mergeResolvers(registeredResolvers()),
-  // typeDefs: `
-  //   type Query {
-  //     hello: String
-  //   }
-  // `,
-  // resolvers: {
-  //   Query: {
-  //     hello: () => "Hello World"
-  //   }
-  // }
-});
+})
 
 const yoga = createYoga({
-  schema: schema,
-});
+  schema,
+  ...(!isDev && {
+    validationRules: [NoSchemaIntrospectionCustomRule],
+  }),
+})
 
-// export default defineHandler(async (event) => {
-//   const response = await yoga.fetch(event.req.url,
-//     {
-//       method: event.req.method,
-//       headers: event.req.headers,
-//       body: event.req.body, // req.body should be a valid BodyInit like an AsyncIterable, a ReadableStream, a Node.js Readable, a string or a Buffer etc...
-//       // cache: event.req.cache,
-//       // credentials: event.req.credentials,
-//       // redirect: event.req.redirect,
-//       // referrer: event.req.referrer,
-//       // referrerPolicy: event.req.referrerPolicy,
-//       // mode: event.req.mode,
-//       // keepalive: event.req.keepalive,
-//       // integrity: event.req.integrity,
-//       // referrerPolicy: event.req.referrerPolicy,
-//     },
-//     // Third parameter becomes your server context
-//     event.context);
+export default defineHandler(async (event) => {
+  const auth = event.context.auth
+  if (!auth) {
+    return new Response(
+      JSON.stringify({ errors: [{ message: 'Auth not initialized' }] }),
+      { status: 500, headers: { 'content-type': 'application/json' } },
+    )
+  }
 
-//   const headersObj = Object.fromEntries(response.headers.entries())
+  const authContext = await validateGraphQLAuth({
+    auth: auth as Parameters<typeof validateGraphQLAuth>[0]['auth'],
+    request: event.req,
+    cookiePrefix: 'czo',
+  })
 
-//   return html`${await response.text()}`
-
-//   return {
-//     statusCode: response.status,
-//     ...(await response.json()),
-//     headers: headersObj // We assume that your environments accepts a regular JS object for response headers
-//   }
-// });
-
-export default fromNodeHandler(yoga);
+  return yoga.fetch(event.req, { auth: authContext })
+})
