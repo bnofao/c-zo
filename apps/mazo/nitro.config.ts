@@ -1,5 +1,6 @@
 import { defineNitroConfig } from "nitro/config"
 import kitModule from "@czo/kit/module"
+import authModule from "@czo/auth"
 // import productModule from '@czo/product'
 
 export default defineNitroConfig({
@@ -10,6 +11,10 @@ export default defineNitroConfig({
     czo: {
       databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
       redisUrl: '',        // ← mapped from NITRO_CZO_REDIS_URL
+      auth: {
+        secret: '',        // ← mapped from NITRO_CZO_AUTH_SECRET
+        baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
+      },
       queue: {
         prefix: 'czo',
         defaultAttempts: 3,
@@ -38,6 +43,7 @@ export default defineNitroConfig({
     // productModule,
     // '@czo/product',
     kitModule,
+    authModule,
   ],
   imports: {
     imports: [],
