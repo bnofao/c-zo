@@ -14,6 +14,10 @@
       "types": "./src/index.ts",
       "default": "./dist/index.mjs"
     },
+    "./author": {
+      "types": "./src/author.ts",
+      "default": "./dist/author.mjs"
+    },
     "./module": {
       "types": "./src/module/index.ts",
       "default": "./dist/module/index.mjs"

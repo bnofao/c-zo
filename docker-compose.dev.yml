@@ -105,6 +105,21 @@ services:
       - jaeger
       - loki
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis}
+    ports:
+      - "6379:6379"
+    networks:
+      - c-zo
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis}", "ping"]
+      timeout: 1s
+      interval: 5s
+    volumes:
+      - redis-data:/data
+
   loki:
     image: grafana/loki:2.9.5
     ports:
@@ -116,6 +131,7 @@ services:
 volumes:
   postgres-data:
   rabbitmq-data:
+  redis-data:
   prometheus-data:
   grafana-data:
 

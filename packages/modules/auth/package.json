@@ -1,0 +1,51 @@
+{
+  "name": "@czo/auth",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Authentication module for c-zo — better-auth with JWT dual-token",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bnofao/czo.git",
+    "directory": "packages/modules/auth"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/module.ts",
+      "default": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "types": "./src/module.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:latest": "drizzle-kit migrate",
+    "migrate:status": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@czo/kit": "workspace:*",
+    "better-auth": "catalog:common",
+    "drizzle-orm": "catalog:common",
+    "ioredis": "catalog:common"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "catalog:testing",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "drizzle-kit": "catalog:dev",
+    "nitro": "catalog:dev",
+    "vitest": "catalog:testing"
+  }
+}

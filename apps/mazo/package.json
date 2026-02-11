@@ -8,8 +8,8 @@
     "share": "czo publish --dir migrations --outdir ./_migrations --config ./nitro.config.ts"
   },
   "devDependencies": {
+    "@czo/auth": "workspace:*",
     "@czo/kit": "workspace:*",
-    "@czo/product": "workspace:*",
     "nitro": "catalog:dev"
   },
   "dependencies": {
