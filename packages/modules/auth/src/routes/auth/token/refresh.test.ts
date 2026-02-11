@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockReadBody = vi.hoisted(() => vi.fn())
-const mockCreateError = vi.hoisted(() => vi.fn((opts: { statusCode: number, statusMessage: string }) => {
-  const err = new Error(opts.statusMessage) as Error & { statusCode: number }
-  err.statusCode = opts.statusCode
-  return err
-}))
+
+const MockHTTPError = vi.hoisted(() =>
+  class extends Error {
+    status: number
+    statusText: string
+    constructor(opts: { status: number, statusText: string }) {
+      super(opts.statusText)
+      this.status = opts.status
+      this.statusText = opts.statusText
+    }
+  },
+)
 
 vi.mock('nitro/h3', () => ({
   defineHandler: (fn: (event: unknown) => Promise<unknown>) => fn,
   readBody: mockReadBody,
-  createError: mockCreateError,
+  HTTPError: MockHTTPError,
 }))
 
 vi.mock('../../../config/auth.config', () => ({
@@ -45,10 +52,9 @@ describe('token refresh endpoint', () => {
     mockReadBody.mockResolvedValue({})
     const event = createEvent()
 
-    await expect((handler as (event: unknown) => Promise<unknown>)(event)).rejects.toThrow('refreshToken is required')
-    expect(mockCreateError).toHaveBeenCalledWith(
-      expect.objectContaining({ statusCode: 400 }),
-    )
+    const err = await (handler as (event: unknown) => Promise<unknown>)(event).catch((e: unknown) => e) as InstanceType<typeof MockHTTPError>
+    expect(err).toBeInstanceOf(MockHTTPError)
+    expect(err.status).toBe(400)
   })
 
   it('should return 400 when body is null', async () => {
@@ -63,10 +69,9 @@ describe('token refresh endpoint', () => {
     mockGetSession.mockResolvedValue(null)
     const event = createEvent()
 
-    await expect((handler as (event: unknown) => Promise<unknown>)(event)).rejects.toThrow('Invalid or expired session')
-    expect(mockCreateError).toHaveBeenCalledWith(
-      expect.objectContaining({ statusCode: 401 }),
-    )
+    const err = await (handler as (event: unknown) => Promise<unknown>)(event).catch((e: unknown) => e) as InstanceType<typeof MockHTTPError>
+    expect(err).toBeInstanceOf(MockHTTPError)
+    expect(err.status).toBe(401)
   })
 
   it('should return 401 when token generation fails', async () => {
@@ -113,6 +118,8 @@ describe('token refresh endpoint', () => {
     mockReadBody.mockResolvedValue({ refreshToken: 'token' })
     const event = createEvent(null)
 
-    await expect((handler as (event: unknown) => Promise<unknown>)(event)).rejects.toThrow('Auth not initialized')
+    const err = await (handler as (event: unknown) => Promise<unknown>)(event).catch((e: unknown) => e) as InstanceType<typeof MockHTTPError>
+    expect(err).toBeInstanceOf(MockHTTPError)
+    expect(err.status).toBe(500)
   })
 })
