@@ -8,6 +8,20 @@
       "when": 1770774842537,
       "tag": "0000_calm_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770774842538,
+      "tag": "0001_add_session_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770861242537,
+      "tag": "0002_rename_tables_plural",
+      "breakpoints": true
     }
   ]
 }
