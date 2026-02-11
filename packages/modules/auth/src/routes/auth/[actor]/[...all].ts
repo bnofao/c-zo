@@ -1,6 +1,7 @@
 import type { Auth } from '../../../config/auth.config'
 import { defineHandler, getRouterParam, HTTPError } from 'nitro/h3'
 import { JWT_EXPIRATION_SECONDS } from '../../../config/auth.config'
+import { runWithSessionContext } from '../../../services/session-context'
 
 export const VALID_ACTORS = ['customer', 'admin'] as const
 export type Actor = (typeof VALID_ACTORS)[number]
@@ -30,7 +31,10 @@ export default defineHandler(async (event) => {
   url.pathname = url.pathname.replace(`/auth/${actor}/`, '/auth/')
   const rewrittenReq = new Request(url, event.req)
 
-  const response = await auth.handler(rewrittenReq)
+  const response = await runWithSessionContext(
+    { actorType: actor, authMethod: 'email' },
+    () => auth.handler(rewrittenReq),
+  )
 
   // Transform sign-in/sign-up responses to dual-token format
   const remainingPath = url.pathname.replace(/^\/api\/auth/, '')

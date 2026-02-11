@@ -41,12 +41,15 @@ export default definePlugin(async (nitroApp) => {
     emailService,
   }
 
+  let blocklist: ReturnType<typeof createJwtBlocklist> | undefined
+  let rotation: ReturnType<typeof createTokenRotationService> | undefined
+
   try {
     const redis = useAuthRedis()
-    const blocklist = createJwtBlocklist(redis)
+    blocklist = createJwtBlocklist(redis)
     container.bind('auth:blocklist', () => blocklist)
 
-    const rotation = createTokenRotationService(redis)
+    rotation = createTokenRotationService(redis)
     container.bind('auth:rotation', () => rotation)
 
     authOptions.redis = { storage: createRedisStorage(redis) }
@@ -84,6 +87,11 @@ export default definePlugin(async (nitroApp) => {
 
   nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
     event.context.auth = auth
+    event.context.db = db
+    if (blocklist)
+      event.context.blocklist = blocklist
+    if (rotation)
+      event.context.rotation = rotation
   })
 
   logger.info('Auth module initialized with better-auth + JWT (ES256)')

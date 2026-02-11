@@ -7,6 +7,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { jwt } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { validatePasswordStrength } from '../services/password'
+import { getSessionContext } from '../services/session-context'
 import { REFRESH_TOKEN_PREFIX } from '../services/token-rotation'
 
 export interface AuthConfigOptions {
@@ -18,6 +19,8 @@ export interface AuthConfigOptions {
 
 export const JWT_EXPIRATION_SECONDS = 900
 export const JWT_EXPIRATION_TIME = '15m'
+export const SESSION_EXPIRY_SECONDS = 604800
+export const SESSION_REFRESH_AGE = 86400
 
 export function createAuthConfig(db: unknown, options: AuthConfigOptions): BetterAuthOptions {
   return buildAuthConfig(db, options)
@@ -35,17 +38,33 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     databaseHooks: {
       session: {
         create: {
-          before: async (session: { token: string }) => ({
-            data: { ...session, token: `${REFRESH_TOKEN_PREFIX}${session.token}` },
-          }),
+          before: async (session: { token: string }) => {
+            const ctx = getSessionContext()
+            return {
+              data: {
+                ...session,
+                token: `${REFRESH_TOKEN_PREFIX}${session.token}`,
+                actorType: ctx?.actorType ?? 'customer',
+                authMethod: ctx?.authMethod ?? 'email',
+                organizationId: ctx?.organizationId ?? null,
+              },
+            }
+          },
         },
       },
     },
+    session: {
+      expiresIn: SESSION_EXPIRY_SECONDS,
+      updateAge: SESSION_REFRESH_AGE,
+      additionalFields: {
+        actorType: { type: 'string' as const, defaultValue: 'customer', input: false },
+        authMethod: { type: 'string' as const, defaultValue: 'email', input: false },
+        organizationId: { type: 'string' as const, required: false, input: false },
+      },
+      ...(options.redis ? { storeSessionInDatabase: true } : {}),
+    },
     ...(options.redis
-      ? {
-          secondaryStorage: options.redis.storage,
-          session: { storeSessionInDatabase: true },
-        }
+      ? { secondaryStorage: options.redis.storage }
       : {}),
     emailAndPassword: {
       enabled: true,
@@ -93,6 +112,14 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       window: 60,
       max: 10,
     },
+    advanced: {
+      cookiePrefix: 'czo',
+      useSecureCookies: options.baseUrl.startsWith('https'),
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+      },
+    },
     plugins: [
       jwt({
         jwks: {
@@ -109,10 +136,10 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
             email: user.email,
             name: user.name,
             jti: randomUUID(),
-            act: session?.activeOrganizationId ? 'admin' : 'customer',
-            org: session?.activeOrganizationId ?? null,
+            act: session?.actorType ?? 'customer',
+            org: session?.organizationId ?? null,
             roles: [],
-            method: 'email',
+            method: session?.authMethod ?? 'email',
           }),
         },
       }),

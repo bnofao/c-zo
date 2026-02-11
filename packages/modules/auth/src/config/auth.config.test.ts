@@ -22,6 +22,10 @@ const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed'))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
 
+const mockGetSessionContext = vi.hoisted(() => vi.fn(() => undefined as
+  | { actorType: string, authMethod: string, organizationId?: string }
+  | undefined))
+
 vi.mock('better-auth', () => ({
   betterAuth: mockBetterAuth,
 }))
@@ -52,8 +56,19 @@ vi.mock('../services/token-rotation', () => ({
 
 vi.mock('../services/secondary-storage', () => ({}))
 
+vi.mock('../services/session-context', () => ({
+  getSessionContext: mockGetSessionContext,
+}))
+
 // eslint-disable-next-line import/first
-import { createAuth, createAuthConfig, JWT_EXPIRATION_SECONDS, JWT_EXPIRATION_TIME } from './auth.config'
+import {
+  createAuth,
+  createAuthConfig,
+  JWT_EXPIRATION_SECONDS,
+  JWT_EXPIRATION_TIME,
+  SESSION_EXPIRY_SECONDS,
+  SESSION_REFRESH_AGE,
+} from './auth.config'
 
 describe('auth config', () => {
   const mockDb = { query: vi.fn() }
@@ -69,6 +84,14 @@ describe('auth config', () => {
 
     it('should export JWT_EXPIRATION_TIME as 15m', () => {
       expect(JWT_EXPIRATION_TIME).toBe('15m')
+    })
+
+    it('should export SESSION_EXPIRY_SECONDS as 604800 (7 days)', () => {
+      expect(SESSION_EXPIRY_SECONDS).toBe(604800)
+    })
+
+    it('should export SESSION_REFRESH_AGE as 86400 (1 day)', () => {
+      expect(SESSION_REFRESH_AGE).toBe(86400)
     })
   })
 
@@ -163,7 +186,7 @@ describe('auth config', () => {
       })
     })
 
-    it('should set act to admin when session has activeOrganizationId', () => {
+    it('should use session actorType/authMethod/organizationId in JWT claims', () => {
       createAuthConfig(mockDb, options)
 
       const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
@@ -171,10 +194,11 @@ describe('auth config', () => {
 
       const payload = definePayload({
         user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
-        session: { activeOrganizationId: 'org-123' },
+        session: { actorType: 'admin', authMethod: 'oauth', organizationId: 'org-123' },
       })
       expect(payload.act).toBe('admin')
       expect(payload.org).toBe('org-123')
+      expect(payload.method).toBe('oauth')
     })
 
     it('should include jti as UUID in payload', () => {
@@ -336,6 +360,94 @@ describe('auth config', () => {
     })
   })
 
+  describe('session config', () => {
+    it('should always include session with expiresIn and updateAge', () => {
+      const config = createAuthConfig(mockDb, options)
+      const session = (config as Record<string, any>).session
+
+      expect(session).toBeDefined()
+      expect(session.expiresIn).toBe(SESSION_EXPIRY_SECONDS)
+      expect(session.updateAge).toBe(SESSION_REFRESH_AGE)
+    })
+
+    it('should include additionalFields for actorType, authMethod, organizationId', () => {
+      const config = createAuthConfig(mockDb, options)
+      const session = (config as Record<string, any>).session
+
+      expect(session.additionalFields).toBeDefined()
+      expect(session.additionalFields.actorType).toEqual({
+        type: 'string',
+        defaultValue: 'customer',
+        input: false,
+      })
+      expect(session.additionalFields.authMethod).toEqual({
+        type: 'string',
+        defaultValue: 'email',
+        input: false,
+      })
+      expect(session.additionalFields.organizationId).toEqual({
+        type: 'string',
+        required: false,
+        input: false,
+      })
+    })
+
+    it('should include storeSessionInDatabase when redis is provided', () => {
+      const mockStorage = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        redis: { storage: mockStorage },
+      })
+      const session = (config as Record<string, any>).session
+
+      expect(session.storeSessionInDatabase).toBe(true)
+    })
+
+    it('should not include storeSessionInDatabase when redis is not provided', () => {
+      const config = createAuthConfig(mockDb, options)
+      const session = (config as Record<string, any>).session
+
+      expect(session.storeSessionInDatabase).toBeUndefined()
+    })
+  })
+
+  describe('advanced cookie config', () => {
+    it('should set cookiePrefix to czo', () => {
+      const config = createAuthConfig(mockDb, options)
+      const advanced = (config as Record<string, any>).advanced
+
+      expect(advanced).toBeDefined()
+      expect(advanced.cookiePrefix).toBe('czo')
+    })
+
+    it('should set defaultCookieAttributes with httpOnly and sameSite lax', () => {
+      const config = createAuthConfig(mockDb, options)
+      const advanced = (config as Record<string, any>).advanced
+
+      expect(advanced.defaultCookieAttributes).toEqual({
+        httpOnly: true,
+        sameSite: 'lax',
+      })
+    })
+
+    it('should enable secure cookies when baseUrl is https', () => {
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        baseUrl: 'https://api.czo.dev',
+      })
+      const advanced = (config as Record<string, any>).advanced
+
+      expect(advanced.useSecureCookies).toBe(true)
+    })
+
+    it('should disable secure cookies when baseUrl is http', () => {
+      const config = createAuthConfig(mockDb, options)
+      const advanced = (config as Record<string, any>).advanced
+
+      expect(advanced.useSecureCookies).toBe(false)
+    })
+  })
+
   describe('databaseHooks', () => {
     it('should configure session create hook to prefix tokens', async () => {
       const config = createAuthConfig(mockDb, options)
@@ -352,6 +464,36 @@ describe('auth config', () => {
 
       expect(result.data.token).toBe('czo_rt_original-token')
     })
+
+    it('should inject actorType/authMethod/organizationId from session context', async () => {
+      mockGetSessionContext.mockReturnValue({
+        actorType: 'admin',
+        authMethod: 'oauth',
+        organizationId: 'org-456',
+      })
+
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+      const result = await hooks.session.create.before({ token: 'tok' })
+
+      expect(result.data.actorType).toBe('admin')
+      expect(result.data.authMethod).toBe('oauth')
+      expect(result.data.organizationId).toBe('org-456')
+
+      mockGetSessionContext.mockReturnValue(undefined)
+    })
+
+    it('should default to customer/email/null when no session context', async () => {
+      mockGetSessionContext.mockReturnValue(undefined)
+
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+      const result = await hooks.session.create.before({ token: 'tok' })
+
+      expect(result.data.actorType).toBe('customer')
+      expect(result.data.authMethod).toBe('email')
+      expect(result.data.organizationId).toBeNull()
+    })
   })
 
   describe('redis secondaryStorage', () => {
@@ -363,18 +505,6 @@ describe('auth config', () => {
       })
 
       expect((config as Record<string, any>).secondaryStorage).toBe(mockStorage)
-    })
-
-    it('should set storeSessionInDatabase when redis is provided', () => {
-      const mockStorage = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
-      const config = createAuthConfig(mockDb, {
-        ...options,
-        redis: { storage: mockStorage },
-      })
-
-      expect((config as Record<string, any>).session).toEqual({
-        storeSessionInDatabase: true,
-      })
     })
 
     it('should not include secondaryStorage when redis is not provided', () => {

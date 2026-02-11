@@ -46,6 +46,32 @@ describe('auth database schema', () => {
       expect(columnNames).toContain('ip_address')
       expect(columnNames).toContain('user_agent')
       expect(columnNames).toContain('user_id')
+      expect(columnNames).toContain('actor_type')
+      expect(columnNames).toContain('auth_method')
+      expect(columnNames).toContain('organization_id')
+    })
+
+    it('should have actor_type with default "customer"', () => {
+      const config = getTableConfig(schema.session)
+      const col = config.columns.find(c => c.name === 'actor_type')
+      expect(col).toBeDefined()
+      expect(col!.notNull).toBe(true)
+      expect(col!.default).toBe('customer')
+    })
+
+    it('should have auth_method with default "email"', () => {
+      const config = getTableConfig(schema.session)
+      const col = config.columns.find(c => c.name === 'auth_method')
+      expect(col).toBeDefined()
+      expect(col!.notNull).toBe(true)
+      expect(col!.default).toBe('email')
+    })
+
+    it('should have organization_id as nullable', () => {
+      const config = getTableConfig(schema.session)
+      const col = config.columns.find(c => c.name === 'organization_id')
+      expect(col).toBeDefined()
+      expect(col!.notNull).toBe(false)
     })
 
     it('should have token as unique', () => {
