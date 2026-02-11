@@ -46,7 +46,6 @@ export async function validateGraphQLAuth(
     session: {
       id: string
       userId: string
-      token: string
       expiresAt: Date
       actorType?: string
       authMethod?: string
@@ -63,7 +62,6 @@ export async function validateGraphQLAuth(
     session: {
       id: session.id,
       userId: session.userId,
-      token: session.token,
       expiresAt: session.expiresAt instanceof Date
         ? session.expiresAt
         : new Date(session.expiresAt),

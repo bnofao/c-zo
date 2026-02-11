@@ -2,7 +2,6 @@ export interface AuthContext {
   session: {
     id: string
     userId: string
-    token: string
     expiresAt: Date
     actorType: string
     authMethod: string

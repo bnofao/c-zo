@@ -24,7 +24,6 @@ const validSessionResponse = {
   session: {
     id: 'session-1',
     userId: 'user-1',
-    token: 'refresh-token-abc',
     expiresAt: new Date('2030-01-01'),
     actorType: 'customer',
     authMethod: 'email',
