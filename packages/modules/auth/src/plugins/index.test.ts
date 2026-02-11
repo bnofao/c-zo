@@ -343,6 +343,98 @@ describe('auth plugin', () => {
     }))
   })
 
+  describe('request context injection', () => {
+    it('should inject db into request context', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.db).toBe(mockDb)
+    })
+
+    it('should inject blocklist into request context when Redis is available', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.blocklist).toBe(mockBlocklist)
+    })
+
+    it('should inject rotation into request context when Redis is available', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.rotation).toBe(mockRotation)
+    })
+
+    it('should not inject blocklist or rotation when Redis is unavailable', async () => {
+      mockKitModules()
+      mockRedisUnavailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.blocklist).toBeUndefined()
+      expect(event.context.rotation).toBeUndefined()
+      expect(event.context.db).toBe(mockDb)
+    })
+  })
+
   describe('jwks seeding', () => {
     it('should seed JWKS table when env keys provided and table is empty', async () => {
       mockKitModules({

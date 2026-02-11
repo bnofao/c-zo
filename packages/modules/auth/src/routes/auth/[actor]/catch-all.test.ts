@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetRouterParam = vi.hoisted(() => vi.fn())
+const mockRunWithSessionContext = vi.hoisted(() =>
+  vi.fn((_data: unknown, fn: () => unknown) => fn()),
+)
 
 const MockHTTPError = vi.hoisted(() =>
   class extends Error {
@@ -22,6 +25,10 @@ vi.mock('nitro/h3', () => ({
 
 vi.mock('../../../config/auth.config', () => ({
   JWT_EXPIRATION_SECONDS: 900,
+}))
+
+vi.mock('../../../services/session-context', () => ({
+  runWithSessionContext: mockRunWithSessionContext,
 }))
 
 // eslint-disable-next-line import/first
@@ -155,6 +162,34 @@ describe('auth [actor] catch-all route', () => {
 
       expect(err).toBeInstanceOf(MockHTTPError)
       expect(err.status).toBe(500)
+    })
+  })
+
+  describe('session context propagation', () => {
+    it('should wrap handler call with runWithSessionContext for customer', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+      const event = createEvent({ actor: 'customer' })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      expect(mockRunWithSessionContext).toHaveBeenCalledWith(
+        { actorType: 'customer', authMethod: 'email' },
+        expect.any(Function),
+      )
+    })
+
+    it('should wrap handler call with runWithSessionContext for admin', async () => {
+      mockGetRouterParam.mockReturnValue('admin')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+      const event = createEvent({ actor: 'admin' })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      expect(mockRunWithSessionContext).toHaveBeenCalledWith(
+        { actorType: 'admin', authMethod: 'email' },
+        expect.any(Function),
+      )
     })
   })
 
