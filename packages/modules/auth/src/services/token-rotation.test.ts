@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTokenRotationService } from './token-rotation'
+import { createTokenRotationService, REFRESH_TOKEN_PREFIX } from './token-rotation'
 
 describe('createTokenRotationService', () => {
   function createMockRedis() {
@@ -50,14 +50,28 @@ describe('createTokenRotationService', () => {
     expect(token1.length).toBeGreaterThan(0)
   })
 
-  it('should generate base64url-encoded tokens', () => {
+  it('should generate tokens with czo_rt_ prefix', () => {
     const redis = createMockRedis()
     const service = createTokenRotationService(redis as any)
 
     const token = service.generateToken()
 
+    expect(token).toMatch(new RegExp(`^${REFRESH_TOKEN_PREFIX}`))
+  })
+
+  it('should export REFRESH_TOKEN_PREFIX constant', () => {
+    expect(REFRESH_TOKEN_PREFIX).toBe('czo_rt_')
+  })
+
+  it('should generate base64url-encoded tokens after prefix', () => {
+    const redis = createMockRedis()
+    const service = createTokenRotationService(redis as any)
+
+    const token = service.generateToken()
+    const afterPrefix = token.slice(REFRESH_TOKEN_PREFIX.length)
+
     // base64url chars: A-Z, a-z, 0-9, -, _
-    expect(token).toMatch(/^[\w-]+$/)
+    expect(afterPrefix).toMatch(/^[\w-]+$/)
   })
 
   it('should produce consistent hashes for the same token', () => {

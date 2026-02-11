@@ -10,6 +10,8 @@ export default defineNitroModule({
       auth: {
         secret: '',
         baseUrl: '',
+        jwtPrivateKey: '',
+        jwtPublicKey: '',
         ...existing.auth,
       },
     }

@@ -21,7 +21,17 @@ const mockLogger = vi.hoisted(() => ({
   debug: vi.fn(),
 }))
 
-const mockDb = vi.hoisted(() => ({ query: vi.fn() }))
+const mockDbInsert = vi.hoisted(() => vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }))
+const mockDbSelect = vi.hoisted(() => vi.fn().mockReturnValue({
+  from: vi.fn().mockReturnValue({
+    limit: vi.fn().mockResolvedValue([]),
+  }),
+}))
+const mockDb = vi.hoisted(() => ({
+  query: vi.fn(),
+  select: mockDbSelect,
+  insert: mockDbInsert,
+}))
 
 const mockBlocklist = vi.hoisted(() => ({ add: vi.fn(), isBlocked: vi.fn() }))
 const mockRotation = vi.hoisted(() => ({
@@ -30,9 +40,28 @@ const mockRotation = vi.hoisted(() => ({
   generateToken: vi.fn(),
   hashToken: vi.fn(),
 }))
+const mockRedisStorage = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  delete: vi.fn(),
+}))
+const mockCreateRedisStorage = vi.hoisted(() => vi.fn(() => mockRedisStorage))
+const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-jwks'))
 
 vi.mock('../config/auth.config', () => ({
   createAuth: mockCreateAuth,
+}))
+
+vi.mock('../services/secondary-storage', () => ({
+  createRedisStorage: mockCreateRedisStorage,
+}))
+
+vi.mock('../database/schema', () => ({
+  jwks: { id: 'jwks_id_col' },
+}))
+
+vi.mock('node:crypto', () => ({
+  randomUUID: mockRandomUUID,
 }))
 
 vi.mock('nitro', () => ({
@@ -105,11 +134,11 @@ describe('auth plugin', () => {
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
 
-    expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, {
+    expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
       secret: 'test-secret-key-32-chars-minimum!',
       baseUrl: 'http://localhost:4000',
       emailService: expect.any(Object),
-    })
+    }))
 
     expect(mockContainer.bind).toHaveBeenCalledWith('auth', expect.any(Function))
   })
@@ -279,5 +308,105 @@ describe('auth plugin', () => {
       expect.stringContaining('Redis unavailable'),
       'Redis unavailable',
     )
+  })
+
+  it('should pass redis storage to createAuth when Redis is available', async () => {
+    mockKitModules()
+    mockRedisAvailable()
+    const { default: plugin } = await import('./index')
+
+    const nitroApp = {
+      hooks: { hook: vi.fn() },
+    }
+
+    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+    expect(mockCreateRedisStorage).toHaveBeenCalled()
+    expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+      redis: { storage: mockRedisStorage },
+    }))
+  })
+
+  it('should not pass redis storage when Redis is unavailable', async () => {
+    mockKitModules()
+    mockRedisUnavailable()
+    const { default: plugin } = await import('./index')
+
+    const nitroApp = {
+      hooks: { hook: vi.fn() },
+    }
+
+    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+    expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.not.objectContaining({
+      redis: expect.anything(),
+    }))
+  })
+
+  describe('jwks seeding', () => {
+    it('should seed JWKS table when env keys provided and table is empty', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        jwtPrivateKey: 'private-key-pem',
+        jwtPublicKey: 'public-key-pem',
+      } as any)
+      mockRedisAvailable()
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      })
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockDbInsert).toHaveBeenCalled()
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('JWT keys seeded'),
+      )
+    })
+
+    it('should skip JWKS seeding when keys already exist in table', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        jwtPrivateKey: 'private-key-pem',
+        jwtPublicKey: 'public-key-pem',
+      } as any)
+      mockRedisAvailable()
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{ id: 'existing' }]),
+        }),
+      })
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockDbInsert).not.toHaveBeenCalled()
+    })
+
+    it('should skip JWKS seeding when env keys are not provided', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockDbSelect).not.toHaveBeenCalled()
+    })
   })
 })

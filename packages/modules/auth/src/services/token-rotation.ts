@@ -1,6 +1,8 @@
 import type Redis from 'ioredis'
 import { createHash, randomBytes } from 'node:crypto'
 
+export const REFRESH_TOKEN_PREFIX = 'czo_rt_'
+
 const KEY_PREFIX = 'czo:rotated:'
 const REUSE_DETECTION_TTL = 60
 
@@ -25,7 +27,7 @@ export function createTokenRotationService(redis: Redis): TokenRotationService {
     },
 
     generateToken(): string {
-      return randomBytes(32).toString('base64url')
+      return `${REFRESH_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`
     },
 
     hashToken(token: string): string {

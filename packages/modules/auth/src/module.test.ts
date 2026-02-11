@@ -74,6 +74,8 @@ describe('auth module', () => {
     expect(czo.auth).toEqual({
       secret: '',
       baseUrl: '',
+      jwtPrivateKey: '',
+      jwtPublicKey: '',
     })
   })
 

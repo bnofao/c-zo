@@ -1,15 +1,19 @@
 import type { BetterAuthOptions } from 'better-auth'
 import type { EmailService } from '../services/email.service'
+import type { SecondaryStorage } from '../services/secondary-storage'
+import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { jwt } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { validatePasswordStrength } from '../services/password'
+import { REFRESH_TOKEN_PREFIX } from '../services/token-rotation'
 
 export interface AuthConfigOptions {
   secret: string
   baseUrl: string
   emailService?: EmailService
+  redis?: { storage: SecondaryStorage }
 }
 
 export const JWT_EXPIRATION_SECONDS = 900
@@ -28,6 +32,21 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       provider: 'pg',
       schema,
     }),
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session: { token: string }) => ({
+            data: { ...session, token: `${REFRESH_TOKEN_PREFIX}${session.token}` },
+          }),
+        },
+      },
+    },
+    ...(options.redis
+      ? {
+          secondaryStorage: options.redis.storage,
+          session: { storeSessionInDatabase: true },
+        }
+      : {}),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,
@@ -85,10 +104,15 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
           issuer: options.baseUrl,
           audience: options.baseUrl,
           expirationTime: JWT_EXPIRATION_TIME,
-          definePayload: ({ user }) => ({
+          definePayload: ({ user, session }) => ({
             sub: user.id,
             email: user.email,
             name: user.name,
+            jti: randomUUID(),
+            act: session?.activeOrganizationId ? 'admin' : 'customer',
+            org: session?.activeOrganizationId ?? null,
+            roles: [],
+            method: 'email',
           }),
         },
       }),

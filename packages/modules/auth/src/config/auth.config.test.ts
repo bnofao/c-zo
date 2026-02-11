@@ -20,6 +20,7 @@ const mockJwt = vi.hoisted(() =>
 
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
+const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
 
 vi.mock('better-auth', () => ({
   betterAuth: mockBetterAuth,
@@ -37,6 +38,19 @@ vi.mock('better-auth/crypto', () => ({
   hashPassword: mockHashPassword,
   verifyPassword: mockVerifyPassword,
 }))
+
+vi.mock('node:crypto', () => ({
+  randomUUID: mockRandomUUID,
+  randomBytes: (size: number) => ({
+    toString: () => 'x'.repeat(size),
+  }),
+}))
+
+vi.mock('../services/token-rotation', () => ({
+  REFRESH_TOKEN_PREFIX: 'czo_rt_',
+}))
+
+vi.mock('../services/secondary-storage', () => ({}))
 
 // eslint-disable-next-line import/first
 import { createAuth, createAuthConfig, JWT_EXPIRATION_SECONDS, JWT_EXPIRATION_TIME } from './auth.config'
@@ -125,7 +139,7 @@ describe('auth config', () => {
       )
     })
 
-    it('should provide a definePayload function', () => {
+    it('should provide a definePayload function with complete claims', () => {
       createAuthConfig(mockDb, options)
 
       const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
@@ -135,12 +149,46 @@ describe('auth config', () => {
 
       const payload = definePayload({
         user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
+        session: null,
       })
       expect(payload).toEqual({
         sub: 'u1',
         email: 'test@czo.dev',
         name: 'Test',
+        jti: 'test-uuid-1234',
+        act: 'customer',
+        org: null,
+        roles: [],
+        method: 'email',
       })
+    })
+
+    it('should set act to admin when session has activeOrganizationId', () => {
+      createAuthConfig(mockDb, options)
+
+      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
+      const { definePayload } = jwtCall.jwt
+
+      const payload = definePayload({
+        user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
+        session: { activeOrganizationId: 'org-123' },
+      })
+      expect(payload.act).toBe('admin')
+      expect(payload.org).toBe('org-123')
+    })
+
+    it('should include jti as UUID in payload', () => {
+      createAuthConfig(mockDb, options)
+
+      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
+      const { definePayload } = jwtCall.jwt
+
+      const payload = definePayload({
+        user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
+        session: null,
+      })
+      expect(payload.jti).toBe('test-uuid-1234')
+      expect(mockRandomUUID).toHaveBeenCalled()
     })
 
     describe('password validation', () => {
@@ -285,6 +333,54 @@ describe('auth config', () => {
           }),
         ).resolves.toBeUndefined()
       })
+    })
+  })
+
+  describe('databaseHooks', () => {
+    it('should configure session create hook to prefix tokens', async () => {
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+
+      expect(hooks).toBeDefined()
+      expect(hooks.session.create.before).toBeTypeOf('function')
+    })
+
+    it('should prefix session token with czo_rt_', async () => {
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+      const result = await hooks.session.create.before({ token: 'original-token' })
+
+      expect(result.data.token).toBe('czo_rt_original-token')
+    })
+  })
+
+  describe('redis secondaryStorage', () => {
+    it('should include secondaryStorage when redis is provided', () => {
+      const mockStorage = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        redis: { storage: mockStorage },
+      })
+
+      expect((config as Record<string, any>).secondaryStorage).toBe(mockStorage)
+    })
+
+    it('should set storeSessionInDatabase when redis is provided', () => {
+      const mockStorage = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        redis: { storage: mockStorage },
+      })
+
+      expect((config as Record<string, any>).session).toEqual({
+        storeSessionInDatabase: true,
+      })
+    })
+
+    it('should not include secondaryStorage when redis is not provided', () => {
+      const config = createAuthConfig(mockDb, options)
+
+      expect((config as Record<string, any>).secondaryStorage).toBeUndefined()
     })
   })
 
