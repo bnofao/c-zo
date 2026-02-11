@@ -8,7 +8,7 @@ const mockResolver = vi.hoisted(() => ({
 const mockCreateResolver = vi.hoisted(() => vi.fn(() => mockResolver))
 const mockDefineNitroModule = vi.hoisted(() => vi.fn((def: { setup: (...args: unknown[]) => void }) => def))
 
-vi.mock('@czo/kit', () => ({
+vi.mock('@czo/kit/author', () => ({
   defineNitroModule: mockDefineNitroModule,
   addPlugin: mockAddPlugin,
   addScanDir: mockAddScanDir,

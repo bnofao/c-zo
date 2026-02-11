@@ -1,4 +1,4 @@
-import { addPlugin, addScanDir, createResolver, defineNitroModule } from '@czo/kit'
+import { addPlugin, addScanDir, createResolver, defineNitroModule } from '@czo/kit/author'
 
 export default defineNitroModule({
   setup: (nitro) => {

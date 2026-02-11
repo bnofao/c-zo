@@ -23,6 +23,7 @@ export default defineBuildConfig({
     'src/event-bus/index',
     'src/telemetry/index',
     'src/queue/index',
+    'src/author',
     'src/config',
     'src/cli',
     {

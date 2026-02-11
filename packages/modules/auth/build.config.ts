@@ -15,6 +15,7 @@ export default defineBuildConfig({
     'better-auth/plugins',
     'better-auth/adapters/drizzle',
     '@czo/kit',
+    '@czo/kit/author',
     '@czo/kit/db',
     '@czo/kit/config',
     'drizzle-orm',
