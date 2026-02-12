@@ -2,7 +2,7 @@ import { NoSchemaIntrospectionCustomRule } from 'graphql'
 import { createYoga, createSchema } from 'graphql-yoga'
 import { defineHandler } from 'nitro/h3'
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
-import { validateGraphQLAuth } from '@czo/auth/graphql-auth'
+import { validateGraphQLAuth, isIntrospectionQuery } from '@czo/auth/graphql-auth'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -25,6 +25,18 @@ export default defineHandler(async (event) => {
       JSON.stringify({ errors: [{ message: 'Auth not initialized' }] }),
       { status: 500, headers: { 'content-type': 'application/json' } },
     )
+  }
+
+  if (isDev && event.req.method === 'POST') {
+    try {
+      const body = await event.req.clone().json()
+      if (isIntrospectionQuery(body)) {
+        return yoga.fetch(event.req, { auth: null })
+      }
+    }
+    catch {
+      // Fall through to normal auth flow
+    }
   }
 
   const authContext = await validateGraphQLAuth({

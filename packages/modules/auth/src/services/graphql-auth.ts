@@ -1,7 +1,46 @@
 import type { Auth } from '../config/auth.config'
 import type { AuthContext } from '../types'
-import { GraphQLError } from 'graphql'
+import { GraphQLError, Kind, parse } from 'graphql'
 import { extractCredentials } from './credential-extractor'
+
+const INTROSPECTION_FIELDS = new Set(['__schema', '__type', '__typename'])
+
+export function isIntrospectionQuery(
+  body: { query?: string, operationName?: string } | null,
+): boolean {
+  if (!body || typeof body.query !== 'string' || body.query.trim() === '') {
+    return false
+  }
+
+  if (body.operationName === 'IntrospectionQuery') {
+    return true
+  }
+
+  let document
+  try {
+    document = parse(body.query)
+  }
+  catch {
+    return false
+  }
+
+  const operations = document.definitions.filter(
+    def => def.kind === Kind.OPERATION_DEFINITION,
+  )
+
+  if (operations.length === 0) {
+    return false
+  }
+
+  return operations.every(op =>
+    op.kind === Kind.OPERATION_DEFINITION
+    && op.operation === 'query'
+    && op.selectionSet.selections.length > 0
+    && op.selectionSet.selections.every(
+      sel => sel.kind === Kind.FIELD && INTROSPECTION_FIELDS.has(sel.name.value),
+    ),
+  )
+}
 
 export interface ValidateGraphQLAuthOptions {
   auth: Auth

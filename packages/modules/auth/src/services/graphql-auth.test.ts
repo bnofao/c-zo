@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql'
 import { describe, expect, it, vi } from 'vitest'
-import { validateGraphQLAuth } from './graphql-auth'
+import { isIntrospectionQuery, validateGraphQLAuth } from './graphql-auth'
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request('http://localhost/graphql', {
@@ -201,6 +201,176 @@ describe('validateGraphQLAuth', () => {
         expect((error as GraphQLError).message).toBe('Unauthenticated')
         expect((error as GraphQLError).extensions.code).toBe('UNAUTHENTICATED')
       }
+    })
+  })
+})
+
+describe('isIntrospectionQuery', () => {
+  describe('positive cases — should return true', () => {
+    it('should detect __schema query', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __schema { types { name } } }',
+      })).toBe(true)
+    })
+
+    it('should detect __type query', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __type(name: "User") { name fields { name } } }',
+      })).toBe(true)
+    })
+
+    it('should detect __typename query', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __typename }',
+      })).toBe(true)
+    })
+
+    it('should detect operationName IntrospectionQuery', () => {
+      expect(isIntrospectionQuery({
+        query: 'query IntrospectionQuery { __schema { types { name } } }',
+        operationName: 'IntrospectionQuery',
+      })).toBe(true)
+    })
+
+    it('should detect combined __schema and __type', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __schema { types { name } } __type(name: "User") { name } }',
+      })).toBe(true)
+    })
+
+    it('should detect named introspection query without operationName', () => {
+      expect(isIntrospectionQuery({
+        query: 'query MyIntrospection { __schema { queryType { name } } }',
+      })).toBe(true)
+    })
+
+    it('should detect __schema with fragments', () => {
+      expect(isIntrospectionQuery({
+        query: `
+          query IntrospectionQuery {
+            __schema {
+              queryType { name }
+              mutationType { name }
+              types { ...FullType }
+            }
+          }
+          fragment FullType on __Type {
+            kind
+            name
+          }
+        `,
+        operationName: 'IntrospectionQuery',
+      })).toBe(true)
+    })
+
+    it('should handle query with extra whitespace and newlines', () => {
+      expect(isIntrospectionQuery({
+        query: `
+          {
+            __schema
+              {
+                types { name }
+              }
+          }
+        `,
+      })).toBe(true)
+    })
+  })
+
+  describe('negative cases — should return false', () => {
+    it('should reject null body', () => {
+      expect(isIntrospectionQuery(null)).toBe(false)
+    })
+
+    it('should reject body without query', () => {
+      expect(isIntrospectionQuery({})).toBe(false)
+    })
+
+    it('should reject empty query string', () => {
+      expect(isIntrospectionQuery({ query: '' })).toBe(false)
+    })
+
+    it('should reject regular query', () => {
+      expect(isIntrospectionQuery({
+        query: '{ products { id name } }',
+      })).toBe(false)
+    })
+
+    it('should reject mutation', () => {
+      expect(isIntrospectionQuery({
+        query: 'mutation { createProduct(input: { name: "Test" }) { id } }',
+      })).toBe(false)
+    })
+
+    it('should reject regular operationName that is not IntrospectionQuery', () => {
+      expect(isIntrospectionQuery({
+        query: 'query GetProducts { products { id } }',
+        operationName: 'GetProducts',
+      })).toBe(false)
+    })
+
+    it('should reject invalid GraphQL syntax', () => {
+      expect(isIntrospectionQuery({
+        query: 'this is not valid graphql {{{{',
+      })).toBe(false)
+    })
+
+    it('should reject subscription', () => {
+      expect(isIntrospectionQuery({
+        query: 'subscription { orderUpdated { id status } }',
+      })).toBe(false)
+    })
+  })
+
+  describe('mixed queries — security critical', () => {
+    it('should reject introspection mixed with data fields', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __schema { types { name } } products { id } }',
+      })).toBe(false)
+    })
+
+    it('should reject __typename mixed with data fields', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __typename products { id name } }',
+      })).toBe(false)
+    })
+
+    it('should reject __type mixed with data fields', () => {
+      expect(isIntrospectionQuery({
+        query: '{ __type(name: "Product") { name } products { id } }',
+      })).toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should reject __schema appearing only inside a string argument', () => {
+      expect(isIntrospectionQuery({
+        query: '{ search(query: "__schema { types { name } }") { id } }',
+      })).toBe(false)
+    })
+
+    it('should reject query with only whitespace', () => {
+      expect(isIntrospectionQuery({ query: '   \n\t  ' })).toBe(false)
+    })
+
+    it('should handle body with query set to non-string', () => {
+      expect(isIntrospectionQuery({ query: 123 as any })).toBe(false)
+    })
+
+    it('should reject introspection with fragment spread containing data fields', () => {
+      expect(isIntrospectionQuery({
+        query: `
+          query { __schema { types { name } } ...DataFragment }
+          fragment DataFragment on Query { products { id } }
+        `,
+      })).toBe(false)
+    })
+
+    it('should reject multi-operation document when non-introspection operation exists', () => {
+      expect(isIntrospectionQuery({
+        query: 'query Intro { __schema { types { name } } } query Data { products { id } }',
+        operationName: 'Intro',
+      })).toBe(false)
     })
   })
 })
