@@ -3,7 +3,7 @@ import type { TokenRotationService } from '../../../services/token-rotation'
 import { eq } from 'drizzle-orm'
 import { defineHandler, HTTPError, readBody } from 'nitro/h3'
 import { JWT_EXPIRATION_SECONDS } from '../../../config/auth.config'
-import { session as sessionTable } from '../../../database/schema'
+import { sessions as sessionTable } from '../../../database/schema'
 
 export default defineHandler(async (event) => {
   const { auth, db, rotation } = event.context as {

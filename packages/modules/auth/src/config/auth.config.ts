@@ -33,8 +33,20 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     basePath: '/api/auth',
     database: drizzleAdapter(db as Parameters<typeof drizzleAdapter>[0], {
       provider: 'pg',
-      schema,
+      schema: {
+        ...schema,
+        user: schema.users,
+        session: schema.sessions,
+        account: schema.accounts,
+        verification: schema.verifications,
+      },
     }),
+    user: {
+      modelName: 'users',
+    },
+    account: {
+      modelName: 'accounts',
+    },
     databaseHooks: {
       session: {
         create: {
@@ -54,6 +66,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       },
     },
     session: {
+      modelName: 'sessions',
       expiresIn: SESSION_EXPIRY_SECONDS,
       updateAge: SESSION_REFRESH_AGE,
       additionalFields: {
@@ -66,6 +79,9 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     ...(options.redis
       ? { secondaryStorage: options.redis.storage }
       : {}),
+    verification: {
+      modelName: 'verifications',
+    },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,

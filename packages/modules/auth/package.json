@@ -13,6 +13,14 @@
     ".": {
       "types": "./src/module.ts",
       "default": "./dist/module.mjs"
+    },
+    "./graphql-auth": {
+      "types": "./src/services/graphql-auth.ts",
+      "default": "./dist/services/graphql-auth.js"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "default": "./dist/types.mjs"
     }
   },
   "main": "./dist/module.mjs",
@@ -38,6 +46,7 @@
     "@czo/kit": "workspace:*",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
+    "graphql": "catalog:common",
     "ioredis": "catalog:common"
   },
   "devDependencies": {
