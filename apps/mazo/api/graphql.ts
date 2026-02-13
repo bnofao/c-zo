@@ -1,12 +1,14 @@
 import { NoSchemaIntrospectionCustomRule } from 'graphql'
-import { createYoga, createSchema } from 'graphql-yoga'
+import { createYoga } from 'graphql-yoga'
 import { defineHandler } from 'nitro/h3'
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
+import { makeExecutableSchema } from '@graphql-tools/schema'
+import { registeredTypeDefs, registeredResolvers } from '@czo/kit/graphql'
 import { validateGraphQLAuth, isIntrospectionQuery } from '@czo/auth/graphql-auth'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-const schema = createSchema({
+const schema = makeExecutableSchema({
   typeDefs: mergeTypeDefs(registeredTypeDefs()),
   resolvers: mergeResolvers(registeredResolvers()),
 })
@@ -45,5 +47,9 @@ export default defineHandler(async (event) => {
     cookiePrefix: 'czo',
   })
 
-  return yoga.fetch(event.req, { auth: authContext })
+  return yoga.fetch(event.req, {
+    auth: authContext,
+    authInstance: event.context.auth,
+    request: event.req,
+  })
 })

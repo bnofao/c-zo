@@ -45,6 +45,11 @@ export default defineBuildConfig({
       outDir: 'dist/services',
       ...dirImport,
     },
+    {
+      input: 'src/graphql/',
+      outDir: 'dist/graphql',
+      ...dirImport,
+    },
   ],
   externals: [
     'nitropack',
@@ -64,6 +69,9 @@ export default defineBuildConfig({
     'drizzle-orm/pg-core',
     'ioredis',
     'better-auth/crypto',
+    'better-auth/plugins/access',
+    '@czo/kit/graphql',
     'graphql',
+    'graphql-scalars',
   ],
 })

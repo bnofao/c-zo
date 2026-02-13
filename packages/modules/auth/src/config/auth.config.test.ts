@@ -18,6 +18,10 @@ const mockJwt = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'jwt', options: opts })),
 )
 
+const mockOrganization = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'organization', options: opts })),
+)
+
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
@@ -36,6 +40,12 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 
 vi.mock('better-auth/plugins', () => ({
   jwt: mockJwt,
+  organization: mockOrganization,
+}))
+
+vi.mock('better-auth/plugins/access', () => ({
+  createAccessControl: vi.fn((stmts: unknown) => ({ statements: stmts, newRole: vi.fn() })),
+  role: vi.fn((perms: unknown) => ({ statements: perms })),
 }))
 
 vi.mock('better-auth/crypto', () => ({
@@ -307,6 +317,7 @@ describe('auth config', () => {
         const mockEmailService = {
           sendVerificationEmail: vi.fn(),
           sendPasswordResetEmail: vi.fn(),
+          sendInvitationEmail: vi.fn(),
         }
         const config = createAuthConfig(mockDb, { ...options, emailService: mockEmailService })
         const ev = config.emailVerification as Record<string, any>
@@ -353,6 +364,7 @@ describe('auth config', () => {
         const mockEmailService = {
           sendVerificationEmail: vi.fn(),
           sendPasswordResetEmail: vi.fn(),
+          sendInvitationEmail: vi.fn(),
         }
         const config = createAuthConfig(mockDb, { ...options, emailService: mockEmailService })
         const ep = config.emailAndPassword as Record<string, any>
@@ -618,6 +630,75 @@ describe('auth config', () => {
         await expect(
           hooks.session.create.after({ id: 's1', userId: 'u1' }),
         ).resolves.toBeUndefined()
+      })
+    })
+  })
+
+  describe('organization plugin config', () => {
+    it('should include additionalFields with type on organization schema', () => {
+      createAuthConfig(mockDb, options)
+
+      const orgCall = mockOrganization.mock.calls[mockOrganization.mock.calls.length - 1]![0] as Record<string, any>
+      const orgSchema = orgCall.schema.organization
+
+      expect(orgSchema.additionalFields).toBeDefined()
+      expect(orgSchema.additionalFields.type).toEqual({
+        type: 'string',
+        required: false,
+        defaultValue: null,
+        input: false,
+      })
+    })
+
+    it('should forward org.type in afterCreateOrganization event', async () => {
+      const mockEvents = {
+        orgCreated: vi.fn(),
+        orgMemberAdded: vi.fn(),
+        orgMemberRemoved: vi.fn(),
+        orgRoleChanged: vi.fn(),
+      }
+
+      createAuthConfig(mockDb, { ...options, events: mockEvents as any })
+
+      const orgCall = mockOrganization.mock.calls[mockOrganization.mock.calls.length - 1]![0] as Record<string, any>
+      const hook = orgCall.organizationHooks.afterCreateOrganization
+
+      await hook({
+        organization: { id: 'org1', name: 'Test Org', type: 'merchant' },
+        user: { id: 'u1' },
+      })
+
+      expect(mockEvents.orgCreated).toHaveBeenCalledWith({
+        orgId: 'org1',
+        ownerId: 'u1',
+        name: 'Test Org',
+        type: 'merchant',
+      })
+    })
+
+    it('should default org.type to null when not present', async () => {
+      const mockEvents = {
+        orgCreated: vi.fn(),
+        orgMemberAdded: vi.fn(),
+        orgMemberRemoved: vi.fn(),
+        orgRoleChanged: vi.fn(),
+      }
+
+      createAuthConfig(mockDb, { ...options, events: mockEvents as any })
+
+      const orgCall = mockOrganization.mock.calls[mockOrganization.mock.calls.length - 1]![0] as Record<string, any>
+      const hook = orgCall.organizationHooks.afterCreateOrganization
+
+      await hook({
+        organization: { id: 'org2', name: 'No Type Org' },
+        user: { id: 'u2' },
+      })
+
+      expect(mockEvents.orgCreated).toHaveBeenCalledWith({
+        orgId: 'org2',
+        ownerId: 'u2',
+        name: 'No Type Org',
+        type: null,
       })
     })
   })

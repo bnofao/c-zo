@@ -34,11 +34,11 @@ export interface AuthSessionRevokedPayload {
   reason: 'user_initiated' | 'admin_revoked' | 'token_rotation' | 'expired'
 }
 
-// Future: Organizations (#59)
 export interface AuthOrgCreatedPayload {
   orgId: string
   ownerId: string
   name: string
+  type: string | null
 }
 
 export interface AuthOrgMemberAddedPayload {

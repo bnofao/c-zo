@@ -103,6 +103,66 @@ describe('authEventsService', () => {
     })
   })
 
+  describe('orgCreated', () => {
+    it('should publish auth.org.created event with correct payload', async () => {
+      const payload = { orgId: 'org1', ownerId: 'u1', name: 'My Org', type: 'merchant' as string | null }
+
+      await service.orgCreated(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.ORG_CREATED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('orgMemberAdded', () => {
+    it('should publish auth.org.member.added event with correct payload', async () => {
+      const payload = { orgId: 'org1', userId: 'u2', role: 'member' }
+
+      await service.orgMemberAdded(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.ORG_MEMBER_ADDED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('orgMemberRemoved', () => {
+    it('should publish auth.org.member.removed event with correct payload', async () => {
+      const payload = { orgId: 'org1', userId: 'u2' }
+
+      await service.orgMemberRemoved(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.ORG_MEMBER_REMOVED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('orgRoleChanged', () => {
+    it('should publish auth.org.role.changed event with correct payload', async () => {
+      const payload = { orgId: 'org1', userId: 'u2', previousRole: 'member', newRole: 'admin' }
+
+      await service.orgRoleChanged(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.ORG_ROLE_CHANGED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
   describe('safePublish (fire-and-forget)', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))

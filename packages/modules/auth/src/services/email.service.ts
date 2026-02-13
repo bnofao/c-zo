@@ -7,9 +7,17 @@ export interface EmailParams {
   token: string
 }
 
+export interface InvitationEmailParams {
+  to: string
+  organizationName: string
+  inviterName: string
+  invitationId: string
+}
+
 export interface EmailService {
   sendVerificationEmail: (params: EmailParams) => Promise<void>
   sendPasswordResetEmail: (params: EmailParams) => Promise<void>
+  sendInvitationEmail: (params: InvitationEmailParams) => Promise<void>
 }
 
 export class ConsoleEmailService implements EmailService {
@@ -32,6 +40,15 @@ export class ConsoleEmailService implements EmailService {
       to: params.to,
       userName: params.userName,
       url: params.url,
+    })
+  }
+
+  async sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
+    this.logger.info('[Organization Invitation Email]', {
+      to: params.to,
+      organizationName: params.organizationName,
+      inviterName: params.inviterName,
+      invitationId: params.invitationId,
     })
   }
 }

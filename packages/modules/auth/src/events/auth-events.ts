@@ -1,5 +1,9 @@
 import type { EventBus } from '@czo/kit/event-bus'
 import type {
+  AuthOrgCreatedPayload,
+  AuthOrgMemberAddedPayload,
+  AuthOrgMemberRemovedPayload,
+  AuthOrgRoleChangedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
   AuthUserRegisteredPayload,
@@ -56,5 +60,21 @@ export class AuthEventsService {
 
   async sessionRevoked(payload: AuthSessionRevokedPayload): Promise<void> {
     await this.safePublish(AUTH_EVENTS.SESSION_REVOKED, payload)
+  }
+
+  async orgCreated(payload: AuthOrgCreatedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.ORG_CREATED, payload)
+  }
+
+  async orgMemberAdded(payload: AuthOrgMemberAddedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.ORG_MEMBER_ADDED, payload)
+  }
+
+  async orgMemberRemoved(payload: AuthOrgMemberRemovedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.ORG_MEMBER_REMOVED, payload)
+  }
+
+  async orgRoleChanged(payload: AuthOrgRoleChangedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.ORG_ROLE_CHANGED, payload)
   }
 }

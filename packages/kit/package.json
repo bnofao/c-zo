@@ -127,6 +127,7 @@
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
     "exsolve": "catalog:common",
+    "graphql-scalars": "catalog:common",
     "hookable": "catalog:dev",
     "jiti": "catalog:common",
     "kysely": "catalog:common",

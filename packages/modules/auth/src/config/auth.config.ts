@@ -5,8 +5,9 @@ import type { SecondaryStorage } from '../services/secondary-storage'
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { jwt } from 'better-auth/plugins'
+import { jwt, organization } from 'better-auth/plugins'
 import * as schema from '../database/schema'
+import { ac, viewerRole } from '../services/organization-roles'
 import { validatePasswordStrength } from '../services/password'
 import { getSessionContext } from '../services/session-context'
 import { REFRESH_TOKEN_PREFIX } from '../services/token-rotation'
@@ -45,6 +46,9 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
         session: schema.sessions,
         account: schema.accounts,
         verification: schema.verifications,
+        organization: schema.organizations,
+        member: schema.members,
+        invitation: schema.invitations,
       },
     }),
     user: {
@@ -209,10 +213,65 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
             name: user.name,
             jti: randomUUID(),
             act: session?.actorType ?? 'customer',
-            org: session?.organizationId ?? null,
+            org: session?.activeOrganizationId ?? session?.organizationId ?? null,
             roles: [],
             method: session?.authMethod ?? 'email',
           }),
+        },
+      }),
+      organization({
+        ac,
+        roles: { viewer: viewerRole },
+        creatorRole: 'owner',
+        invitationExpiresIn: 604800,
+        sendInvitationEmail: async (data) => {
+          await options.emailService?.sendInvitationEmail({
+            to: data.email,
+            organizationName: data.organization.name,
+            inviterName: data.inviter.user.name,
+            invitationId: data.id,
+          })
+        },
+        schema: {
+          organization: {
+            modelName: 'organizations',
+            additionalFields: {
+              type: { type: 'string' as const, required: false, defaultValue: null, input: false },
+            },
+          },
+          member: { modelName: 'members' },
+          invitation: { modelName: 'invitations' },
+        },
+        organizationHooks: {
+          afterCreateOrganization: async ({ organization: org, user }) => {
+            void options.events?.orgCreated({
+              orgId: org.id,
+              ownerId: user?.id ?? '',
+              name: org.name,
+              type: (org as Record<string, unknown>).type as string | null ?? null,
+            })
+          },
+          afterAddMember: async ({ member }) => {
+            void options.events?.orgMemberAdded({
+              orgId: member.organizationId,
+              userId: member.userId,
+              role: member.role,
+            })
+          },
+          afterRemoveMember: async ({ member }) => {
+            void options.events?.orgMemberRemoved({
+              orgId: member.organizationId,
+              userId: member.userId,
+            })
+          },
+          afterUpdateMemberRole: async ({ member, previousRole }) => {
+            void options.events?.orgRoleChanged({
+              orgId: member.organizationId,
+              userId: member.userId,
+              previousRole,
+              newRole: member.role,
+            })
+          },
         },
       }),
     ],
