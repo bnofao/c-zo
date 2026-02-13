@@ -6,6 +6,7 @@ import { useDatabase } from '@czo/kit/db'
 import { definePlugin } from 'nitro'
 import { createAuth } from '../config/auth.config'
 import { jwks as jwksTable } from '../database/schema'
+import { AuthEventsService } from '../events/auth-events'
 import { ConsoleEmailService } from '../services/email.service'
 import { createJwtBlocklist } from '../services/jwt-blocklist'
 import { useAuthRedis } from '../services/redis'
@@ -35,10 +36,14 @@ export default definePlugin(async (nitroApp) => {
   const emailService = new ConsoleEmailService()
   container.bind('auth:email', () => emailService)
 
+  const authEvents = new AuthEventsService()
+  container.bind('auth:events', () => authEvents)
+
   const authOptions: AuthConfigOptions = {
     secret: authConfig.secret,
     baseUrl: authConfig.baseUrl || 'http://localhost:4000',
     emailService,
+    events: authEvents,
   }
 
   let blocklist: ReturnType<typeof createJwtBlocklist> | undefined
@@ -88,6 +93,7 @@ export default definePlugin(async (nitroApp) => {
   nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
     event.context.auth = auth
     event.context.db = db
+    event.context.authEvents = authEvents
     if (blocklist)
       event.context.blocklist = blocklist
     if (rotation)
