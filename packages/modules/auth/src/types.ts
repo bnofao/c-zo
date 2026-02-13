@@ -1,3 +1,5 @@
+import type { Auth } from './config/auth.config'
+
 export interface AuthContext {
   session: {
     id: string
@@ -19,4 +21,6 @@ export interface AuthContext {
 
 export interface GraphQLContext {
   auth: AuthContext
+  authInstance: Auth
+  request: Request
 }

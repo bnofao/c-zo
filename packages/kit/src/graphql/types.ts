@@ -1,4 +1,5 @@
 import type { DocumentNode } from 'graphql'
+import { scalarTypeDefs } from './scalars'
 
 const typeDefs: Array<DocumentNode | string> = [
   `
@@ -9,9 +10,10 @@ const typeDefs: Array<DocumentNode | string> = [
       _empty: String
     }
   `,
+  ...scalarTypeDefs,
 ]
 
-export function registerTypeDefs(typeDef: DocumentNode) {
+export function registerTypeDefs(typeDef: DocumentNode | string) {
   typeDefs.push(typeDef)
 }
 

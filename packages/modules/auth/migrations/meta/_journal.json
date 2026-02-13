@@ -22,6 +22,20 @@
       "when": 1770861242537,
       "tag": "0002_rename_tables_plural",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770947642537,
+      "tag": "0003_add_organizations",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771034042537,
+      "tag": "0004_add_organization_type",
+      "breakpoints": true
     }
   ]
 }

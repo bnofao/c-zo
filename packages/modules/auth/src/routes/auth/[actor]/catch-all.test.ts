@@ -320,4 +320,241 @@ describe('auth [actor] catch-all route', () => {
       expect(headers.get('authorization')).toBe('Bearer czo_rt_my-token')
     })
   })
+
+  describe('auto-create organization on sign-up', () => {
+    const mockCreateOrganization = vi.fn()
+
+    function createSignUpEvent(body: Record<string, unknown>) {
+      const req = new Request('http://localhost/api/auth/customer/sign-up/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      return {
+        req,
+        context: {
+          auth: {
+            handler: mockHandler,
+            api: { getToken: mockGetToken, createOrganization: mockCreateOrganization },
+          },
+        },
+      }
+    }
+
+    beforeEach(() => {
+      mockCreateOrganization.mockReset()
+    })
+
+    it('should call createOrganization when organizationName is provided on sign-up', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+      mockCreateOrganization.mockResolvedValue({ id: 'org1', name: 'My Store', slug: 'my-store' })
+
+      const event = createSignUpEvent({
+        email: 'merchant@test.com',
+        password: 'secret123',
+        name: 'Merchant',
+        organizationName: 'My Store',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      // Allow fire-and-forget promise to resolve
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).toHaveBeenCalledWith({
+        headers: expect.any(Headers),
+        body: { name: 'My Store' },
+      })
+
+      // Verify the session token is used for authorization
+      const callHeaders = mockCreateOrganization.mock.calls[0]![0].headers as Headers
+      expect(callHeaders.get('authorization')).toBe('Bearer czo_rt_new-session')
+    })
+
+    it('should NOT call createOrganization when organizationName is not provided', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+
+      const event = createSignUpEvent({
+        email: 'user@test.com',
+        password: 'secret123',
+        name: 'User',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).not.toHaveBeenCalled()
+    })
+
+    it('should NOT call createOrganization when organizationName is empty/whitespace', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+
+      const event = createSignUpEvent({
+        email: 'user@test.com',
+        password: 'secret123',
+        name: 'User',
+        organizationName: '   ',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).not.toHaveBeenCalled()
+    })
+
+    it('should still return token response even if org creation fails', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+      mockCreateOrganization.mockRejectedValue(new Error('Org creation failed'))
+
+      const event = createSignUpEvent({
+        email: 'merchant@test.com',
+        password: 'secret123',
+        name: 'Merchant',
+        organizationName: 'My Store',
+      })
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      // Sign-up still succeeds with token response
+      expect(body).toEqual({
+        accessToken: 'eyJhbG.jwt.signup',
+        refreshToken: 'czo_rt_new-session',
+        expiresIn: 900,
+      })
+    })
+
+    it('should NOT call createOrganization for sign-in requests', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signin' })
+
+      // Sign-in request (not sign-up) with organizationName in body
+      const req = new Request('http://localhost/api/auth/customer/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'user@test.com', password: 'secret', organizationName: 'Sneaky' }),
+      })
+      const event = {
+        req,
+        context: {
+          auth: {
+            handler: mockHandler,
+            api: { getToken: mockGetToken, createOrganization: mockCreateOrganization },
+          },
+        },
+      }
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).not.toHaveBeenCalled()
+    })
+
+    it('should pass organizationType when provided on sign-up', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+      mockCreateOrganization.mockResolvedValue({ id: 'org1', name: 'My Store', slug: 'my-store', type: 'merchant' })
+
+      const event = createSignUpEvent({
+        email: 'merchant@test.com',
+        password: 'secret123',
+        name: 'Merchant',
+        organizationName: 'My Store',
+        organizationType: 'merchant',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).toHaveBeenCalledWith({
+        headers: expect.any(Headers),
+        body: { name: 'My Store', type: 'merchant' },
+      })
+    })
+
+    it('should NOT include type in body when organizationType is not provided', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+      mockCreateOrganization.mockResolvedValue({ id: 'org1', name: 'My Store', slug: 'my-store' })
+
+      const event = createSignUpEvent({
+        email: 'merchant@test.com',
+        password: 'secret123',
+        name: 'Merchant',
+        organizationName: 'My Store',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).toHaveBeenCalledWith({
+        headers: expect.any(Headers),
+        body: { name: 'My Store' },
+      })
+    })
+
+    it('should trim organizationName before creating organization', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = { session: { token: 'czo_rt_new-session' }, user: { id: 'u1' } }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.signup' })
+      mockCreateOrganization.mockResolvedValue({ id: 'org1', name: 'My Store', slug: 'my-store' })
+
+      const event = createSignUpEvent({
+        email: 'merchant@test.com',
+        password: 'secret123',
+        name: 'Merchant',
+        organizationName: '  My Store  ',
+      })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(mockCreateOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({ body: { name: 'My Store' } }),
+      )
+    })
+  })
 })

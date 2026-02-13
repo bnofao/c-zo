@@ -12,6 +12,8 @@ import { createJwtBlocklist } from '../services/jwt-blocklist'
 import { useAuthRedis } from '../services/redis'
 import { createRedisStorage } from '../services/secondary-storage'
 import { createTokenRotationService } from '../services/token-rotation'
+import '../graphql/typedefs'
+import '../graphql/resolvers'
 
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')

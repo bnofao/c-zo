@@ -1,0 +1,42 @@
+type Organization {
+  id: ID!
+  name: String!
+  slug: String!
+  logo: String
+  type: String
+  createdAt: DateTime!
+}
+
+type OrgMember {
+  id: ID!
+  userId: String!
+  role: String!
+  createdAt: DateTime!
+}
+
+type Invitation {
+  id: ID!
+  email: EmailAddress!
+  role: String!
+  status: String!
+  expiresAt: DateTime
+}
+
+input CreateOrganizationInput {
+  name: String!
+  slug: String
+  type: String
+}
+
+extend type Query {
+  myOrganizations: [Organization!]!
+  organization(id: ID!): Organization
+}
+
+extend type Mutation {
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  setActiveOrganization(organizationId: ID): Organization
+  inviteMember(organizationId: ID!, email: String!, role: String!): Invitation!
+  removeMember(organizationId: ID!, memberIdToRemove: ID!): Boolean!
+  acceptInvitation(invitationId: ID!): OrgMember!
+}

@@ -146,6 +146,39 @@ describe('auth database schema', () => {
     })
   })
 
+  describe('organizations table', () => {
+    it('should be named "organizations"', () => {
+      expect(getTableName(schema.organizations)).toBe('organizations')
+    })
+
+    it('should have required columns', () => {
+      const config = getTableConfig(schema.organizations)
+      const columnNames = config.columns.map(c => c.name)
+
+      expect(columnNames).toContain('id')
+      expect(columnNames).toContain('name')
+      expect(columnNames).toContain('slug')
+      expect(columnNames).toContain('logo')
+      expect(columnNames).toContain('metadata')
+      expect(columnNames).toContain('type')
+      expect(columnNames).toContain('created_at')
+      expect(columnNames).toContain('updated_at')
+    })
+
+    it('should have type column as nullable', () => {
+      const config = getTableConfig(schema.organizations)
+      const col = config.columns.find(c => c.name === 'type')
+      expect(col).toBeDefined()
+      expect(col!.notNull).toBe(false)
+    })
+
+    it('should have slug as unique', () => {
+      const config = getTableConfig(schema.organizations)
+      const slugCol = config.columns.find(c => c.name === 'slug')
+      expect(slugCol?.isUnique).toBe(true)
+    })
+  })
+
   it('should export all 5 tables', () => {
     expect(schema.users).toBeDefined()
     expect(schema.sessions).toBeDefined()

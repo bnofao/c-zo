@@ -22,6 +22,7 @@ export const sessions = pgTable('sessions', {
   actorType: text('actor_type').notNull().default('customer'),
   authMethod: text('auth_method').notNull().default('email'),
   organizationId: text('organization_id'),
+  activeOrganizationId: text('active_organization_id'),
 })
 
 export const accounts = pgTable('accounts', {
@@ -53,5 +54,35 @@ export const jwks = pgTable('jwks', {
   id: text('id').primaryKey(),
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const organizations = pgTable('organizations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  logo: text('logo'),
+  metadata: text('metadata'),
+  type: text('type'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at'),
+})
+
+export const members = pgTable('members', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('member'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const invitations = pgTable('invitations', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  role: text('role').notNull(),
+  status: text('status').notNull().default('pending'),
+  expiresAt: timestamp('expires_at').notNull(),
+  inviterId: text('inviter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
