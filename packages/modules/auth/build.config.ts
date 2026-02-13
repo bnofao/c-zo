@@ -36,6 +36,11 @@ export default defineBuildConfig({
       ...dirImport,
     },
     {
+      input: 'src/events/',
+      outDir: 'dist/events',
+      ...dirImport,
+    },
+    {
       input: 'src/services/',
       outDir: 'dist/services',
       ...dirImport,
@@ -54,6 +59,7 @@ export default defineBuildConfig({
     '@czo/kit/author',
     '@czo/kit/db',
     '@czo/kit/config',
+    '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',
     'ioredis',
