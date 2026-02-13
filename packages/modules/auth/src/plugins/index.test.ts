@@ -48,8 +48,22 @@ const mockRedisStorage = vi.hoisted(() => ({
 const mockCreateRedisStorage = vi.hoisted(() => vi.fn(() => mockRedisStorage))
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-jwks'))
 
+const mockAuthEventsService = vi.hoisted(() => {
+  class AuthEventsService {
+    userRegistered = vi.fn()
+    userUpdated = vi.fn()
+    sessionCreated = vi.fn()
+    sessionRevoked = vi.fn()
+  }
+  return AuthEventsService
+})
+
 vi.mock('../config/auth.config', () => ({
   createAuth: mockCreateAuth,
+}))
+
+vi.mock('../events/auth-events', () => ({
+  AuthEventsService: mockAuthEventsService,
 }))
 
 vi.mock('../services/secondary-storage', () => ({
@@ -231,6 +245,36 @@ describe('auth plugin', () => {
     expect(mockContainer.bind).toHaveBeenCalledWith('auth:email', expect.any(Function))
   })
 
+  it('should bind auth events service to container', async () => {
+    mockKitModules()
+    mockRedisAvailable()
+    const { default: plugin } = await import('./index')
+
+    const nitroApp = {
+      hooks: { hook: vi.fn() },
+    }
+
+    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+    expect(mockContainer.bind).toHaveBeenCalledWith('auth:events', expect.any(Function))
+  })
+
+  it('should pass events service to createAuth', async () => {
+    mockKitModules()
+    mockRedisAvailable()
+    const { default: plugin } = await import('./index')
+
+    const nitroApp = {
+      hooks: { hook: vi.fn() },
+    }
+
+    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+    const createAuthCall = mockCreateAuth.mock.calls[0]!
+    expect(createAuthCall[1]).toHaveProperty('events')
+    expect(createAuthCall[1].events).toBeInstanceOf(mockAuthEventsService)
+  })
+
   it('should pass email service to createAuth', async () => {
     mockKitModules()
     mockRedisAvailable()
@@ -408,6 +452,28 @@ describe('auth plugin', () => {
       hookCallbacks.get('request')!(event)
 
       expect(event.context.rotation).toBe(mockRotation)
+    })
+
+    it('should inject authEvents into request context', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.authEvents).toBeInstanceOf(mockAuthEventsService)
     })
 
     it('should not inject blocklist or rotation when Redis is unavailable', async () => {

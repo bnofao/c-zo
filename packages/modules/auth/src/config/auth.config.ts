@@ -1,4 +1,5 @@
 import type { BetterAuthOptions } from 'better-auth'
+import type { AuthEventsService } from '../events/auth-events'
 import type { EmailService } from '../services/email.service'
 import type { SecondaryStorage } from '../services/secondary-storage'
 import { randomUUID } from 'node:crypto'
@@ -14,6 +15,7 @@ export interface AuthConfigOptions {
   secret: string
   baseUrl: string
   emailService?: EmailService
+  events?: AuthEventsService
   redis?: { storage: SecondaryStorage }
 }
 
@@ -48,6 +50,24 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       modelName: 'accounts',
     },
     databaseHooks: {
+      user: {
+        create: {
+          after: async (user: { id: string, email: string, name: string }) => {
+            const ctx = getSessionContext()
+            void options.events?.userRegistered({
+              userId: user.id,
+              email: user.email,
+              actorType: ctx?.actorType ?? 'customer',
+            })
+          },
+        },
+        update: {
+          after: async (user: { id: string, [key: string]: unknown }) => {
+            const { id: userId, ...changes } = user
+            void options.events?.userUpdated({ userId, changes })
+          },
+        },
+      },
       session: {
         create: {
           before: async (session: { token: string }) => {
@@ -61,6 +81,14 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
                 organizationId: ctx?.organizationId ?? null,
               },
             }
+          },
+          after: async (session: { id: string, userId: string, actorType?: string, authMethod?: string }) => {
+            void options.events?.sessionCreated({
+              sessionId: session.id,
+              userId: session.userId,
+              actorType: session.actorType ?? 'customer',
+              authMethod: session.authMethod ?? 'email',
+            })
           },
         },
       },

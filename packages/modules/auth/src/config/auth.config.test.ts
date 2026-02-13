@@ -511,6 +511,106 @@ describe('auth config', () => {
       expect(result.data.authMethod).toBe('email')
       expect(result.data.organizationId).toBeNull()
     })
+
+    describe('event emission', () => {
+      const mockEvents = {
+        userRegistered: vi.fn(),
+        userUpdated: vi.fn(),
+        sessionCreated: vi.fn(),
+        sessionRevoked: vi.fn(),
+      }
+
+      const optionsWithEvents = { ...options, events: mockEvents as any }
+
+      it('should emit userRegistered on user.create.after', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.create.after({ id: 'u1', email: 'test@czo.dev', name: 'Test' })
+
+        expect(mockEvents.userRegistered).toHaveBeenCalledWith({
+          userId: 'u1',
+          email: 'test@czo.dev',
+          actorType: 'customer',
+        })
+      })
+
+      it('should use actorType from session context in userRegistered', async () => {
+        mockGetSessionContext.mockReturnValue({
+          actorType: 'admin',
+          authMethod: 'email',
+        })
+
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.create.after({ id: 'u1', email: 'admin@czo.dev', name: 'Admin' })
+
+        expect(mockEvents.userRegistered).toHaveBeenCalledWith(
+          expect.objectContaining({ actorType: 'admin' }),
+        )
+
+        mockGetSessionContext.mockReturnValue(undefined)
+      })
+
+      it('should emit userUpdated on user.update.after', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.update.after({ id: 'u1', name: 'New Name', email: 'new@czo.dev' })
+
+        expect(mockEvents.userUpdated).toHaveBeenCalledWith({
+          userId: 'u1',
+          changes: { name: 'New Name', email: 'new@czo.dev' },
+        })
+      })
+
+      it('should emit sessionCreated on session.create.after', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.session.create.after({
+          id: 's1',
+          userId: 'u1',
+          actorType: 'admin',
+          authMethod: 'oauth',
+        })
+
+        expect(mockEvents.sessionCreated).toHaveBeenCalledWith({
+          sessionId: 's1',
+          userId: 'u1',
+          actorType: 'admin',
+          authMethod: 'oauth',
+        })
+      })
+
+      it('should default actorType/authMethod in sessionCreated when missing', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.session.create.after({ id: 's1', userId: 'u1' })
+
+        expect(mockEvents.sessionCreated).toHaveBeenCalledWith({
+          sessionId: 's1',
+          userId: 'u1',
+          actorType: 'customer',
+          authMethod: 'email',
+        })
+      })
+
+      it('should not throw when events service is not provided', async () => {
+        const config = createAuthConfig(mockDb, options)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await expect(
+          hooks.user.create.after({ id: 'u1', email: 'a@b.c', name: 'X' }),
+        ).resolves.toBeUndefined()
+
+        await expect(
+          hooks.session.create.after({ id: 's1', userId: 'u1' }),
+        ).resolves.toBeUndefined()
+      })
+    })
   })
 
   describe('redis secondaryStorage', () => {

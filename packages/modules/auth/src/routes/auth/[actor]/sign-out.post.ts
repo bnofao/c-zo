@@ -1,4 +1,5 @@
 import type { Auth } from '../../../config/auth.config'
+import type { AuthEventsService } from '../../../events/auth-events'
 import type { JwtBlocklist } from '../../../services/jwt-blocklist'
 import type { Actor } from './[...all]'
 import { Buffer } from 'node:buffer'
@@ -9,6 +10,7 @@ import { VALID_ACTORS } from './[...all]'
 export default defineHandler(async (event) => {
   const auth = (event.context as Record<string, unknown>).auth as Auth | undefined
   const blocklist = (event.context as Record<string, unknown>).blocklist as JwtBlocklist | undefined
+  const authEvents = (event.context as Record<string, unknown>).authEvents as AuthEventsService | undefined
 
   if (!auth) {
     throw new HTTPError({ status: 500, statusText: 'Auth not initialized' })
@@ -21,6 +23,9 @@ export default defineHandler(async (event) => {
   }
 
   // Blocklist the current JWT (best effort) before sign-out destroys the session
+  let jwtUserId: string | undefined
+  let jwtId: string | undefined
+
   if (blocklist) {
     try {
       const tokenResponse = await auth.api.getToken({
@@ -30,6 +35,8 @@ export default defineHandler(async (event) => {
         const [, payload] = tokenResponse.token.split('.')
         if (payload) {
           const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
+          jwtUserId = decoded.sub
+          jwtId = decoded.jti
           if (decoded.jti) {
             await blocklist.add(decoded.jti, JWT_EXPIRATION_SECONDS)
           }
@@ -46,5 +53,16 @@ export default defineHandler(async (event) => {
   url.pathname = url.pathname.replace(`/auth/${actor}/`, '/auth/')
   const rewrittenReq = new Request(url, event.req)
 
-  return auth.handler(rewrittenReq)
+  const response = auth.handler(rewrittenReq)
+
+  // Fire-and-forget: emit session.revoked event
+  if (jwtUserId && jwtId) {
+    void authEvents?.sessionRevoked({
+      jwtId,
+      userId: jwtUserId,
+      reason: 'user_initiated',
+    })
+  }
+
+  return response
 })

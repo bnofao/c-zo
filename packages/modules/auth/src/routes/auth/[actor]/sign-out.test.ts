@@ -36,10 +36,12 @@ describe('sign-out route', () => {
   const mockGetToken = vi.fn()
   const mockHandler = vi.fn()
   const mockBlocklistAdd = vi.fn()
+  const mockSessionRevoked = vi.fn()
 
   function createEvent(overrides?: {
     auth?: unknown
     blocklist?: unknown
+    authEvents?: unknown
     actor?: string
   }) {
     const actor = overrides?.actor ?? 'customer'
@@ -57,6 +59,9 @@ describe('sign-out route', () => {
             },
         ...(overrides?.blocklist !== undefined
           ? { blocklist: overrides.blocklist }
+          : {}),
+        ...(overrides?.authEvents !== undefined
+          ? { authEvents: overrides.authEvents }
           : {}),
       },
     }
@@ -191,5 +196,74 @@ describe('sign-out route', () => {
     const calledReq = mockHandler.mock.calls[0]![0] as Request
     const url = new URL(calledReq.url)
     expect(url.pathname).toBe('/api/auth/sign-out')
+  })
+
+  describe('session.revoked event', () => {
+    it('should emit sessionRevoked when JWT has sub and jti', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+
+      const payload = Buffer.from(JSON.stringify({ jti: 'jwt-456', sub: 'u1' })).toString('base64url')
+      const fakeJwt = `eyJhbGciOiJFUzI1NiJ9.${payload}.signature`
+      mockGetToken.mockResolvedValue({ token: fakeJwt })
+
+      const blocklist = { add: mockBlocklistAdd, isBlocked: vi.fn() }
+      const authEvents = { sessionRevoked: mockSessionRevoked }
+      const event = createEvent({ blocklist, authEvents })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      expect(mockSessionRevoked).toHaveBeenCalledWith({
+        jwtId: 'jwt-456',
+        userId: 'u1',
+        reason: 'user_initiated',
+      })
+    })
+
+    it('should not emit sessionRevoked when JWT claims are missing', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+      mockGetToken.mockResolvedValue(null)
+
+      const blocklist = { add: mockBlocklistAdd, isBlocked: vi.fn() }
+      const authEvents = { sessionRevoked: mockSessionRevoked }
+      const event = createEvent({ blocklist, authEvents })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      expect(mockSessionRevoked).not.toHaveBeenCalled()
+    })
+
+    it('should not emit sessionRevoked when authEvents is not in context', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+
+      const payload = Buffer.from(JSON.stringify({ jti: 'jwt-789', sub: 'u1' })).toString('base64url')
+      const fakeJwt = `eyJhbGciOiJFUzI1NiJ9.${payload}.signature`
+      mockGetToken.mockResolvedValue({ token: fakeJwt })
+
+      const blocklist = { add: mockBlocklistAdd, isBlocked: vi.fn() }
+      const event = createEvent({ blocklist })
+
+      await expect(
+        (handler as (event: unknown) => Promise<unknown>)(event),
+      ).resolves.toBeDefined()
+
+      expect(mockSessionRevoked).not.toHaveBeenCalled()
+    })
+
+    it('should not emit sessionRevoked when blocklist decoding fails', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      mockHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+      mockGetToken.mockRejectedValue(new Error('No session'))
+
+      const blocklist = { add: mockBlocklistAdd, isBlocked: vi.fn() }
+      const authEvents = { sessionRevoked: mockSessionRevoked }
+      const event = createEvent({ blocklist, authEvents })
+
+      await (handler as (event: unknown) => Promise<unknown>)(event)
+
+      expect(mockSessionRevoked).not.toHaveBeenCalled()
+    })
   })
 })
