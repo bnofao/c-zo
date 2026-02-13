@@ -1,5 +1,7 @@
 import type { DomainEvent, EventMap, EventPayload } from '@czo/kit/event-bus'
 import type {
+  Auth2FADisabledPayload,
+  Auth2FAEnabledPayload,
   AuthEventType,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
@@ -11,8 +13,8 @@ import { AUTH_EVENTS } from './types'
 
 describe('auth event types', () => {
   describe('auth events constants', () => {
-    it('should define all 8 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(8)
+    it('should define all 10 routing keys', () => {
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(10)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -28,11 +30,16 @@ describe('auth event types', () => {
       expect(AUTH_EVENTS.SESSION_REVOKED).toBe('auth.session.revoked')
     })
 
-    it('should have correct routing keys for future org events', () => {
+    it('should have correct routing keys for org events', () => {
       expect(AUTH_EVENTS.ORG_CREATED).toBe('auth.org.created')
       expect(AUTH_EVENTS.ORG_MEMBER_ADDED).toBe('auth.org.member.added')
       expect(AUTH_EVENTS.ORG_MEMBER_REMOVED).toBe('auth.org.member.removed')
       expect(AUTH_EVENTS.ORG_ROLE_CHANGED).toBe('auth.org.role.changed')
+    })
+
+    it('should have correct routing keys for 2FA events', () => {
+      expect(AUTH_EVENTS.TWO_FA_ENABLED).toBe('auth.2fa.enabled')
+      expect(AUTH_EVENTS.TWO_FA_DISABLED).toBe('auth.2fa.disabled')
     })
   })
 
@@ -119,6 +126,22 @@ describe('auth event types', () => {
       expect(withSession.sessionId).toBe('s1')
       expect(withJwt.jwtId).toBe('jwt-1')
     })
+
+    it('should enforce required fields on Auth2FAEnabledPayload', () => {
+      const p: Auth2FAEnabledPayload = {
+        userId: 'u1',
+        actorType: 'customer',
+      }
+      expect(p).toEqual({ userId: 'u1', actorType: 'customer' })
+    })
+
+    it('should enforce required fields on Auth2FADisabledPayload', () => {
+      const p: Auth2FADisabledPayload = {
+        userId: 'u1',
+        actorType: 'admin',
+      }
+      expect(p).toEqual({ userId: 'u1', actorType: 'admin' })
+    })
   })
 
   describe('authEventType union', () => {
@@ -132,8 +155,10 @@ describe('auth event types', () => {
         'auth.org.member.added',
         'auth.org.member.removed',
         'auth.org.role.changed',
+        'auth.2fa.enabled',
+        'auth.2fa.disabled',
       ]
-      expect(types).toHaveLength(8)
+      expect(types).toHaveLength(10)
     })
   })
 })

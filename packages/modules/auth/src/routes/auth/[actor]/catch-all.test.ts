@@ -297,6 +297,124 @@ describe('auth [actor] catch-all route', () => {
       expect(result).toBeInstanceOf(Response)
     })
 
+    it('should pass through twoFactorRedirect responses without transformation', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const redirectData = { twoFactorRedirect: true }
+      const originalResponse = new Response(JSON.stringify(redirectData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+      mockHandler.mockResolvedValue(originalResponse)
+
+      const event = createEvent({ actor: 'customer' })
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      expect(body).toEqual({ twoFactorRedirect: true })
+      expect(mockGetToken).not.toHaveBeenCalled()
+    })
+
+    it('should preserve response body after clone (no empty body bug)', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      // Response without session.token — simulates non-standard 200 response
+      const data = { message: 'some other response' }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+
+      const event = createEvent({ actor: 'customer' })
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      // Body should be preserved thanks to clone()
+      expect(body).toEqual({ message: 'some other response' })
+    })
+
+    it('should include requiresTwoFactorSetup for admin without 2FA', async () => {
+      mockGetRouterParam.mockReturnValue('admin')
+      const sessionData = {
+        session: { token: 'czo_rt_admin-token' },
+        user: { id: 'u1', twoFactorEnabled: false },
+      }
+      const req = new Request('http://localhost/api/auth/admin/sign-in/email', { method: 'POST' })
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.admin' })
+
+      const event = {
+        req,
+        context: {
+          auth: { handler: mockHandler, api: { getToken: mockGetToken } },
+        },
+      }
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      expect(body).toEqual({
+        accessToken: 'eyJhbG.jwt.admin',
+        refreshToken: 'czo_rt_admin-token',
+        expiresIn: 900,
+        requiresTwoFactorSetup: true,
+      })
+    })
+
+    it('should NOT include requiresTwoFactorSetup for admin with 2FA enabled', async () => {
+      mockGetRouterParam.mockReturnValue('admin')
+      const sessionData = {
+        session: { token: 'czo_rt_admin-token' },
+        user: { id: 'u1', twoFactorEnabled: true },
+      }
+      const req = new Request('http://localhost/api/auth/admin/sign-in/email', { method: 'POST' })
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.admin' })
+
+      const event = {
+        req,
+        context: {
+          auth: { handler: mockHandler, api: { getToken: mockGetToken } },
+        },
+      }
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      expect(body).toEqual({
+        accessToken: 'eyJhbG.jwt.admin',
+        refreshToken: 'czo_rt_admin-token',
+        expiresIn: 900,
+      })
+      expect(body.requiresTwoFactorSetup).toBeUndefined()
+    })
+
+    it('should NOT include requiresTwoFactorSetup for customer actor', async () => {
+      mockGetRouterParam.mockReturnValue('customer')
+      const sessionData = {
+        session: { token: 'czo_rt_customer-token' },
+        user: { id: 'u1', twoFactorEnabled: false },
+      }
+      mockHandler.mockResolvedValue(new Response(JSON.stringify(sessionData), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      mockGetToken.mockResolvedValue({ token: 'eyJhbG.jwt.customer' })
+
+      const event = createEvent({ actor: 'customer' })
+
+      const result = await (handler as (event: unknown) => Promise<unknown>)(event) as Response
+      const body = await result.json()
+
+      expect(body.requiresTwoFactorSetup).toBeUndefined()
+    })
+
     it('should pass session token as authorization header to getToken', async () => {
       mockGetRouterParam.mockReturnValue('customer')
       const sessionData = {

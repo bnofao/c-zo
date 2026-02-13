@@ -87,7 +87,18 @@ export default defineHandler(async (event) => {
   // Transform sign-in/sign-up responses to dual-token format
   if (response.ok && TOKEN_RESPONSE_PATHS.has(remainingPath)) {
     try {
-      const data = await response.json() as { session?: { token?: string }, user?: unknown }
+      const cloned = response.clone()
+      const data = await cloned.json() as {
+        session?: { token?: string }
+        user?: Record<string, unknown>
+        twoFactorRedirect?: boolean
+      }
+
+      // Pass through 2FA redirect responses with cookies intact
+      if (data?.twoFactorRedirect === true) {
+        return response
+      }
+
       if (data?.session?.token) {
         // Auto-create organization on sign-up when organizationName is provided
         if (isSignUp && orgFields.name) {
@@ -101,11 +112,18 @@ export default defineHandler(async (event) => {
         })
 
         if (tokenResponse?.token) {
-          return new Response(JSON.stringify({
+          const responseBody: Record<string, unknown> = {
             accessToken: tokenResponse.token,
             refreshToken: data.session.token,
             expiresIn: JWT_EXPIRATION_SECONDS,
-          }), {
+          }
+
+          // Flag admins without 2FA enabled
+          if (actor === 'admin' && data.user?.twoFactorEnabled !== true) {
+            responseBody.requiresTwoFactorSetup = true
+          }
+
+          return new Response(JSON.stringify(responseBody), {
             status: 200,
             headers: { 'content-type': 'application/json' },
           })

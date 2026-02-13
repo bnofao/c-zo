@@ -94,6 +94,7 @@ export async function validateGraphQLAuth(
       id: string
       email: string
       name: string
+      twoFactorEnabled?: boolean
     }
   }
 
@@ -112,6 +113,7 @@ export async function validateGraphQLAuth(
       id: user.id,
       email: user.email,
       name: user.name,
+      twoFactorEnabled: user.twoFactorEnabled ?? false,
     },
     actorType: session.actorType ?? 'customer',
     organization: session.organizationId ?? null,
