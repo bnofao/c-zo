@@ -141,8 +141,17 @@ describe('auth config', () => {
 
       expect(config.user).toEqual({ modelName: 'users' })
       expect(config.session.modelName).toBe('sessions')
-      expect(config.account).toEqual({ modelName: 'accounts' })
+      expect(config.account.modelName).toBe('accounts')
       expect(config.verification).toEqual({ modelName: 'verifications' })
+    })
+
+    it('should enable account linking with trusted providers', () => {
+      const config = createAuthConfig(mockDb, options) as Record<string, any>
+
+      expect(config.account.accountLinking).toEqual({
+        enabled: true,
+        trustedProviders: ['google', 'github'],
+      })
     })
 
     it('should include the JWT plugin', () => {
@@ -610,6 +619,71 @@ describe('auth config', () => {
           hooks.session.create.after({ id: 's1', userId: 'u1' }),
         ).resolves.toBeUndefined()
       })
+    })
+  })
+
+  describe('socialProviders', () => {
+    it('should not include socialProviders when oauth is not configured', () => {
+      const config = createAuthConfig(mockDb, options) as Record<string, any>
+
+      expect(config.socialProviders).toEqual({})
+    })
+
+    it('should configure google when oauth.google is provided', () => {
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        oauth: {
+          google: { clientId: 'g-id', clientSecret: 'g-secret' },
+        },
+      }) as Record<string, any>
+
+      expect(config.socialProviders.google).toEqual({
+        clientId: 'g-id',
+        clientSecret: 'g-secret',
+        redirectURI: 'http://localhost:4000/api/auth/callback/google',
+      })
+    })
+
+    it('should configure github when oauth.github is provided', () => {
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        oauth: {
+          github: { clientId: 'gh-id', clientSecret: 'gh-secret' },
+        },
+      }) as Record<string, any>
+
+      expect(config.socialProviders.github).toEqual({
+        clientId: 'gh-id',
+        clientSecret: 'gh-secret',
+        redirectURI: 'http://localhost:4000/api/auth/callback/github',
+      })
+    })
+
+    it('should configure both providers when both are provided', () => {
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        oauth: {
+          google: { clientId: 'g-id', clientSecret: 'g-secret' },
+          github: { clientId: 'gh-id', clientSecret: 'gh-secret' },
+        },
+      }) as Record<string, any>
+
+      expect(config.socialProviders.google).toBeDefined()
+      expect(config.socialProviders.github).toBeDefined()
+    })
+
+    it('should use baseUrl in redirectURI', () => {
+      const config = createAuthConfig(mockDb, {
+        ...options,
+        baseUrl: 'https://api.czo.dev',
+        oauth: {
+          google: { clientId: 'g-id', clientSecret: 'g-secret' },
+        },
+      }) as Record<string, any>
+
+      expect(config.socialProviders.google.redirectURI).toBe(
+        'https://api.czo.dev/api/auth/callback/google',
+      )
     })
   })
 

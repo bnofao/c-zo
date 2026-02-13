@@ -501,6 +501,146 @@ describe('auth plugin', () => {
     })
   })
 
+  describe('authSecret injection', () => {
+    it('should inject authSecret into request context', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+      const nitroApp = {
+        hooks: {
+          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+            hookCallbacks.set(name, cb)
+          }),
+        },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const event = { context: {} as Record<string, unknown> }
+      hookCallbacks.get('request')!(event)
+
+      expect(event.context.authSecret).toBe('test-secret-key-32-chars-minimum!')
+    })
+  })
+
+  describe('oauth config wiring', () => {
+    it('should pass google oauth config to createAuth when env vars are set', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        googleClientId: 'google-client-id',
+        googleClientSecret: 'google-client-secret',
+      } as any)
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+        oauth: {
+          google: {
+            clientId: 'google-client-id',
+            clientSecret: 'google-client-secret',
+          },
+        },
+      }))
+      expect(mockLogger.info).toHaveBeenCalledWith('Google OAuth configured')
+    })
+
+    it('should pass github oauth config to createAuth when env vars are set', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        githubClientId: 'github-client-id',
+        githubClientSecret: 'github-client-secret',
+      } as any)
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+        oauth: {
+          github: {
+            clientId: 'github-client-id',
+            clientSecret: 'github-client-secret',
+          },
+        },
+      }))
+      expect(mockLogger.info).toHaveBeenCalledWith('GitHub OAuth configured')
+    })
+
+    it('should pass both providers when both are configured', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        googleClientId: 'g-id',
+        googleClientSecret: 'g-secret',
+        githubClientId: 'gh-id',
+        githubClientSecret: 'gh-secret',
+      } as any)
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+        oauth: {
+          google: { clientId: 'g-id', clientSecret: 'g-secret' },
+          github: { clientId: 'gh-id', clientSecret: 'gh-secret' },
+        },
+      }))
+    })
+
+    it('should not pass oauth when no provider env vars are set', async () => {
+      mockKitModules()
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const createAuthCall = mockCreateAuth.mock.calls[0]!
+      expect(createAuthCall[1].oauth).toBeUndefined()
+    })
+
+    it('should not configure google when only clientId is set (no secret)', async () => {
+      mockKitModules({
+        secret: 'test-secret-key-32-chars-minimum!',
+        baseUrl: 'http://localhost:4000',
+        googleClientId: 'google-client-id',
+      } as any)
+      mockRedisAvailable()
+      const { default: plugin } = await import('./index')
+
+      const nitroApp = {
+        hooks: { hook: vi.fn() },
+      }
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+
+      const createAuthCall = mockCreateAuth.mock.calls[0]!
+      expect(createAuthCall[1].oauth).toBeUndefined()
+    })
+  })
+
   describe('jwks seeding', () => {
     it('should seed JWKS table when env keys provided and table is empty', async () => {
       mockKitModules({
