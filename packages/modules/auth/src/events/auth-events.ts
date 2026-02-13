@@ -1,5 +1,7 @@
 import type { EventBus } from '@czo/kit/event-bus'
 import type {
+  Auth2FADisabledPayload,
+  Auth2FAEnabledPayload,
   AuthOrgCreatedPayload,
   AuthOrgMemberAddedPayload,
   AuthOrgMemberRemovedPayload,
@@ -76,5 +78,13 @@ export class AuthEventsService {
 
   async orgRoleChanged(payload: AuthOrgRoleChangedPayload): Promise<void> {
     await this.safePublish(AUTH_EVENTS.ORG_ROLE_CHANGED, payload)
+  }
+
+  async twoFactorEnabled(payload: Auth2FAEnabledPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.TWO_FA_ENABLED, payload)
+  }
+
+  async twoFactorDisabled(payload: Auth2FADisabledPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.TWO_FA_DISABLED, payload)
   }
 }

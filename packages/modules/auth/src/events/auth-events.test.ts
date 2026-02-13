@@ -163,6 +163,36 @@ describe('authEventsService', () => {
     })
   })
 
+  describe('twoFactorEnabled', () => {
+    it('should publish auth.2fa.enabled event with correct payload', async () => {
+      const payload = { userId: 'u1', actorType: 'customer' }
+
+      await service.twoFactorEnabled(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.TWO_FA_ENABLED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('twoFactorDisabled', () => {
+    it('should publish auth.2fa.disabled event with correct payload', async () => {
+      const payload = { userId: 'u1', actorType: 'admin' }
+
+      await service.twoFactorDisabled(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.TWO_FA_DISABLED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
   describe('safePublish (fire-and-forget)', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))

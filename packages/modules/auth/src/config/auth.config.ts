@@ -5,7 +5,7 @@ import type { SecondaryStorage } from '../services/secondary-storage'
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { jwt, organization } from 'better-auth/plugins'
+import { jwt, organization, twoFactor } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { ac, viewerRole } from '../services/organization-roles'
 import { validatePasswordStrength } from '../services/password'
@@ -49,6 +49,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
         organization: schema.organizations,
         member: schema.members,
         invitation: schema.invitations,
+        twoFactor: schema.twoFactor,
       },
     }),
     user: {
@@ -97,6 +98,22 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
           after: async (user: { id: string, [key: string]: unknown }) => {
             const { id: userId, ...changes } = user
             void options.events?.userUpdated({ userId, changes })
+
+            if ('twoFactorEnabled' in changes) {
+              const ctx = getSessionContext()
+              if (changes.twoFactorEnabled === true) {
+                void options.events?.twoFactorEnabled({
+                  userId,
+                  actorType: ctx?.actorType ?? 'customer',
+                })
+              }
+              else if (changes.twoFactorEnabled === false) {
+                void options.events?.twoFactorDisabled({
+                  userId,
+                  actorType: ctx?.actorType ?? 'customer',
+                })
+              }
+            }
           },
         },
       },
@@ -216,8 +233,12 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
             org: session?.activeOrganizationId ?? session?.organizationId ?? null,
             roles: [],
             method: session?.authMethod ?? 'email',
+            tfa: (user as Record<string, unknown>).twoFactorEnabled === true,
           }),
         },
+      }),
+      twoFactor({
+        issuer: 'c-zo',
       }),
       organization({
         ac,

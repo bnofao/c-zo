@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockBetterAuth = vi.hoisted(() =>
   vi.fn(() => ({
@@ -22,6 +22,10 @@ const mockOrganization = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'organization', options: opts })),
 )
 
+const mockTwoFactor = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'twoFactor', options: opts })),
+)
+
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
@@ -41,6 +45,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 vi.mock('better-auth/plugins', () => ({
   jwt: mockJwt,
   organization: mockOrganization,
+  twoFactor: mockTwoFactor,
 }))
 
 vi.mock('better-auth/plugins/access', () => ({
@@ -141,6 +146,7 @@ describe('auth config', () => {
             session: expect.anything(),
             account: expect.anything(),
             verification: expect.anything(),
+            twoFactor: expect.anything(),
           }),
         }),
       )
@@ -164,12 +170,13 @@ describe('auth config', () => {
       })
     })
 
-    it('should include the JWT plugin', () => {
+    it('should include the JWT and twoFactor plugins', () => {
       const config = createAuthConfig(mockDb, options)
 
       expect(config.plugins).toBeDefined()
-      expect(config.plugins!.length).toBeGreaterThan(0)
+      expect(config.plugins!.length).toBeGreaterThanOrEqual(3)
       expect(mockJwt).toHaveBeenCalled()
+      expect(mockTwoFactor).toHaveBeenCalledWith({ issuer: 'c-zo' })
     })
 
     it('should configure JWT with ES256 algorithm', () => {
@@ -219,7 +226,34 @@ describe('auth config', () => {
         org: null,
         roles: [],
         method: 'email',
+        tfa: false,
       })
+    })
+
+    it('should set tfa claim to true when user has twoFactorEnabled', () => {
+      createAuthConfig(mockDb, options)
+
+      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
+      const { definePayload } = jwtCall.jwt
+
+      const payload = definePayload({
+        user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: true },
+        session: null,
+      })
+      expect(payload.tfa).toBe(true)
+    })
+
+    it('should set tfa claim to false when user has twoFactorEnabled false', () => {
+      createAuthConfig(mockDb, options)
+
+      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
+      const { definePayload } = jwtCall.jwt
+
+      const payload = definePayload({
+        user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: false },
+        session: null,
+      })
+      expect(payload.tfa).toBe(false)
     })
 
     it('should use session actorType/authMethod/organizationId in JWT claims', () => {
@@ -539,9 +573,15 @@ describe('auth config', () => {
         userUpdated: vi.fn(),
         sessionCreated: vi.fn(),
         sessionRevoked: vi.fn(),
+        twoFactorEnabled: vi.fn(),
+        twoFactorDisabled: vi.fn(),
       }
 
       const optionsWithEvents = { ...options, events: mockEvents as any }
+
+      beforeEach(() => {
+        Object.values(mockEvents).forEach(fn => fn.mockClear())
+      })
 
       it('should emit userRegistered on user.create.after', async () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
@@ -584,6 +624,61 @@ describe('auth config', () => {
           userId: 'u1',
           changes: { name: 'New Name', email: 'new@czo.dev' },
         })
+      })
+
+      it('should emit twoFactorEnabled when twoFactorEnabled changes to true', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true })
+
+        expect(mockEvents.twoFactorEnabled).toHaveBeenCalledWith({
+          userId: 'u1',
+          actorType: 'customer',
+        })
+        expect(mockEvents.twoFactorDisabled).not.toHaveBeenCalled()
+      })
+
+      it('should emit twoFactorDisabled when twoFactorEnabled changes to false', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: false })
+
+        expect(mockEvents.twoFactorDisabled).toHaveBeenCalledWith({
+          userId: 'u1',
+          actorType: 'customer',
+        })
+        expect(mockEvents.twoFactorEnabled).not.toHaveBeenCalled()
+      })
+
+      it('should use actorType from session context for 2FA events', async () => {
+        mockGetSessionContext.mockReturnValue({
+          actorType: 'admin',
+          authMethod: 'email',
+        })
+
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true })
+
+        expect(mockEvents.twoFactorEnabled).toHaveBeenCalledWith({
+          userId: 'u1',
+          actorType: 'admin',
+        })
+
+        mockGetSessionContext.mockReturnValue(undefined)
+      })
+
+      it('should not emit 2FA events when twoFactorEnabled is not in changes', async () => {
+        const config = createAuthConfig(mockDb, optionsWithEvents)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        await hooks.user.update.after({ id: 'u1', name: 'Updated' })
+
+        expect(mockEvents.twoFactorEnabled).not.toHaveBeenCalled()
+        expect(mockEvents.twoFactorDisabled).not.toHaveBeenCalled()
       })
 
       it('should emit sessionCreated on session.create.after', async () => {

@@ -33,6 +33,7 @@ const validSessionResponse = {
     id: 'user-1',
     email: 'test@example.com',
     name: 'Test User',
+    twoFactorEnabled: false,
   },
 }
 
@@ -102,6 +103,32 @@ describe('validateGraphQLAuth', () => {
 
       expect(result.organization).toBe('org-42')
       expect(result.session.organizationId).toBe('org-42')
+    })
+
+    it('should include twoFactorEnabled in user context', async () => {
+      const sessionWith2FA = {
+        ...validSessionResponse,
+        user: { ...validSessionResponse.user, twoFactorEnabled: true },
+      }
+      const auth = makeMockAuth(sessionWith2FA)
+      const request = makeRequest({ authorization: 'Bearer token' })
+
+      const result = await validateGraphQLAuth({ auth, request })
+
+      expect(result.user.twoFactorEnabled).toBe(true)
+    })
+
+    it('should default twoFactorEnabled to false when missing', async () => {
+      const sessionNoTFA = {
+        ...validSessionResponse,
+        user: { id: 'user-1', email: 'test@example.com', name: 'Test User' },
+      }
+      const auth = makeMockAuth(sessionNoTFA)
+      const request = makeRequest({ authorization: 'Bearer token' })
+
+      const result = await validateGraphQLAuth({ auth, request })
+
+      expect(result.user.twoFactorEnabled).toBe(false)
     })
 
     it('should default actorType to customer when missing', async () => {
