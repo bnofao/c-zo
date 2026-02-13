@@ -46,6 +46,26 @@ export default definePlugin(async (nitroApp) => {
     events: authEvents,
   }
 
+  const oauthConfig = authConfig as Record<string, string>
+  const oauth: AuthConfigOptions['oauth'] = {}
+  if (oauthConfig.googleClientId && oauthConfig.googleClientSecret) {
+    oauth.google = {
+      clientId: oauthConfig.googleClientId,
+      clientSecret: oauthConfig.googleClientSecret,
+    }
+    logger.info('Google OAuth configured')
+  }
+  if (oauthConfig.githubClientId && oauthConfig.githubClientSecret) {
+    oauth.github = {
+      clientId: oauthConfig.githubClientId,
+      clientSecret: oauthConfig.githubClientSecret,
+    }
+    logger.info('GitHub OAuth configured')
+  }
+  if (Object.keys(oauth).length > 0) {
+    authOptions.oauth = oauth
+  }
+
   let blocklist: ReturnType<typeof createJwtBlocklist> | undefined
   let rotation: ReturnType<typeof createTokenRotationService> | undefined
 
@@ -94,6 +114,7 @@ export default definePlugin(async (nitroApp) => {
     event.context.auth = auth
     event.context.db = db
     event.context.authEvents = authEvents
+    event.context.authSecret = authConfig.secret
     if (blocklist)
       event.context.blocklist = blocklist
     if (rotation)

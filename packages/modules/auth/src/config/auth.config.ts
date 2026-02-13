@@ -17,6 +17,10 @@ export interface AuthConfigOptions {
   emailService?: EmailService
   events?: AuthEventsService
   redis?: { storage: SecondaryStorage }
+  oauth?: {
+    google?: { clientId: string, clientSecret: string }
+    github?: { clientId: string, clientSecret: string }
+  }
 }
 
 export const JWT_EXPIRATION_SECONDS = 900
@@ -48,6 +52,30 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     },
     account: {
       modelName: 'accounts',
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['google', 'github'],
+      },
+    },
+    socialProviders: {
+      ...(options.oauth?.google
+        ? {
+            google: {
+              clientId: options.oauth.google.clientId,
+              clientSecret: options.oauth.google.clientSecret,
+              redirectURI: `${options.baseUrl}/api/auth/callback/google`,
+            },
+          }
+        : {}),
+      ...(options.oauth?.github
+        ? {
+            github: {
+              clientId: options.oauth.github.clientId,
+              clientSecret: options.oauth.github.clientSecret,
+              redirectURI: `${options.baseUrl}/api/auth/callback/github`,
+            },
+          }
+        : {}),
     },
     databaseHooks: {
       user: {

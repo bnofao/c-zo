@@ -12,6 +12,10 @@ export default defineNitroModule({
         baseUrl: '',
         jwtPrivateKey: '',
         jwtPublicKey: '',
+        googleClientId: '',
+        googleClientSecret: '',
+        githubClientId: '',
+        githubClientSecret: '',
         ...existing.auth,
       },
     }

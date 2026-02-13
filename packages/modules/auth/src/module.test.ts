@@ -76,6 +76,10 @@ describe('auth module', () => {
       baseUrl: '',
       jwtPrivateKey: '',
       jwtPublicKey: '',
+      googleClientId: '',
+      googleClientSecret: '',
+      githubClientId: '',
+      githubClientSecret: '',
     })
   })
 
