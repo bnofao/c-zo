@@ -5,7 +5,25 @@ import type { Actor } from './[...all]'
 import { Buffer } from 'node:buffer'
 import { defineHandler, getRouterParam, HTTPError } from 'nitro/h3'
 import { JWT_EXPIRATION_SECONDS } from '../../../config/auth.config'
+import { defineRouteMeta } from '../_openapi'
 import { VALID_ACTORS } from './[...all]'
+
+defineRouteMeta({
+  openAPI: {
+    tags: ['Auth'],
+    summary: 'Sign out',
+    description: 'Revokes the current session for the given actor.',
+    parameters: [
+      { name: 'actor', in: 'path', required: true, schema: { type: 'string', enum: ['customer', 'admin'] } },
+    ],
+    security: [{ BearerAuth: [] }],
+    responses: {
+      200: { description: 'Session revoked' },
+      400: { description: 'Invalid actor' },
+      500: { description: 'Auth not initialized' },
+    },
+  },
+})
 
 export default defineHandler(async (event) => {
   const auth = (event.context as Record<string, unknown>).auth as Auth | undefined

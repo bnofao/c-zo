@@ -26,6 +26,10 @@ const mockTwoFactor = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'twoFactor', options: opts })),
 )
 
+const mockOpenAPI = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'open-api', options: opts })),
+)
+
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
 const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
@@ -44,6 +48,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 
 vi.mock('better-auth/plugins', () => ({
   jwt: mockJwt,
+  openAPI: mockOpenAPI,
   organization: mockOrganization,
   twoFactor: mockTwoFactor,
 }))

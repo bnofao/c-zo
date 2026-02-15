@@ -5,7 +5,7 @@ import type { SecondaryStorage } from '../services/secondary-storage'
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { jwt, organization, twoFactor } from 'better-auth/plugins'
+import { jwt, openAPI, organization, twoFactor } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { ac, viewerRole } from '../services/organization-roles'
 import { validatePasswordStrength } from '../services/password'
@@ -240,6 +240,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       twoFactor({
         issuer: 'c-zo',
       }),
+      openAPI({ disableDefaultReference: true }),
       organization({
         ac,
         roles: { viewer: viewerRole },

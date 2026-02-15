@@ -4,7 +4,38 @@ import { defineHandler, getRouterParam, HTTPError, readBody, setCookie } from 'n
 import { isProviderAllowedForActor, SUPPORTED_PROVIDERS } from '../../../../services/oauth-providers'
 import { COOKIE_MAX_AGE, OAUTH_ACTOR_COOKIE, signActorValue } from '../../../../services/oauth-state'
 import { runWithSessionContext } from '../../../../services/session-context'
+import { defineRouteMeta } from '../../_openapi'
 import { VALID_ACTORS } from '../[...all]'
+
+defineRouteMeta({
+  openAPI: {
+    tags: ['Auth', 'OAuth'],
+    summary: 'Initiate social sign-in',
+    description: 'Redirects to OAuth provider for the given actor type.',
+    parameters: [
+      { name: 'actor', in: 'path', required: true, schema: { type: 'string', enum: ['customer', 'admin'] } },
+    ],
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['provider', 'callbackURL'],
+            properties: {
+              provider: { type: 'string', enum: ['google', 'github'] },
+              callbackURL: { type: 'string', format: 'uri' },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'Redirect URL returned' },
+      400: { description: 'Invalid actor or provider' },
+    },
+  },
+})
 
 export default defineHandler(async (event) => {
   const auth = (event.context as Record<string, unknown>).auth as Auth | undefined

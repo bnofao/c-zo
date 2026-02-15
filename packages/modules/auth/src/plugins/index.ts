@@ -1,9 +1,9 @@
 import type { AuthConfigOptions } from '../config/auth.config'
 import { randomUUID } from 'node:crypto'
 import { useContainer, useLogger } from '@czo/kit'
-import { useCzoConfig } from '@czo/kit/config'
 import { useDatabase } from '@czo/kit/db'
 import { definePlugin } from 'nitro'
+import { useRuntimeConfig } from 'nitro/runtime-config'
 import { createAuth } from '../config/auth.config'
 import { jwks as jwksTable } from '../database/schema'
 import { AuthEventsService } from '../events/auth-events'
@@ -18,7 +18,7 @@ import '../graphql/resolvers'
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')
   const container = useContainer()
-  const config = useCzoConfig()
+  const config = useRuntimeConfig()
   const db = useDatabase()
 
   const authConfig = (config as unknown as Record<string, unknown>).auth as
@@ -114,6 +114,7 @@ export default definePlugin(async (nitroApp) => {
 
   nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
     event.context.auth = auth
+    event.context.generateOpenAPISchema = () => auth.api.generateOpenAPISchema()
     event.context.db = db
     event.context.authEvents = authEvents
     event.context.authSecret = authConfig.secret

@@ -3,6 +3,22 @@ import { defineHandler, deleteCookie, getCookie, getRouterParam, HTTPError } fro
 import { isProviderAllowedForActor, SUPPORTED_PROVIDERS } from '../../../services/oauth-providers'
 import { OAUTH_ACTOR_COOKIE, verifyActorValue } from '../../../services/oauth-state'
 import { runWithSessionContext } from '../../../services/session-context'
+import { defineRouteMeta } from '../_openapi'
+
+defineRouteMeta({
+  openAPI: {
+    tags: ['Auth', 'OAuth'],
+    summary: 'OAuth callback',
+    description: 'Handles OAuth provider callback and exchanges code for session.',
+    parameters: [
+      { name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['google', 'github'] } },
+    ],
+    responses: {
+      302: { description: 'Redirect to client callback URL with tokens' },
+      400: { description: 'Missing state/code or invalid provider' },
+    },
+  },
+})
 
 export default defineHandler(async (event) => {
   const auth = (event.context as Record<string, unknown>).auth as Auth | undefined

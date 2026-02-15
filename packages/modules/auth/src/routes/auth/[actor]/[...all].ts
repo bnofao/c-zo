@@ -2,6 +2,26 @@ import type { Auth } from '../../../config/auth.config'
 import { defineHandler, getRouterParam, HTTPError } from 'nitro/h3'
 import { JWT_EXPIRATION_SECONDS } from '../../../config/auth.config'
 import { runWithSessionContext } from '../../../services/session-context'
+import { defineRouteMeta } from '../_openapi'
+
+defineRouteMeta({
+  openAPI: {
+    tags: ['Auth'],
+    summary: 'Auth catch-all (sign-in, sign-up, 2FA enable/disable)',
+    description: 'Proxies to better-auth. Handles sign-in/email, sign-up/email, two-factor/enable, two-factor/disable, generate-backup-codes.',
+    parameters: [
+      { name: 'actor', in: 'path', required: true, schema: { type: 'string', enum: ['customer', 'admin'] } },
+    ],
+    responses: {
+      200: {
+        description: 'Varies by endpoint',
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/DualTokenResponse' } } },
+      },
+      400: { description: 'Invalid actor' },
+      500: { description: 'Auth not initialized' },
+    },
+  },
+})
 
 export const VALID_ACTORS = ['customer', 'admin'] as const
 export type Actor = (typeof VALID_ACTORS)[number]
