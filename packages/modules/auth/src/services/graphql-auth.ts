@@ -89,12 +89,16 @@ export async function validateGraphQLAuth(
       actorType?: string
       authMethod?: string
       organizationId?: string | null
+      impersonatedBy?: string | null
     }
     user: {
       id: string
       email: string
       name: string
       twoFactorEnabled?: boolean
+      role?: string
+      banned?: boolean
+      banReason?: string | null
     }
   }
 
@@ -108,12 +112,16 @@ export async function validateGraphQLAuth(
       actorType: session.actorType ?? 'customer',
       authMethod: session.authMethod ?? 'email',
       organizationId: session.organizationId ?? null,
+      impersonatedBy: session.impersonatedBy ?? null,
     },
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
       twoFactorEnabled: user.twoFactorEnabled ?? false,
+      role: user.role ?? 'user',
+      banned: user.banned ?? false,
+      banReason: user.banReason ?? null,
     },
     actorType: session.actorType ?? 'customer',
     organization: session.organizationId ?? null,

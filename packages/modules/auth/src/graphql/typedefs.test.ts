@@ -10,13 +10,15 @@ describe('auth typedefs', () => {
   it('should register type definitions as strings with the kit registry', async () => {
     await import('./typedefs')
 
-    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(3)
+    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(4)
     const orgSdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
     const apiKeySdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
     const authConfigSdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
+    const adminSdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
     expect(typeof orgSdl).toBe('string')
     expect(typeof apiKeySdl).toBe('string')
     expect(typeof authConfigSdl).toBe('string')
+    expect(typeof adminSdl).toBe('string')
   })
 
   it('should define Organization type with expected fields', () => {
@@ -101,5 +103,44 @@ describe('auth typedefs', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
     expect(sdl).toContain('extend type Query')
     expect(sdl).toContain('myAuthConfig: AuthConfig!')
+  })
+
+  it('should define AdminUser type with expected fields', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
+    expect(sdl).toContain('type AdminUser')
+    expect(sdl).toContain('id: ID!')
+    expect(sdl).toContain('name: String!')
+    expect(sdl).toContain('email: String!')
+    expect(sdl).toContain('role: String!')
+    expect(sdl).toContain('banned: Boolean!')
+    expect(sdl).toContain('banReason: String')
+    expect(sdl).toContain('banExpires: DateTime')
+    expect(sdl).toContain('createdAt: DateTime!')
+  })
+
+  it('should define AdminUserList type', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
+    expect(sdl).toContain('type AdminUserList')
+    expect(sdl).toContain('users: [AdminUser!]!')
+    expect(sdl).toContain('total: Int!')
+  })
+
+  it('should extend Query with adminUsers', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
+    expect(sdl).toContain('extend type Query')
+    expect(sdl).toContain('adminUsers')
+  })
+
+  it('should extend Mutation with admin operations', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
+    expect(sdl).toContain('extend type Mutation')
+    expect(sdl).toContain('adminImpersonateUser')
+    expect(sdl).toContain('adminStopImpersonation')
+    expect(sdl).toContain('adminBanUser')
+    expect(sdl).toContain('adminUnbanUser')
+    expect(sdl).toContain('adminSetRole')
+    expect(sdl).toContain('adminRemoveUser')
+    expect(sdl).toContain('adminRevokeSession')
+    expect(sdl).toContain('adminRevokeSessions')
   })
 })

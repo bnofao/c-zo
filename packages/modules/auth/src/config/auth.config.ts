@@ -5,7 +5,7 @@ import type { EmailService } from '../services/email.service'
 import type { SecondaryStorage } from '../services/secondary-storage'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { apiKey, openAPI, organization, twoFactor } from 'better-auth/plugins'
+import { admin, apiKey, openAPI, organization, twoFactor } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { ACTOR_TYPE_OPTIONS } from '../plugins/actor-config'
 import { actorType } from '../plugins/actor-type'
@@ -249,6 +249,28 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       },
     },
     plugins: [
+      admin({
+        defaultRole: 'user',
+        adminRoles: ['admin'],
+        impersonationSessionDuration: 3600,
+        schema: {
+          user: {
+            modelName: 'users',
+            fields: {
+              role: 'role',
+              banned: 'banned',
+              banReason: 'ban_reason',
+              banExpires: 'ban_expires',
+            },
+          },
+          session: {
+            modelName: 'sessions',
+            fields: {
+              impersonatedBy: 'impersonated_by',
+            },
+          },
+        },
+      }),
       twoFactor({
         issuer: options.appName,
         schema: {

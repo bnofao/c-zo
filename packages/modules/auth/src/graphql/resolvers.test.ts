@@ -43,16 +43,24 @@ describe('organization resolvers', () => {
     getEffectiveConfig: vi.fn(),
   }
 
+  const mockAuthEvents = {
+    impersonationStarted: vi.fn(),
+    impersonationStopped: vi.fn(),
+    userBanned: vi.fn(),
+    userUnbanned: vi.fn(),
+  }
+
   const mockContext = {
     auth: {
-      session: { id: 's1', userId: 'u1', expiresAt: new Date(), actorType: 'admin', authMethod: 'email', organizationId: null },
-      user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: false },
+      session: { id: 's1', userId: 'u1', expiresAt: new Date(), actorType: 'admin', authMethod: 'email', organizationId: null, impersonatedBy: null },
+      user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: false, role: 'admin', banned: false, banReason: null },
       actorType: 'admin',
       organization: null,
       authSource: 'bearer' as const,
     },
     authInstance: mockAuthInstance,
     authRestrictions: mockAuthRestrictions,
+    authEvents: mockAuthEvents,
     request: mockRequest,
   }
 

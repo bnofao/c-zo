@@ -85,6 +85,28 @@ export interface AuthRestrictionDeniedPayload {
   reason: string
 }
 
+export interface AuthImpersonationStartedPayload {
+  adminUserId: string
+  targetUserId: string
+}
+
+export interface AuthImpersonationStoppedPayload {
+  adminUserId: string
+  targetUserId: string
+}
+
+export interface AuthUserBannedPayload {
+  userId: string
+  bannedBy: string
+  reason: string | null
+  expiresIn: number | null
+}
+
+export interface AuthUserUnbannedPayload {
+  userId: string
+  unbannedBy: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -101,6 +123,10 @@ export const AUTH_EVENTS = {
   API_KEY_CREATED: 'auth.api-key.created',
   API_KEY_REVOKED: 'auth.api-key.revoked',
   RESTRICTION_DENIED: 'auth.restriction.denied',
+  IMPERSONATION_STARTED: 'auth.admin.impersonation.started',
+  IMPERSONATION_STOPPED: 'auth.admin.impersonation.stopped',
+  USER_BANNED: 'auth.admin.user.banned',
+  USER_UNBANNED: 'auth.admin.user.unbanned',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -122,5 +148,9 @@ declare module '@czo/kit/event-bus' {
     'auth.api-key.created': AuthApiKeyCreatedPayload
     'auth.api-key.revoked': AuthApiKeyRevokedPayload
     'auth.restriction.denied': AuthRestrictionDeniedPayload
+    'auth.admin.impersonation.started': AuthImpersonationStartedPayload
+    'auth.admin.impersonation.stopped': AuthImpersonationStoppedPayload
+    'auth.admin.user.banned': AuthUserBannedPayload
+    'auth.admin.user.unbanned': AuthUserUnbannedPayload
   }
 }

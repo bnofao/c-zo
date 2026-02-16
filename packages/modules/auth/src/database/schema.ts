@@ -7,6 +7,10 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
   twoFactorEnabled: boolean('two_factor_enabled').default(false),
+  role: text('role').notNull().default('user'),
+  banned: boolean('banned').notNull().default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -24,6 +28,7 @@ export const sessions = pgTable('sessions', {
   authMethod: text('auth_method').notNull().default('email'),
   organizationId: text('organization_id'),
   activeOrganizationId: text('active_organization_id'),
+  impersonatedBy: text('impersonated_by'),
 })
 
 export const accounts = pgTable('accounts', {

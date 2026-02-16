@@ -51,6 +51,7 @@ export default defineHandler(async (event) => {
     auth: authContext,
     authInstance: event.context.auth,
     authRestrictions: event.context.authRestrictions,
+    authEvents: event.context.authEvents,
     request: event.req,
   })
 })
