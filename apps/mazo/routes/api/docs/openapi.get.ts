@@ -11,9 +11,9 @@ interface OpenAPISpec {
 let cachedSpec: OpenAPISpec | null = null
 
 export default defineHandler(async (event) => {
-  if (cachedSpec) {
-    return cachedSpec
-  }
+  // if (cachedSpec) {
+  //   return cachedSpec
+  // }
 
   const origin = getRequestURL(event).origin
   const [nitroRes, betterAuthSpec] = await Promise.all([
@@ -21,6 +21,10 @@ export default defineHandler(async (event) => {
     (event.context.generateOpenAPISchema as (() => Promise<OpenAPISpec>) | undefined)?.()
       ?? Promise.resolve({} as OpenAPISpec),
   ])
+
+  console.log(betterAuthSpec)
+
+  return betterAuthSpec
 
   const nitroSpec = (await nitroRes.json()) as OpenAPISpec
 

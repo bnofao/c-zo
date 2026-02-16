@@ -138,22 +138,6 @@ describe('auth database schema', () => {
     })
   })
 
-  describe('jwks table', () => {
-    it('should be named "jwks"', () => {
-      expect(getTableName(schema.jwks)).toBe('jwks')
-    })
-
-    it('should have required columns', () => {
-      const config = getTableConfig(schema.jwks)
-      const columnNames = config.columns.map(c => c.name)
-
-      expect(columnNames).toContain('id')
-      expect(columnNames).toContain('public_key')
-      expect(columnNames).toContain('private_key')
-      expect(columnNames).toContain('created_at')
-    })
-  })
-
   describe('organizations table', () => {
     it('should be named "organizations"', () => {
       expect(getTableName(schema.organizations)).toBe('organizations')
@@ -215,7 +199,6 @@ describe('auth database schema', () => {
     expect(schema.sessions).toBeDefined()
     expect(schema.accounts).toBeDefined()
     expect(schema.verifications).toBeDefined()
-    expect(schema.jwks).toBeDefined()
     expect(schema.twoFactor).toBeDefined()
   })
 })

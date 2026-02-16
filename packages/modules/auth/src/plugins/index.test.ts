@@ -4,7 +4,7 @@ const mockAuth = {
   handler: vi.fn(),
   api: {
     getSession: vi.fn(),
-    getToken: vi.fn(),
+    generateOpenAPISchema: vi.fn(),
   },
 }
 
@@ -21,32 +21,16 @@ const mockLogger = vi.hoisted(() => ({
   debug: vi.fn(),
 }))
 
-const mockDbInsert = vi.hoisted(() => vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }))
-const mockDbSelect = vi.hoisted(() => vi.fn().mockReturnValue({
-  from: vi.fn().mockReturnValue({
-    limit: vi.fn().mockResolvedValue([]),
-  }),
-}))
 const mockDb = vi.hoisted(() => ({
   query: vi.fn(),
-  select: mockDbSelect,
-  insert: mockDbInsert,
 }))
 
-const mockBlocklist = vi.hoisted(() => ({ add: vi.fn(), isBlocked: vi.fn() }))
-const mockRotation = vi.hoisted(() => ({
-  recordRotation: vi.fn(),
-  wasAlreadyRotated: vi.fn(),
-  generateToken: vi.fn(),
-  hashToken: vi.fn(),
-}))
 const mockRedisStorage = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   delete: vi.fn(),
 }))
 const mockCreateRedisStorage = vi.hoisted(() => vi.fn(() => mockRedisStorage))
-const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-jwks'))
 
 const mockAuthEventsService = vi.hoisted(() => {
   class AuthEventsService {
@@ -70,14 +54,6 @@ vi.mock('../services/secondary-storage', () => ({
   createRedisStorage: mockCreateRedisStorage,
 }))
 
-vi.mock('../database/schema', () => ({
-  jwks: { id: 'jwks_id_col' },
-}))
-
-vi.mock('node:crypto', () => ({
-  randomUUID: mockRandomUUID,
-}))
-
 vi.mock('nitro', () => ({
   definePlugin: (fn: (app: unknown) => Promise<void>) => fn,
 }))
@@ -89,25 +65,24 @@ describe('auth plugin', () => {
     mockCreateAuth.mockReturnValue(mockAuth)
   })
 
-  function mockKitModules(authConfig?: { secret: string, baseUrl: string }) {
+  function mockKitModules(authConfig?: Record<string, string>) {
     vi.doMock('@czo/kit', () => ({
       useContainer: () => mockContainer,
       useLogger: () => mockLogger,
     }))
 
-    vi.doMock('@czo/kit/config', () => ({
-      useCzoConfig: () => ({
-        databaseUrl: 'postgresql://test:test@localhost/test',
-        redisUrl: 'redis://localhost:6379',
-        auth: authConfig ?? {
-          secret: 'test-secret-key-32-chars-minimum!',
-          baseUrl: 'http://localhost:4000',
-        },
-      }),
-    }))
-
     vi.doMock('@czo/kit/db', () => ({
       useDatabase: () => mockDb,
+    }))
+
+    const runtimeAuth = {
+      secret: 'test-secret-key-32-chars-minimum!',
+      baseUrl: 'http://localhost:4000',
+      ...authConfig,
+    }
+
+    vi.doMock('nitro/runtime-config', () => ({
+      useRuntimeConfig: () => ({ auth: runtimeAuth }),
     }))
   }
 
@@ -115,23 +90,11 @@ describe('auth plugin', () => {
     vi.doMock('../services/redis', () => ({
       useAuthRedis: () => ({ disconnect: vi.fn() }),
     }))
-    vi.doMock('../services/jwt-blocklist', () => ({
-      createJwtBlocklist: () => mockBlocklist,
-    }))
-    vi.doMock('../services/token-rotation', () => ({
-      createTokenRotationService: () => mockRotation,
-    }))
   }
 
   function mockRedisUnavailable() {
     vi.doMock('../services/redis', () => ({
       useAuthRedis: () => { throw new Error('Redis unavailable') },
-    }))
-    vi.doMock('../services/jwt-blocklist', () => ({
-      createJwtBlocklist: vi.fn(),
-    }))
-    vi.doMock('../services/token-rotation', () => ({
-      createTokenRotationService: vi.fn(),
     }))
   }
 
@@ -291,34 +254,6 @@ describe('auth plugin', () => {
     expect(createAuthCall[1].emailService).toBeDefined()
   })
 
-  it('should bind blocklist when Redis is available', async () => {
-    mockKitModules()
-    mockRedisAvailable()
-    const { default: plugin } = await import('./index')
-
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
-
-    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-    expect(mockContainer.bind).toHaveBeenCalledWith('auth:blocklist', expect.any(Function))
-  })
-
-  it('should bind rotation service when Redis is available', async () => {
-    mockKitModules()
-    mockRedisAvailable()
-    const { default: plugin } = await import('./index')
-
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
-
-    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-    expect(mockContainer.bind).toHaveBeenCalledWith('auth:rotation', expect.any(Function))
-  })
-
   it('should continue without Redis when unavailable', async () => {
     mockKitModules()
     mockRedisUnavailable()
@@ -410,50 +345,6 @@ describe('auth plugin', () => {
       expect(event.context.db).toBe(mockDb)
     })
 
-    it('should inject blocklist into request context when Redis is available', async () => {
-      mockKitModules()
-      mockRedisAvailable()
-      const { default: plugin } = await import('./index')
-
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
-
-      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-      const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
-
-      expect(event.context.blocklist).toBe(mockBlocklist)
-    })
-
-    it('should inject rotation into request context when Redis is available', async () => {
-      mockKitModules()
-      mockRedisAvailable()
-      const { default: plugin } = await import('./index')
-
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
-
-      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-      const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
-
-      expect(event.context.rotation).toBe(mockRotation)
-    })
-
     it('should inject authEvents into request context', async () => {
       mockKitModules()
       mockRedisAvailable()
@@ -476,9 +367,9 @@ describe('auth plugin', () => {
       expect(event.context.authEvents).toBeInstanceOf(mockAuthEventsService)
     })
 
-    it('should not inject blocklist or rotation when Redis is unavailable', async () => {
+    it('should not inject blocklist or rotation into request context', async () => {
       mockKitModules()
-      mockRedisUnavailable()
+      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
@@ -497,7 +388,6 @@ describe('auth plugin', () => {
 
       expect(event.context.blocklist).toBeUndefined()
       expect(event.context.rotation).toBeUndefined()
-      expect(event.context.db).toBe(mockDb)
     })
   })
 
@@ -532,7 +422,7 @@ describe('auth plugin', () => {
         baseUrl: 'http://localhost:4000',
         googleClientId: 'google-client-id',
         googleClientSecret: 'google-client-secret',
-      } as any)
+      })
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
@@ -559,7 +449,7 @@ describe('auth plugin', () => {
         baseUrl: 'http://localhost:4000',
         githubClientId: 'github-client-id',
         githubClientSecret: 'github-client-secret',
-      } as any)
+      })
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
@@ -588,7 +478,7 @@ describe('auth plugin', () => {
         googleClientSecret: 'g-secret',
         githubClientId: 'gh-id',
         githubClientSecret: 'gh-secret',
-      } as any)
+      })
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
@@ -626,7 +516,7 @@ describe('auth plugin', () => {
         secret: 'test-secret-key-32-chars-minimum!',
         baseUrl: 'http://localhost:4000',
         googleClientId: 'google-client-id',
-      } as any)
+      })
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
@@ -638,73 +528,6 @@ describe('auth plugin', () => {
 
       const createAuthCall = mockCreateAuth.mock.calls[0]!
       expect(createAuthCall[1].oauth).toBeUndefined()
-    })
-  })
-
-  describe('jwks seeding', () => {
-    it('should seed JWKS table when env keys provided and table is empty', async () => {
-      mockKitModules({
-        secret: 'test-secret-key-32-chars-minimum!',
-        baseUrl: 'http://localhost:4000',
-        jwtPrivateKey: 'private-key-pem',
-        jwtPublicKey: 'public-key-pem',
-      } as any)
-      mockRedisAvailable()
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-        }),
-      })
-      const { default: plugin } = await import('./index')
-
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
-
-      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-      expect(mockDbInsert).toHaveBeenCalled()
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('JWT keys seeded'),
-      )
-    })
-
-    it('should skip JWKS seeding when keys already exist in table', async () => {
-      mockKitModules({
-        secret: 'test-secret-key-32-chars-minimum!',
-        baseUrl: 'http://localhost:4000',
-        jwtPrivateKey: 'private-key-pem',
-        jwtPublicKey: 'public-key-pem',
-      } as any)
-      mockRedisAvailable()
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([{ id: 'existing' }]),
-        }),
-      })
-      const { default: plugin } = await import('./index')
-
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
-
-      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-      expect(mockDbInsert).not.toHaveBeenCalled()
-    })
-
-    it('should skip JWKS seeding when env keys are not provided', async () => {
-      mockKitModules()
-      mockRedisAvailable()
-      const { default: plugin } = await import('./index')
-
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
-
-      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-      expect(mockDbSelect).not.toHaveBeenCalled()
     })
   })
 })

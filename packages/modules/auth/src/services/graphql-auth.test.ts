@@ -13,7 +13,6 @@ function makeMockAuth(sessionResponse: unknown = null) {
   return {
     api: {
       getSession: vi.fn().mockResolvedValue(sessionResponse),
-      getToken: vi.fn(),
       revokeSessions: vi.fn(),
     },
     handler: vi.fn(),

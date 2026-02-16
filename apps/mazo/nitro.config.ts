@@ -27,7 +27,7 @@ export default defineNitroConfig({
 
   runtimeConfig: {      // ← mapped from NITRO_CZO_REDIS_URL
     auth: {
-      secret: '',        // ← mapped from NITRO_CZO_AUTH_SECRET
+      secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
       baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
     },
     czo: {

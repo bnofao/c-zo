@@ -26,12 +26,10 @@ export interface AuthSessionCreatedPayload {
 }
 
 export interface AuthSessionRevokedPayload {
-  /** Database session ID (available from admin revocation or token rotation) */
+  /** Database session ID */
   sessionId?: string
-  /** JWT token ID from the jti claim (available from user-initiated sign-out) */
-  jwtId?: string
   userId: string
-  reason: 'user_initiated' | 'admin_revoked' | 'token_rotation' | 'expired'
+  reason: 'user_initiated' | 'admin_revoked' | 'expired'
 }
 
 export interface AuthOrgCreatedPayload {

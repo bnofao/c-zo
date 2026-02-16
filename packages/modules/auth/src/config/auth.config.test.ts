@@ -5,17 +5,12 @@ const mockBetterAuth = vi.hoisted(() =>
     handler: vi.fn(),
     api: {
       getSession: vi.fn(),
-      getToken: vi.fn(),
     },
   })),
 )
 
 const mockDrizzleAdapter = vi.hoisted(() =>
   vi.fn(() => ({ type: 'drizzle' })),
-)
-
-const mockJwt = vi.hoisted(() =>
-  vi.fn((opts: unknown) => ({ id: 'jwt', options: opts })),
 )
 
 const mockOrganization = vi.hoisted(() =>
@@ -30,13 +25,12 @@ const mockOpenAPI = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'open-api', options: opts })),
 )
 
+const mockActorType = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'actor-type', options: opts })),
+)
+
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
-const mockRandomUUID = vi.hoisted(() => vi.fn(() => 'test-uuid-1234'))
-
-const mockGetSessionContext = vi.hoisted(() => vi.fn(() => undefined as
-  | { actorType: string, authMethod: string, organizationId?: string }
-  | undefined))
 
 vi.mock('better-auth', () => ({
   betterAuth: mockBetterAuth,
@@ -47,7 +41,6 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 }))
 
 vi.mock('better-auth/plugins', () => ({
-  jwt: mockJwt,
   openAPI: mockOpenAPI,
   organization: mockOrganization,
   twoFactor: mockTwoFactor,
@@ -63,29 +56,25 @@ vi.mock('better-auth/crypto', () => ({
   verifyPassword: mockVerifyPassword,
 }))
 
-vi.mock('node:crypto', () => ({
-  randomUUID: mockRandomUUID,
-  randomBytes: (size: number) => ({
-    toString: () => 'x'.repeat(size),
-  }),
-}))
-
-vi.mock('../services/token-rotation', () => ({
-  REFRESH_TOKEN_PREFIX: 'czo_rt_',
-}))
-
 vi.mock('../services/secondary-storage', () => ({}))
 
-vi.mock('../services/session-context', () => ({
-  getSessionContext: mockGetSessionContext,
+vi.mock('../plugins/actor-config', () => ({
+  ACTOR_TYPE_OPTIONS: {
+    actors: {
+      customer: { allowedOAuthProviders: ['google'] },
+      admin: { allowedOAuthProviders: ['github'] },
+    },
+  },
+}))
+
+vi.mock('../plugins/actor-type', () => ({
+  actorType: mockActorType,
 }))
 
 // eslint-disable-next-line import/first
 import {
   createAuth,
   createAuthConfig,
-  JWT_EXPIRATION_SECONDS,
-  JWT_EXPIRATION_TIME,
   SESSION_EXPIRY_SECONDS,
   SESSION_REFRESH_AGE,
 } from './auth.config'
@@ -98,14 +87,6 @@ describe('auth config', () => {
   }
 
   describe('constants', () => {
-    it('should export JWT_EXPIRATION_SECONDS as 900', () => {
-      expect(JWT_EXPIRATION_SECONDS).toBe(900)
-    })
-
-    it('should export JWT_EXPIRATION_TIME as 15m', () => {
-      expect(JWT_EXPIRATION_TIME).toBe('15m')
-    })
-
     it('should export SESSION_EXPIRY_SECONDS as 604800 (7 days)', () => {
       expect(SESSION_EXPIRY_SECONDS).toBe(604800)
     })
@@ -175,119 +156,14 @@ describe('auth config', () => {
       })
     })
 
-    it('should include the JWT and twoFactor plugins', () => {
+    it('should include the twoFactor, openAPI, and actorType plugins', () => {
       const config = createAuthConfig(mockDb, options)
 
       expect(config.plugins).toBeDefined()
       expect(config.plugins!.length).toBeGreaterThanOrEqual(3)
-      expect(mockJwt).toHaveBeenCalled()
       expect(mockTwoFactor).toHaveBeenCalledWith({ issuer: 'c-zo' })
-    })
-
-    it('should configure JWT with ES256 algorithm', () => {
-      createAuthConfig(mockDb, options)
-
-      expect(mockJwt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jwks: expect.objectContaining({
-            keyPairConfig: { alg: 'ES256' },
-          }),
-        }),
-      )
-    })
-
-    it('should set JWT issuer and audience to baseUrl', () => {
-      createAuthConfig(mockDb, options)
-
-      expect(mockJwt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jwt: expect.objectContaining({
-            issuer: options.baseUrl,
-            audience: options.baseUrl,
-            expirationTime: JWT_EXPIRATION_TIME,
-          }),
-        }),
-      )
-    })
-
-    it('should provide a definePayload function with complete claims', () => {
-      createAuthConfig(mockDb, options)
-
-      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
-      const { definePayload } = jwtCall.jwt
-
-      expect(definePayload).toBeTypeOf('function')
-
-      const payload = definePayload({
-        user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
-        session: null,
-      })
-      expect(payload).toEqual({
-        sub: 'u1',
-        email: 'test@czo.dev',
-        name: 'Test',
-        jti: 'test-uuid-1234',
-        act: 'customer',
-        org: null,
-        roles: [],
-        method: 'email',
-        tfa: false,
-      })
-    })
-
-    it('should set tfa claim to true when user has twoFactorEnabled', () => {
-      createAuthConfig(mockDb, options)
-
-      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
-      const { definePayload } = jwtCall.jwt
-
-      const payload = definePayload({
-        user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: true },
-        session: null,
-      })
-      expect(payload.tfa).toBe(true)
-    })
-
-    it('should set tfa claim to false when user has twoFactorEnabled false', () => {
-      createAuthConfig(mockDb, options)
-
-      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
-      const { definePayload } = jwtCall.jwt
-
-      const payload = definePayload({
-        user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: false },
-        session: null,
-      })
-      expect(payload.tfa).toBe(false)
-    })
-
-    it('should use session actorType/authMethod/organizationId in JWT claims', () => {
-      createAuthConfig(mockDb, options)
-
-      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
-      const { definePayload } = jwtCall.jwt
-
-      const payload = definePayload({
-        user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
-        session: { actorType: 'admin', authMethod: 'oauth', organizationId: 'org-123' },
-      })
-      expect(payload.act).toBe('admin')
-      expect(payload.org).toBe('org-123')
-      expect(payload.method).toBe('oauth')
-    })
-
-    it('should include jti as UUID in payload', () => {
-      createAuthConfig(mockDb, options)
-
-      const jwtCall = mockJwt.mock.calls[mockJwt.mock.calls.length - 1]![0] as Record<string, any>
-      const { definePayload } = jwtCall.jwt
-
-      const payload = definePayload({
-        user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
-        session: null,
-      })
-      expect(payload.jti).toBe('test-uuid-1234')
-      expect(mockRandomUUID).toHaveBeenCalled()
+      expect(mockActorType).toHaveBeenCalled()
+      expect(mockOpenAPI).toHaveBeenCalled()
     })
 
     describe('password validation', () => {
@@ -526,7 +402,7 @@ describe('auth config', () => {
   })
 
   describe('databaseHooks', () => {
-    it('should configure session create hook to prefix tokens', async () => {
+    it('should configure session create hook', async () => {
       const config = createAuthConfig(mockDb, options)
       const hooks = (config as Record<string, any>).databaseHooks
 
@@ -534,42 +410,37 @@ describe('auth config', () => {
       expect(hooks.session.create.before).toBeTypeOf('function')
     })
 
-    it('should prefix session token with czo_rt_', async () => {
-      const config = createAuthConfig(mockDb, options)
-      const hooks = (config as Record<string, any>).databaseHooks
-      const result = await hooks.session.create.before({ token: 'original-token' })
-
-      expect(result.data.token).toBe('czo_rt_original-token')
-    })
-
-    it('should inject actorType/authMethod/organizationId from session context', async () => {
-      mockGetSessionContext.mockReturnValue({
-        actorType: 'admin',
-        authMethod: 'oauth',
-        organizationId: 'org-456',
-      })
+    it('should inject actorType/authMethod from auth context', async () => {
+      const authCtx = {
+        context: { actorType: 'admin', authMethod: 'oauth' },
+        headers: new Headers(),
+      }
 
       const config = createAuthConfig(mockDb, options)
       const hooks = (config as Record<string, any>).databaseHooks
-      const result = await hooks.session.create.before({ token: 'tok' })
+      const result = await hooks.session.create.before({ token: 'tok' }, authCtx)
 
       expect(result.data.actorType).toBe('admin')
       expect(result.data.authMethod).toBe('oauth')
-      expect(result.data.organizationId).toBe('org-456')
-
-      mockGetSessionContext.mockReturnValue(undefined)
+      expect(result.data.organizationId).toBeNull()
     })
 
-    it('should default to customer/email/null when no session context', async () => {
-      mockGetSessionContext.mockReturnValue(undefined)
-
+    it('should default to customer/email/null when no auth context', async () => {
       const config = createAuthConfig(mockDb, options)
       const hooks = (config as Record<string, any>).databaseHooks
-      const result = await hooks.session.create.before({ token: 'tok' })
+      const result = await hooks.session.create.before({ token: 'tok' }, null)
 
       expect(result.data.actorType).toBe('customer')
       expect(result.data.authMethod).toBe('email')
       expect(result.data.organizationId).toBeNull()
+    })
+
+    it('should preserve the original token without modification', async () => {
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+      const result = await hooks.session.create.before({ token: 'original-token' }, null)
+
+      expect(result.data.token).toBe('original-token')
     })
 
     describe('event emission', () => {
@@ -592,7 +463,7 @@ describe('auth config', () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.create.after({ id: 'u1', email: 'test@czo.dev', name: 'Test' })
+        await hooks.user.create.after({ id: 'u1', email: 'test@czo.dev', name: 'Test' }, null)
 
         expect(mockEvents.userRegistered).toHaveBeenCalledWith({
           userId: 'u1',
@@ -601,29 +472,27 @@ describe('auth config', () => {
         })
       })
 
-      it('should use actorType from session context in userRegistered', async () => {
-        mockGetSessionContext.mockReturnValue({
-          actorType: 'admin',
-          authMethod: 'email',
-        })
+      it('should use actorType from auth context in userRegistered', async () => {
+        const authCtx = {
+          context: { actorType: 'admin' },
+          headers: new Headers(),
+        }
 
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.create.after({ id: 'u1', email: 'admin@czo.dev', name: 'Admin' })
+        await hooks.user.create.after({ id: 'u1', email: 'admin@czo.dev', name: 'Admin' }, authCtx)
 
         expect(mockEvents.userRegistered).toHaveBeenCalledWith(
           expect.objectContaining({ actorType: 'admin' }),
         )
-
-        mockGetSessionContext.mockReturnValue(undefined)
       })
 
       it('should emit userUpdated on user.update.after', async () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.update.after({ id: 'u1', name: 'New Name', email: 'new@czo.dev' })
+        await hooks.user.update.after({ id: 'u1', name: 'New Name', email: 'new@czo.dev' }, null)
 
         expect(mockEvents.userUpdated).toHaveBeenCalledWith({
           userId: 'u1',
@@ -635,7 +504,7 @@ describe('auth config', () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true })
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true }, null)
 
         expect(mockEvents.twoFactorEnabled).toHaveBeenCalledWith({
           userId: 'u1',
@@ -648,7 +517,7 @@ describe('auth config', () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: false })
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: false }, null)
 
         expect(mockEvents.twoFactorDisabled).toHaveBeenCalledWith({
           userId: 'u1',
@@ -657,30 +526,28 @@ describe('auth config', () => {
         expect(mockEvents.twoFactorEnabled).not.toHaveBeenCalled()
       })
 
-      it('should use actorType from session context for 2FA events', async () => {
-        mockGetSessionContext.mockReturnValue({
-          actorType: 'admin',
-          authMethod: 'email',
-        })
+      it('should use actorType from auth context for 2FA events', async () => {
+        const authCtx = {
+          context: { actorType: 'admin', authMethod: 'email' },
+          headers: new Headers(),
+        }
 
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true })
+        await hooks.user.update.after({ id: 'u1', twoFactorEnabled: true }, authCtx)
 
         expect(mockEvents.twoFactorEnabled).toHaveBeenCalledWith({
           userId: 'u1',
           actorType: 'admin',
         })
-
-        mockGetSessionContext.mockReturnValue(undefined)
       })
 
       it('should not emit 2FA events when twoFactorEnabled is not in changes', async () => {
         const config = createAuthConfig(mockDb, optionsWithEvents)
         const hooks = (config as Record<string, any>).databaseHooks
 
-        await hooks.user.update.after({ id: 'u1', name: 'Updated' })
+        await hooks.user.update.after({ id: 'u1', name: 'Updated' }, null)
 
         expect(mockEvents.twoFactorEnabled).not.toHaveBeenCalled()
         expect(mockEvents.twoFactorDisabled).not.toHaveBeenCalled()
@@ -724,7 +591,7 @@ describe('auth config', () => {
         const hooks = (config as Record<string, any>).databaseHooks
 
         await expect(
-          hooks.user.create.after({ id: 'u1', email: 'a@b.c', name: 'X' }),
+          hooks.user.create.after({ id: 'u1', email: 'a@b.c', name: 'X' }, null),
         ).resolves.toBeUndefined()
 
         await expect(
@@ -899,7 +766,6 @@ describe('auth config', () => {
       expect(auth.handler).toBeDefined()
       expect(auth.api).toBeDefined()
       expect(auth.api.getSession).toBeDefined()
-      expect(auth.api.getToken).toBeDefined()
     })
   })
 })

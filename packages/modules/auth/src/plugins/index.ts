@@ -1,17 +1,13 @@
 import type { AuthConfigOptions } from '../config/auth.config'
-import { randomUUID } from 'node:crypto'
 import { useContainer, useLogger } from '@czo/kit'
 import { useDatabase } from '@czo/kit/db'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 import { createAuth } from '../config/auth.config'
-import { jwks as jwksTable } from '../database/schema'
 import { AuthEventsService } from '../events/auth-events'
 import { ConsoleEmailService } from '../services/email.service'
-import { createJwtBlocklist } from '../services/jwt-blocklist'
 import { useAuthRedis } from '../services/redis'
 import { createRedisStorage } from '../services/secondary-storage'
-import { createTokenRotationService } from '../services/token-rotation'
 import '../graphql/typedefs'
 import '../graphql/resolvers'
 
@@ -68,49 +64,18 @@ export default definePlugin(async (nitroApp) => {
     authOptions.oauth = oauth
   }
 
-  let blocklist: ReturnType<typeof createJwtBlocklist> | undefined
-  let rotation: ReturnType<typeof createTokenRotationService> | undefined
-
   try {
     const redis = useAuthRedis()
-    blocklist = createJwtBlocklist(redis)
-    container.bind('auth:blocklist', () => blocklist)
-
-    rotation = createTokenRotationService(redis)
-    container.bind('auth:rotation', () => rotation)
-
     authOptions.redis = { storage: createRedisStorage(redis) }
-
-    logger.info('Auth Redis services initialized (blocklist + rotation + session cache)')
+    logger.info('Auth Redis session cache initialized')
   }
   catch (err) {
-    logger.warn('Redis unavailable — JWT blocklist and token rotation disabled.', (err as Error).message)
+    logger.warn('Redis unavailable — session cache disabled.', (err as Error).message)
   }
 
   const auth = createAuth(db, authOptions)
 
   container.bind('auth', () => auth)
-
-  // Seed JWKS table from environment variables if provided and table is empty
-  const jwtPrivateKey = (authConfig as Record<string, string>).jwtPrivateKey
-  const jwtPublicKey = (authConfig as Record<string, string>).jwtPublicKey
-  if (jwtPrivateKey && jwtPublicKey) {
-    try {
-      const existing = await (db as any).select().from(jwksTable).limit(1)
-      if (existing.length === 0) {
-        await (db as any).insert(jwksTable).values({
-          id: randomUUID(),
-          publicKey: jwtPublicKey,
-          privateKey: jwtPrivateKey,
-          createdAt: new Date(),
-        })
-        logger.info('JWT keys seeded from environment variables')
-      }
-    }
-    catch (err) {
-      logger.warn('Failed to seed JWKS table from environment variables', (err as Error).message)
-    }
-  }
 
   nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
     event.context.auth = auth
@@ -118,11 +83,7 @@ export default definePlugin(async (nitroApp) => {
     event.context.db = db
     event.context.authEvents = authEvents
     event.context.authSecret = authConfig.secret
-    if (blocklist)
-      event.context.blocklist = blocklist
-    if (rotation)
-      event.context.rotation = rotation
   })
 
-  logger.info('Auth module initialized with better-auth + JWT (ES256)')
+  logger.info('Auth module initialized with better-auth (session-based)')
 })

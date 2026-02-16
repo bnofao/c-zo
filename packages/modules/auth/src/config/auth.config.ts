@@ -2,15 +2,14 @@ import type { BetterAuthOptions } from 'better-auth'
 import type { AuthEventsService } from '../events/auth-events'
 import type { EmailService } from '../services/email.service'
 import type { SecondaryStorage } from '../services/secondary-storage'
-import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { jwt, openAPI, organization, twoFactor } from 'better-auth/plugins'
+import { openAPI, organization, twoFactor } from 'better-auth/plugins'
 import * as schema from '../database/schema'
+import { ACTOR_TYPE_OPTIONS } from '../plugins/actor-config'
+import { actorType } from '../plugins/actor-type'
 import { ac, viewerRole } from '../services/organization-roles'
 import { validatePasswordStrength } from '../services/password'
-import { getSessionContext } from '../services/session-context'
-import { REFRESH_TOKEN_PREFIX } from '../services/token-rotation'
 
 export interface AuthConfigOptions {
   secret: string
@@ -24,13 +23,24 @@ export interface AuthConfigOptions {
   }
 }
 
-export const JWT_EXPIRATION_SECONDS = 900
-export const JWT_EXPIRATION_TIME = '15m'
 export const SESSION_EXPIRY_SECONDS = 604800
 export const SESSION_REFRESH_AGE = 86400
 
 export function createAuthConfig(db: unknown, options: AuthConfigOptions): BetterAuthOptions {
   return buildAuthConfig(db, options)
+}
+
+interface AuthContext {
+  context?: Record<string, unknown>
+  headers?: Headers
+}
+
+function getActorFromContext(authCtx: AuthContext | null): string {
+  return (authCtx?.context?.actorType as string | undefined) ?? 'customer'
+}
+
+function getAuthMethodFromContext(authCtx: AuthContext | null): string {
+  return (authCtx?.context?.authMethod as string | undefined) ?? 'email'
 }
 
 function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
@@ -85,32 +95,31 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     databaseHooks: {
       user: {
         create: {
-          after: async (user: { id: string, email: string, name: string }) => {
-            const ctx = getSessionContext()
+          after: async (user: { id: string, email: string, name: string }, authCtx: AuthContext | null) => {
             void options.events?.userRegistered({
               userId: user.id,
               email: user.email,
-              actorType: ctx?.actorType ?? 'customer',
+              actorType: getActorFromContext(authCtx),
             })
           },
         },
         update: {
-          after: async (user: { id: string, [key: string]: unknown }) => {
+          after: async (user: { id: string, [key: string]: unknown }, authCtx: AuthContext | null) => {
             const { id: userId, ...changes } = user
             void options.events?.userUpdated({ userId, changes })
 
             if ('twoFactorEnabled' in changes) {
-              const ctx = getSessionContext()
+              const actorType = getActorFromContext(authCtx)
               if (changes.twoFactorEnabled === true) {
                 void options.events?.twoFactorEnabled({
                   userId,
-                  actorType: ctx?.actorType ?? 'customer',
+                  actorType,
                 })
               }
               else if (changes.twoFactorEnabled === false) {
                 void options.events?.twoFactorDisabled({
                   userId,
-                  actorType: ctx?.actorType ?? 'customer',
+                  actorType,
                 })
               }
             }
@@ -119,15 +128,13 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       },
       session: {
         create: {
-          before: async (session: { token: string }) => {
-            const ctx = getSessionContext()
+          before: async (session: { token: string }, authCtx: AuthContext | null) => {
             return {
               data: {
                 ...session,
-                token: `${REFRESH_TOKEN_PREFIX}${session.token}`,
-                actorType: ctx?.actorType ?? 'customer',
-                authMethod: ctx?.authMethod ?? 'email',
-                organizationId: ctx?.organizationId ?? null,
+                actorType: getActorFromContext(authCtx),
+                authMethod: getAuthMethodFromContext(authCtx),
+                organizationId: null,
               },
             }
           },
@@ -214,33 +221,11 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       },
     },
     plugins: [
-      jwt({
-        jwks: {
-          keyPairConfig: {
-            alg: 'ES256' as const,
-          },
-        },
-        jwt: {
-          issuer: options.baseUrl,
-          audience: options.baseUrl,
-          expirationTime: JWT_EXPIRATION_TIME,
-          definePayload: ({ user, session }) => ({
-            sub: user.id,
-            email: user.email,
-            name: user.name,
-            jti: randomUUID(),
-            act: session?.actorType ?? 'customer',
-            org: session?.activeOrganizationId ?? session?.organizationId ?? null,
-            roles: [],
-            method: session?.authMethod ?? 'email',
-            tfa: (user as Record<string, unknown>).twoFactorEnabled === true,
-          }),
-        },
-      }),
       twoFactor({
         issuer: 'c-zo',
       }),
       openAPI({ disableDefaultReference: true }),
+      actorType(ACTOR_TYPE_OPTIONS),
       organization({
         ac,
         roles: { viewer: viewerRole },
