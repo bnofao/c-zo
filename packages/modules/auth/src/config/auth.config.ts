@@ -4,7 +4,7 @@ import type { EmailService } from '../services/email.service'
 import type { SecondaryStorage } from '../services/secondary-storage'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { openAPI, organization, twoFactor } from 'better-auth/plugins'
+import { apiKey, openAPI, organization, twoFactor } from 'better-auth/plugins'
 import * as schema from '../database/schema'
 import { ACTOR_TYPE_OPTIONS } from '../plugins/actor-config'
 import { actorType } from '../plugins/actor-type'
@@ -12,6 +12,7 @@ import { ac, viewerRole } from '../services/organization-roles'
 import { validatePasswordStrength } from '../services/password'
 
 export interface AuthConfigOptions {
+  appName: string
   secret: string
   baseUrl: string
   emailService?: EmailService
@@ -44,6 +45,9 @@ function getAuthMethodFromContext(authCtx: AuthContext | null): string {
 }
 
 function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
+  const cookiePrefix = options.appName.replace(/[^a-z0-9]/gi, '').toLowerCase()
+  const apiKeyPrefix = `${cookiePrefix}_`
+
   return {
     secret: options.secret,
     baseURL: options.baseUrl,
@@ -60,6 +64,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
         member: schema.members,
         invitation: schema.invitations,
         twoFactor: schema.twoFactor,
+        apikey: schema.apikeys,
       },
     }),
     user: {
@@ -148,6 +153,18 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
           },
         },
       },
+      apikey: {
+        create: {
+          after: async (apikey: { id: string, userId: string, name?: string | null, prefix?: string | null }) => {
+            void options.events?.apiKeyCreated({
+              apiKeyId: apikey.id,
+              userId: apikey.userId,
+              name: apikey.name ?? null,
+              prefix: apikey.prefix ?? null,
+            })
+          },
+        },
+      },
     },
     session: {
       modelName: 'sessions',
@@ -213,7 +230,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       max: 10,
     },
     advanced: {
-      cookiePrefix: 'czo',
+      cookiePrefix,
       useSecureCookies: options.baseUrl.startsWith('https'),
       defaultCookieAttributes: {
         httpOnly: true,
@@ -222,10 +239,23 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     },
     plugins: [
       twoFactor({
-        issuer: 'c-zo',
+        issuer: options.appName,
+        schema: {
+          twoFactor: { modelName: 'two_factors' },
+        },
       }),
       openAPI({ disableDefaultReference: true }),
       actorType(ACTOR_TYPE_OPTIONS),
+      apiKey({
+        defaultPrefix: apiKeyPrefix,
+        apiKeyHeaders: ['x-api-key'],
+        requireName: true,
+        keyExpiration: { defaultExpiresIn: null },
+        rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 100 },
+        schema: {
+          apikey: { modelName: 'apikeys' },
+        },
+      }),
       organization({
         ac,
         roles: { viewer: viewerRole },
@@ -282,7 +312,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
         },
       }),
     ],
-  } satisfies BetterAuthOptions
+  } satisfies BetterAuthOptions & { databaseHooks?: Record<string, unknown> }
 }
 
 export function createAuth(db: unknown, options: AuthConfigOptions) {

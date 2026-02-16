@@ -19,6 +19,18 @@ export type Scalars = {
   EmailAddress: { input: string; output: string; }
 };
 
+export type ApiKey = {
+  __typename?: 'ApiKey';
+  createdAt: Scalars['DateTime']['output'];
+  enabled: Scalars['Boolean']['output'];
+  expiresAt?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  lastRequest?: Maybe<Scalars['DateTime']['output']>;
+  name?: Maybe<Scalars['String']['output']>;
+  prefix?: Maybe<Scalars['String']['output']>;
+  start?: Maybe<Scalars['String']['output']>;
+};
+
 export type CreateOrganizationInput = {
   name: Scalars['String']['input'];
   slug?: InputMaybe<Scalars['String']['input']>;
@@ -93,6 +105,7 @@ export type Organization = {
 export type Query = {
   __typename?: 'Query';
   _empty?: Maybe<Scalars['String']['output']>;
+  myApiKeys: Array<ApiKey>;
   myOrganizations: Array<Organization>;
   organization?: Maybe<Organization>;
 };
@@ -174,6 +187,7 @@ export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs
 
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = ResolversObject<{
+  ApiKey: ResolverTypeWrapper<ApiKey>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   CreateOrganizationInput: CreateOrganizationInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
@@ -189,6 +203,7 @@ export type ResolversTypes = ResolversObject<{
 
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = ResolversObject<{
+  ApiKey: ApiKey;
   Boolean: Scalars['Boolean']['output'];
   CreateOrganizationInput: CreateOrganizationInput;
   DateTime: Scalars['DateTime']['output'];
@@ -209,6 +224,18 @@ export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversT
 export interface EmailAddressScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['EmailAddress'], any> {
   name: 'EmailAddress';
 }
+
+export type ApiKeyResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ApiKey'] = ResolversParentTypes['ApiKey']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  enabled?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  expiresAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  lastRequest?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  prefix?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  start?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
 
 export type InvitationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Invitation'] = ResolversParentTypes['Invitation']> = ResolversObject<{
   email?: Resolver<ResolversTypes['EmailAddress'], ParentType, ContextType>;
@@ -248,11 +275,13 @@ export type OrganizationResolvers<ContextType = GraphQLContext, ParentType exten
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  myApiKeys?: Resolver<Array<ResolversTypes['ApiKey']>, ParentType, ContextType>;
   myOrganizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   organization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, RequireFields<QueryOrganizationArgs, 'id'>>;
 }>;
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
+  ApiKey?: ApiKeyResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   Invitation?: InvitationResolvers<ContextType>;

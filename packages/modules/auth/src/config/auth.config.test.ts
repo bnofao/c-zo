@@ -29,6 +29,10 @@ const mockActorType = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'actor-type', options: opts })),
 )
 
+const mockApiKey = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'api-key', options: opts })),
+)
+
 const mockHashPassword = vi.hoisted(() => vi.fn(() => Promise.resolve('hashed')))
 const mockVerifyPassword = vi.hoisted(() => vi.fn(() => Promise.resolve(true)))
 
@@ -41,6 +45,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 }))
 
 vi.mock('better-auth/plugins', () => ({
+  apiKey: mockApiKey,
   openAPI: mockOpenAPI,
   organization: mockOrganization,
   twoFactor: mockTwoFactor,
@@ -82,6 +87,7 @@ import {
 describe('auth config', () => {
   const mockDb = { query: vi.fn() }
   const options = {
+    appName: 'c-zo',
     secret: 'test-secret-key-32-chars-minimum!',
     baseUrl: 'http://localhost:4000',
   }
@@ -133,6 +139,7 @@ describe('auth config', () => {
             account: expect.anything(),
             verification: expect.anything(),
             twoFactor: expect.anything(),
+            apikey: expect.anything(),
           }),
         }),
       )
@@ -156,14 +163,18 @@ describe('auth config', () => {
       })
     })
 
-    it('should include the twoFactor, openAPI, and actorType plugins', () => {
+    it('should include the twoFactor, openAPI, actorType, and apiKey plugins', () => {
       const config = createAuthConfig(mockDb, options)
 
       expect(config.plugins).toBeDefined()
-      expect(config.plugins!.length).toBeGreaterThanOrEqual(3)
-      expect(mockTwoFactor).toHaveBeenCalledWith({ issuer: 'c-zo' })
+      expect(config.plugins!.length).toBeGreaterThanOrEqual(4)
+      expect(mockTwoFactor).toHaveBeenCalledWith({
+        issuer: options.appName,
+        schema: { twoFactor: { modelName: 'two_factors' } },
+      })
       expect(mockActorType).toHaveBeenCalled()
       expect(mockOpenAPI).toHaveBeenCalled()
+      expect(mockApiKey).toHaveBeenCalled()
     })
 
     describe('password validation', () => {
@@ -365,7 +376,7 @@ describe('auth config', () => {
   })
 
   describe('advanced cookie config', () => {
-    it('should set cookiePrefix to czo', () => {
+    it('should derive cookiePrefix from appName (strip non-alphanumeric, lowercase)', () => {
       const config = createAuthConfig(mockDb, options)
       const advanced = (config as Record<string, any>).advanced
 
@@ -598,6 +609,82 @@ describe('auth config', () => {
           hooks.session.create.after({ id: 's1', userId: 'u1' }),
         ).resolves.toBeUndefined()
       })
+    })
+  })
+
+  describe('apiKey plugin config', () => {
+    it('should configure apiKey with appName-derived prefix and requireName', () => {
+      createAuthConfig(mockDb, options)
+
+      const apiKeyCall = mockApiKey.mock.calls[mockApiKey.mock.calls.length - 1]![0] as Record<string, any>
+      expect(apiKeyCall.defaultPrefix).toBe('czo_')
+      expect(apiKeyCall.requireName).toBe(true)
+      expect(apiKeyCall.schema).toEqual({ apikey: { modelName: 'apikeys' } })
+    })
+
+    it('should configure rate limiting at 100 req/min', () => {
+      createAuthConfig(mockDb, options)
+
+      const apiKeyCall = mockApiKey.mock.calls[mockApiKey.mock.calls.length - 1]![0] as Record<string, any>
+      expect(apiKeyCall.rateLimit).toEqual({
+        enabled: true,
+        timeWindow: 60_000,
+        maxRequests: 100,
+      })
+    })
+
+    it('should configure key expiration with no default expiry', () => {
+      createAuthConfig(mockDb, options)
+
+      const apiKeyCall = mockApiKey.mock.calls[mockApiKey.mock.calls.length - 1]![0] as Record<string, any>
+      expect(apiKeyCall.keyExpiration).toEqual({ defaultExpiresIn: null })
+    })
+
+  })
+
+  describe('apikey databaseHooks', () => {
+    it('should emit apiKeyCreated on apikey.create.after', async () => {
+      const mockEvents = { apiKeyCreated: vi.fn() }
+      const config = createAuthConfig(mockDb, { ...options, events: mockEvents as any })
+      const hooks = (config as Record<string, any>).databaseHooks
+
+      await hooks.apikey.create.after({
+        id: 'ak1',
+        userId: 'u1',
+        name: 'My Key',
+        prefix: 'czo_',
+      })
+
+      expect(mockEvents.apiKeyCreated).toHaveBeenCalledWith({
+        apiKeyId: 'ak1',
+        userId: 'u1',
+        name: 'My Key',
+        prefix: 'czo_',
+      })
+    })
+
+    it('should default name and prefix to null when not provided', async () => {
+      const mockEvents = { apiKeyCreated: vi.fn() }
+      const config = createAuthConfig(mockDb, { ...options, events: mockEvents as any })
+      const hooks = (config as Record<string, any>).databaseHooks
+
+      await hooks.apikey.create.after({ id: 'ak2', userId: 'u1' })
+
+      expect(mockEvents.apiKeyCreated).toHaveBeenCalledWith({
+        apiKeyId: 'ak2',
+        userId: 'u1',
+        name: null,
+        prefix: null,
+      })
+    })
+
+    it('should not throw when events service is not provided', async () => {
+      const config = createAuthConfig(mockDb, options)
+      const hooks = (config as Record<string, any>).databaseHooks
+
+      await expect(
+        hooks.apikey.create.after({ id: 'ak3', userId: 'u1' }),
+      ).resolves.toBeUndefined()
     })
   })
 

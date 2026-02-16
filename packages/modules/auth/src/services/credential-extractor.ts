@@ -8,9 +8,10 @@ export interface ExtractedCredentials {
 export function extractCredentials(request: Request, cookiePrefix: string): ExtractedCredentials | null {
   const authorization = request.headers.get('authorization')
   if (authorization?.startsWith('Bearer ')) {
+    const token = authorization.slice(7)
     return {
       headers: new Headers({ authorization }),
-      source: 'bearer',
+      source: token.startsWith('czo_') ? 'api-key' : 'bearer',
     }
   }
 

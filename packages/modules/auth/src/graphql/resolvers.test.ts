@@ -35,6 +35,7 @@ describe('organization resolvers', () => {
       createInvitation: vi.fn(),
       removeMember: vi.fn(),
       acceptInvitation: vi.fn(),
+      listApiKeys: vi.fn(),
     },
   }
 
@@ -102,6 +103,30 @@ describe('organization resolvers', () => {
       const result = await resolvers.Query.organization!(null, { id: 'nonexistent' }, mockContext)
 
       expect(result).toBeNull()
+    })
+  })
+
+  describe('query.myApiKeys', () => {
+    it('should call listApiKeys with request headers', async () => {
+      const keys = [
+        { id: 'ak1', name: 'My Key', prefix: 'czo_', start: 'czo_ab', enabled: true, createdAt: new Date().toISOString() },
+      ]
+      mockAuthInstance.api.listApiKeys.mockResolvedValue(keys)
+
+      const result = await resolvers.Query.myApiKeys!(null, {}, mockContext)
+
+      expect(mockAuthInstance.api.listApiKeys).toHaveBeenCalledWith({
+        headers: mockHeaders,
+      })
+      expect(result).toEqual(keys)
+    })
+
+    it('should return empty array when no API keys', async () => {
+      mockAuthInstance.api.listApiKeys.mockResolvedValue(null)
+
+      const result = await resolvers.Query.myApiKeys!(null, {}, mockContext)
+
+      expect(result).toEqual([])
     })
   })
 

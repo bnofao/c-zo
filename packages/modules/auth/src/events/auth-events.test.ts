@@ -193,6 +193,36 @@ describe('authEventsService', () => {
     })
   })
 
+  describe('apiKeyCreated', () => {
+    it('should publish auth.api-key.created event with correct payload', async () => {
+      const payload = { apiKeyId: 'ak1', userId: 'u1', name: 'My Key', prefix: 'czo_' }
+
+      await service.apiKeyCreated(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.API_KEY_CREATED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('apiKeyRevoked', () => {
+    it('should publish auth.api-key.revoked event with correct payload', async () => {
+      const payload = { apiKeyId: 'ak1', userId: 'u1' }
+
+      await service.apiKeyRevoked(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.API_KEY_REVOKED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
   describe('safePublish (fire-and-forget)', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))

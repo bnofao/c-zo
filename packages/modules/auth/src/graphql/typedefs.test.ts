@@ -6,13 +6,15 @@ vi.mock('@czo/kit/graphql', () => ({
   registerTypeDefs: mockRegisterTypeDefs,
 }))
 
-describe('organization typedefs', () => {
-  it('should register type definitions as a string with the kit registry', async () => {
+describe('auth typedefs', () => {
+  it('should register type definitions as strings with the kit registry', async () => {
     await import('./typedefs')
 
-    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(1)
-    const registered = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(typeof registered).toBe('string')
+    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(2)
+    const orgSdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
+    const apiKeySdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
+    expect(typeof orgSdl).toBe('string')
+    expect(typeof apiKeySdl).toBe('string')
   })
 
   it('should define Organization type with expected fields', () => {
@@ -61,5 +63,24 @@ describe('organization typedefs', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
     expect(sdl).toContain('input CreateOrganizationInput')
     expect(sdl).toContain('type: String')
+  })
+
+  it('should define ApiKey type with expected fields', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
+    expect(sdl).toContain('type ApiKey')
+    expect(sdl).toContain('id: ID!')
+    expect(sdl).toContain('name: String')
+    expect(sdl).toContain('prefix: String')
+    expect(sdl).toContain('start: String')
+    expect(sdl).toContain('enabled: Boolean!')
+    expect(sdl).toContain('expiresAt: DateTime')
+    expect(sdl).toContain('lastRequest: DateTime')
+    expect(sdl).toContain('createdAt: DateTime!')
+  })
+
+  it('should extend Query with myApiKeys', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
+    expect(sdl).toContain('extend type Query')
+    expect(sdl).toContain('myApiKeys: [ApiKey!]!')
   })
 })
