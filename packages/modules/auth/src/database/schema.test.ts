@@ -18,8 +18,16 @@ describe('auth database schema', () => {
       expect(columnNames).toContain('email')
       expect(columnNames).toContain('email_verified')
       expect(columnNames).toContain('image')
+      expect(columnNames).toContain('two_factor_enabled')
       expect(columnNames).toContain('created_at')
       expect(columnNames).toContain('updated_at')
+    })
+
+    it('should have two_factor_enabled with default false', () => {
+      const config = getTableConfig(schema.users)
+      const col = config.columns.find(c => c.name === 'two_factor_enabled')
+      expect(col).toBeDefined()
+      expect(col!.default).toBe(false)
     })
 
     it('should have email as unique', () => {
@@ -130,22 +138,6 @@ describe('auth database schema', () => {
     })
   })
 
-  describe('jwks table', () => {
-    it('should be named "jwks"', () => {
-      expect(getTableName(schema.jwks)).toBe('jwks')
-    })
-
-    it('should have required columns', () => {
-      const config = getTableConfig(schema.jwks)
-      const columnNames = config.columns.map(c => c.name)
-
-      expect(columnNames).toContain('id')
-      expect(columnNames).toContain('public_key')
-      expect(columnNames).toContain('private_key')
-      expect(columnNames).toContain('created_at')
-    })
-  })
-
   describe('organizations table', () => {
     it('should be named "organizations"', () => {
       expect(getTableName(schema.organizations)).toBe('organizations')
@@ -179,11 +171,34 @@ describe('auth database schema', () => {
     })
   })
 
-  it('should export all 5 tables', () => {
+  describe('twoFactor table', () => {
+    it('should be named "two_factor"', () => {
+      expect(getTableName(schema.twoFactor)).toBe('two_factor')
+    })
+
+    it('should have required columns', () => {
+      const config = getTableConfig(schema.twoFactor)
+      const columnNames = config.columns.map(c => c.name)
+
+      expect(columnNames).toContain('id')
+      expect(columnNames).toContain('secret')
+      expect(columnNames).toContain('backup_codes')
+      expect(columnNames).toContain('user_id')
+    })
+
+    it('should have a foreign key to user with cascade delete', () => {
+      const config = getTableConfig(schema.twoFactor)
+      expect(config.foreignKeys.length).toBeGreaterThan(0)
+      const fk = config.foreignKeys[0]!
+      expect(fk.onDelete).toBe('cascade')
+    })
+  })
+
+  it('should export all tables', () => {
     expect(schema.users).toBeDefined()
     expect(schema.sessions).toBeDefined()
     expect(schema.accounts).toBeDefined()
     expect(schema.verifications).toBeDefined()
-    expect(schema.jwks).toBeDefined()
+    expect(schema.twoFactor).toBeDefined()
   })
 })

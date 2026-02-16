@@ -13,6 +13,7 @@ export interface AuthContext {
     id: string
     email: string
     name: string
+    twoFactorEnabled: boolean
   }
   actorType: string
   organization: string | null

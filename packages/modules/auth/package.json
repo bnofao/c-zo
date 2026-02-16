@@ -32,7 +32,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "unbuild",
+    "build": "unbuild && rm -f dist/middleware/*.d.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",

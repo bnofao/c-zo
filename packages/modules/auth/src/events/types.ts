@@ -26,12 +26,10 @@ export interface AuthSessionCreatedPayload {
 }
 
 export interface AuthSessionRevokedPayload {
-  /** Database session ID (available from admin revocation or token rotation) */
+  /** Database session ID */
   sessionId?: string
-  /** JWT token ID from the jti claim (available from user-initiated sign-out) */
-  jwtId?: string
   userId: string
-  reason: 'user_initiated' | 'admin_revoked' | 'token_rotation' | 'expired'
+  reason: 'user_initiated' | 'admin_revoked' | 'expired'
 }
 
 export interface AuthOrgCreatedPayload {
@@ -59,6 +57,16 @@ export interface AuthOrgRoleChangedPayload {
   newRole: string
 }
 
+export interface Auth2FAEnabledPayload {
+  userId: string
+  actorType: string
+}
+
+export interface Auth2FADisabledPayload {
+  userId: string
+  actorType: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -70,6 +78,8 @@ export const AUTH_EVENTS = {
   ORG_MEMBER_ADDED: 'auth.org.member.added',
   ORG_MEMBER_REMOVED: 'auth.org.member.removed',
   ORG_ROLE_CHANGED: 'auth.org.role.changed',
+  TWO_FA_ENABLED: 'auth.2fa.enabled',
+  TWO_FA_DISABLED: 'auth.2fa.disabled',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -86,5 +96,7 @@ declare module '@czo/kit/event-bus' {
     'auth.org.member.added': AuthOrgMemberAddedPayload
     'auth.org.member.removed': AuthOrgMemberRemovedPayload
     'auth.org.role.changed': AuthOrgRoleChangedPayload
+    'auth.2fa.enabled': Auth2FAEnabledPayload
+    'auth.2fa.disabled': Auth2FADisabledPayload
   }
 }

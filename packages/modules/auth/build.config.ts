@@ -26,6 +26,11 @@ export default defineBuildConfig({
       ...dirImport,
     },
     {
+      input: 'src/middleware/',
+      outDir: 'dist/middleware',
+      ...dirImport,
+    },
+    {
       input: 'src/config/',
       outDir: 'dist/config',
       ...dirImport,

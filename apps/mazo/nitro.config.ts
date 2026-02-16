@@ -7,14 +7,32 @@ export default defineNitroConfig({
   scanDirs: ['./'],
   preset: "standard",
 
-  runtimeConfig: {
+  experimental: {
+    openAPI: true,
+  },
+  openAPI: {
+    meta: {
+      title: 'c-zo API',
+      description: 'c-zo e-commerce platform API',
+      version: '0.1.0',
+    },
+    route: '/_nitro/openapi.json',
+    ui: {
+      scalar: {
+        route: "/_docs/scalar"
+      },
+      swagger: false,
+    },
+  },
+
+  runtimeConfig: {      // ← mapped from NITRO_CZO_REDIS_URL
+    auth: {
+      secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
+      baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
+    },
     czo: {
       databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
-      redisUrl: '',        // ← mapped from NITRO_CZO_REDIS_URL
-      auth: {
-        secret: '',        // ← mapped from NITRO_CZO_AUTH_SECRET
-        baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
-      },
+      redisUrl: '',  
       queue: {
         prefix: 'czo',
         defaultAttempts: 3,
