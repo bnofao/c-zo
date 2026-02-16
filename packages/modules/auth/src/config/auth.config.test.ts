@@ -639,7 +639,6 @@ describe('auth config', () => {
       const apiKeyCall = mockApiKey.mock.calls[mockApiKey.mock.calls.length - 1]![0] as Record<string, any>
       expect(apiKeyCall.keyExpiration).toEqual({ defaultExpiresIn: null })
     })
-
   })
 
   describe('apikey databaseHooks', () => {
