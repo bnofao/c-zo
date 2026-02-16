@@ -1,4 +1,5 @@
 import type { Auth } from './config/auth.config'
+import type { AuthRestrictionRegistry } from './services/auth-restriction-registry'
 
 export interface AuthContext {
   session: {
@@ -23,5 +24,6 @@ export interface AuthContext {
 export interface GraphQLContext {
   auth: AuthContext
   authInstance: Auth
+  authRestrictions: AuthRestrictionRegistry
   request: Request
 }

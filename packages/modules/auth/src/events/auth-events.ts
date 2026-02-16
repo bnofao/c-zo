@@ -8,6 +8,7 @@ import type {
   AuthOrgMemberAddedPayload,
   AuthOrgMemberRemovedPayload,
   AuthOrgRoleChangedPayload,
+  AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
   AuthUserRegisteredPayload,
@@ -96,5 +97,9 @@ export class AuthEventsService {
 
   async apiKeyRevoked(payload: AuthApiKeyRevokedPayload): Promise<void> {
     await this.safePublish(AUTH_EVENTS.API_KEY_REVOKED, payload)
+  }
+
+  async restrictionDenied(payload: AuthRestrictionDeniedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.RESTRICTION_DENIED, payload)
   }
 }

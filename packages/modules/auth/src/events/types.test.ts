@@ -5,6 +5,7 @@ import type {
   AuthApiKeyCreatedPayload,
   AuthApiKeyRevokedPayload,
   AuthEventType,
+  AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
   AuthUserRegisteredPayload,
@@ -15,8 +16,8 @@ import { AUTH_EVENTS } from './types'
 
 describe('auth event types', () => {
   describe('auth events constants', () => {
-    it('should define all 12 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(12)
+    it('should define all 13 routing keys', () => {
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(13)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -47,6 +48,10 @@ describe('auth event types', () => {
     it('should have correct routing keys for API key events', () => {
       expect(AUTH_EVENTS.API_KEY_CREATED).toBe('auth.api-key.created')
       expect(AUTH_EVENTS.API_KEY_REVOKED).toBe('auth.api-key.revoked')
+    })
+
+    it('should have correct routing key for restriction denied event', () => {
+      expect(AUTH_EVENTS.RESTRICTION_DENIED).toBe('auth.restriction.denied')
     })
   })
 
@@ -179,6 +184,15 @@ describe('auth event types', () => {
       }
       expect(p).toEqual({ apiKeyId: 'ak1', userId: 'u1' })
     })
+
+    it('should enforce required fields on AuthRestrictionDeniedPayload', () => {
+      const p: AuthRestrictionDeniedPayload = {
+        actorType: 'customer',
+        authMethod: 'oauth:github',
+        reason: 'Not allowed',
+      }
+      expect(p).toEqual({ actorType: 'customer', authMethod: 'oauth:github', reason: 'Not allowed' })
+    })
   })
 
   describe('authEventType union', () => {
@@ -196,8 +210,9 @@ describe('auth event types', () => {
         'auth.2fa.disabled',
         'auth.api-key.created',
         'auth.api-key.revoked',
+        'auth.restriction.denied',
       ]
-      expect(types).toHaveLength(12)
+      expect(types).toHaveLength(13)
     })
   })
 })

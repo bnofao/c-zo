@@ -1,0 +1,12 @@
+type AuthConfig {
+  require2FA: Boolean!
+  sessionDuration: Int!
+  allowImpersonation: Boolean!
+  dominantActorType: String!
+  allowedMethods: [String!]!
+  actorTypes: [String!]!
+}
+
+extend type Query {
+  myAuthConfig: AuthConfig!
+}

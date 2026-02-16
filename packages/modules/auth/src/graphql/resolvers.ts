@@ -3,6 +3,9 @@ import { registerResolvers } from '@czo/kit/graphql'
 import { validateOrgType } from '../services/organization-types'
 
 const Query: QueryResolvers = {
+  myAuthConfig: async (_parent, _args, ctx) => {
+    return ctx.authRestrictions.getEffectiveConfig(ctx.auth.user.id)
+  },
   myOrganizations: async (_parent, _args, ctx) => {
     const result = await ctx.authInstance.api.listOrganizations({
       headers: ctx.request.headers,

@@ -1,5 +1,6 @@
 import type { BetterAuthOptions } from 'better-auth'
 import type { AuthEventsService } from '../events/auth-events'
+import type { AuthMethod, AuthRestrictionRegistry } from '../services/auth-restriction-registry'
 import type { EmailService } from '../services/email.service'
 import type { SecondaryStorage } from '../services/secondary-storage'
 import { betterAuth } from 'better-auth'
@@ -22,6 +23,7 @@ export interface AuthConfigOptions {
     google?: { clientId: string, clientSecret: string }
     github?: { clientId: string, clientSecret: string }
   }
+  restrictionRegistry?: AuthRestrictionRegistry
 }
 
 export const SESSION_EXPIRY_SECONDS = 604800
@@ -134,11 +136,20 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       session: {
         create: {
           before: async (session: { token: string }, authCtx: AuthContext | null) => {
+            const actorType = getActorFromContext(authCtx)
+            const authMethod = getAuthMethodFromContext(authCtx)
+
+            if (options.restrictionRegistry && !options.restrictionRegistry.isMethodAllowed(actorType, authMethod as AuthMethod)) {
+              const reason = `Auth method "${authMethod}" is not allowed for actor type "${actorType}"`
+              void options.events?.restrictionDenied({ actorType, authMethod, reason })
+              throw new Error(reason)
+            }
+
             return {
               data: {
                 ...session,
-                actorType: getActorFromContext(authCtx),
-                authMethod: getAuthMethodFromContext(authCtx),
+                actorType,
+                authMethod,
                 organizationId: null,
               },
             }
