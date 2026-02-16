@@ -5,9 +5,11 @@ import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 import { createAuth } from '../config/auth.config'
 import { AuthEventsService } from '../events/auth-events'
+import { useAuthRestrictionRegistry } from '../services/auth-restriction-registry'
 import { ConsoleEmailService } from '../services/email.service'
 import { useAuthRedis } from '../services/redis'
 import { createRedisStorage } from '../services/secondary-storage'
+import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 import '../graphql/typedefs'
 import '../graphql/resolvers'
 
@@ -37,12 +39,19 @@ export default definePlugin(async (nitroApp) => {
   const authEvents = new AuthEventsService()
   container.bind('auth:events', () => authEvents)
 
+  const restrictionRegistry = useAuthRestrictionRegistry()
+  for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
+    restrictionRegistry.registerActorType(actorType, config)
+  }
+  container.bind('auth:restrictions', () => restrictionRegistry)
+
   const authOptions: AuthConfigOptions = {
     appName: (authConfig as Record<string, string>).appName || '',
     secret: authConfig.secret,
     baseUrl: authConfig.baseUrl || 'http://localhost:4000',
     emailService,
     events: authEvents,
+    restrictionRegistry,
   }
 
   const oauthConfig = authConfig as Record<string, string>
@@ -84,6 +93,12 @@ export default definePlugin(async (nitroApp) => {
     event.context.db = db
     event.context.authEvents = authEvents
     event.context.authSecret = authConfig.secret
+    event.context.authRestrictions = restrictionRegistry
+  })
+
+  nitroApp.hooks.hook('czo:boot', () => {
+    restrictionRegistry.freeze()
+    logger.info('Auth restriction registry frozen')
   })
 
   logger.info('Auth module initialized with better-auth (session-based)')

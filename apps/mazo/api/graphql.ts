@@ -50,6 +50,7 @@ export default defineHandler(async (event) => {
   return yoga.fetch(event.req, {
     auth: authContext,
     authInstance: event.context.auth,
+    authRestrictions: event.context.authRestrictions,
     request: event.req,
   })
 })

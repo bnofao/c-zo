@@ -79,6 +79,12 @@ export interface AuthApiKeyRevokedPayload {
   userId: string
 }
 
+export interface AuthRestrictionDeniedPayload {
+  actorType: string
+  authMethod: string
+  reason: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -94,6 +100,7 @@ export const AUTH_EVENTS = {
   TWO_FA_DISABLED: 'auth.2fa.disabled',
   API_KEY_CREATED: 'auth.api-key.created',
   API_KEY_REVOKED: 'auth.api-key.revoked',
+  RESTRICTION_DENIED: 'auth.restriction.denied',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -114,5 +121,6 @@ declare module '@czo/kit/event-bus' {
     'auth.2fa.disabled': Auth2FADisabledPayload
     'auth.api-key.created': AuthApiKeyCreatedPayload
     'auth.api-key.revoked': AuthApiKeyRevokedPayload
+    'auth.restriction.denied': AuthRestrictionDeniedPayload
   }
 }

@@ -454,6 +454,88 @@ describe('auth config', () => {
       expect(result.data.token).toBe('original-token')
     })
 
+    describe('restriction validation', () => {
+      it('should reject session when method is not allowed', async () => {
+        const mockRegistry = {
+          isMethodAllowed: vi.fn().mockReturnValue(false),
+        }
+        const mockEvents = { restrictionDenied: vi.fn() }
+        const config = createAuthConfig(mockDb, {
+          ...options,
+          restrictionRegistry: mockRegistry as any,
+          events: mockEvents as any,
+        })
+        const hooks = (config as Record<string, any>).databaseHooks
+        const authCtx = {
+          context: { actorType: 'customer', authMethod: 'oauth:github' },
+          headers: new Headers(),
+        }
+
+        await expect(
+          hooks.session.create.before({ token: 'tok' }, authCtx),
+        ).rejects.toThrow('Auth method "oauth:github" is not allowed for actor type "customer"')
+
+        expect(mockRegistry.isMethodAllowed).toHaveBeenCalledWith('customer', 'oauth:github')
+      })
+
+      it('should emit restrictionDenied event when method is denied', async () => {
+        const mockRegistry = {
+          isMethodAllowed: vi.fn().mockReturnValue(false),
+        }
+        const mockEvents = { restrictionDenied: vi.fn() }
+        const config = createAuthConfig(mockDb, {
+          ...options,
+          restrictionRegistry: mockRegistry as any,
+          events: mockEvents as any,
+        })
+        const hooks = (config as Record<string, any>).databaseHooks
+        const authCtx = {
+          context: { actorType: 'admin', authMethod: 'oauth:google' },
+          headers: new Headers(),
+        }
+
+        await expect(
+          hooks.session.create.before({ token: 'tok' }, authCtx),
+        ).rejects.toThrow()
+
+        expect(mockEvents.restrictionDenied).toHaveBeenCalledWith({
+          actorType: 'admin',
+          authMethod: 'oauth:google',
+          reason: expect.stringContaining('not allowed'),
+        })
+      })
+
+      it('should allow session when method is allowed', async () => {
+        const mockRegistry = {
+          isMethodAllowed: vi.fn().mockReturnValue(true),
+        }
+        const config = createAuthConfig(mockDb, {
+          ...options,
+          restrictionRegistry: mockRegistry as any,
+        })
+        const hooks = (config as Record<string, any>).databaseHooks
+        const authCtx = {
+          context: { actorType: 'customer', authMethod: 'email' },
+          headers: new Headers(),
+        }
+
+        const result = await hooks.session.create.before({ token: 'tok' }, authCtx)
+
+        expect(result.data.actorType).toBe('customer')
+        expect(result.data.authMethod).toBe('email')
+      })
+
+      it('should skip validation when no restrictionRegistry is provided', async () => {
+        const config = createAuthConfig(mockDb, options)
+        const hooks = (config as Record<string, any>).databaseHooks
+
+        const result = await hooks.session.create.before({ token: 'tok' }, null)
+
+        expect(result.data.actorType).toBe('customer')
+        expect(result.data.authMethod).toBe('email')
+      })
+    })
+
     describe('event emission', () => {
       const mockEvents = {
         userRegistered: vi.fn(),

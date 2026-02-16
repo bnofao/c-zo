@@ -10,11 +10,13 @@ describe('auth typedefs', () => {
   it('should register type definitions as strings with the kit registry', async () => {
     await import('./typedefs')
 
-    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(2)
+    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(3)
     const orgSdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
     const apiKeySdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
+    const authConfigSdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
     expect(typeof orgSdl).toBe('string')
     expect(typeof apiKeySdl).toBe('string')
+    expect(typeof authConfigSdl).toBe('string')
   })
 
   it('should define Organization type with expected fields', () => {
@@ -82,5 +84,22 @@ describe('auth typedefs', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
     expect(sdl).toContain('extend type Query')
     expect(sdl).toContain('myApiKeys: [ApiKey!]!')
+  })
+
+  it('should define AuthConfig type with expected fields', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
+    expect(sdl).toContain('type AuthConfig')
+    expect(sdl).toContain('require2FA: Boolean!')
+    expect(sdl).toContain('sessionDuration: Int!')
+    expect(sdl).toContain('allowImpersonation: Boolean!')
+    expect(sdl).toContain('dominantActorType: String!')
+    expect(sdl).toContain('allowedMethods: [String!]!')
+    expect(sdl).toContain('actorTypes: [String!]!')
+  })
+
+  it('should extend Query with myAuthConfig', () => {
+    const sdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
+    expect(sdl).toContain('extend type Query')
+    expect(sdl).toContain('myAuthConfig: AuthConfig!')
   })
 })

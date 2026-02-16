@@ -39,26 +39,51 @@ describe('organization resolvers', () => {
     },
   }
 
+  const mockAuthRestrictions = {
+    getEffectiveConfig: vi.fn(),
+  }
+
   const mockContext = {
     auth: {
       session: { id: 's1', userId: 'u1', expiresAt: new Date(), actorType: 'admin', authMethod: 'email', organizationId: null },
-      user: { id: 'u1', email: 'test@czo.dev', name: 'Test' },
+      user: { id: 'u1', email: 'test@czo.dev', name: 'Test', twoFactorEnabled: false },
       actorType: 'admin',
       organization: null,
       authSource: 'bearer' as const,
     },
     authInstance: mockAuthInstance,
+    authRestrictions: mockAuthRestrictions,
     request: mockRequest,
   }
 
   beforeEach(() => {
     Object.values(mockAuthInstance.api).forEach(fn => fn.mockReset())
+    mockAuthRestrictions.getEffectiveConfig.mockReset()
   })
 
   it('should register resolvers', () => {
     expect(mockRegisterResolvers).toHaveBeenCalledTimes(1)
     expect(resolvers.Query).toBeDefined()
     expect(resolvers.Mutation).toBeDefined()
+  })
+
+  describe('query.myAuthConfig', () => {
+    it('should return effective config from authRestrictions', async () => {
+      const effectiveConfig = {
+        require2FA: true,
+        sessionDuration: 28800,
+        allowImpersonation: false,
+        dominantActorType: 'admin',
+        allowedMethods: ['email'],
+        actorTypes: ['admin'],
+      }
+      mockAuthRestrictions.getEffectiveConfig.mockResolvedValue(effectiveConfig)
+
+      const result = await resolvers.Query.myAuthConfig!(null, {}, mockContext)
+
+      expect(mockAuthRestrictions.getEffectiveConfig).toHaveBeenCalledWith('u1')
+      expect(result).toEqual(effectiveConfig)
+    })
   })
 
   describe('query.myOrganizations', () => {

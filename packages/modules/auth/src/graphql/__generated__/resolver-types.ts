@@ -19,6 +19,16 @@ export type Scalars = {
   EmailAddress: { input: string; output: string; }
 };
 
+export type AuthConfig = {
+  __typename?: 'AuthConfig';
+  require2FA: Scalars['Boolean']['output'];
+  sessionDuration: Scalars['Int']['output'];
+  allowImpersonation: Scalars['Boolean']['output'];
+  dominantActorType: Scalars['String']['output'];
+  allowedMethods: Array<Scalars['String']['output']>;
+  actorTypes: Array<Scalars['String']['output']>;
+};
+
 export type ApiKey = {
   __typename?: 'ApiKey';
   createdAt: Scalars['DateTime']['output'];
@@ -106,6 +116,7 @@ export type Query = {
   __typename?: 'Query';
   _empty?: Maybe<Scalars['String']['output']>;
   myApiKeys: Array<ApiKey>;
+  myAuthConfig: AuthConfig;
   myOrganizations: Array<Organization>;
   organization?: Maybe<Organization>;
 };
@@ -188,6 +199,7 @@ export type DirectiveResolverFn<TResult = {}, TParent = {}, TContext = {}, TArgs
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = ResolversObject<{
   ApiKey: ResolverTypeWrapper<ApiKey>;
+  AuthConfig: ResolverTypeWrapper<AuthConfig>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   CreateOrganizationInput: CreateOrganizationInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
@@ -204,6 +216,7 @@ export type ResolversTypes = ResolversObject<{
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = ResolversObject<{
   ApiKey: ApiKey;
+  AuthConfig: AuthConfig;
   Boolean: Scalars['Boolean']['output'];
   CreateOrganizationInput: CreateOrganizationInput;
   DateTime: Scalars['DateTime']['output'];
@@ -224,6 +237,16 @@ export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversT
 export interface EmailAddressScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['EmailAddress'], any> {
   name: 'EmailAddress';
 }
+
+export type AuthConfigResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AuthConfig'] = ResolversParentTypes['AuthConfig']> = ResolversObject<{
+  require2FA?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  sessionDuration?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  allowImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  dominantActorType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  allowedMethods?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  actorTypes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
 
 export type ApiKeyResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ApiKey'] = ResolversParentTypes['ApiKey']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -276,12 +299,14 @@ export type OrganizationResolvers<ContextType = GraphQLContext, ParentType exten
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   myApiKeys?: Resolver<Array<ResolversTypes['ApiKey']>, ParentType, ContextType>;
+  myAuthConfig?: Resolver<ResolversTypes['AuthConfig'], ParentType, ContextType>;
   myOrganizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   organization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, RequireFields<QueryOrganizationArgs, 'id'>>;
 }>;
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   ApiKey?: ApiKeyResolvers<ContextType>;
+  AuthConfig?: AuthConfigResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   Invitation?: InvitationResolvers<ContextType>;

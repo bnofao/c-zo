@@ -223,6 +223,21 @@ describe('authEventsService', () => {
     })
   })
 
+  describe('restrictionDenied', () => {
+    it('should publish auth.restriction.denied event with correct payload', async () => {
+      const payload = { actorType: 'customer', authMethod: 'oauth:github', reason: 'Not allowed' }
+
+      await service.restrictionDenied(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.RESTRICTION_DENIED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
   describe('safePublish (fire-and-forget)', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))
