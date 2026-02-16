@@ -172,8 +172,8 @@ describe('auth database schema', () => {
   })
 
   describe('twoFactor table', () => {
-    it('should be named "two_factor"', () => {
-      expect(getTableName(schema.twoFactor)).toBe('two_factor')
+    it('should be named "two_factors"', () => {
+      expect(getTableName(schema.twoFactor)).toBe('two_factors')
     })
 
     it('should have required columns', () => {
@@ -194,11 +194,51 @@ describe('auth database schema', () => {
     })
   })
 
+  describe('apikeys table', () => {
+    it('should be named "apikeys"', () => {
+      expect(getTableName(schema.apikeys)).toBe('apikeys')
+    })
+
+    it('should have required columns', () => {
+      const config = getTableConfig(schema.apikeys)
+      const columnNames = config.columns.map(c => c.name)
+
+      expect(columnNames).toContain('id')
+      expect(columnNames).toContain('name')
+      expect(columnNames).toContain('start')
+      expect(columnNames).toContain('prefix')
+      expect(columnNames).toContain('key')
+      expect(columnNames).toContain('user_id')
+      expect(columnNames).toContain('enabled')
+      expect(columnNames).toContain('rate_limit_enabled')
+      expect(columnNames).toContain('request_count')
+      expect(columnNames).toContain('created_at')
+      expect(columnNames).toContain('updated_at')
+      expect(columnNames).toContain('permissions')
+      expect(columnNames).toContain('metadata')
+    })
+
+    it('should have enabled with default true', () => {
+      const config = getTableConfig(schema.apikeys)
+      const col = config.columns.find(c => c.name === 'enabled')
+      expect(col).toBeDefined()
+      expect(col!.default).toBe(true)
+    })
+
+    it('should have a foreign key to user with cascade delete', () => {
+      const config = getTableConfig(schema.apikeys)
+      expect(config.foreignKeys.length).toBeGreaterThan(0)
+      const fk = config.foreignKeys[0]!
+      expect(fk.onDelete).toBe('cascade')
+    })
+  })
+
   it('should export all tables', () => {
     expect(schema.users).toBeDefined()
     expect(schema.sessions).toBeDefined()
     expect(schema.accounts).toBeDefined()
     expect(schema.verifications).toBeDefined()
     expect(schema.twoFactor).toBeDefined()
+    expect(schema.apikeys).toBeDefined()
   })
 })

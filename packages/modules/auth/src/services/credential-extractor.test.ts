@@ -82,7 +82,24 @@ describe('extractCredentials', () => {
   })
 
   describe('api key', () => {
-    it('should return null for API key (not yet implemented)', () => {
+    it('should detect czo_ prefix in Bearer token as api-key source', () => {
+      const request = makeRequest({ authorization: 'Bearer czo_abc123xyz' })
+      const result = extractCredentials(request, 'czo')
+
+      expect(result).not.toBeNull()
+      expect(result!.source).toBe('api-key')
+      expect(result!.headers.get('authorization')).toBe('Bearer czo_abc123xyz')
+    })
+
+    it('should detect regular Bearer token as bearer source', () => {
+      const request = makeRequest({ authorization: 'Bearer regular-session-token' })
+      const result = extractCredentials(request, 'czo')
+
+      expect(result).not.toBeNull()
+      expect(result!.source).toBe('bearer')
+    })
+
+    it('should return null for x-api-key header (handled by better-auth plugin)', () => {
       const request = makeRequest({
         'x-api-key': 'key-123',
       })

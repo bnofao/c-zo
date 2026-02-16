@@ -2,6 +2,8 @@ import type { DomainEvent, EventMap, EventPayload } from '@czo/kit/event-bus'
 import type {
   Auth2FADisabledPayload,
   Auth2FAEnabledPayload,
+  AuthApiKeyCreatedPayload,
+  AuthApiKeyRevokedPayload,
   AuthEventType,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
@@ -13,8 +15,8 @@ import { AUTH_EVENTS } from './types'
 
 describe('auth event types', () => {
   describe('auth events constants', () => {
-    it('should define all 10 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(10)
+    it('should define all 12 routing keys', () => {
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(12)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -40,6 +42,11 @@ describe('auth event types', () => {
     it('should have correct routing keys for 2FA events', () => {
       expect(AUTH_EVENTS.TWO_FA_ENABLED).toBe('auth.2fa.enabled')
       expect(AUTH_EVENTS.TWO_FA_DISABLED).toBe('auth.2fa.disabled')
+    })
+
+    it('should have correct routing keys for API key events', () => {
+      expect(AUTH_EVENTS.API_KEY_CREATED).toBe('auth.api-key.created')
+      expect(AUTH_EVENTS.API_KEY_REVOKED).toBe('auth.api-key.revoked')
     })
   })
 
@@ -142,6 +149,36 @@ describe('auth event types', () => {
       }
       expect(p).toEqual({ userId: 'u1', actorType: 'admin' })
     })
+
+    it('should enforce required fields on AuthApiKeyCreatedPayload', () => {
+      const p: AuthApiKeyCreatedPayload = {
+        apiKeyId: 'ak1',
+        userId: 'u1',
+        name: 'My Key',
+        prefix: 'czo_',
+      }
+      expect(p.apiKeyId).toBe('ak1')
+      expect(p.name).toBe('My Key')
+    })
+
+    it('should allow null name and prefix on AuthApiKeyCreatedPayload', () => {
+      const p: AuthApiKeyCreatedPayload = {
+        apiKeyId: 'ak1',
+        userId: 'u1',
+        name: null,
+        prefix: null,
+      }
+      expect(p.name).toBeNull()
+      expect(p.prefix).toBeNull()
+    })
+
+    it('should enforce required fields on AuthApiKeyRevokedPayload', () => {
+      const p: AuthApiKeyRevokedPayload = {
+        apiKeyId: 'ak1',
+        userId: 'u1',
+      }
+      expect(p).toEqual({ apiKeyId: 'ak1', userId: 'u1' })
+    })
   })
 
   describe('authEventType union', () => {
@@ -157,8 +194,10 @@ describe('auth event types', () => {
         'auth.org.role.changed',
         'auth.2fa.enabled',
         'auth.2fa.disabled',
+        'auth.api-key.created',
+        'auth.api-key.revoked',
       ]
-      expect(types).toHaveLength(10)
+      expect(types).toHaveLength(12)
     })
   })
 })

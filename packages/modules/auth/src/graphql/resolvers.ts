@@ -16,6 +16,12 @@ const Query: QueryResolvers = {
     })
     return result ?? null
   },
+  myApiKeys: async (_parent, _args, ctx) => {
+    const result = await ctx.authInstance.api.listApiKeys({
+      headers: ctx.request.headers,
+    })
+    return result ?? []
+  },
 }
 
 const Mutation: MutationResolvers = {

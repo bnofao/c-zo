@@ -67,6 +67,18 @@ export interface Auth2FADisabledPayload {
   actorType: string
 }
 
+export interface AuthApiKeyCreatedPayload {
+  apiKeyId: string
+  userId: string
+  name: string | null
+  prefix: string | null
+}
+
+export interface AuthApiKeyRevokedPayload {
+  apiKeyId: string
+  userId: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -80,6 +92,8 @@ export const AUTH_EVENTS = {
   ORG_ROLE_CHANGED: 'auth.org.role.changed',
   TWO_FA_ENABLED: 'auth.2fa.enabled',
   TWO_FA_DISABLED: 'auth.2fa.disabled',
+  API_KEY_CREATED: 'auth.api-key.created',
+  API_KEY_REVOKED: 'auth.api-key.revoked',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -98,5 +112,7 @@ declare module '@czo/kit/event-bus' {
     'auth.org.role.changed': AuthOrgRoleChangedPayload
     'auth.2fa.enabled': Auth2FAEnabledPayload
     'auth.2fa.disabled': Auth2FADisabledPayload
+    'auth.api-key.created': AuthApiKeyCreatedPayload
+    'auth.api-key.revoked': AuthApiKeyRevokedPayload
   }
 }

@@ -38,6 +38,7 @@ export default definePlugin(async (nitroApp) => {
   container.bind('auth:events', () => authEvents)
 
   const authOptions: AuthConfigOptions = {
+    appName: (authConfig as Record<string, string>).appName || '',
     secret: authConfig.secret,
     baseUrl: authConfig.baseUrl || 'http://localhost:4000',
     emailService,
