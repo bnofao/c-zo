@@ -13,6 +13,10 @@ const mockDrizzleAdapter = vi.hoisted(() =>
   vi.fn(() => ({ type: 'drizzle' })),
 )
 
+const mockAdmin = vi.hoisted(() =>
+  vi.fn((opts: unknown) => ({ id: 'admin', options: opts })),
+)
+
 const mockOrganization = vi.hoisted(() =>
   vi.fn((opts: unknown) => ({ id: 'organization', options: opts })),
 )
@@ -45,6 +49,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 }))
 
 vi.mock('better-auth/plugins', () => ({
+  admin: mockAdmin,
   apiKey: mockApiKey,
   openAPI: mockOpenAPI,
   organization: mockOrganization,
@@ -163,11 +168,12 @@ describe('auth config', () => {
       })
     })
 
-    it('should include the twoFactor, openAPI, actorType, and apiKey plugins', () => {
+    it('should include the admin, twoFactor, openAPI, actorType, and apiKey plugins', () => {
       const config = createAuthConfig(mockDb, options)
 
       expect(config.plugins).toBeDefined()
-      expect(config.plugins!.length).toBeGreaterThanOrEqual(4)
+      expect(config.plugins!.length).toBeGreaterThanOrEqual(5)
+      expect(mockAdmin).toHaveBeenCalled()
       expect(mockTwoFactor).toHaveBeenCalledWith({
         issuer: options.appName,
         schema: { twoFactor: { modelName: 'two_factors' } },
@@ -175,6 +181,26 @@ describe('auth config', () => {
       expect(mockActorType).toHaveBeenCalled()
       expect(mockOpenAPI).toHaveBeenCalled()
       expect(mockApiKey).toHaveBeenCalled()
+    })
+
+    it('should configure admin plugin with correct schema and roles', () => {
+      createAuthConfig(mockDb, options)
+
+      const adminCall = mockAdmin.mock.calls[mockAdmin.mock.calls.length - 1]![0] as Record<string, any>
+      expect(adminCall.defaultRole).toBe('user')
+      expect(adminCall.adminRoles).toEqual(['admin'])
+      expect(adminCall.impersonationSessionDuration).toBe(3600)
+      expect(adminCall.schema.user.modelName).toBe('users')
+      expect(adminCall.schema.user.fields).toEqual({
+        role: 'role',
+        banned: 'banned',
+        banReason: 'ban_reason',
+        banExpires: 'ban_expires',
+      })
+      expect(adminCall.schema.session.modelName).toBe('sessions')
+      expect(adminCall.schema.session.fields).toEqual({
+        impersonatedBy: 'impersonated_by',
+      })
     })
 
     describe('password validation', () => {

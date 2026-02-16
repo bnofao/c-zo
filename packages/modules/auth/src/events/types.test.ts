@@ -5,10 +5,14 @@ import type {
   AuthApiKeyCreatedPayload,
   AuthApiKeyRevokedPayload,
   AuthEventType,
+  AuthImpersonationStartedPayload,
+  AuthImpersonationStoppedPayload,
   AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
+  AuthUserBannedPayload,
   AuthUserRegisteredPayload,
+  AuthUserUnbannedPayload,
   AuthUserUpdatedPayload,
 } from './types'
 import { describe, expect, it } from 'vitest'
@@ -16,8 +20,8 @@ import { AUTH_EVENTS } from './types'
 
 describe('auth event types', () => {
   describe('auth events constants', () => {
-    it('should define all 13 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(13)
+    it('should define all 17 routing keys', () => {
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(17)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -52,6 +56,13 @@ describe('auth event types', () => {
 
     it('should have correct routing key for restriction denied event', () => {
       expect(AUTH_EVENTS.RESTRICTION_DENIED).toBe('auth.restriction.denied')
+    })
+
+    it('should have correct routing keys for admin events', () => {
+      expect(AUTH_EVENTS.IMPERSONATION_STARTED).toBe('auth.admin.impersonation.started')
+      expect(AUTH_EVENTS.IMPERSONATION_STOPPED).toBe('auth.admin.impersonation.stopped')
+      expect(AUTH_EVENTS.USER_BANNED).toBe('auth.admin.user.banned')
+      expect(AUTH_EVENTS.USER_UNBANNED).toBe('auth.admin.user.unbanned')
     })
   })
 
@@ -193,6 +204,52 @@ describe('auth event types', () => {
       }
       expect(p).toEqual({ actorType: 'customer', authMethod: 'oauth:github', reason: 'Not allowed' })
     })
+
+    it('should enforce required fields on AuthImpersonationStartedPayload', () => {
+      const p: AuthImpersonationStartedPayload = {
+        adminUserId: 'u1',
+        targetUserId: 'u2',
+      }
+      expect(p).toEqual({ adminUserId: 'u1', targetUserId: 'u2' })
+    })
+
+    it('should enforce required fields on AuthImpersonationStoppedPayload', () => {
+      const p: AuthImpersonationStoppedPayload = {
+        adminUserId: 'u1',
+        targetUserId: 'u2',
+      }
+      expect(p).toEqual({ adminUserId: 'u1', targetUserId: 'u2' })
+    })
+
+    it('should enforce required fields on AuthUserBannedPayload', () => {
+      const p: AuthUserBannedPayload = {
+        userId: 'u2',
+        bannedBy: 'u1',
+        reason: 'spam',
+        expiresIn: 3600,
+      }
+      expect(p.userId).toBe('u2')
+      expect(p.reason).toBe('spam')
+    })
+
+    it('should allow null reason and expiresIn on AuthUserBannedPayload', () => {
+      const p: AuthUserBannedPayload = {
+        userId: 'u2',
+        bannedBy: 'u1',
+        reason: null,
+        expiresIn: null,
+      }
+      expect(p.reason).toBeNull()
+      expect(p.expiresIn).toBeNull()
+    })
+
+    it('should enforce required fields on AuthUserUnbannedPayload', () => {
+      const p: AuthUserUnbannedPayload = {
+        userId: 'u2',
+        unbannedBy: 'u1',
+      }
+      expect(p).toEqual({ userId: 'u2', unbannedBy: 'u1' })
+    })
   })
 
   describe('authEventType union', () => {
@@ -211,8 +268,12 @@ describe('auth event types', () => {
         'auth.api-key.created',
         'auth.api-key.revoked',
         'auth.restriction.denied',
+        'auth.admin.impersonation.started',
+        'auth.admin.impersonation.stopped',
+        'auth.admin.user.banned',
+        'auth.admin.user.unbanned',
       ]
-      expect(types).toHaveLength(13)
+      expect(types).toHaveLength(17)
     })
   })
 })

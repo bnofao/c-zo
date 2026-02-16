@@ -238,6 +238,66 @@ describe('authEventsService', () => {
     })
   })
 
+  describe('impersonationStarted', () => {
+    it('should publish auth.admin.impersonation.started event with correct payload', async () => {
+      const payload = { adminUserId: 'u1', targetUserId: 'u2' }
+
+      await service.impersonationStarted(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.IMPERSONATION_STARTED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('impersonationStopped', () => {
+    it('should publish auth.admin.impersonation.stopped event with correct payload', async () => {
+      const payload = { adminUserId: 'u1', targetUserId: 'u2' }
+
+      await service.impersonationStopped(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.IMPERSONATION_STOPPED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('userBanned', () => {
+    it('should publish auth.admin.user.banned event with correct payload', async () => {
+      const payload = { userId: 'u2', bannedBy: 'u1', reason: 'spam' as string | null, expiresIn: 3600 as number | null }
+
+      await service.userBanned(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.USER_BANNED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
+  describe('userUnbanned', () => {
+    it('should publish auth.admin.user.unbanned event with correct payload', async () => {
+      const payload = { userId: 'u2', unbannedBy: 'u1' }
+
+      await service.userUnbanned(payload)
+
+      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
+        type: AUTH_EVENTS.USER_UNBANNED,
+        payload,
+        metadata: { source: 'auth' },
+      })
+      expect(mockPublish).toHaveBeenCalled()
+    })
+  })
+
   describe('safePublish (fire-and-forget)', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))

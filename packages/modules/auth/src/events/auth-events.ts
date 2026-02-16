@@ -4,6 +4,8 @@ import type {
   Auth2FAEnabledPayload,
   AuthApiKeyCreatedPayload,
   AuthApiKeyRevokedPayload,
+  AuthImpersonationStartedPayload,
+  AuthImpersonationStoppedPayload,
   AuthOrgCreatedPayload,
   AuthOrgMemberAddedPayload,
   AuthOrgMemberRemovedPayload,
@@ -11,7 +13,9 @@ import type {
   AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
+  AuthUserBannedPayload,
   AuthUserRegisteredPayload,
+  AuthUserUnbannedPayload,
   AuthUserUpdatedPayload,
 } from './types'
 import { useLogger } from '@czo/kit'
@@ -101,5 +105,21 @@ export class AuthEventsService {
 
   async restrictionDenied(payload: AuthRestrictionDeniedPayload): Promise<void> {
     await this.safePublish(AUTH_EVENTS.RESTRICTION_DENIED, payload)
+  }
+
+  async impersonationStarted(payload: AuthImpersonationStartedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.IMPERSONATION_STARTED, payload)
+  }
+
+  async impersonationStopped(payload: AuthImpersonationStoppedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.IMPERSONATION_STOPPED, payload)
+  }
+
+  async userBanned(payload: AuthUserBannedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.USER_BANNED, payload)
+  }
+
+  async userUnbanned(payload: AuthUserUnbannedPayload): Promise<void> {
+    await this.safePublish(AUTH_EVENTS.USER_UNBANNED, payload)
   }
 }
