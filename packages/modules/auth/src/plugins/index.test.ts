@@ -25,12 +25,18 @@ const mockDb = vi.hoisted(() => ({
   query: vi.fn(),
 }))
 
-const mockRedisStorage = vi.hoisted(() => ({
+const mockSecondaryStorage = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   delete: vi.fn(),
 }))
-const mockCreateRedisStorage = vi.hoisted(() => vi.fn(() => mockRedisStorage))
+const mockCreateSecondaryStorage = vi.hoisted(() => vi.fn(() => mockSecondaryStorage))
+
+const mockStorageInstance = vi.hoisted(() => ({
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+}))
 
 const mockAuthEventsService = vi.hoisted(() => {
   class AuthEventsService {
@@ -50,12 +56,37 @@ vi.mock('../events/auth-events', () => ({
   AuthEventsService: mockAuthEventsService,
 }))
 
+const mockUserService = vi.hoisted(() => ({
+  list: vi.fn(),
+  get: vi.fn(),
+  create: vi.fn(),
+  update: vi.fn(),
+  ban: vi.fn(),
+  unban: vi.fn(),
+  remove: vi.fn(),
+  setRole: vi.fn(),
+  listSessions: vi.fn(),
+  revokeSession: vi.fn(),
+  revokeSessions: vi.fn(),
+  impersonate: vi.fn(),
+  stopImpersonating: vi.fn(),
+}))
+const mockCreateUserService = vi.hoisted(() => vi.fn(() => mockUserService))
+
 vi.mock('../services/secondary-storage', () => ({
-  createRedisStorage: mockCreateRedisStorage,
+  createSecondaryStorage: mockCreateSecondaryStorage,
+}))
+
+vi.mock('../services/user.service', () => ({
+  createUserService: mockCreateUserService,
 }))
 
 vi.mock('nitro', () => ({
   definePlugin: (fn: (app: unknown) => Promise<void>) => fn,
+}))
+
+vi.mock('nitro/storage', () => ({
+  useStorage: () => mockStorageInstance,
 }))
 
 describe('auth plugin', () => {
@@ -86,18 +117,6 @@ describe('auth plugin', () => {
     }))
   }
 
-  function mockRedisAvailable() {
-    vi.doMock('../services/redis', () => ({
-      useAuthRedis: () => ({ disconnect: vi.fn() }),
-    }))
-  }
-
-  function mockRedisUnavailable() {
-    vi.doMock('../services/redis', () => ({
-      useAuthRedis: () => { throw new Error('Redis unavailable') },
-    }))
-  }
-
   function createNitroApp() {
     const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
     const nitroApp = {
@@ -115,7 +134,6 @@ describe('auth plugin', () => {
 
   it('should create auth instance and bind to container', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const { nitroApp, boot } = createNitroApp()
@@ -132,9 +150,21 @@ describe('auth plugin', () => {
     expect(mockContainer.bind).toHaveBeenCalledWith('auth', expect.any(Function))
   })
 
+  it('should bind userService to container', async () => {
+    mockKitModules()
+    const { default: plugin } = await import('./index')
+
+    const { nitroApp, boot } = createNitroApp()
+
+    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
+
+    expect(mockCreateUserService).toHaveBeenCalledWith(mockAuth)
+    expect(mockContainer.bind).toHaveBeenCalledWith('auth:users', expect.any(Function))
+  })
+
   it('should inject auth into request context', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const { nitroApp, hookCallbacks, boot, request } = createNitroApp()
@@ -152,7 +182,6 @@ describe('auth plugin', () => {
 
   it('should log initialization message', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const nitroApp = {
@@ -168,7 +197,6 @@ describe('auth plugin', () => {
 
   it('should warn and skip when auth secret is not configured', async () => {
     mockKitModules({ secret: '', baseUrl: '' })
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const nitroApp = {
@@ -185,7 +213,6 @@ describe('auth plugin', () => {
 
   it('should error and skip when auth secret is too short', async () => {
     mockKitModules({ secret: 'too-short', baseUrl: 'http://localhost:4000' })
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const nitroApp = {
@@ -202,7 +229,6 @@ describe('auth plugin', () => {
 
   it('should bind email service to container', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const nitroApp = {
@@ -216,7 +242,6 @@ describe('auth plugin', () => {
 
   it('should bind auth events service to container', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const nitroApp = {
@@ -230,7 +255,6 @@ describe('auth plugin', () => {
 
   it('should pass events service to createAuth', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const { nitroApp, boot } = createNitroApp()
@@ -245,7 +269,6 @@ describe('auth plugin', () => {
 
   it('should pass email service to createAuth', async () => {
     mockKitModules()
-    mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
     const { nitroApp, boot } = createNitroApp()
@@ -258,9 +281,8 @@ describe('auth plugin', () => {
     expect(createAuthCall[1].emailService).toBeDefined()
   })
 
-  it('should continue without Redis when unavailable', async () => {
+  it('should pass secondary storage to createAuth via useStorage', async () => {
     mockKitModules()
-    mockRedisUnavailable()
     const { default: plugin } = await import('./index')
 
     const { nitroApp, boot } = createNitroApp()
@@ -268,65 +290,15 @@ describe('auth plugin', () => {
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
     boot()
 
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Redis unavailable'),
-      expect.any(String),
-    )
-    expect(mockCreateAuth).toHaveBeenCalled()
-  })
-
-  it('should log warning when Redis fails', async () => {
-    mockKitModules()
-    mockRedisUnavailable()
-    const { default: plugin } = await import('./index')
-
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
-
-    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Redis unavailable'),
-      'Redis unavailable',
-    )
-  })
-
-  it('should pass redis storage to createAuth when Redis is available', async () => {
-    mockKitModules()
-    mockRedisAvailable()
-    const { default: plugin } = await import('./index')
-
-    const { nitroApp, boot } = createNitroApp()
-
-    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-    boot()
-
-    expect(mockCreateRedisStorage).toHaveBeenCalled()
+    expect(mockCreateSecondaryStorage).toHaveBeenCalledWith(mockStorageInstance)
     expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
-      redis: { storage: mockRedisStorage },
-    }))
-  })
-
-  it('should not pass redis storage when Redis is unavailable', async () => {
-    mockKitModules()
-    mockRedisUnavailable()
-    const { default: plugin } = await import('./index')
-
-    const { nitroApp, boot } = createNitroApp()
-
-    await (plugin as (app: unknown) => Promise<void>)(nitroApp)
-    boot()
-
-    expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.not.objectContaining({
-      redis: expect.anything(),
+      redis: { storage: mockSecondaryStorage },
     }))
   })
 
   describe('request context injection', () => {
     it('should inject db into request context', async () => {
       mockKitModules()
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot, request } = createNitroApp()
@@ -342,7 +314,6 @@ describe('auth plugin', () => {
 
     it('should inject authEvents into request context', async () => {
       mockKitModules()
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot, request } = createNitroApp()
@@ -356,9 +327,23 @@ describe('auth plugin', () => {
       expect(event.context.authEvents).toBeInstanceOf(mockAuthEventsService)
     })
 
+    it('should inject userService into request context', async () => {
+      mockKitModules()
+      const { default: plugin } = await import('./index')
+
+      const { nitroApp, boot, request } = createNitroApp()
+
+      await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
+
+      const event = { context: {} as Record<string, unknown> }
+      request(event)
+
+      expect(event.context.userService).toBe(mockUserService)
+    })
+
     it('should not inject blocklist or rotation into request context', async () => {
       mockKitModules()
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot, request } = createNitroApp()
@@ -377,7 +362,6 @@ describe('auth plugin', () => {
   describe('authSecret injection', () => {
     it('should inject authSecret into request context', async () => {
       mockKitModules()
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot, request } = createNitroApp()
@@ -400,7 +384,6 @@ describe('auth plugin', () => {
         googleClientId: 'google-client-id',
         googleClientSecret: 'google-client-secret',
       })
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot } = createNitroApp()
@@ -426,7 +409,6 @@ describe('auth plugin', () => {
         githubClientId: 'github-client-id',
         githubClientSecret: 'github-client-secret',
       })
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot } = createNitroApp()
@@ -454,7 +436,6 @@ describe('auth plugin', () => {
         githubClientId: 'gh-id',
         githubClientSecret: 'gh-secret',
       })
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot } = createNitroApp()
@@ -472,7 +453,6 @@ describe('auth plugin', () => {
 
     it('should not pass oauth when no provider env vars are set', async () => {
       mockKitModules()
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot } = createNitroApp()
@@ -490,7 +470,6 @@ describe('auth plugin', () => {
         baseUrl: 'http://localhost:4000',
         googleClientId: 'google-client-id',
       })
-      mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
       const { nitroApp, boot } = createNitroApp()

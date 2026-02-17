@@ -14,11 +14,37 @@ type AdminUserList {
   total: Int!
 }
 
+type UserSession {
+  id: ID!
+  userId: ID!
+  expiresAt: DateTime!
+  ipAddress: String
+  userAgent: String
+  impersonatedBy: String
+  createdAt: DateTime!
+}
+
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+
+input UpdateUserInput {
+  name: String
+  email: EmailAddress
+}
+
 extend type Query {
   adminUsers(limit: Int, offset: Int, search: String): AdminUserList!
+  adminUser(userId: ID!): AdminUser!
+  adminUserSessions(userId: ID!): [UserSession!]!
 }
 
 extend type Mutation {
+  adminCreateUser(input: CreateUserInput!): AdminUser!
+  adminUpdateUser(userId: ID!, input: UpdateUserInput!): AdminUser!
   adminImpersonateUser(userId: ID!): Boolean!
   adminStopImpersonation: Boolean!
   adminBanUser(userId: ID!, reason: String, expiresIn: Int): Boolean!

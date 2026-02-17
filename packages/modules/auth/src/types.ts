@@ -2,6 +2,7 @@ import type { Auth } from './config/auth.config'
 import type { AuthEventsService } from './events/auth-events'
 import type { AuthRestrictionRegistry } from './services/auth-restriction-registry'
 import type { PermissionService } from './services/permission.service'
+import type { UserService } from './services/user.service'
 
 export interface AuthContext {
   session: {
@@ -33,5 +34,6 @@ export interface GraphQLContext {
   authRestrictions: AuthRestrictionRegistry
   authEvents: AuthEventsService
   permissionService: PermissionService
+  userService: UserService
   request: Request
 }

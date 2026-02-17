@@ -21,30 +21,20 @@ export type Scalars = {
 
 export type AdminUser = {
   __typename?: 'AdminUser';
+  banExpires?: Maybe<Scalars['DateTime']['output']>;
+  banReason?: Maybe<Scalars['String']['output']>;
+  banned: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  email: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
-  email: Scalars['String']['output'];
   role: Scalars['String']['output'];
-  banned: Scalars['Boolean']['output'];
-  banReason?: Maybe<Scalars['String']['output']>;
-  banExpires?: Maybe<Scalars['DateTime']['output']>;
-  createdAt: Scalars['DateTime']['output'];
 };
 
 export type AdminUserList = {
   __typename?: 'AdminUserList';
-  users: Array<AdminUser>;
   total: Scalars['Int']['output'];
-};
-
-export type AuthConfig = {
-  __typename?: 'AuthConfig';
-  require2FA: Scalars['Boolean']['output'];
-  sessionDuration: Scalars['Int']['output'];
-  allowImpersonation: Scalars['Boolean']['output'];
-  dominantActorType: Scalars['String']['output'];
-  allowedMethods: Array<Scalars['String']['output']>;
-  actorTypes: Array<Scalars['String']['output']>;
+  users: Array<AdminUser>;
 };
 
 export type ApiKey = {
@@ -59,10 +49,27 @@ export type ApiKey = {
   start?: Maybe<Scalars['String']['output']>;
 };
 
+export type AuthConfig = {
+  __typename?: 'AuthConfig';
+  actorTypes: Array<Scalars['String']['output']>;
+  allowImpersonation: Scalars['Boolean']['output'];
+  allowedMethods: Array<Scalars['String']['output']>;
+  dominantActorType: Scalars['String']['output'];
+  require2FA: Scalars['Boolean']['output'];
+  sessionDuration: Scalars['Int']['output'];
+};
+
 export type CreateOrganizationInput = {
   name: Scalars['String']['input'];
   slug?: InputMaybe<Scalars['String']['input']>;
   type?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type CreateUserInput = {
+  email: Scalars['EmailAddress']['input'];
+  name: Scalars['String']['input'];
+  password?: InputMaybe<Scalars['String']['input']>;
+  role?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type Invitation = {
@@ -79,6 +86,7 @@ export type Mutation = {
   _empty?: Maybe<Scalars['String']['output']>;
   acceptInvitation: OrgMember;
   adminBanUser: Scalars['Boolean']['output'];
+  adminCreateUser: AdminUser;
   adminImpersonateUser: Scalars['Boolean']['output'];
   adminRemoveUser: Scalars['Boolean']['output'];
   adminRevokeSession: Scalars['Boolean']['output'];
@@ -86,6 +94,7 @@ export type Mutation = {
   adminSetRole: Scalars['Boolean']['output'];
   adminStopImpersonation: Scalars['Boolean']['output'];
   adminUnbanUser: Scalars['Boolean']['output'];
+  adminUpdateUser: AdminUser;
   createOrganization: Organization;
   inviteMember: Invitation;
   removeMember: Scalars['Boolean']['output'];
@@ -97,34 +106,52 @@ export type MutationAcceptInvitationArgs = {
   invitationId: Scalars['ID']['input'];
 };
 
+
 export type MutationAdminBanUserArgs = {
-  userId: Scalars['ID']['input'];
-  reason?: InputMaybe<Scalars['String']['input']>;
   expiresIn?: InputMaybe<Scalars['Int']['input']>;
+  reason?: InputMaybe<Scalars['String']['input']>;
+  userId: Scalars['ID']['input'];
 };
+
+
+export type MutationAdminCreateUserArgs = {
+  input: CreateUserInput;
+};
+
 
 export type MutationAdminImpersonateUserArgs = {
   userId: Scalars['ID']['input'];
 };
 
+
 export type MutationAdminRemoveUserArgs = {
   userId: Scalars['ID']['input'];
 };
+
 
 export type MutationAdminRevokeSessionArgs = {
   sessionToken: Scalars['String']['input'];
 };
 
+
 export type MutationAdminRevokeSessionsArgs = {
   userId: Scalars['ID']['input'];
 };
 
+
 export type MutationAdminSetRoleArgs = {
-  userId: Scalars['ID']['input'];
   role: Scalars['String']['input'];
+  userId: Scalars['ID']['input'];
 };
 
+
 export type MutationAdminUnbanUserArgs = {
+  userId: Scalars['ID']['input'];
+};
+
+
+export type MutationAdminUpdateUserArgs = {
+  input: UpdateUserInput;
   userId: Scalars['ID']['input'];
 };
 
@@ -172,12 +199,25 @@ export type Organization = {
 export type Query = {
   __typename?: 'Query';
   _empty?: Maybe<Scalars['String']['output']>;
+  adminUser: AdminUser;
+  adminUserSessions: Array<UserSession>;
   adminUsers: AdminUserList;
   myApiKeys: Array<ApiKey>;
   myAuthConfig: AuthConfig;
   myOrganizations: Array<Organization>;
   organization?: Maybe<Organization>;
 };
+
+
+export type QueryAdminUserArgs = {
+  userId: Scalars['ID']['input'];
+};
+
+
+export type QueryAdminUserSessionsArgs = {
+  userId: Scalars['ID']['input'];
+};
+
 
 export type QueryAdminUsersArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -188,6 +228,22 @@ export type QueryAdminUsersArgs = {
 
 export type QueryOrganizationArgs = {
   id: Scalars['ID']['input'];
+};
+
+export type UpdateUserInput = {
+  email?: InputMaybe<Scalars['EmailAddress']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UserSession = {
+  __typename?: 'UserSession';
+  createdAt: Scalars['DateTime']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  impersonatedBy?: Maybe<Scalars['String']['output']>;
+  ipAddress?: Maybe<Scalars['String']['output']>;
+  userAgent?: Maybe<Scalars['String']['output']>;
+  userId: Scalars['ID']['output'];
 };
 
 export type WithIndex<TObject> = TObject & Record<string, any>;
@@ -268,6 +324,7 @@ export type ResolversTypes = ResolversObject<{
   AuthConfig: ResolverTypeWrapper<AuthConfig>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   CreateOrganizationInput: CreateOrganizationInput;
+  CreateUserInput: CreateUserInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
   EmailAddress: ResolverTypeWrapper<Scalars['EmailAddress']['output']>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
@@ -278,6 +335,8 @@ export type ResolversTypes = ResolversObject<{
   Organization: ResolverTypeWrapper<Organization>;
   Query: ResolverTypeWrapper<{}>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
+  UpdateUserInput: UpdateUserInput;
+  UserSession: ResolverTypeWrapper<UserSession>;
 }>;
 
 /** Mapping between all available schema types and the resolvers parents */
@@ -288,6 +347,7 @@ export type ResolversParentTypes = ResolversObject<{
   AuthConfig: AuthConfig;
   Boolean: Scalars['Boolean']['output'];
   CreateOrganizationInput: CreateOrganizationInput;
+  CreateUserInput: CreateUserInput;
   DateTime: Scalars['DateTime']['output'];
   EmailAddress: Scalars['EmailAddress']['output'];
   ID: Scalars['ID']['output'];
@@ -298,41 +358,25 @@ export type ResolversParentTypes = ResolversObject<{
   Organization: Organization;
   Query: {};
   String: Scalars['String']['output'];
+  UpdateUserInput: UpdateUserInput;
+  UserSession: UserSession;
 }>;
 
-export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
-  name: 'DateTime';
-}
-
-export interface EmailAddressScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['EmailAddress'], any> {
-  name: 'EmailAddress';
-}
-
 export type AdminUserResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AdminUser'] = ResolversParentTypes['AdminUser']> = ResolversObject<{
+  banExpires?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  banReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  banned?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  banned?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  banReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  banExpires?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
 export type AdminUserListResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AdminUserList'] = ResolversParentTypes['AdminUserList']> = ResolversObject<{
-  users?: Resolver<Array<ResolversTypes['AdminUser']>, ParentType, ContextType>;
   total?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-}>;
-
-export type AuthConfigResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AuthConfig'] = ResolversParentTypes['AuthConfig']> = ResolversObject<{
-  require2FA?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  sessionDuration?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  allowImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  dominantActorType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  allowedMethods?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
-  actorTypes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  users?: Resolver<Array<ResolversTypes['AdminUser']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
@@ -348,6 +392,24 @@ export type ApiKeyResolvers<ContextType = GraphQLContext, ParentType extends Res
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
+export type AuthConfigResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AuthConfig'] = ResolversParentTypes['AuthConfig']> = ResolversObject<{
+  actorTypes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  allowImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  allowedMethods?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
+  dominantActorType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  require2FA?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  sessionDuration?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
+  name: 'DateTime';
+}
+
+export interface EmailAddressScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['EmailAddress'], any> {
+  name: 'EmailAddress';
+}
+
 export type InvitationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Invitation'] = ResolversParentTypes['Invitation']> = ResolversObject<{
   email?: Resolver<ResolversTypes['EmailAddress'], ParentType, ContextType>;
   expiresAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
@@ -361,13 +423,15 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptInvitation?: Resolver<ResolversTypes['OrgMember'], ParentType, ContextType, RequireFields<MutationAcceptInvitationArgs, 'invitationId'>>;
   adminBanUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminBanUserArgs, 'userId'>>;
+  adminCreateUser?: Resolver<ResolversTypes['AdminUser'], ParentType, ContextType, RequireFields<MutationAdminCreateUserArgs, 'input'>>;
   adminImpersonateUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminImpersonateUserArgs, 'userId'>>;
   adminRemoveUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminRemoveUserArgs, 'userId'>>;
   adminRevokeSession?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminRevokeSessionArgs, 'sessionToken'>>;
   adminRevokeSessions?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminRevokeSessionsArgs, 'userId'>>;
-  adminSetRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminSetRoleArgs, 'userId' | 'role'>>;
+  adminSetRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminSetRoleArgs, 'role' | 'userId'>>;
   adminStopImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   adminUnbanUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationAdminUnbanUserArgs, 'userId'>>;
+  adminUpdateUser?: Resolver<ResolversTypes['AdminUser'], ParentType, ContextType, RequireFields<MutationAdminUpdateUserArgs, 'input' | 'userId'>>;
   createOrganization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType, RequireFields<MutationCreateOrganizationArgs, 'input'>>;
   inviteMember?: Resolver<ResolversTypes['Invitation'], ParentType, ContextType, RequireFields<MutationInviteMemberArgs, 'email' | 'organizationId' | 'role'>>;
   removeMember?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationRemoveMemberArgs, 'memberIdToRemove' | 'organizationId'>>;
@@ -394,11 +458,24 @@ export type OrganizationResolvers<ContextType = GraphQLContext, ParentType exten
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
   _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  adminUser?: Resolver<ResolversTypes['AdminUser'], ParentType, ContextType, RequireFields<QueryAdminUserArgs, 'userId'>>;
+  adminUserSessions?: Resolver<Array<ResolversTypes['UserSession']>, ParentType, ContextType, RequireFields<QueryAdminUserSessionsArgs, 'userId'>>;
   adminUsers?: Resolver<ResolversTypes['AdminUserList'], ParentType, ContextType, Partial<QueryAdminUsersArgs>>;
   myApiKeys?: Resolver<Array<ResolversTypes['ApiKey']>, ParentType, ContextType>;
   myAuthConfig?: Resolver<ResolversTypes['AuthConfig'], ParentType, ContextType>;
   myOrganizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   organization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, RequireFields<QueryOrganizationArgs, 'id'>>;
+}>;
+
+export type UserSessionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserSession'] = ResolversParentTypes['UserSession']> = ResolversObject<{
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  expiresAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  impersonatedBy?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  ipAddress?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  userAgent?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
@@ -413,5 +490,6 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   OrgMember?: OrgMemberResolvers<ContextType>;
   Organization?: OrganizationResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
+  UserSession?: UserSessionResolvers<ContextType>;
 }>;
 
