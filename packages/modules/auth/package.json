@@ -21,6 +21,10 @@
     "./types": {
       "types": "./src/types.ts",
       "default": "./dist/types.mjs"
+    },
+    "./access": {
+      "types": "./src/access/index.ts",
+      "default": "./dist/access/index.mjs"
     }
   },
   "main": "./dist/module.mjs",
@@ -45,6 +49,7 @@
   },
   "dependencies": {
     "@czo/kit": "workspace:*",
+    "@graphql-tools/resolvers-composition": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
     "graphql": "catalog:common",

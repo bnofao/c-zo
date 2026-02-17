@@ -9,6 +9,12 @@ vi.mock('@czo/kit/graphql', () => ({
 
 vi.mock('../services/admin-guard', () => ({
   requireAdmin: mockRequireAdmin,
+  isAdmin: () =>
+    (next: (...args: unknown[]) => unknown) =>
+      (root: unknown, args: unknown, ctx: unknown, info: unknown) => {
+        mockRequireAdmin(ctx)
+        return next(root, args, ctx, info)
+      },
 }))
 
 // eslint-disable-next-line import/first

@@ -98,18 +98,30 @@ describe('auth plugin', () => {
     }))
   }
 
+  function createNitroApp() {
+    const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
+    const nitroApp = {
+      hooks: {
+        hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
+          hookCallbacks.set(name, cb)
+        }),
+      },
+    }
+    const boot = () => hookCallbacks.get('czo:boot')!()
+    const request = (event: { context: Record<string, unknown> }) =>
+      hookCallbacks.get('request')!(event)
+    return { nitroApp, hookCallbacks, boot, request }
+  }
+
   it('should create auth instance and bind to container', async () => {
     mockKitModules()
     mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: {
-        hook: vi.fn(),
-      },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
       secret: 'test-secret-key-32-chars-minimum!',
@@ -125,21 +137,15 @@ describe('auth plugin', () => {
     mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
-    const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-    const nitroApp = {
-      hooks: {
-        hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-          hookCallbacks.set(name, cb)
-        }),
-      },
-    }
+    const { nitroApp, hookCallbacks, boot, request } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     expect(hookCallbacks.has('request')).toBe(true)
 
     const event = { context: {} as Record<string, unknown> }
-    hookCallbacks.get('request')!(event)
+    request(event)
 
     expect(event.context.auth).toBe(mockAuth)
   })
@@ -227,11 +233,10 @@ describe('auth plugin', () => {
     mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     const createAuthCall = mockCreateAuth.mock.calls[0]!
     expect(createAuthCall[1]).toHaveProperty('events')
@@ -243,11 +248,10 @@ describe('auth plugin', () => {
     mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     const createAuthCall = mockCreateAuth.mock.calls[0]!
     expect(createAuthCall[1]).toHaveProperty('emailService')
@@ -259,11 +263,10 @@ describe('auth plugin', () => {
     mockRedisUnavailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Redis unavailable'),
@@ -294,11 +297,10 @@ describe('auth plugin', () => {
     mockRedisAvailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     expect(mockCreateRedisStorage).toHaveBeenCalled()
     expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
@@ -311,11 +313,10 @@ describe('auth plugin', () => {
     mockRedisUnavailable()
     const { default: plugin } = await import('./index')
 
-    const nitroApp = {
-      hooks: { hook: vi.fn() },
-    }
+    const { nitroApp, boot } = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+    boot()
 
     expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.not.objectContaining({
       redis: expect.anything(),
@@ -328,19 +329,13 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
+      const { nitroApp, boot, request } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
+      request(event)
 
       expect(event.context.db).toBe(mockDb)
     })
@@ -350,19 +345,13 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
+      const { nitroApp, boot, request } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
+      request(event)
 
       expect(event.context.authEvents).toBeInstanceOf(mockAuthEventsService)
     })
@@ -372,19 +361,13 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
+      const { nitroApp, boot, request } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
+      request(event)
 
       expect(event.context.blocklist).toBeUndefined()
       expect(event.context.rotation).toBeUndefined()
@@ -397,19 +380,13 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const hookCallbacks = new Map<string, (...args: unknown[]) => void>()
-      const nitroApp = {
-        hooks: {
-          hook: vi.fn((name: string, cb: (...args: unknown[]) => void) => {
-            hookCallbacks.set(name, cb)
-          }),
-        },
-      }
+      const { nitroApp, boot, request } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const event = { context: {} as Record<string, unknown> }
-      hookCallbacks.get('request')!(event)
+      request(event)
 
       expect(event.context.authSecret).toBe('test-secret-key-32-chars-minimum!')
     })
@@ -426,11 +403,10 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
+      const { nitroApp, boot } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
         oauth: {
@@ -453,11 +429,10 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
+      const { nitroApp, boot } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
         oauth: {
@@ -482,11 +457,10 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
+      const { nitroApp, boot } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       expect(mockCreateAuth).toHaveBeenCalledWith(mockDb, expect.objectContaining({
         oauth: {
@@ -501,11 +475,10 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
+      const { nitroApp, boot } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const createAuthCall = mockCreateAuth.mock.calls[0]!
       expect(createAuthCall[1].oauth).toBeUndefined()
@@ -520,11 +493,10 @@ describe('auth plugin', () => {
       mockRedisAvailable()
       const { default: plugin } = await import('./index')
 
-      const nitroApp = {
-        hooks: { hook: vi.fn() },
-      }
+      const { nitroApp, boot } = createNitroApp()
 
       await (plugin as (app: unknown) => Promise<void>)(nitroApp)
+      boot()
 
       const createAuthCall = mockCreateAuth.mock.calls[0]!
       expect(createAuthCall[1].oauth).toBeUndefined()

@@ -3,10 +3,13 @@ import { useContainer, useLogger } from '@czo/kit'
 import { useDatabase } from '@czo/kit/db'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
+import { registerAuthStatements } from '../access/auth-statements'
+import { useAccessStatementRegistry } from '../access/registry'
 import { createAuth } from '../config/auth.config'
 import { AuthEventsService } from '../events/auth-events'
 import { useAuthRestrictionRegistry } from '../services/auth-restriction-registry'
 import { ConsoleEmailService } from '../services/email.service'
+import { createPermissionService } from '../services/permission.service'
 import { useAuthRedis } from '../services/redis'
 import { createRedisStorage } from '../services/secondary-storage'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
@@ -46,6 +49,10 @@ export default definePlugin(async (nitroApp) => {
   }
   container.bind('auth:restrictions', () => restrictionRegistry)
 
+  const accessRegistry = useAccessStatementRegistry()
+  registerAuthStatements(accessRegistry)
+  container.bind('auth:access', () => accessRegistry)
+
   const authOptions: AuthConfigOptions = {
     appName: (authConfig as Record<string, string>).appName || '',
     secret: authConfig.secret,
@@ -84,22 +91,36 @@ export default definePlugin(async (nitroApp) => {
     logger.warn('Redis unavailable — session cache disabled.', (err as Error).message)
   }
 
-  const auth = createAuth(db, authOptions)
-
-  container.bind('auth', () => auth)
+  let auth: ReturnType<typeof createAuth> | undefined
+  let permissionService: ReturnType<typeof createPermissionService> | undefined
 
   nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
+    if (!auth)
+      return
     event.context.auth = auth
-    event.context.generateOpenAPISchema = () => auth.api.generateOpenAPISchema()
+    event.context.generateOpenAPISchema = () => auth!.api.generateOpenAPISchema()
     event.context.db = db
     event.context.authEvents = authEvents
     event.context.authSecret = authConfig.secret
     event.context.authRestrictions = restrictionRegistry
+    if (permissionService) {
+      event.context.permissionService = permissionService
+    }
   })
 
   nitroApp.hooks.hook('czo:boot', () => {
     restrictionRegistry.freeze()
+    accessRegistry.freeze()
+
+    authOptions.accessRegistry = accessRegistry
+    auth = createAuth(db, authOptions)
+    container.bind('auth', () => auth)
+
+    permissionService = createPermissionService(auth)
+    container.bind('auth:permissions', () => permissionService)
+
     logger.info('Auth restriction registry frozen')
+    logger.info('Access statement registry frozen — auth created with domain roles')
   })
 
   logger.info('Auth module initialized with better-auth (session-based)')

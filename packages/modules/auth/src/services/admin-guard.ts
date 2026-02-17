@@ -8,3 +8,11 @@ export function requireAdmin(ctx: GraphQLContext): void {
     })
   }
 }
+
+export function isAdmin() {
+  return (next: (...args: unknown[]) => unknown) =>
+    (root: unknown, args: unknown, ctx: GraphQLContext, info: unknown) => {
+      requireAdmin(ctx)
+      return next(root, args, ctx, info)
+    }
+}

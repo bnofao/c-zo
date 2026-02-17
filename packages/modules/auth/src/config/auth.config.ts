@@ -1,4 +1,5 @@
 import type { BetterAuthOptions } from 'better-auth'
+import type { AccessStatementRegistry } from '../access/registry'
 import type { AuthEventsService } from '../events/auth-events'
 import type { AuthMethod, AuthRestrictionRegistry } from '../services/auth-restriction-registry'
 import type { EmailService } from '../services/email.service'
@@ -24,6 +25,8 @@ export interface AuthConfigOptions {
     github?: { clientId: string, clientSecret: string }
   }
   restrictionRegistry?: AuthRestrictionRegistry
+  accessRegistry?: AccessStatementRegistry
+  adminRoles?: readonly string[]
 }
 
 export const SESSION_EXPIRY_SECONDS = 604800
@@ -251,7 +254,7 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
     plugins: [
       admin({
         defaultRole: 'user',
-        adminRoles: ['admin'],
+        adminRoles: [...(options.adminRoles ?? ['admin'])],
         impersonationSessionDuration: 3600,
         schema: {
           user: {
@@ -291,7 +294,10 @@ function buildAuthConfig(db: unknown, options: AuthConfigOptions) {
       }),
       organization({
         ac,
-        roles: { viewer: viewerRole },
+        roles: {
+          viewer: viewerRole,
+          ...(options.accessRegistry?.getRoleMap() ?? {}),
+        },
         creatorRole: 'owner',
         invitationExpiresIn: 604800,
         sendInvitationEmail: async (data) => {

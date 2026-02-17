@@ -1,12 +1,11 @@
 import type { AdminUser, MutationResolvers, QueryResolvers } from './__generated__/resolver-types'
 import { registerResolvers } from '@czo/kit/graphql'
+import { composeResolvers } from '@graphql-tools/resolvers-composition'
 import { GraphQLError } from 'graphql'
-import { requireAdmin } from '../services/admin-guard'
+import { isAdmin } from '../services/admin-guard'
 
 const Query: QueryResolvers = {
   adminUsers: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     const result = await ctx.authInstance.api.listUsers({
       headers: ctx.request.headers,
       query: {
@@ -36,8 +35,6 @@ const Query: QueryResolvers = {
 
 const Mutation: MutationResolvers = {
   adminImpersonateUser: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     const effectiveConfig = await ctx.authRestrictions.getEffectiveConfig(args.userId)
     if (!effectiveConfig.allowImpersonation) {
       throw new GraphQLError('Impersonation is not allowed for this user', {
@@ -58,8 +55,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminStopImpersonation: async (_parent, _args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.stopImpersonating({
       headers: ctx.request.headers,
     })
@@ -72,8 +67,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminBanUser: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.banUser({
       headers: ctx.request.headers,
       body: {
@@ -93,8 +86,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminUnbanUser: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.unbanUser({
       headers: ctx.request.headers,
       body: { userId: args.userId },
@@ -108,8 +99,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminSetRole: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.setRole({
       headers: ctx.request.headers,
       body: { userId: args.userId, role: args.role as 'user' | 'admin' },
@@ -118,8 +107,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminRemoveUser: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.removeUser({
       headers: ctx.request.headers,
       body: { userId: args.userId },
@@ -128,8 +115,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminRevokeSession: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.revokeUserSession({
       headers: ctx.request.headers,
       body: { sessionToken: args.sessionToken },
@@ -138,8 +123,6 @@ const Mutation: MutationResolvers = {
     return true
   },
   adminRevokeSessions: async (_parent, args, ctx) => {
-    requireAdmin(ctx)
-
     await ctx.authInstance.api.revokeUserSessions({
       headers: ctx.request.headers,
       body: { userId: args.userId },
@@ -149,4 +132,9 @@ const Mutation: MutationResolvers = {
   },
 }
 
-registerResolvers({ Query, Mutation })
+const resolversComposition = {
+  'Query.*': [isAdmin()],
+  'Mutation.*': [isAdmin()],
+}
+
+registerResolvers(composeResolvers({ Query, Mutation }, resolversComposition))
