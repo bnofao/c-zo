@@ -2,7 +2,7 @@ import type { Auth } from '../config/auth.config'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface AdminUserData {
+export interface UserData {
   id: string
   name: string
   email: string
@@ -27,21 +27,21 @@ export interface UserService {
   list: (
     headers: Headers,
     params: { limit?: number, offset?: number, search?: string },
-  ) => Promise<{ users: AdminUserData[], total: number }>
-  get: (headers: Headers, userId: string) => Promise<AdminUserData>
+  ) => Promise<{ users: UserData[], total: number }>
+  get: (headers: Headers, userId: string) => Promise<UserData>
   create: (
     headers: Headers,
     input: { email: string, name: string, password?: string, role?: string },
-  ) => Promise<AdminUserData>
+  ) => Promise<UserData>
   update: (
     headers: Headers,
     userId: string,
     data: { name?: string, email?: string },
-  ) => Promise<AdminUserData>
-  ban: (headers: Headers, userId: string, reason?: string, expiresIn?: number) => Promise<AdminUserData>
-  unban: (headers: Headers, userId: string) => Promise<AdminUserData>
+  ) => Promise<UserData>
+  ban: (headers: Headers, userId: string, reason?: string, expiresIn?: number) => Promise<UserData>
+  unban: (headers: Headers, userId: string) => Promise<UserData>
   remove: (headers: Headers, userId: string) => Promise<boolean>
-  setRole: (headers: Headers, userId: string, role: string) => Promise<AdminUserData>
+  setRole: (headers: Headers, userId: string, role: string) => Promise<UserData>
   listSessions: (headers: Headers, userId: string) => Promise<UserSessionData[]>
   revokeSession: (headers: Headers, sessionToken: string) => Promise<boolean>
   revokeSessions: (headers: Headers, userId: string) => Promise<boolean>
@@ -51,7 +51,7 @@ export interface UserService {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function normalizeUser(u: Record<string, unknown>): AdminUserData {
+function normalizeUser(u: Record<string, unknown>): UserData {
   return {
     id: u.id as string,
     name: u.name as string,

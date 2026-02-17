@@ -16,7 +16,7 @@ import { createUserService } from '../services/user.service'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 import '../graphql/typedefs'
 import '../graphql/resolvers/resolvers'
-import '../graphql/resolvers/admin-resolvers'
+import '../graphql/resolvers/user-resolvers'
 
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')

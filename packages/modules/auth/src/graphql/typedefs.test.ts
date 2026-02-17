@@ -105,9 +105,9 @@ describe('auth typedefs', () => {
     expect(sdl).toContain('myAuthConfig: AuthConfig!')
   })
 
-  it('should define AdminUser type with expected fields', () => {
+  it('should define User type with expected fields', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('type AdminUser')
+    expect(sdl).toContain('type User')
     expect(sdl).toContain('id: ID!')
     expect(sdl).toContain('name: String!')
     expect(sdl).toContain('email: String!')
@@ -118,29 +118,29 @@ describe('auth typedefs', () => {
     expect(sdl).toContain('createdAt: DateTime!')
   })
 
-  it('should define AdminUserList type', () => {
+  it('should define UserList type', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('type AdminUserList')
-    expect(sdl).toContain('users: [AdminUser!]!')
+    expect(sdl).toContain('type UserList')
+    expect(sdl).toContain('users: [User!]!')
     expect(sdl).toContain('total: Int!')
   })
 
-  it('should extend Query with adminUsers', () => {
+  it('should extend Query with users', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
     expect(sdl).toContain('extend type Query')
-    expect(sdl).toContain('adminUsers')
+    expect(sdl).toContain('users')
   })
 
-  it('should extend Mutation with admin operations', () => {
+  it('should extend Mutation with user management operations', () => {
     const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
     expect(sdl).toContain('extend type Mutation')
-    expect(sdl).toContain('adminImpersonateUser')
-    expect(sdl).toContain('adminStopImpersonation')
-    expect(sdl).toContain('adminBanUser')
-    expect(sdl).toContain('adminUnbanUser')
-    expect(sdl).toContain('adminSetRole')
-    expect(sdl).toContain('adminRemoveUser')
-    expect(sdl).toContain('adminRevokeSession')
-    expect(sdl).toContain('adminRevokeSessions')
+    expect(sdl).toContain('impersonateUser')
+    expect(sdl).toContain('stopImpersonation')
+    expect(sdl).toContain('banUser')
+    expect(sdl).toContain('unbanUser')
+    expect(sdl).toContain('setRole')
+    expect(sdl).toContain('removeUser')
+    expect(sdl).toContain('revokeSession')
+    expect(sdl).toContain('revokeSessions')
   })
 })

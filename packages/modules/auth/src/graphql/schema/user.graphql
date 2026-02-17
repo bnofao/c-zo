@@ -1,0 +1,56 @@
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  role: String!
+  banned: Boolean!
+  banReason: String
+  banExpires: DateTime
+  createdAt: DateTime!
+}
+
+type UserList {
+  users: [User!]!
+  total: Int!
+}
+
+type UserSession {
+  id: ID!
+  userId: ID!
+  expiresAt: DateTime!
+  ipAddress: String
+  userAgent: String
+  impersonatedBy: String
+  createdAt: DateTime!
+}
+
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+
+input UpdateUserInput {
+  name: String
+  email: EmailAddress
+}
+
+extend type Query {
+  users(limit: Int, offset: Int, search: String): UserList!
+  user(userId: ID!): User!
+  userSessions(userId: ID!): [UserSession!]!
+}
+
+extend type Mutation {
+  createUser(input: CreateUserInput!): User!
+  updateUser(userId: ID!, input: UpdateUserInput!): User!
+  impersonateUser(userId: ID!): Boolean!
+  stopImpersonation: Boolean!
+  banUser(userId: ID!, reason: String, expiresIn: Int): Boolean!
+  unbanUser(userId: ID!): Boolean!
+  setRole(userId: ID!, role: String!): Boolean!
+  removeUser(userId: ID!): Boolean!
+  revokeSession(sessionToken: String!): Boolean!
+  revokeSessions(userId: ID!): Boolean!
+}

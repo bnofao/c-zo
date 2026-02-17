@@ -1,4 +1,5 @@
-import type { GraphQLContext } from '../types'
+import type { GraphQLFieldResolver } from 'graphql'
+import type { GraphQLContext } from '../../types'
 import { GraphQLError } from 'graphql'
 
 export function requireAdmin(ctx: GraphQLContext): void {
@@ -10,8 +11,8 @@ export function requireAdmin(ctx: GraphQLContext): void {
 }
 
 export function isAdmin() {
-  return (next: (...args: unknown[]) => unknown) =>
-    (root: unknown, args: unknown, ctx: GraphQLContext, info: unknown) => {
+  return (next: GraphQLFieldResolver<any, any>) =>
+    (root: any, args: any, ctx: GraphQLContext, info: any) => {
       requireAdmin(ctx)
       return next(root, args, ctx, info)
     }

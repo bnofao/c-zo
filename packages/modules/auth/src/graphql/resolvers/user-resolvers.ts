@@ -5,23 +5,23 @@ import { GraphQLError } from 'graphql'
 import { isAdmin } from '../guards/admin-guard'
 
 const Query: QueryResolvers = {
-  adminUsers: async (_parent, args, ctx) => {
+  users: async (_parent, args, ctx) => {
     return ctx.userService.list(ctx.request.headers, {
       limit: args.limit ?? undefined,
       offset: args.offset ?? undefined,
       search: args.search ?? undefined,
     })
   },
-  adminUser: async (_parent, args, ctx) => {
+  user: async (_parent, args, ctx) => {
     return ctx.userService.get(ctx.request.headers, args.userId)
   },
-  adminUserSessions: async (_parent, args, ctx) => {
+  userSessions: async (_parent, args, ctx) => {
     return ctx.userService.listSessions(ctx.request.headers, args.userId)
   },
 }
 
 const Mutation: MutationResolvers = {
-  adminCreateUser: async (_parent, args, ctx) => {
+  createUser: async (_parent, args, ctx) => {
     return ctx.userService.create(ctx.request.headers, {
       email: args.input.email,
       name: args.input.name,
@@ -29,13 +29,13 @@ const Mutation: MutationResolvers = {
       role: args.input.role ?? undefined,
     })
   },
-  adminUpdateUser: async (_parent, args, ctx) => {
+  updateUser: async (_parent, args, ctx) => {
     return ctx.userService.update(ctx.request.headers, args.userId, {
       name: args.input.name ?? undefined,
       email: args.input.email ?? undefined,
     })
   },
-  adminImpersonateUser: async (_parent, args, ctx) => {
+  impersonateUser: async (_parent, args, ctx) => {
     const effectiveConfig = await ctx.authRestrictions.getEffectiveConfig(args.userId)
     if (!effectiveConfig.allowImpersonation) {
       throw new GraphQLError('Impersonation is not allowed for this user', {
@@ -52,7 +52,7 @@ const Mutation: MutationResolvers = {
 
     return true
   },
-  adminStopImpersonation: async (_parent, _args, ctx) => {
+  stopImpersonation: async (_parent, _args, ctx) => {
     await ctx.userService.stopImpersonating(ctx.request.headers)
 
     void ctx.authEvents.impersonationStopped({
@@ -62,7 +62,7 @@ const Mutation: MutationResolvers = {
 
     return true
   },
-  adminBanUser: async (_parent, args, ctx) => {
+  banUser: async (_parent, args, ctx) => {
     await ctx.userService.ban(
       ctx.request.headers,
       args.userId,
@@ -79,7 +79,7 @@ const Mutation: MutationResolvers = {
 
     return true
   },
-  adminUnbanUser: async (_parent, args, ctx) => {
+  unbanUser: async (_parent, args, ctx) => {
     await ctx.userService.unban(ctx.request.headers, args.userId)
 
     void ctx.authEvents.userUnbanned({
@@ -89,22 +89,22 @@ const Mutation: MutationResolvers = {
 
     return true
   },
-  adminSetRole: async (_parent, args, ctx) => {
+  setRole: async (_parent, args, ctx) => {
     await ctx.userService.setRole(ctx.request.headers, args.userId, args.role)
 
     return true
   },
-  adminRemoveUser: async (_parent, args, ctx) => {
+  removeUser: async (_parent, args, ctx) => {
     await ctx.userService.remove(ctx.request.headers, args.userId)
 
     return true
   },
-  adminRevokeSession: async (_parent, args, ctx) => {
+  revokeSession: async (_parent, args, ctx) => {
     await ctx.userService.revokeSession(ctx.request.headers, args.sessionToken)
 
     return true
   },
-  adminRevokeSessions: async (_parent, args, ctx) => {
+  revokeSessions: async (_parent, args, ctx) => {
     await ctx.userService.revokeSessions(ctx.request.headers, args.userId)
 
     return true

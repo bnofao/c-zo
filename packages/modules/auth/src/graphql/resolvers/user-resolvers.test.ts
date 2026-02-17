@@ -18,7 +18,7 @@ vi.mock('../guards/admin-guard', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import './admin-resolvers'
+import './user-resolvers'
 
 type ResolverFn = (...args: unknown[]) => Promise<unknown>
 interface ResolverMap {
@@ -28,7 +28,7 @@ interface ResolverMap {
 
 const resolvers = mockRegisterResolvers.mock.calls[0]![0] as ResolverMap
 
-describe('admin resolvers', () => {
+describe('user resolvers', () => {
   const mockHeaders = new Headers({ authorization: 'Bearer test-token' })
   const mockRequest = { headers: mockHeaders } as Request
 
@@ -102,7 +102,7 @@ describe('admin resolvers', () => {
     expect(resolvers.Mutation).toBeDefined()
   })
 
-  describe('query.adminUsers', () => {
+  describe('query.users', () => {
     it('should call requireAdmin and list users via userService', async () => {
       const serviceResult = {
         users: [{ id: 'u2', name: 'User', email: 'user@czo.dev', role: 'user', banned: false, banReason: null, banExpires: null, createdAt: new Date('2026-01-01') }],
@@ -110,7 +110,7 @@ describe('admin resolvers', () => {
       }
       mockUserService.list.mockResolvedValue(serviceResult)
 
-      const result = await resolvers.Query.adminUsers!(null, { limit: 10, offset: 0 }, mockContext) as { users: unknown[], total: number }
+      const result = await resolvers.Query.users!(null, { limit: 10, offset: 0 }, mockContext) as { users: unknown[], total: number }
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
@@ -126,7 +126,7 @@ describe('admin resolvers', () => {
     it('should pass search when provided', async () => {
       mockUserService.list.mockResolvedValue({ users: [], total: 0 })
 
-      await resolvers.Query.adminUsers!(null, { search: 'test' }, mockContext)
+      await resolvers.Query.users!(null, { search: 'test' }, mockContext)
 
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
         limit: undefined,
@@ -138,7 +138,7 @@ describe('admin resolvers', () => {
     it('should default limit and offset to undefined when not provided', async () => {
       mockUserService.list.mockResolvedValue({ users: [], total: 0 })
 
-      await resolvers.Query.adminUsers!(null, {}, mockContext)
+      await resolvers.Query.users!(null, {}, mockContext)
 
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
         limit: undefined,
@@ -148,12 +148,12 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('query.adminUser', () => {
+  describe('query.user', () => {
     it('should call userService.get with userId', async () => {
       const user = { id: 'u2', name: 'User', email: 'user@czo.dev', role: 'user', banned: false, banReason: null, banExpires: null, createdAt: new Date() }
       mockUserService.get.mockResolvedValue(user)
 
-      const result = await resolvers.Query.adminUser!(null, { userId: 'u2' }, mockContext)
+      const result = await resolvers.Query.user!(null, { userId: 'u2' }, mockContext)
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.get).toHaveBeenCalledWith(mockHeaders, 'u2')
@@ -161,14 +161,14 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('query.adminUserSessions', () => {
+  describe('query.userSessions', () => {
     it('should call userService.listSessions with userId', async () => {
       const sessions = [
         { id: 's1', userId: 'u2', expiresAt: new Date(), ipAddress: '127.0.0.1', userAgent: 'test', impersonatedBy: null, createdAt: new Date() },
       ]
       mockUserService.listSessions.mockResolvedValue(sessions)
 
-      const result = await resolvers.Query.adminUserSessions!(null, { userId: 'u2' }, mockContext)
+      const result = await resolvers.Query.userSessions!(null, { userId: 'u2' }, mockContext)
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.listSessions).toHaveBeenCalledWith(mockHeaders, 'u2')
@@ -176,12 +176,12 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminCreateUser', () => {
+  describe('mutation.createUser', () => {
     it('should call userService.create with input', async () => {
       const user = { id: 'u-new', name: 'New User', email: 'new@czo.dev', role: 'user', banned: false, banReason: null, banExpires: null, createdAt: new Date() }
       mockUserService.create.mockResolvedValue(user)
 
-      const result = await resolvers.Mutation.adminCreateUser!(
+      const result = await resolvers.Mutation.createUser!(
         null,
         { input: { email: 'new@czo.dev', name: 'New User' } },
         mockContext,
@@ -200,7 +200,7 @@ describe('admin resolvers', () => {
     it('should pass password and role when provided', async () => {
       mockUserService.create.mockResolvedValue({ id: 'u-new', name: 'Admin', email: 'admin@czo.dev', role: 'admin', banned: false, createdAt: new Date() })
 
-      await resolvers.Mutation.adminCreateUser!(
+      await resolvers.Mutation.createUser!(
         null,
         { input: { email: 'admin@czo.dev', name: 'Admin', password: 'secret', role: 'admin' } },
         mockContext,
@@ -215,12 +215,12 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminUpdateUser', () => {
+  describe('mutation.updateUser', () => {
     it('should call userService.update with userId and input', async () => {
       const user = { id: 'u2', name: 'Updated', email: 'user@czo.dev', role: 'user', banned: false, banReason: null, banExpires: null, createdAt: new Date() }
       mockUserService.update.mockResolvedValue(user)
 
-      const result = await resolvers.Mutation.adminUpdateUser!(
+      const result = await resolvers.Mutation.updateUser!(
         null,
         { userId: 'u2', input: { name: 'Updated' } },
         mockContext,
@@ -235,12 +235,12 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminImpersonateUser', () => {
+  describe('mutation.impersonateUser', () => {
     it('should call requireAdmin, check restrictions, impersonate, and emit event', async () => {
       mockAuthRestrictions.getEffectiveConfig.mockResolvedValue({ allowImpersonation: true })
       mockUserService.impersonate.mockResolvedValue(true)
 
-      const result = await resolvers.Mutation.adminImpersonateUser!(
+      const result = await resolvers.Mutation.impersonateUser!(
         null,
         { userId: 'u2' },
         mockContext,
@@ -260,7 +260,7 @@ describe('admin resolvers', () => {
       mockAuthRestrictions.getEffectiveConfig.mockResolvedValue({ allowImpersonation: false })
 
       await expect(
-        resolvers.Mutation.adminImpersonateUser!(null, { userId: 'u-admin' }, mockContext),
+        resolvers.Mutation.impersonateUser!(null, { userId: 'u-admin' }, mockContext),
       ).rejects.toThrow('Impersonation is not allowed for this user')
 
       expect(mockUserService.impersonate).not.toHaveBeenCalled()
@@ -268,11 +268,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminStopImpersonation', () => {
+  describe('mutation.stopImpersonation', () => {
     it('should call requireAdmin, stop impersonation, and emit event', async () => {
       mockUserService.stopImpersonating.mockResolvedValue(true)
 
-      const result = await resolvers.Mutation.adminStopImpersonation!(null, {}, mockContext)
+      const result = await resolvers.Mutation.stopImpersonation!(null, {}, mockContext)
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.stopImpersonating).toHaveBeenCalledWith(mockHeaders)
@@ -284,11 +284,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminBanUser', () => {
+  describe('mutation.banUser', () => {
     it('should call requireAdmin, ban user, and emit event', async () => {
       mockUserService.ban.mockResolvedValue({})
 
-      const result = await resolvers.Mutation.adminBanUser!(
+      const result = await resolvers.Mutation.banUser!(
         null,
         { userId: 'u2', reason: 'spam', expiresIn: 3600 },
         mockContext,
@@ -308,7 +308,7 @@ describe('admin resolvers', () => {
     it('should ban user without reason or expiresIn', async () => {
       mockUserService.ban.mockResolvedValue({})
 
-      await resolvers.Mutation.adminBanUser!(null, { userId: 'u2' }, mockContext)
+      await resolvers.Mutation.banUser!(null, { userId: 'u2' }, mockContext)
 
       expect(mockUserService.ban).toHaveBeenCalledWith(mockHeaders, 'u2', undefined, undefined)
       expect(mockAuthEvents.userBanned).toHaveBeenCalledWith({
@@ -320,11 +320,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminUnbanUser', () => {
+  describe('mutation.unbanUser', () => {
     it('should call requireAdmin, unban user, and emit event', async () => {
       mockUserService.unban.mockResolvedValue({})
 
-      const result = await resolvers.Mutation.adminUnbanUser!(null, { userId: 'u2' }, mockContext)
+      const result = await resolvers.Mutation.unbanUser!(null, { userId: 'u2' }, mockContext)
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.unban).toHaveBeenCalledWith(mockHeaders, 'u2')
@@ -336,11 +336,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminSetRole', () => {
+  describe('mutation.setRole', () => {
     it('should call requireAdmin and set role', async () => {
       mockUserService.setRole.mockResolvedValue({})
 
-      const result = await resolvers.Mutation.adminSetRole!(
+      const result = await resolvers.Mutation.setRole!(
         null,
         { userId: 'u2', role: 'admin' },
         mockContext,
@@ -352,11 +352,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminRemoveUser', () => {
+  describe('mutation.removeUser', () => {
     it('should call requireAdmin and remove user', async () => {
       mockUserService.remove.mockResolvedValue(true)
 
-      const result = await resolvers.Mutation.adminRemoveUser!(null, { userId: 'u2' }, mockContext)
+      const result = await resolvers.Mutation.removeUser!(null, { userId: 'u2' }, mockContext)
 
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.remove).toHaveBeenCalledWith(mockHeaders, 'u2')
@@ -364,11 +364,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminRevokeSession', () => {
+  describe('mutation.revokeSession', () => {
     it('should call requireAdmin and revoke session by token', async () => {
       mockUserService.revokeSession.mockResolvedValue(true)
 
-      const result = await resolvers.Mutation.adminRevokeSession!(
+      const result = await resolvers.Mutation.revokeSession!(
         null,
         { sessionToken: 'tok-abc' },
         mockContext,
@@ -380,11 +380,11 @@ describe('admin resolvers', () => {
     })
   })
 
-  describe('mutation.adminRevokeSessions', () => {
+  describe('mutation.revokeSessions', () => {
     it('should call requireAdmin and revoke all sessions for user', async () => {
       mockUserService.revokeSessions.mockResolvedValue(true)
 
-      const result = await resolvers.Mutation.adminRevokeSessions!(
+      const result = await resolvers.Mutation.revokeSessions!(
         null,
         { userId: 'u2' },
         mockContext,
