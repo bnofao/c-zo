@@ -97,7 +97,7 @@ export class AuthRestrictionRegistry {
         sessionDuration: DEFAULT_RESTRICTION_CONFIG.sessionDuration ?? DEFAULT_SESSION_DURATION,
         allowImpersonation: DEFAULT_RESTRICTION_CONFIG.allowImpersonation ?? false,
         dominantActorType: 'unknown',
-        allowedMethods: DEFAULT_RESTRICTION_CONFIG.allowedMethods,
+        allowedMethods: [...DEFAULT_RESTRICTION_CONFIG.allowedMethods],
         actorTypes: [],
       }
     }

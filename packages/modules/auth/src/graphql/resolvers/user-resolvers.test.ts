@@ -116,7 +116,6 @@ describe('user resolvers', () => {
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
         limit: 10,
         offset: 0,
-        search: undefined,
       })
       expect(result.total).toBe(1)
       expect(result.users).toHaveLength(1)
@@ -131,7 +130,8 @@ describe('user resolvers', () => {
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
         limit: undefined,
         offset: undefined,
-        search: 'test',
+        searchValue: 'test',
+        searchField: 'email',
       })
     })
 
@@ -143,7 +143,6 @@ describe('user resolvers', () => {
       expect(mockUserService.list).toHaveBeenCalledWith(mockHeaders, {
         limit: undefined,
         offset: undefined,
-        search: undefined,
       })
     })
   })
@@ -177,7 +176,7 @@ describe('user resolvers', () => {
   })
 
   describe('mutation.createUser', () => {
-    it('should call userService.create with input', async () => {
+    it('should call userService.create with input and return user', async () => {
       const user = { id: 'u-new', name: 'New User', email: 'new@czo.dev', role: 'user', banned: false, banReason: null, banExpires: null, createdAt: new Date() }
       mockUserService.create.mockResolvedValue(user)
 
@@ -198,7 +197,8 @@ describe('user resolvers', () => {
     })
 
     it('should pass password and role when provided', async () => {
-      mockUserService.create.mockResolvedValue({ id: 'u-new', name: 'Admin', email: 'admin@czo.dev', role: 'admin', banned: false, createdAt: new Date() })
+      const user = { id: 'u-new', name: 'Admin', email: 'admin@czo.dev', role: 'admin', banned: false, createdAt: new Date() }
+      mockUserService.create.mockResolvedValue(user)
 
       await resolvers.Mutation.createUser!(
         null,
@@ -229,7 +229,6 @@ describe('user resolvers', () => {
       expect(mockRequireAdmin).toHaveBeenCalledWith(mockContext)
       expect(mockUserService.update).toHaveBeenCalledWith(mockHeaders, 'u2', {
         name: 'Updated',
-        email: undefined,
       })
       expect(result).toEqual(user)
     })

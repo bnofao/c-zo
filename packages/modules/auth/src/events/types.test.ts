@@ -128,26 +128,25 @@ describe('auth event types', () => {
 
     it('should enforce reason union on AuthSessionRevokedPayload', () => {
       const p: AuthSessionRevokedPayload = {
-        jwtId: 'jwt-1',
+        sessionId: 's1',
         userId: 'u1',
         reason: 'user_initiated',
       }
       expect(p.reason).toBe('user_initiated')
     })
 
-    it('should allow sessionId or jwtId on AuthSessionRevokedPayload', () => {
+    it('should allow optional sessionId on AuthSessionRevokedPayload', () => {
       const withSession: AuthSessionRevokedPayload = {
         sessionId: 's1',
         userId: 'u1',
         reason: 'admin_revoked',
       }
-      const withJwt: AuthSessionRevokedPayload = {
-        jwtId: 'jwt-1',
+      const withoutSession: AuthSessionRevokedPayload = {
         userId: 'u1',
         reason: 'user_initiated',
       }
       expect(withSession.sessionId).toBe('s1')
-      expect(withJwt.jwtId).toBe('jwt-1')
+      expect(withoutSession.sessionId).toBeUndefined()
     })
 
     it('should enforce required fields on Auth2FAEnabledPayload', () => {

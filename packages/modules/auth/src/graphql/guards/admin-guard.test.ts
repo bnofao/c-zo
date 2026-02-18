@@ -1,4 +1,4 @@
-import type { GraphQLContext } from '../types'
+import type { GraphQLContext } from '../../types'
 import { describe, expect, it, vi } from 'vitest'
 import { isAdmin, requireAdmin } from './admin-guard'
 
@@ -33,6 +33,7 @@ function makeContext(actorType: string): GraphQLContext {
     permissionService: {
       hasPermission: vi.fn().mockResolvedValue(false),
     } as GraphQLContext['permissionService'],
+    userService: {} as GraphQLContext['userService'],
     request: new Request('http://localhost'),
   }
 }

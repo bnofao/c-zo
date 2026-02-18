@@ -1,79 +1,53 @@
+import type { Session, User } from 'better-auth'
+import type { SessionWithImpersonatedBy, UserWithRole } from 'better-auth/plugins'
 import type { Auth } from '../config/auth.config'
+import { APIError } from 'better-auth'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface UserData {
-  id: string
-  name: string
-  email: string
-  role: string
-  banned: boolean
-  banReason: string | null
-  banExpires: Date | string | null
-  createdAt: Date | string
+export interface ListUsersParams {
+  searchValue?: string
+  searchField?: 'email' | 'name'
+  searchOperator?: 'contains' | 'starts_with' | 'ends_with'
+  limit?: number | string
+  offset?: number | string
+  sortBy?: string
+  sortDirection?: 'asc' | 'desc'
+  filterField?: string
+  filterValue?: string | number | boolean
+  filterOperator?: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'contains'
 }
 
-export interface UserSessionData {
-  id: string
-  userId: string
-  expiresAt: Date | string
-  ipAddress: string | null
-  userAgent: string | null
-  impersonatedBy: string | null
-  createdAt: Date | string
+export interface CreateUserInput {
+  email: string
+  name: string
+  password?: string
+  role?: string | string[]
+  data?: Record<string, any>
 }
 
 export interface UserService {
-  list: (
-    headers: Headers,
-    params: { limit?: number, offset?: number, search?: string },
-  ) => Promise<{ users: UserData[], total: number }>
-  get: (headers: Headers, userId: string) => Promise<UserData>
-  create: (
-    headers: Headers,
-    input: { email: string, name: string, password?: string, role?: string },
-  ) => Promise<UserData>
-  update: (
-    headers: Headers,
-    userId: string,
-    data: { name?: string, email?: string },
-  ) => Promise<UserData>
-  ban: (headers: Headers, userId: string, reason?: string, expiresIn?: number) => Promise<UserData>
-  unban: (headers: Headers, userId: string) => Promise<UserData>
-  remove: (headers: Headers, userId: string) => Promise<boolean>
-  setRole: (headers: Headers, userId: string, role: string) => Promise<UserData>
-  listSessions: (headers: Headers, userId: string) => Promise<UserSessionData[]>
-  revokeSession: (headers: Headers, sessionToken: string) => Promise<boolean>
-  revokeSessions: (headers: Headers, userId: string) => Promise<boolean>
-  impersonate: (headers: Headers, userId: string) => Promise<boolean>
-  stopImpersonating: (headers: Headers) => Promise<boolean>
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function normalizeUser(u: Record<string, unknown>): UserData {
-  return {
-    id: u.id as string,
-    name: u.name as string,
-    email: u.email as string,
-    role: (u.role as string) ?? 'user',
-    banned: (u.banned as boolean) ?? false,
-    banReason: (u.banReason as string) ?? null,
-    banExpires: (u.banExpires as Date | string) ?? null,
-    createdAt: u.createdAt as Date | string,
-  }
-}
-
-function normalizeSession(s: Record<string, unknown>): UserSessionData {
-  return {
-    id: s.id as string,
-    userId: s.userId as string,
-    expiresAt: s.expiresAt as Date | string,
-    ipAddress: (s.ipAddress as string) ?? null,
-    userAgent: (s.userAgent as string) ?? null,
-    impersonatedBy: (s.impersonatedBy as string) ?? null,
-    createdAt: s.createdAt as Date | string,
-  }
+  list: (headers: Headers, params: ListUsersParams) => Promise<{
+    users: UserWithRole[]
+    total: number
+    limit?: number
+    offset?: number
+  } | {
+    users: never []
+    total: number
+  }>
+  get: (headers: Headers, userId: string) => Promise<UserWithRole>
+  create: (headers: Headers, input: CreateUserInput) => Promise<UserWithRole>
+  update: (headers: Headers, userId: string, data: Record<string, any>) => Promise<UserWithRole>
+  ban: (headers: Headers, userId: string, reason?: string, expiresIn?: number) => Promise<UserWithRole>
+  unban: (headers: Headers, userId: string) => Promise<UserWithRole>
+  remove: (headers: Headers, userId: string) => Promise<{ success: boolean }>
+  setRole: (headers: Headers, userId: string, role: string | string[]) => Promise<UserWithRole>
+  listSessions: (headers: Headers, userId: string) => Promise<SessionWithImpersonatedBy[]>
+  revokeSession: (headers: Headers, sessionToken: string) => Promise<{ success: boolean }>
+  revokeSessions: (headers: Headers, userId: string) => Promise<{ success: boolean }>
+  impersonate: (headers: Headers, userId: string) => Promise<{ session: Session, user: UserWithRole }>
+  stopImpersonating: (headers: Headers) => Promise<{ session: Session & Record<string, any>, user: User & Record<string, any> }>
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────
@@ -81,150 +55,223 @@ function normalizeSession(s: Record<string, unknown>): UserSessionData {
 export function createUserService(auth: Auth): UserService {
   async function list(
     headers: Headers,
-    params: { limit?: number, offset?: number, search?: string },
+    params: ListUsersParams,
   ) {
-    const result = await auth.api.listUsers({
-      headers,
-      query: {
-        limit: params.limit ?? 10,
-        offset: params.offset ?? 0,
-        ...(params.search ? { searchValue: params.search, searchField: 'email' as const } : {}),
-      },
-    })
-
-    return {
-      users: (result?.users ?? []).map(u => normalizeUser(u as unknown as Record<string, unknown>)),
-      total: result?.total ?? 0,
+    try {
+      return await auth.api.listUsers({
+        headers,
+        query: { ...params },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
     }
   }
 
   async function get(headers: Headers, userId: string) {
-    const result = await (auth.api as Record<string, (...args: unknown[]) => Promise<unknown>>).listUsers({
-      headers,
-      query: { limit: 1, offset: 0, searchValue: userId, searchField: 'id' as const },
-    }) as { users?: Record<string, unknown>[] } | null
-
-    const user = result?.users?.[0]
-    if (!user) {
+    try {
+      return await auth.api.getUser({
+        headers,
+        query: { id: userId },
+      })
+    }
+    catch {
       throw new Error(`User not found: ${userId}`)
     }
-
-    return normalizeUser(user)
   }
 
   async function create(
     headers: Headers,
-    input: { email: string, name: string, password?: string, role?: string },
+    input: CreateUserInput,
   ) {
-    const result = await auth.api.createUser({
-      headers,
-      body: {
-        email: input.email,
-        name: input.name,
-        password: input.password ?? '',
-        role: input.role ?? 'user',
-      },
-    })
+    try {
+      const result = await auth.api.createUser({
+        headers,
+        body: {
+          email: input.email,
+          name: input.name,
+          password: input.password,
+          role: input.role as any,
+          data: input.data,
+        },
+      })
 
-    return normalizeUser(result as unknown as Record<string, unknown>)
+      return result.user
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function update(
     headers: Headers,
     userId: string,
-    data: { name?: string, email?: string },
+    data: Record<string, any>,
   ) {
-    const body: Record<string, unknown> = { userId }
-    if (data.name !== undefined)
-      body.name = data.name
-    if (data.email !== undefined)
-      body.email = data.email
-
-    const result = await (auth.api as Record<string, (...args: unknown[]) => Promise<unknown>>).updateUser({
-      headers,
-      body,
-    }) as Record<string, unknown>
-
-    return normalizeUser(result)
+    try {
+      return await auth.api.adminUpdateUser({
+        headers,
+        body: { userId, data },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function ban(headers: Headers, userId: string, reason?: string, expiresIn?: number) {
-    const result = await auth.api.banUser({
-      headers,
-      body: {
-        userId,
-        ...(reason ? { banReason: reason } : {}),
-        ...(expiresIn ? { banExpiresIn: expiresIn } : {}),
-      },
-    })
+    try {
+      const result = await auth.api.banUser({
+        headers,
+        body: {
+          userId,
+          banReason: reason,
+          banExpiresIn: expiresIn,
+        },
+      })
 
-    return normalizeUser(result?.user as unknown as Record<string, unknown>)
+      return result.user
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function unban(headers: Headers, userId: string) {
-    const result = await auth.api.unbanUser({
-      headers,
-      body: { userId },
-    })
+    try {
+      const result = await auth.api.unbanUser({
+        headers,
+        body: { userId },
+      })
 
-    return normalizeUser(result?.user as unknown as Record<string, unknown>)
+      return result.user
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function remove(headers: Headers, userId: string) {
-    await auth.api.removeUser({
-      headers,
-      body: { userId },
-    })
-    return true
+    try {
+      return await auth.api.removeUser({
+        headers,
+        body: { userId },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
-  async function setRole(headers: Headers, userId: string, role: string) {
-    const result = await auth.api.setRole({
-      headers,
-      body: { userId, role: role as 'user' | 'admin' },
-    })
+  async function setRole(headers: Headers, userId: string, role: string | string[]) {
+    try {
+      const result = await auth.api.setRole({
+        headers,
+        body: { userId, role: role as any },
+      })
 
-    return normalizeUser(result?.user as unknown as Record<string, unknown>)
+      return result.user
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function listSessions(headers: Headers, userId: string) {
-    const result = await (auth.api as Record<string, (...args: unknown[]) => Promise<unknown>>).listUserSessions({
-      headers,
-      query: { userId },
-    }) as { sessions?: Record<string, unknown>[] } | null
+    try {
+      const result = await auth.api.listUserSessions({
+        headers,
+        body: { userId },
+      })
 
-    return (result?.sessions ?? []).map(normalizeSession)
+      return result.sessions
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function revokeSession(headers: Headers, sessionToken: string) {
-    await auth.api.revokeUserSession({
-      headers,
-      body: { sessionToken },
-    })
-    return true
+    try {
+      return await auth.api.revokeUserSession({
+        headers,
+        body: { sessionToken },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function revokeSessions(headers: Headers, userId: string) {
-    await auth.api.revokeUserSessions({
-      headers,
-      body: { userId },
-    })
-    return true
+    try {
+      return await auth.api.revokeUserSessions({
+        headers,
+        body: { userId },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   async function impersonate(headers: Headers, userId: string) {
-    await auth.api.impersonateUser({
-      headers,
-      body: { userId },
-    })
-    return true
+    try {
+      return await auth.api.impersonateUser({
+        headers,
+        body: { userId },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
-  async function stopImpersonatingFn(headers: Headers) {
-    await auth.api.stopImpersonating({
-      headers,
-    })
-    return true
+  async function stopImpersonating(headers: Headers) {
+    try {
+      return await auth.api.stopImpersonating({
+        headers,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        // todo : throw appropriate error
+      }
+      throw e
+    }
   }
 
   return {
@@ -240,6 +287,6 @@ export function createUserService(auth: Auth): UserService {
     revokeSession,
     revokeSessions,
     impersonate,
-    stopImpersonating: stopImpersonatingFn,
+    stopImpersonating,
   }
 }

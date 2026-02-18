@@ -1,4 +1,4 @@
-import type { GraphQLContext } from '../types'
+import type { GraphQLContext } from '../../types'
 import { GraphQLError } from 'graphql'
 
 export function requirePermission(

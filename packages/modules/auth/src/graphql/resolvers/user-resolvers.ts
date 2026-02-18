@@ -9,7 +9,7 @@ const Query: QueryResolvers = {
     return ctx.userService.list(ctx.request.headers, {
       limit: args.limit ?? undefined,
       offset: args.offset ?? undefined,
-      search: args.search ?? undefined,
+      ...(args.search ? { searchValue: args.search, searchField: 'email' as const } : {}),
     })
   },
   user: async (_parent, args, ctx) => {
@@ -31,8 +31,8 @@ const Mutation: MutationResolvers = {
   },
   updateUser: async (_parent, args, ctx) => {
     return ctx.userService.update(ctx.request.headers, args.userId, {
-      name: args.input.name ?? undefined,
-      email: args.input.email ?? undefined,
+      ...(args.input.name != null && { name: args.input.name }),
+      ...(args.input.email != null && { email: args.input.email }),
     })
   },
   impersonateUser: async (_parent, args, ctx) => {

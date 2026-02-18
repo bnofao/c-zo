@@ -85,9 +85,6 @@ catalogs:
     graphql-yoga:
       specifier: ^5.16.0
       version: 5.18.0
-    ioredis:
-      specifier: ^5.0.0
-      version: 5.9.2
     jiti:
       specifier: ^2.6.1
       version: 2.6.1
@@ -524,9 +521,6 @@ importers:
       graphql:
         specifier: catalog:common
         version: 16.12.0
-      ioredis:
-        specifier: catalog:common
-        version: 5.9.2
     devDependencies:
       '@graphql-codegen/cli':
         specifier: catalog:dev

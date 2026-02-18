@@ -52,8 +52,7 @@
     "@graphql-tools/resolvers-composition": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
-    "graphql": "catalog:common",
-    "ioredis": "catalog:common"
+    "graphql": "catalog:common"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "catalog:dev",

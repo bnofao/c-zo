@@ -1,4 +1,6 @@
-import type Redis from 'ioredis'
+import type { useStorage } from 'nitro/storage'
+
+type Storage = ReturnType<typeof useStorage>
 
 export interface SecondaryStorage {
   get: (key: string) => Promise<string | null>
@@ -6,23 +8,23 @@ export interface SecondaryStorage {
   delete: (key: string) => Promise<void>
 }
 
-export function createRedisStorage(redis: Redis): SecondaryStorage {
+export function createSecondaryStorage(storage: Storage): SecondaryStorage {
   return {
     async get(key: string): Promise<string | null> {
-      return redis.get(key)
+      return await storage.getItem<string>(key) ?? null
     },
 
     async set(key: string, value: string, ttl?: number): Promise<void> {
       if (ttl) {
-        await redis.setex(key, ttl, value)
+        await storage.setItem(key, value, { ttl })
       }
       else {
-        await redis.set(key, value)
+        await storage.setItem(key, value)
       }
     },
 
     async delete(key: string): Promise<void> {
-      await redis.del(key)
+      await storage.removeItem(key)
     },
   }
 }

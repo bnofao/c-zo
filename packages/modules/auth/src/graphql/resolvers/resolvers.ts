@@ -1,6 +1,6 @@
-import type { MutationResolvers, QueryResolvers } from './__generated__/resolver-types'
+import type { MutationResolvers, QueryResolvers } from '../__generated__/resolver-types'
 import { registerResolvers } from '@czo/kit/graphql'
-import { validateOrgType } from '../services/organization-types'
+import { validateOrgType } from '../../services/organization-types'
 
 const Query: QueryResolvers = {
   myAuthConfig: async (_parent, _args, ctx) => {

@@ -8,6 +8,9 @@ const config: CodegenConfig = {
       config: {
         contextType: '../../types#GraphQLContext',
         useIndexSignature: true,
+        mappers: {
+          User: 'better-auth/plugins#UserWithRole',
+        },
         scalars: {
           DateTime: 'Date | string',
           EmailAddress: 'string',

@@ -1,4 +1,4 @@
-import type { GraphQLContext } from '../types'
+import type { GraphQLContext } from '../../types'
 import { describe, expect, it, vi } from 'vitest'
 import { canDo, hasPermission, requirePermission } from './permission-guard'
 
@@ -39,6 +39,7 @@ function makeContext(overrides: {
     permissionService: {
       hasPermission: vi.fn().mockResolvedValue(hasPermission),
     },
+    userService: {} as GraphQLContext['userService'],
     request: new Request('http://localhost'),
   }
 }

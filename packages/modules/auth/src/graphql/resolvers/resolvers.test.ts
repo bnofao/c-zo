@@ -7,7 +7,7 @@ vi.mock('@czo/kit/graphql', () => ({
   registerResolvers: mockRegisterResolvers,
 }))
 
-vi.mock('../services/organization-types', () => ({
+vi.mock('../../services/organization-types', () => ({
   validateOrgType: mockValidateOrgType,
 }))
 

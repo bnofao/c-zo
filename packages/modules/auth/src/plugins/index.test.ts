@@ -8,7 +8,7 @@ const mockAuth = {
   },
 }
 
-const mockCreateAuth = vi.hoisted(() => vi.fn(() => mockAuth))
+const mockCreateAuth = vi.hoisted(() => vi.fn((_db: unknown, _config: Record<string, unknown>) => mockAuth))
 
 const mockContainer = vi.hoisted(() => ({
   bind: vi.fn(),
