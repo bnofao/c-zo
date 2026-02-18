@@ -14,9 +14,6 @@ import { createPermissionService } from '../services/permission.service'
 import { createSecondaryStorage } from '../services/secondary-storage'
 import { createUserService } from '../services/user.service'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
-import '../graphql/typedefs'
-import '../graphql/resolvers/resolvers'
-import '../graphql/resolvers/user-resolvers'
 
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')
@@ -37,6 +34,12 @@ export default definePlugin(async (nitroApp) => {
     logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
     return
   }
+
+  // Register GraphQL schema, resolvers and context only when auth is properly configured
+  await import('../graphql/context-factory')
+  await import('../graphql/typedefs')
+  await import('../graphql/resolvers/resolvers')
+  await import('../graphql/resolvers/user-resolvers')
 
   const emailService = new ConsoleEmailService()
   container.bind('auth:email', () => emailService)

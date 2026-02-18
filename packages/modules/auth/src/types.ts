@@ -1,3 +1,4 @@
+import type { GraphQLContextMap } from '@czo/kit/graphql'
 import type { Auth } from './config/auth.config'
 import type { AuthEventsService } from './events/auth-events'
 import type { AuthRestrictionRegistry } from './services/auth-restriction-registry'
@@ -28,12 +29,20 @@ export interface AuthContext {
   authSource: 'bearer' | 'cookie' | 'api-key'
 }
 
-export interface GraphQLContext {
-  auth: AuthContext
-  authInstance: Auth
-  authRestrictions: AuthRestrictionRegistry
-  authEvents: AuthEventsService
-  permissionService: PermissionService
-  userService: UserService
-  request: Request
+declare module '@czo/kit/graphql' {
+  interface GraphQLContextMap {
+    auth: AuthContext
+    authInstance: Auth
+    authRestrictions: AuthRestrictionRegistry
+    authEvents: AuthEventsService
+    permissionService: PermissionService
+    userService: UserService
+    request: Request
+  }
 }
+
+/**
+ * Alias for codegen compatibility — codegen.ts references `../../types#GraphQLContext`.
+ * The actual shape is composed from all module augmentations of GraphQLContextMap.
+ */
+export type GraphQLContext = GraphQLContextMap
