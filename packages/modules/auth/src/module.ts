@@ -2,7 +2,6 @@ import { addPlugin, addScanDir, createResolver, defineNitroModule } from '@czo/k
 import { useContainer } from '@czo/kit/ioc'
 import { useAccessService } from './config/access'
 import { useAuthActorService } from './config/actor'
-import { DEFAULT_ACTOR_RESTRICTIONS } from './plugins/actor-config'
 
 export default defineNitroModule({
   setup: async (nitro) => {

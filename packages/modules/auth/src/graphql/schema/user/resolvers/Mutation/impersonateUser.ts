@@ -1,5 +1,4 @@
 import type { MutationResolvers } from './../../../../__generated__/types.generated'
-import { GraphQLError } from 'graphql'
 import { publishAuthEvent } from '../../../../../events/auth-events'
 import { AUTH_EVENTS } from '../../../../../events/types'
 

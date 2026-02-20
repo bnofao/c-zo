@@ -4,11 +4,10 @@ import '../types'
 
 registerContextFactory('auth', async (serverCtx) => {
   const container = useContainer()
-  
+
   const request = serverCtx.request as Request
   const authService = await container.make('auth:service')
   const authSession = await authService.getSession(request.headers) // Session must be not null. Check entrypoint
-  
 
   return {
     auth: {
@@ -18,6 +17,6 @@ registerContextFactory('auth', async (serverCtx) => {
       session: authSession!.session,
       user: authSession!.user,
     },
-    
+
   }
 })

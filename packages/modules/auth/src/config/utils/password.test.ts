@@ -15,7 +15,7 @@ describe('validatePasswordStrength', () => {
   })
 
   it('should reject a password longer than 128 characters', () => {
-    const result = validatePasswordStrength('A'.repeat(129) + 'a1!')
+    const result = validatePasswordStrength(`${'A'.repeat(129)}a1!`)
     expect(result.valid).toBe(false)
     expect(result.errors).toContain('Must be at most 128 characters')
   })

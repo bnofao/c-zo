@@ -5,8 +5,8 @@ export const ORGANIZATION_STATEMENTS = {
 } as const
 
 export const ADMIN_STATEMENTS = {
-  user: ['create', 'read', 'update', 'delete', 'ban', 'impersonate'],
-  session: ['read', 'revoke'],
+  'user': ['create', 'read', 'update', 'delete', 'ban', 'impersonate'],
+  'session': ['read', 'revoke'],
   'api-key': ['create', 'read', 'update', 'delete'],
 } as const
 

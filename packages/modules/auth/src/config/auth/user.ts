@@ -25,8 +25,8 @@ export function userConfig(): BetterAuthOptions['user'] {
       },
       afterDelete: async (_user, _request) => {
 
-      }
-    }
+      },
+    },
   }
 }
 

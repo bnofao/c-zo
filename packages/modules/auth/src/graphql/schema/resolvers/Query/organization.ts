@@ -1,3 +1,3 @@
+import type { QueryResolvers } from './../../../__generated__/types.generated'
 
-        import type   { QueryResolvers } from './../../../__generated__/types.generated';
-        export const organization: NonNullable<QueryResolvers['organization']> = async (_parent, _arg, _ctx) => { /* Implement Query.organization resolver logic here */ };
+export const organization: NonNullable<QueryResolvers['organization']> = async (_parent, _arg, _ctx) => { /* Implement Query.organization resolver logic here */ }

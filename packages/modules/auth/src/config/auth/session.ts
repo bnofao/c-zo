@@ -29,7 +29,7 @@ export function sessionConfig(option?: BetterAuthOptions['session']) {
   }
 }
 
-type SessionHooks = Exclude<BetterAuthOptions['databaseHooks'], undefined>['session']
+type _SessionHooks = Exclude<BetterAuthOptions['databaseHooks'], undefined>['session']
 
 export function sessionHooks() {
   return {

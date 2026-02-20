@@ -1,6 +1,6 @@
 import type { LiteralUnion, SocialProviderList } from 'better-auth'
 
-export function accountConfig(socialProviders?: Array<LiteralUnion<SocialProviderList[number] | "email-password", string>>) {
+export function accountConfig(socialProviders?: Array<LiteralUnion<SocialProviderList[number] | 'email-password', string>>) {
   return {
     modelName: 'accounts',
     fields: {

@@ -127,7 +127,7 @@ export function createAccessService() {
 
       _statements.set(resource, permissions)
     }
-    
+
     _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
   }
 
@@ -184,8 +184,8 @@ export function createAccessService() {
         name,
         {
           name,
-          roles: _roles
-        }
+          roles: _roles,
+        },
       )
     }
 
@@ -200,7 +200,7 @@ export function createAccessService() {
     roles,
     freeze,
     isFrozen,
-    buildRoles
+    buildRoles,
   }
 }
 

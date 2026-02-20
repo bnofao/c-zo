@@ -77,7 +77,6 @@ export default definePlugin(async (nitroApp) => {
     actorService.freeze()
     accessService.freeze()
 
-    
     // Register GraphQL schema, resolvers and context only when auth is properly configured
     await import('../graphql/context-factory')
     await import('../graphql/typedefs')

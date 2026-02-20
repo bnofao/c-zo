@@ -1,4 +1,4 @@
-import type { Auth as BetterAuth, BetterAuthOptions, SocialProviders } from 'better-auth'
+import type { SocialProviders } from 'better-auth'
 import type { AccessControl } from 'better-auth/plugins'
 import type { AccessRole } from '../access'
 import type { Storage } from './others'
@@ -31,7 +31,7 @@ export interface AuthOption {
 
 export type Auth = ReturnType<typeof createAuth>
 
-function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions & { databaseHooks?: Record<string, unknown> }  */{
+function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions & { databaseHooks?: Record<string, unknown> }  */ {
   const cookiePrefix = option.app.replace(/[^a-z0-9]/gi, '').toLowerCase()
   const apiKeyPrefix = `${cookiePrefix}_`
 

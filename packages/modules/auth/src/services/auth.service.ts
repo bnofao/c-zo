@@ -158,36 +158,36 @@ export function createAuthService(auth: Auth) {
       throw e
     }
   }
-  
+
   async function hasPermission(
-      ctx: PermissionCheckContext,
-      permissions: { [key: string]: string[] },
-      role?: string,
-      options?: {
-        allowCreatorAllPermissions?: boolean
-        useMemoryCache?: boolean
-        connector?: 'AND' | 'OR'
-      },
-    ): Promise<boolean> {
-      if (ctx.organizationId && role) {
-        return _orgMemberHasPermission(
-          auth,
-          ctx.organizationId,
-          permissions,
-          role,
-          options?.allowCreatorAllPermissions,
-          options?.useMemoryCache,
-          options?.connector,
-        )
-      }
-      return _adminHasPermission(
+    ctx: PermissionCheckContext,
+    permissions: { [key: string]: string[] },
+    role?: string,
+    options?: {
+      allowCreatorAllPermissions?: boolean
+      useMemoryCache?: boolean
+      connector?: 'AND' | 'OR'
+    },
+  ): Promise<boolean> {
+    if (ctx.organizationId && role) {
+      return _orgMemberHasPermission(
         auth,
-        ctx.userId,
+        ctx.organizationId,
         permissions,
         role,
+        options?.allowCreatorAllPermissions,
+        options?.useMemoryCache,
         options?.connector,
       )
     }
+    return _adminHasPermission(
+      auth,
+      ctx.userId,
+      permissions,
+      role,
+      options?.connector,
+    )
+  }
 
   return {
     getSession,

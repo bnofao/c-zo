@@ -137,15 +137,18 @@ describe('auth plugin', () => {
     }
     const register = async () => {
       const cb = hookCallbacks.get('czo:register')
-      if (cb) await cb()
+      if (cb)
+        await cb()
     }
     const boot = async () => {
       const cb = hookCallbacks.get('czo:boot')
-      if (cb) await cb()
+      if (cb)
+        await cb()
     }
     const request = async (event: { context: Record<string, unknown> }) => {
       const cb = hookCallbacks.get('request')
-      if (cb) await cb(event)
+      if (cb)
+        await cb(event)
     }
     return { nitroApp, hookCallbacks, register, boot, request }
   }
