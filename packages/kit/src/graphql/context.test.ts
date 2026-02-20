@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockRequestFactory = (ctx: Record<string, unknown>) =>
-  (ctx.request ?? new Request('http://test')) as Request
+function mockRequestFactory(ctx: Record<string, unknown>) {
+  return (ctx.request ?? new Request('http://test')) as Request
+}
 
 describe('graphql/context', () => {
   beforeEach(() => {
