@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockRequestFactory = (ctx: Record<string, unknown>) =>
+  (ctx.request ?? new Request('http://test')) as Request
+
 describe('graphql/context', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -32,9 +35,9 @@ describe('graphql/context', () => {
       productService: { find: () => [] },
     }))
 
-    const result = await buildGraphQLContext({ rawAuth: 'session-123' })
+    const result = await buildGraphQLContext({ rawAuth: 'session-123' }, mockRequestFactory)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       authUser: 'session-123',
       productService: { find: expect.any(Function) },
     })
@@ -48,8 +51,8 @@ describe('graphql/context', () => {
       return { asyncValue: 42 }
     })
 
-    const result = await buildGraphQLContext({})
-    expect(result).toEqual({ asyncValue: 42 })
+    const result = await buildGraphQLContext({}, mockRequestFactory)
+    expect(result).toMatchObject({ asyncValue: 42 })
   })
 
   it('should merge all factory results into a single context', async () => {
@@ -59,8 +62,8 @@ describe('graphql/context', () => {
     registerContextFactory('b', () => ({ y: 2 }))
     registerContextFactory('c', () => ({ z: 3 }))
 
-    const result = await buildGraphQLContext({})
-    expect(result).toEqual({ x: 1, y: 2, z: 3 })
+    const result = await buildGraphQLContext({}, mockRequestFactory)
+    expect(result).toMatchObject({ x: 1, y: 2, z: 3 })
   })
 
   it('should let later factories override earlier ones for same key', async () => {
@@ -69,14 +72,14 @@ describe('graphql/context', () => {
     registerContextFactory('base', () => ({ value: 'original' }))
     registerContextFactory('override', () => ({ value: 'overridden' }))
 
-    const result = await buildGraphQLContext({})
-    expect(result).toEqual({ value: 'overridden' })
+    const result = await buildGraphQLContext({}, mockRequestFactory)
+    expect(result).toMatchObject({ value: 'overridden' })
   })
 
-  it('should return empty context when no factories registered', async () => {
+  it('should include request from requestFactory in context', async () => {
     const { buildGraphQLContext } = await import('./context')
 
-    const result = await buildGraphQLContext({ anything: true })
-    expect(result).toEqual({})
+    const result = await buildGraphQLContext({}, mockRequestFactory)
+    expect(result.request).toBeInstanceOf(Request)
   })
 })
