@@ -7,6 +7,8 @@ import type {
   AuthEventType,
   AuthImpersonationStartedPayload,
   AuthImpersonationStoppedPayload,
+  AuthInvitationRequestedPayload,
+  AuthPasswordResetRequestedPayload,
   AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
   AuthSessionRevokedPayload,
@@ -14,14 +16,15 @@ import type {
   AuthUserRegisteredPayload,
   AuthUserUnbannedPayload,
   AuthUserUpdatedPayload,
+  AuthVerificationEmailRequestedPayload,
 } from './types'
 import { describe, expect, it } from 'vitest'
 import { AUTH_EVENTS } from './types'
 
 describe('auth event types', () => {
   describe('auth events constants', () => {
-    it('should define all 17 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(17)
+    it('should define all 20 routing keys', () => {
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(20)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -63,6 +66,12 @@ describe('auth event types', () => {
       expect(AUTH_EVENTS.IMPERSONATION_STOPPED).toBe('auth.admin.impersonation.stopped')
       expect(AUTH_EVENTS.USER_BANNED).toBe('auth.admin.user.banned')
       expect(AUTH_EVENTS.USER_UNBANNED).toBe('auth.admin.user.unbanned')
+    })
+
+    it('should have correct routing keys for email events', () => {
+      expect(AUTH_EVENTS.PASSWORD_RESET_REQUESTED).toBe('auth.email.password-reset-requested')
+      expect(AUTH_EVENTS.VERIFICATION_EMAIL_REQUESTED).toBe('auth.email.verification-requested')
+      expect(AUTH_EVENTS.INVITATION_REQUESTED).toBe('auth.email.invitation-requested')
     })
   })
 
@@ -128,26 +137,25 @@ describe('auth event types', () => {
 
     it('should enforce reason union on AuthSessionRevokedPayload', () => {
       const p: AuthSessionRevokedPayload = {
-        jwtId: 'jwt-1',
+        sessionId: 's1',
         userId: 'u1',
         reason: 'user_initiated',
       }
       expect(p.reason).toBe('user_initiated')
     })
 
-    it('should allow sessionId or jwtId on AuthSessionRevokedPayload', () => {
+    it('should allow optional sessionId on AuthSessionRevokedPayload', () => {
       const withSession: AuthSessionRevokedPayload = {
         sessionId: 's1',
         userId: 'u1',
         reason: 'admin_revoked',
       }
-      const withJwt: AuthSessionRevokedPayload = {
-        jwtId: 'jwt-1',
+      const withoutSession: AuthSessionRevokedPayload = {
         userId: 'u1',
         reason: 'user_initiated',
       }
       expect(withSession.sessionId).toBe('s1')
-      expect(withJwt.jwtId).toBe('jwt-1')
+      expect(withoutSession.sessionId).toBeUndefined()
     })
 
     it('should enforce required fields on Auth2FAEnabledPayload', () => {
@@ -200,9 +208,10 @@ describe('auth event types', () => {
       const p: AuthRestrictionDeniedPayload = {
         actorType: 'customer',
         authMethod: 'oauth:github',
+        userId: 'u1',
         reason: 'Not allowed',
       }
-      expect(p).toEqual({ actorType: 'customer', authMethod: 'oauth:github', reason: 'Not allowed' })
+      expect(p).toEqual({ actorType: 'customer', authMethod: 'oauth:github', userId: 'u1', reason: 'Not allowed' })
     })
 
     it('should enforce required fields on AuthImpersonationStartedPayload', () => {
@@ -250,6 +259,36 @@ describe('auth event types', () => {
       }
       expect(p).toEqual({ userId: 'u2', unbannedBy: 'u1' })
     })
+
+    it('should enforce required fields on AuthPasswordResetRequestedPayload', () => {
+      const p: AuthPasswordResetRequestedPayload = {
+        email: 'test@czo.dev',
+        userName: 'Test',
+        url: 'http://reset',
+        token: 'tok',
+      }
+      expect(p.email).toBe('test@czo.dev')
+    })
+
+    it('should enforce required fields on AuthVerificationEmailRequestedPayload', () => {
+      const p: AuthVerificationEmailRequestedPayload = {
+        email: 'test@czo.dev',
+        userName: 'Test',
+        url: 'http://verify',
+        token: 'tok',
+      }
+      expect(p.email).toBe('test@czo.dev')
+    })
+
+    it('should enforce required fields on AuthInvitationRequestedPayload', () => {
+      const p: AuthInvitationRequestedPayload = {
+        email: 'test@czo.dev',
+        organizationName: 'Acme',
+        inviterName: 'Admin',
+        invitationId: 'inv1',
+      }
+      expect(p.organizationName).toBe('Acme')
+    })
   })
 
   describe('authEventType union', () => {
@@ -272,8 +311,11 @@ describe('auth event types', () => {
         'auth.admin.impersonation.stopped',
         'auth.admin.user.banned',
         'auth.admin.user.unbanned',
+        'auth.email.password-reset-requested',
+        'auth.email.verification-requested',
+        'auth.email.invitation-requested',
       ]
-      expect(types).toHaveLength(17)
+      expect(types).toHaveLength(20)
     })
   })
 })

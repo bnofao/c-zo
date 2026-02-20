@@ -60,8 +60,8 @@ export default defineNitroConfig({
   modules: [
     // productModule,
     // '@czo/product',
-    kitModule,
     authModule,
+    kitModule,
   ],
   imports: {
     imports: [],
@@ -77,6 +77,10 @@ export default defineNitroConfig({
         url: process.env.REDIS_URL,
         ttl: 300, // Default TTL 5 minutes
       }),
+    },
+    auth: {
+      driver: process.env.REDIS_URL ? 'redis' : 'memory',
+      ...(process.env.REDIS_URL && { url: process.env.REDIS_URL }),
     },
   },
 

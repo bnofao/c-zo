@@ -10,7 +10,7 @@
 export interface AuthUserRegisteredPayload {
   userId: string
   email: string
-  actorType: string
+  actorType?: string
 }
 
 export interface AuthUserUpdatedPayload {
@@ -21,8 +21,8 @@ export interface AuthUserUpdatedPayload {
 export interface AuthSessionCreatedPayload {
   sessionId: string
   userId: string
-  actorType: string
-  authMethod: string
+  actorType?: string
+  authMethod?: string
 }
 
 export interface AuthSessionRevokedPayload {
@@ -59,12 +59,12 @@ export interface AuthOrgRoleChangedPayload {
 
 export interface Auth2FAEnabledPayload {
   userId: string
-  actorType: string
+  actorType?: string
 }
 
 export interface Auth2FADisabledPayload {
   userId: string
-  actorType: string
+  actorType?: string
 }
 
 export interface AuthApiKeyCreatedPayload {
@@ -80,8 +80,9 @@ export interface AuthApiKeyRevokedPayload {
 }
 
 export interface AuthRestrictionDeniedPayload {
-  actorType: string
-  authMethod: string
+  actorType?: string
+  authMethod?: string
+  userId: string
   reason: string
 }
 
@@ -107,6 +108,27 @@ export interface AuthUserUnbannedPayload {
   unbannedBy: string
 }
 
+export interface AuthPasswordResetRequestedPayload {
+  email: string
+  userName: string
+  url: string
+  token: string
+}
+
+export interface AuthVerificationEmailRequestedPayload {
+  email: string
+  userName: string
+  url: string
+  token: string
+}
+
+export interface AuthInvitationRequestedPayload {
+  email: string
+  organizationName: string
+  inviterName: string
+  invitationId: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -127,6 +149,9 @@ export const AUTH_EVENTS = {
   IMPERSONATION_STOPPED: 'auth.admin.impersonation.stopped',
   USER_BANNED: 'auth.admin.user.banned',
   USER_UNBANNED: 'auth.admin.user.unbanned',
+  PASSWORD_RESET_REQUESTED: 'auth.email.password-reset-requested',
+  VERIFICATION_EMAIL_REQUESTED: 'auth.email.verification-requested',
+  INVITATION_REQUESTED: 'auth.email.invitation-requested',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -152,5 +177,8 @@ declare module '@czo/kit/event-bus' {
     'auth.admin.impersonation.stopped': AuthImpersonationStoppedPayload
     'auth.admin.user.banned': AuthUserBannedPayload
     'auth.admin.user.unbanned': AuthUserUnbannedPayload
+    'auth.email.password-reset-requested': AuthPasswordResetRequestedPayload
+    'auth.email.verification-requested': AuthVerificationEmailRequestedPayload
+    'auth.email.invitation-requested': AuthInvitationRequestedPayload
   }
 }

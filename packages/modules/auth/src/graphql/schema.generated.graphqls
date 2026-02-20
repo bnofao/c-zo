@@ -1,0 +1,167 @@
+type ApiKey {
+  createdAt: DateTime!
+  enabled: Boolean!
+  expiresAt: DateTime
+  id: ID!
+  lastRequest: DateTime
+  name: String
+  prefix: String
+  start: String
+}
+
+type AuthConfig {
+  actorTypes: [String!]!
+  allowImpersonation: Boolean!
+  allowedMethods: [String!]!
+  dominantActorType: String!
+  require2FA: Boolean!
+  sessionDuration: Int!
+}
+
+input BooleanFilterInput {
+  eq: Boolean
+}
+
+input CreateOrganizationInput {
+  name: String!
+  slug: String
+  type: String
+}
+
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+
+scalar DateTime
+
+input DateTimeFilterInput {
+  eq: DateTime
+  gt: DateTime
+  gte: DateTime
+  lt: DateTime
+  lte: DateTime
+  ne: DateTime
+}
+
+scalar EmailAddress
+
+type Invitation {
+  email: EmailAddress!
+  expiresAt: DateTime
+  id: ID!
+  role: String!
+  status: String!
+}
+
+type Mutation {
+  _empty: String
+  acceptInvitation(invitationId: ID!): OrgMember!
+  banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  createUser(input: CreateUserInput!): User!
+  impersonateUser(userId: ID!): Boolean!
+  inviteMember(email: String!, organizationId: ID!, role: String!): Invitation!
+  removeMember(memberIdToRemove: ID!, organizationId: ID!): Boolean!
+  removeUser(userId: ID!): Boolean!
+  revokeSession(sessionToken: String!): Boolean!
+  revokeSessions(userId: ID!): Boolean!
+  setActiveOrganization(organizationId: ID): Organization
+  setRole(role: String!, userId: ID!): Boolean!
+  stopImpersonation: Boolean!
+  unbanUser(userId: ID!): Boolean!
+  updateUser(input: UpdateUserInput!, userId: ID!): User!
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+type OrgMember {
+  createdAt: DateTime!
+  id: ID!
+  role: String!
+  userId: String!
+}
+
+type Organization {
+  createdAt: DateTime!
+  id: ID!
+  logo: String
+  name: String!
+  slug: String!
+  type: String
+}
+
+type Query {
+  _empty: String
+  myApiKeys: [ApiKey!]!
+  myAuthConfig: AuthConfig!
+  myOrganizations: [Organization!]!
+  organization(id: ID!): Organization
+  user(userId: ID!): User!
+  userSessions(userId: ID!): [UserSession!]!
+  users(limit: Int, offset: Int, orderBy: UserOrderByInput, search: String, where: UserWhereInput): UserList!
+}
+
+input StringFilterInput {
+  contains: String
+  endsWith: String
+  eq: String
+  in: [String!]
+  ne: String
+  startsWith: String
+}
+
+input UpdateUserInput {
+  email: EmailAddress
+  name: String
+}
+
+type User {
+  banExpires: DateTime
+  banReason: String
+  banned: Boolean!
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  name: String!
+  role: String!
+}
+
+type UserList {
+  total: Int!
+  users: [User!]!
+}
+
+input UserOrderByInput {
+  direction: OrderDirection!
+  field: UserOrderField!
+}
+
+enum UserOrderField {
+  createdAt
+  email
+  name
+}
+
+type UserSession {
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  id: ID!
+  impersonatedBy: String
+  ipAddress: String
+  userAgent: String
+  userId: ID!
+}
+
+input UserWhereInput {
+  AND: [UserWhereInput!]
+  NOT: UserWhereInput
+  OR: [UserWhereInput!]
+  createdAt: DateTimeFilterInput
+  emailVerified: BooleanFilterInput
+}

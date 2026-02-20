@@ -25,12 +25,16 @@ export default defineNitroModule({
       imports: ['useDatabase'],
     }, nitro)
     addImportsSources({
+      from: '@czo/kit/ioc',
+      imports: ['useContainer'],
+    }, nitro)
+    addImportsSources({
       from: '@czo/kit',
-      imports: ['useContainer', 'useLogger'],
+      imports: ['useLogger'],
     }, nitro)
     addImportsSources({
       from: '@czo/kit/graphql',
-      imports: ['registeredTypeDefs', 'registeredResolvers'],
+      imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory'],
     }, nitro)
     addPlugin(resolver.resolve('../plugin/index'), nitro)
   },

@@ -1,0 +1,26 @@
+input StringFilterInput {
+  eq: String
+  ne: String
+  contains: String
+  startsWith: String
+  endsWith: String
+  in: [String!]
+}
+
+input BooleanFilterInput {
+  eq: Boolean
+}
+
+input DateTimeFilterInput {
+  eq: DateTime
+  ne: DateTime
+  gt: DateTime
+  gte: DateTime
+  lt: DateTime
+  lte: DateTime
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}

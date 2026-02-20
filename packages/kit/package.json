@@ -30,6 +30,10 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
+    "./ioc": {
+      "types": "./src/ioc/index.ts",
+      "default": "./dist/ioc/index.mjs"
+    },
     "./cache": {
       "types": "./src/cache/index.ts",
       "default": "./dist/cache/index.mjs"

@@ -18,6 +18,7 @@ export default defineBuildConfig({
     'src/module/index',
     'src/graphql/index',
     'src/db/index',
+    'src/ioc/index',
     'src/cache/index',
     'src/events/index',
     'src/event-bus/index',

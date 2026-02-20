@@ -1,28 +1,21 @@
-import type { AuthConfigOptions } from '../config/auth.config'
-import { useContainer, useLogger } from '@czo/kit'
+import type { AuthOption } from '../config/auth'
+import { useLogger } from '@czo/kit'
 import { useDatabase } from '@czo/kit/db'
+import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
-import { createAuth } from '../config/auth.config'
-import { AuthEventsService } from '../events/auth-events'
-import { useAuthRestrictionRegistry } from '../services/auth-restriction-registry'
-import { ConsoleEmailService } from '../services/email.service'
-import { useAuthRedis } from '../services/redis'
-import { createRedisStorage } from '../services/secondary-storage'
+import { useStorage } from 'nitro/storage'
+import { createAuth } from '../config/auth'
+import { createAuthService } from '../services/auth.service'
+import { createUserService } from '../services/user.service'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
-import '../graphql/typedefs'
-import '../graphql/resolvers'
-import '../graphql/admin-resolvers'
 
 export default definePlugin(async (nitroApp) => {
   const logger = useLogger('auth:plugin')
   const container = useContainer()
   const config = useRuntimeConfig()
-  const db = useDatabase()
 
-  const authConfig = (config as unknown as Record<string, unknown>).auth as
-    | { secret: string, baseUrl: string }
-    | undefined
+  const authConfig = config.auth
 
   if (!authConfig?.secret) {
     logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
@@ -34,73 +27,63 @@ export default definePlugin(async (nitroApp) => {
     return
   }
 
-  const emailService = new ConsoleEmailService()
-  container.bind('auth:email', () => emailService)
-
-  const authEvents = new AuthEventsService()
-  container.bind('auth:events', () => authEvents)
-
-  const restrictionRegistry = useAuthRestrictionRegistry()
-  for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
-    restrictionRegistry.registerActorType(actorType, config)
-  }
-  container.bind('auth:restrictions', () => restrictionRegistry)
-
-  const authOptions: AuthConfigOptions = {
-    appName: (authConfig as Record<string, string>).appName || '',
-    secret: authConfig.secret,
-    baseUrl: authConfig.baseUrl || 'http://localhost:4000',
-    emailService,
-    events: authEvents,
-    restrictionRegistry,
-  }
-
-  const oauthConfig = authConfig as Record<string, string>
-  const oauth: AuthConfigOptions['oauth'] = {}
-  if (oauthConfig.googleClientId && oauthConfig.googleClientSecret) {
-    oauth.google = {
-      clientId: oauthConfig.googleClientId,
-      clientSecret: oauthConfig.googleClientSecret,
+  nitroApp.hooks.hook('request', async (event: { context: Record<string, unknown> }) => {
+    const auth = await container.make('auth')
+    if (!auth) {
+      throw new Error('Auth not initialized — ensure czo:boot hook has been called before handling requests')
     }
-    logger.info('Google OAuth configured')
-  }
-  if (oauthConfig.githubClientId && oauthConfig.githubClientSecret) {
-    oauth.github = {
-      clientId: oauthConfig.githubClientId,
-      clientSecret: oauthConfig.githubClientSecret,
-    }
-    logger.info('GitHub OAuth configured')
-  }
-  if (Object.keys(oauth).length > 0) {
-    authOptions.oauth = oauth
-  }
-
-  try {
-    const redis = useAuthRedis()
-    authOptions.redis = { storage: createRedisStorage(redis) }
-    logger.info('Auth Redis session cache initialized')
-  }
-  catch (err) {
-    logger.warn('Redis unavailable — session cache disabled.', (err as Error).message)
-  }
-
-  const auth = createAuth(db, authOptions)
-
-  container.bind('auth', () => auth)
-
-  nitroApp.hooks.hook('request', (event: { context: Record<string, unknown> }) => {
-    event.context.auth = auth
     event.context.generateOpenAPISchema = () => auth.api.generateOpenAPISchema()
-    event.context.db = db
-    event.context.authEvents = authEvents
-    event.context.authSecret = authConfig.secret
-    event.context.authRestrictions = restrictionRegistry
   })
 
-  nitroApp.hooks.hook('czo:boot', () => {
-    restrictionRegistry.freeze()
+  nitroApp.hooks.hook('czo:register', async () => {
+    logger.start('Begin registration...')
+
+    // const restrictionRegistry = useAuthActorService()
+    const actorService = await container.make('auth:actor')
+    for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
+      actorService.registerActor(actorType, config)
+    }
+
+    // const accessRegistry = useAccessService()
+    const _accessService = await container.make('auth:access')
+    // todo: register statements and roles hierarchies
+    // registerAuthStatements(accessRegistry)
+  })
+
+  nitroApp.hooks.hook('czo:boot', async () => {
+    const db = useDatabase()
+    const accessService = await container.make('auth:access')
+    const { ac, roles } = accessService.buildRoles()
+    const authOption: AuthOption = {
+      app: config.app,
+      secret: authConfig.secret,
+      baseUrl: config.baseUrl,
+      socials: authConfig.socials,
+      storage: useStorage('auth'),
+      ac,
+      roles,
+    }
+
+    const auth = createAuth(db, authOption)
+    container.singleton('auth', () => auth)
+
+    const userService = createUserService(auth)
+    container.singleton('auth:users', () => userService)
+
+    const authService = createAuthService(auth)
+    container.singleton('auth:service', () => authService)
+
+    const actorService = await container.make('auth:actor')
+    actorService.freeze()
+    accessService.freeze()
+
+    // Register GraphQL schema, resolvers and context only when auth is properly configured
+    await import('../graphql/context-factory')
+    await import('../graphql/typedefs')
+    await import('../graphql/resolvers')
+
+    logger.success('Booted !')
     logger.info('Auth restriction registry frozen')
+    logger.info('Access statement registry frozen — auth created with domain roles')
   })
-
-  logger.info('Auth module initialized with better-auth (session-based)')
 })
