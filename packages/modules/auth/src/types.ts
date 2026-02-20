@@ -1,9 +1,11 @@
 import type { GraphQLContextMap } from '@czo/kit/graphql'
-import type { Auth } from './config/auth.config'
-import type { AuthEventsService } from './events/auth-events'
-import type { AuthRestrictionRegistry } from './services/auth-restriction-registry'
-import type { PermissionService } from './services/permission.service'
+import type { SocialProviders } from 'better-auth'
+import type { AccessService } from './config/access'
+import type { AuthActorService } from './config/actor'
+import type { Auth } from './config/auth'
+import type { AuthService } from './services/auth.service'
 import type { UserService } from './services/user.service'
+// import { Session, User } from 'better-auth'
 
 export interface AuthContext {
   session: {
@@ -29,15 +31,40 @@ export interface AuthContext {
   authSource: 'bearer' | 'cookie' | 'api-key'
 }
 
+type AuthSession = Awaited<ReturnType<AuthService['getSession']>>
+
 declare module '@czo/kit/graphql' {
   interface GraphQLContextMap {
-    auth: AuthContext
-    authInstance: Auth
-    authRestrictions: AuthRestrictionRegistry
-    authEvents: AuthEventsService
-    permissionService: PermissionService
-    userService: UserService
-    request: Request
+    auth: {
+      instance: Auth
+      userService: UserService
+      authService: AuthService
+      session: NonNullable<AuthSession>['session']
+      user: NonNullable<AuthSession>['user']
+    }
+    // authInstance: Auth
+    // authRestrictions: AuthRestrictionRegistry
+    // permissionService: PermissionService
+    // userService: UserService
+  }
+}
+
+declare module '@czo/kit/ioc' {
+  interface ContainerBindings {
+    'auth': Auth
+    'auth:actor': AuthActorService
+    'auth:access': AccessService
+    'auth:users': UserService
+    'auth:service': AuthService
+  }
+}
+
+declare module 'nitro/types' {
+  interface NitroRuntimeConfig {
+    auth: {
+      secret: string
+      socials?: SocialProviders
+    }
   }
 }
 

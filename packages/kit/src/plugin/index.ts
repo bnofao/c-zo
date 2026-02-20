@@ -1,4 +1,5 @@
-import { useContainer, useLogger } from '@czo/kit'
+import { useLogger } from '@czo/kit'
+import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 
 const logger = useLogger('kit:plugin')

@@ -1,6 +1,6 @@
 import type { Session, User } from 'better-auth'
 import type { SessionWithImpersonatedBy, UserWithRole } from 'better-auth/plugins'
-import type { Auth } from '../config/auth.config'
+import type { Auth } from '../config/auth'
 import { APIError } from 'better-auth'
 
 // ─── Types ───────────────────────────────────────────────────────────

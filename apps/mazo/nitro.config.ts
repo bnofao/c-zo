@@ -60,8 +60,8 @@ export default defineNitroConfig({
   modules: [
     // productModule,
     // '@czo/product',
-    kitModule,
     authModule,
+    kitModule,
   ],
   imports: {
     imports: [],

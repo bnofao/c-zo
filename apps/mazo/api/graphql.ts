@@ -18,12 +18,12 @@ const yoga = createYoga({
     validationRules: [NoSchemaIntrospectionCustomRule],
   }),
   context: initialContext =>
-    buildGraphQLContext(initialContext as unknown as Record<string, unknown>),
+    buildGraphQLContext(initialContext as unknown as Record<string, unknown>, (initial) => initial.request as Request),
 })
 
 export default defineHandler(async (event) => {
   return yoga.fetch(event.req, {
-    ...event.context,
+    // ...event.context,
     request: event.req,
   })
 })

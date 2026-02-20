@@ -15,7 +15,6 @@ export default defineBuildConfig({
   entries: [
     'src/module',
     'src/types',
-    'src/access/index',
     {
       input: 'src/plugins/',
       outDir: 'dist/plugins',
@@ -44,11 +43,6 @@ export default defineBuildConfig({
     {
       input: 'src/events/',
       outDir: 'dist/events',
-      ...dirImport,
-    },
-    {
-      input: 'src/access/',
-      outDir: 'dist/access',
       ...dirImport,
     },
     {

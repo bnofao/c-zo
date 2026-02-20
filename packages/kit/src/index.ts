@@ -7,7 +7,7 @@ import type { Container } from './ioc'
 export * from './commands'
 export type { CzoConfig } from './config'
 export { czoConfigDefaults, useCzoConfig } from './config'
-export * from './ioc'
+// export * from './ioc'
 export { logger, useLogger } from './logger'
 export * from './module'
 export { addDevHandler, addHandler, addImports, addImportsDir, addPlugin, addScanDir } from './nitro'
@@ -22,10 +22,12 @@ declare module 'nitro/types' {
     eventBus: EventBus
   }
   interface NitroRuntimeConfig {
+    app: string
+    baseUrl?: string
     czo?: Partial<CzoConfig>
   }
   interface NitroRuntimeHooks {
-    // 'czo:register': <T extends Record<any, any>>(container: Container<T>) => void
+    'czo:register': <T extends Record<any, any>>(container: Container<T>) => void
     'czo:boot': <T extends Record<any, any>>(container: Container<T>) => void
   }
   interface NitroModule {

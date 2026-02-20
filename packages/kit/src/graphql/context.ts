@@ -8,7 +8,9 @@
  * to get end-to-end type safety.
  */
 
-export interface GraphQLContextMap {}
+export interface GraphQLContextMap {
+  request: Request
+}
 
 type ContextFactory = (
   serverContext: Record<string, unknown>,
@@ -29,8 +31,11 @@ export function registeredContextFactories() {
 
 export async function buildGraphQLContext(
   serverContext: Record<string, unknown>,
+  requestFactory: (serverContext: Record<string, unknown>) => Request | Promise<Request>,
 ): Promise<GraphQLContextMap> {
-  const ctx = {} as Record<string, unknown>
+  const ctx = {
+    request: await requestFactory(serverContext),
+  }
   for (const { factory } of factories) {
     Object.assign(ctx, await factory(serverContext))
   }

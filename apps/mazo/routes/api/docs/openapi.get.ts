@@ -22,7 +22,7 @@ export default defineHandler(async (event) => {
       ?? Promise.resolve({} as OpenAPISpec),
   ])
 
-  console.log(betterAuthSpec)
+  // console.log(event.context)
 
   return betterAuthSpec
 

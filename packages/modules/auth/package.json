@@ -14,17 +14,9 @@
       "types": "./src/module.ts",
       "default": "./dist/module.mjs"
     },
-    "./graphql-auth": {
-      "types": "./src/services/graphql-auth.ts",
-      "default": "./dist/services/graphql-auth.js"
-    },
     "./types": {
       "types": "./src/types.ts",
       "default": "./dist/types.mjs"
-    },
-    "./access": {
-      "types": "./src/access/index.ts",
-      "default": "./dist/access/index.mjs"
     }
   },
   "main": "./dist/module.mjs",
@@ -55,9 +47,6 @@
     "graphql": "catalog:common"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "catalog:dev",
-    "@graphql-codegen/typescript": "catalog:dev",
-    "@graphql-codegen/typescript-resolvers": "catalog:dev",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
