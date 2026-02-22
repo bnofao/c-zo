@@ -23,9 +23,9 @@ input BooleanFilterInput {
 }
 
 input CreateOrganizationInput {
+  logo: String
   name: String!
-  slug: String
-  type: String
+  slug: String!
 }
 
 input CreateUserInput {
@@ -50,28 +50,42 @@ scalar EmailAddress
 
 type Invitation {
   email: EmailAddress!
-  expiresAt: DateTime
+  expiresAt: DateTime!
   id: ID!
+  inviterId: String!
+  organizationId: String!
   role: String!
   status: String!
+}
+
+input InviteMemberInput {
+  email: EmailAddress!
+  organizationId: ID
+  resend: Boolean
+  role: String!
 }
 
 type Mutation {
   _empty: String
   acceptInvitation(invitationId: ID!): OrgMember!
   banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
+  cancelInvitation(invitationId: ID!): Boolean!
   createOrganization(input: CreateOrganizationInput!): Organization!
   createUser(input: CreateUserInput!): User!
+  deleteOrganization(organizationId: ID!): Boolean!
   impersonateUser(userId: ID!): Boolean!
-  inviteMember(email: String!, organizationId: ID!, role: String!): Invitation!
-  removeMember(memberIdToRemove: ID!, organizationId: ID!): Boolean!
+  inviteMember(input: InviteMemberInput!): Invitation!
+  rejectInvitation(invitationId: ID!): Boolean!
+  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
   removeUser(userId: ID!): Boolean!
   revokeSession(sessionToken: String!): Boolean!
   revokeSessions(userId: ID!): Boolean!
-  setActiveOrganization(organizationId: ID): Organization
+  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
   setRole(role: String!, userId: ID!): Boolean!
   stopImpersonation: Boolean!
   unbanUser(userId: ID!): Boolean!
+  updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
+  updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
   updateUser(input: UpdateUserInput!, userId: ID!): User!
 }
 
@@ -98,13 +112,21 @@ type Organization {
 
 type Query {
   _empty: String
+  checkSlug(slug: String!): SlugCheckResult!
+  invitation(invitationId: ID!): Invitation
+  invitations(organizationId: ID): [Invitation!]!
+  members(organizationId: ID, organizationSlug: String): [OrgMember!]!
   myApiKeys: [ApiKey!]!
   myAuthConfig: AuthConfig!
-  myOrganizations: [Organization!]!
-  organization(id: ID!): Organization
+  organization(organizationId: ID, organizationSlug: String): Organization
+  organizations: [Organization!]!
   user(userId: ID!): User!
   userSessions(userId: ID!): [UserSession!]!
   users(limit: Int, offset: Int, orderBy: UserOrderByInput, search: String, where: UserWhereInput): UserList!
+}
+
+type SlugCheckResult {
+  available: Boolean!
 }
 
 input StringFilterInput {
@@ -114,6 +136,12 @@ input StringFilterInput {
   in: [String!]
   ne: String
   startsWith: String
+}
+
+input UpdateOrganizationInput {
+  logo: String
+  name: String
+  slug: String
 }
 
 input UpdateUserInput {

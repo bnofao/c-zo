@@ -5,13 +5,42 @@ export const ORGANIZATION_STATEMENTS = {
 } as const
 
 export const ADMIN_STATEMENTS = {
-  'user': ['create', 'read', 'update', 'delete', 'ban', 'impersonate'],
+  'user': ['create', 'read', 'update', 'delete', 'ban', 'impersonate', 'set-role'],
   'session': ['read', 'revoke'],
   'api-key': ['create', 'read', 'update', 'delete'],
 } as const
 
-export const ORGANIZATION_HIERARCHY = [
+export const API_KEY_STATEMENTS = {
+  'api-key': ['create', 'read', 'update', 'delete'],
+} as const
 
+export const ORGANIZATION_HIERARCHY = [
+  {
+    name: 'org:member',
+    permissions: {},
+  },
+  {
+    name: 'org:viewer',
+    permissions: {
+      organization: ['read'],
+      member: ['read'],
+      invitation: ['read'],
+    },
+  },
+  {
+    name: 'org:admin',
+    permissions: {
+      organization: ['update'],
+      member: ['create', 'update', 'delete'],
+      invitation: ['create', 'cancel'],
+    },
+  },
+  {
+    name: 'org:owner',
+    permissions: {
+      organization: ['delete'],
+    },
+  },
 ]
 
 export const ADMIN_HIERARCHY = [

@@ -6,3 +6,7 @@ export type { Database } from './manager'
 
 // Re-export repository builders
 export * from './repository'
+
+// Schema discovery for centralized migrations
+export { discoverModuleSchemas } from './discover'
+export type { DiscoverSchemasOptions } from './discover'

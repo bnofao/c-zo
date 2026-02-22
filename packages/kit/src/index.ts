@@ -27,8 +27,9 @@ declare module 'nitro/types' {
     czo?: Partial<CzoConfig>
   }
   interface NitroRuntimeHooks {
-    'czo:register': <T extends Record<any, any>>(container: Container<T>) => void
-    'czo:boot': <T extends Record<any, any>>(container: Container<T>) => void
+    'czo:init': () => void
+    'czo:register': () => void
+    'czo:boot': () => void
   }
   interface NitroModule {
     hooks?: Partial<NitroHooks>

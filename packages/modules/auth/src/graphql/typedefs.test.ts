@@ -55,7 +55,7 @@ describe('auth typedefs', () => {
     const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
     const queryFields = getFieldNames(typeDefs, 'Query')
 
-    expect(queryFields).toContain('myOrganizations')
+    expect(queryFields).toContain('organizations')
     expect(queryFields).toContain('organization')
     expect(queryFields).toContain('myApiKeys')
     expect(queryFields).toContain('myAuthConfig')

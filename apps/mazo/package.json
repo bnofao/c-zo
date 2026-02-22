@@ -5,17 +5,23 @@
     "build": "nitro build",
     "dev": "NODE_ENV=development nitro dev",
     "preview": "npx srvx --prod .output/",
-    "share": "czo publish --dir migrations --outdir ./_migrations --config ./nitro.config.ts"
+    "share": "czo publish --dir migrations --outdir ./_migrations --config ./nitro.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:status": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
     "@czo/auth": "workspace:*",
     "@czo/kit": "workspace:*",
+    "drizzle-kit": "catalog:dev",
     "nitro": "catalog:dev"
   },
   "dependencies": {
     "@graphql-tools/merge": "catalog:common",
     "@graphql-tools/schema": "catalog:",
     "graphql": "catalog:common",
+    "graphql-scalars": "catalog:common",
     "graphql-yoga": "catalog:common",
     "kysely": "catalog:common"
   }

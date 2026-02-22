@@ -5,8 +5,11 @@ import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 import { useStorage } from 'nitro/storage'
+import { useAccessService } from '../config/access'
+import { useAuthActorService } from '../config/actor'
 import { createAuth } from '../config/auth'
 import { createAuthService } from '../services/auth.service'
+import { createOrganizationService } from '../services/organization.service'
 import { createUserService } from '../services/user.service'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 
@@ -33,6 +36,14 @@ export default definePlugin(async (nitroApp) => {
       throw new Error('Auth not initialized — ensure czo:boot hook has been called before handling requests')
     }
     event.context.generateOpenAPISchema = () => auth.api.generateOpenAPISchema()
+  })
+
+  nitroApp.hooks.hook('czo:init', async () => {
+    const actorService = useAuthActorService()
+    container.singleton('auth:actor', () => actorService)
+
+    const accessService = useAccessService()
+    container.singleton('auth:access', () => accessService)
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
@@ -72,6 +83,9 @@ export default definePlugin(async (nitroApp) => {
 
     const authService = createAuthService(auth)
     container.singleton('auth:service', () => authService)
+
+    const organizationService = createOrganizationService(auth)
+    container.singleton('auth:organizations', () => organizationService)
 
     const actorService = await container.make('auth:actor')
     actorService.freeze()

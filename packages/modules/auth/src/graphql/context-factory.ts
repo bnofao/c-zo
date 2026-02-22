@@ -13,10 +13,10 @@ registerContextFactory('auth', async (serverCtx) => {
     auth: {
       instance: await container.make('auth'),
       userService: await container.make('auth:users'),
+      organizationService: await container.make('auth:organizations'),
       authService: await container.make('auth:service'),
       session: authSession!.session,
       user: authSession!.user,
     },
-
   }
 })

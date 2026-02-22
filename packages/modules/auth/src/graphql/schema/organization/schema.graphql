@@ -1,0 +1,70 @@
+type Organization {
+  id: ID!
+  name: String!
+  slug: String!
+  logo: String
+  type: String
+  createdAt: DateTime!
+}
+
+type OrgMember {
+  id: ID!
+  userId: String!
+  role: String!
+  createdAt: DateTime!
+}
+
+type Invitation {
+  id: ID!
+  email: EmailAddress!
+  role: String!
+  status: String!
+  organizationId: String!
+  inviterId: String!
+  expiresAt: DateTime!
+}
+
+type SlugCheckResult {
+  available: Boolean!
+}
+
+input CreateOrganizationInput {
+  name: String!
+  slug: String!
+  logo: String
+}
+
+input UpdateOrganizationInput {
+  name: String
+  slug: String
+  logo: String
+}
+
+input InviteMemberInput {
+  email: EmailAddress!
+  role: String!
+  organizationId: ID
+  resend: Boolean
+}
+
+extend type Query {
+  organizations: [Organization!]!
+  organization(organizationId: ID, organizationSlug: String): Organization
+  members(organizationId: ID, organizationSlug: String): [OrgMember!]!
+  invitations(organizationId: ID): [Invitation!]!
+  invitation(invitationId: ID!): Invitation
+  checkSlug(slug: String!): SlugCheckResult!
+}
+
+extend type Mutation {
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  updateOrganization(organizationId: ID!, input: UpdateOrganizationInput!): Organization!
+  deleteOrganization(organizationId: ID!): Boolean!
+  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
+  inviteMember(input: InviteMemberInput!): Invitation!
+  cancelInvitation(invitationId: ID!): Boolean!
+  acceptInvitation(invitationId: ID!): OrgMember!
+  rejectInvitation(invitationId: ID!): Boolean!
+  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
+  updateMemberRole(memberId: ID!, role: String!, organizationId: ID): Boolean!
+}

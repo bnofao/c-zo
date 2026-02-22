@@ -25,10 +25,11 @@ export default defineNitroConfig({
     },
   },
 
-  runtimeConfig: {      // ← mapped from NITRO_CZO_REDIS_URL
+  runtimeConfig: {
+    app: 'mazo',
+    baseUrl: '',
     auth: {
       secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
-      baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
     },
     czo: {
       databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
@@ -60,7 +61,8 @@ export default defineNitroConfig({
   modules: [
     // productModule,
     // '@czo/product',
-    authModule,
+    '@czo/auth',
+    // authModule,
     kitModule,
   ],
   imports: {

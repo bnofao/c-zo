@@ -4,6 +4,7 @@ import type { AccessService } from './config/access'
 import type { AuthActorService } from './config/actor'
 import type { Auth } from './config/auth'
 import type { AuthService } from './services/auth.service'
+import type { OrganizationService } from './services/organization.service'
 import type { UserService } from './services/user.service'
 // import { Session, User } from 'better-auth'
 
@@ -38,6 +39,7 @@ declare module '@czo/kit/graphql' {
     auth: {
       instance: Auth
       userService: UserService
+      organizationService: OrganizationService
       authService: AuthService
       session: NonNullable<AuthSession>['session']
       user: NonNullable<AuthSession>['user']
@@ -56,6 +58,7 @@ declare module '@czo/kit/ioc' {
     'auth:access': AccessService
     'auth:users': UserService
     'auth:service': AuthService
+    'auth:organizations': OrganizationService
   }
 }
 
