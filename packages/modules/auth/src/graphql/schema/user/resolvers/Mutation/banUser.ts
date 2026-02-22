@@ -3,12 +3,11 @@ import { publishAuthEvent } from '../../../../../events/auth-events'
 import { AUTH_EVENTS } from '../../../../../events/types'
 
 export const banUser: NonNullable<MutationResolvers['banUser']> = async (_parent, _arg, _ctx) => {
-  await _ctx.auth.userService.ban(
-    _ctx.request.headers,
-    _arg.userId,
-    _arg.reason ?? undefined,
-    _arg.expiresIn ?? undefined,
-  )
+  await _ctx.auth.userService.ban({
+    userId: _arg.userId,
+    banReason: _arg.reason ?? undefined,
+    banExpiresIn: _arg.expiresIn ?? undefined,
+  }, _ctx.request.headers)
 
   void publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
     userId: _arg.userId,

@@ -32,12 +32,15 @@ input CreateOrganizationInput {
   name: String!
   slug: String!
   logo: String
+  type: String
+  keepCurrentActiveOrganization: Boolean
 }
 
 input UpdateOrganizationInput {
   name: String
   slug: String
   logo: String
+  type: String
 }
 
 input InviteMemberInput {

@@ -8,7 +8,9 @@ export interface CreateOrganizationInput {
   slug: string
   userId?: string
   logo?: string
+  type?: string
   metadata?: Record<string, any>
+  keepCurrentActiveOrganization?: boolean
 }
 
 export interface UpdateOrganizationInput {
@@ -16,6 +18,7 @@ export interface UpdateOrganizationInput {
     name?: string
     slug?: string
     logo?: string
+    type?: string
     metadata?: Record<string, any>
   }
   organizationId?: string
@@ -45,17 +48,11 @@ export type OrganizationService = ReturnType<typeof createOrganizationService>
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createOrganizationService(auth: Auth) {
-  async function create(headers: Headers, input: CreateOrganizationInput) {
+  async function create(input: CreateOrganizationInput, headers?: Headers) {
     try {
       return await auth.api.createOrganization({
         headers,
-        body: {
-          name: input.name,
-          slug: input.slug,
-          userId: input.userId,
-          logo: input.logo,
-          metadata: input.metadata,
-        },
+        body: input,
       })
     }
     catch (e: unknown) {
@@ -66,14 +63,11 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function update(headers: Headers, input: UpdateOrganizationInput) {
+  async function update(input: UpdateOrganizationInput, headers: Headers) {
     try {
       return await auth.api.updateOrganization({
         headers,
-        body: {
-          data: input.data,
-          organizationId: input.organizationId,
-        },
+        body: input,
       })
     }
     catch (e: unknown) {
@@ -84,7 +78,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function remove(headers: Headers, organizationId: string) {
+  async function remove(organizationId: string, headers: Headers) {
     try {
       return await auth.api.deleteOrganization({
         headers,
@@ -99,7 +93,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function setActive(headers: Headers, organizationId?: string | null, organizationSlug?: string) {
+  async function setActive(organizationId: string | null | undefined, headers: Headers, organizationSlug?: string) {
     try {
       return await auth.api.setActiveOrganization({
         headers,
@@ -117,7 +111,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function get(headers: Headers, organizationId?: string, organizationSlug?: string, membersLimit?: number) {
+  async function get(organizationId: string | undefined, headers: Headers, organizationSlug?: string, membersLimit?: number) {
     try {
       return await auth.api.getFullOrganization({
         headers,
@@ -148,16 +142,11 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function inviteMember(headers: Headers, input: InviteMemberInput) {
+  async function inviteMember(input: InviteMemberInput, headers: Headers) {
     try {
       return await auth.api.createInvitation({
         headers,
-        body: {
-          email: input.email,
-          role: input.role as any,
-          organizationId: input.organizationId,
-          resend: input.resend,
-        },
+        body: { ...input, role: input.role as any },
       })
     }
     catch (e: unknown) {
@@ -168,7 +157,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function cancelInvitation(headers: Headers, invitationId: string) {
+  async function cancelInvitation(invitationId: string, headers: Headers) {
     try {
       return await auth.api.cancelInvitation({
         headers,
@@ -183,7 +172,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function acceptInvitation(headers: Headers, invitationId: string) {
+  async function acceptInvitation(invitationId: string, headers: Headers) {
     try {
       return await auth.api.acceptInvitation({
         headers,
@@ -198,7 +187,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function getInvitation(headers: Headers, invitationId: string) {
+  async function getInvitation(invitationId: string, headers: Headers) {
     try {
       return await auth.api.getInvitation({
         headers,
@@ -213,7 +202,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function rejectInvitation(headers: Headers, invitationId: string) {
+  async function rejectInvitation(invitationId: string, headers: Headers) {
     try {
       return await auth.api.rejectInvitation({
         headers,
@@ -228,7 +217,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function listInvitations(headers: Headers, organizationId?: string) {
+  async function listInvitations(organizationId: string | undefined, headers: Headers) {
     try {
       return await auth.api.listInvitations({
         headers,
@@ -243,7 +232,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function removeMember(headers: Headers, memberIdOrEmail: string, organizationId?: string) {
+  async function removeMember(memberIdOrEmail: string, headers: Headers, organizationId?: string) {
     try {
       return await auth.api.removeMember({
         headers,
@@ -258,7 +247,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function updateMemberRole(headers: Headers, memberId: string, role: string | string[], organizationId?: string) {
+  async function updateMemberRole(memberId: string, role: string | string[], headers: Headers, organizationId?: string) {
     try {
       return await auth.api.updateMemberRole({
         headers,
@@ -273,7 +262,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function checkSlug(headers: Headers, slug: string) {
+  async function checkSlug(slug: string, headers?: Headers) {
     try {
       return await auth.api.checkOrganizationSlug({
         headers,
@@ -288,7 +277,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function listUserInvitations(headers: Headers, email?: string) {
+  async function listUserInvitations(email?: string, headers?: Headers) {
     try {
       return await auth.api.listUserInvitations({
         headers,
@@ -303,7 +292,7 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function listMembers(headers: Headers, params: ListMembersParams = {}) {
+  async function listMembers(params: ListMembersParams, headers: Headers) {
     try {
       return await auth.api.listMembers({
         headers,

@@ -26,8 +26,14 @@ export interface CreateUserInput {
   data?: Record<string, any>
 }
 
+export interface BanUserInput {
+  userId: string
+  banReason?: string
+  banExpiresIn?: number
+}
+
 export interface UserService {
-  list: (headers: Headers, params: ListUsersParams) => Promise<{
+  list: (params: ListUsersParams, headers?: Headers) => Promise<{
     users: UserWithRole[]
     total: number
     limit?: number
@@ -36,27 +42,24 @@ export interface UserService {
     users: never []
     total: number
   }>
-  get: (headers: Headers, userId: string) => Promise<UserWithRole>
-  create: (headers: Headers, input: CreateUserInput) => Promise<UserWithRole>
-  update: (headers: Headers, userId: string, data: Record<string, any>) => Promise<UserWithRole>
-  ban: (headers: Headers, userId: string, reason?: string, expiresIn?: number) => Promise<UserWithRole>
-  unban: (headers: Headers, userId: string) => Promise<UserWithRole>
-  remove: (headers: Headers, userId: string) => Promise<{ success: boolean }>
-  setRole: (headers: Headers, userId: string, role: string | string[]) => Promise<UserWithRole>
-  listSessions: (headers: Headers, userId: string) => Promise<SessionWithImpersonatedBy[]>
-  revokeSession: (headers: Headers, sessionToken: string) => Promise<{ success: boolean }>
-  revokeSessions: (headers: Headers, userId: string) => Promise<{ success: boolean }>
-  impersonate: (headers: Headers, userId: string) => Promise<{ session: Session, user: UserWithRole }>
+  get: (userId: string, headers?: Headers) => Promise<UserWithRole>
+  create: (input: CreateUserInput, headers?: Headers) => Promise<UserWithRole>
+  update: (userId: string, data: Record<string, any>, headers?: Headers) => Promise<UserWithRole>
+  ban: (input: BanUserInput, headers?: Headers) => Promise<UserWithRole>
+  unban: (userId: string, headers?: Headers) => Promise<UserWithRole>
+  remove: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
+  setRole: (userId: string, role: string | string[], headers: Headers) => Promise<UserWithRole>
+  listSessions: (userId: string, headers?: Headers) => Promise<SessionWithImpersonatedBy[]>
+  revokeSession: (sessionToken: string, headers?: Headers) => Promise<{ success: boolean }>
+  revokeSessions: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
+  impersonate: (userId: string, headers?: Headers) => Promise<{ session: Session, user: UserWithRole }>
   stopImpersonating: (headers: Headers) => Promise<{ session: Session & Record<string, any>, user: User & Record<string, any> }>
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createUserService(auth: Auth): UserService {
-  async function list(
-    headers: Headers,
-    params: ListUsersParams,
-  ) {
+  async function list(params: ListUsersParams, headers?: Headers) {
     try {
       return await auth.api.listUsers({
         headers,
@@ -65,13 +68,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to list users: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function get(headers: Headers, userId: string) {
+  async function get(userId: string, headers?: Headers) {
     try {
       return await auth.api.getUser({
         headers,
@@ -83,37 +86,24 @@ export function createUserService(auth: Auth): UserService {
     }
   }
 
-  async function create(
-    headers: Headers,
-    input: CreateUserInput,
-  ) {
+  async function create(input: CreateUserInput, headers?: Headers) {
     try {
       const result = await auth.api.createUser({
         headers,
-        body: {
-          email: input.email,
-          name: input.name,
-          password: input.password,
-          role: input.role as any,
-          data: input.data,
-        },
+        body: input as any,
       })
 
       return result.user
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to create user: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function update(
-    headers: Headers,
-    userId: string,
-    data: Record<string, any>,
-  ) {
+  async function update(userId: string, data: Record<string, any>, headers?: Headers) {
     try {
       return await auth.api.adminUpdateUser({
         headers,
@@ -122,34 +112,30 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to update user: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function ban(headers: Headers, userId: string, reason?: string, expiresIn?: number) {
+  async function ban(input: BanUserInput, headers?: Headers) {
     try {
       const result = await auth.api.banUser({
         headers,
-        body: {
-          userId,
-          banReason: reason,
-          banExpiresIn: expiresIn,
-        },
+        body: input,
       })
 
       return result.user
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to ban user: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function unban(headers: Headers, userId: string) {
+  async function unban(userId: string, headers?: Headers) {
     try {
       const result = await auth.api.unbanUser({
         headers,
@@ -160,13 +146,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to unban user: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function remove(headers: Headers, userId: string) {
+  async function remove(userId: string, headers?: Headers) {
     try {
       return await auth.api.removeUser({
         headers,
@@ -175,13 +161,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to remove user: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function setRole(headers: Headers, userId: string, role: string | string[]) {
+  async function setRole(userId: string, role: string | string[], headers: Headers) {
     try {
       const result = await auth.api.setRole({
         headers,
@@ -192,13 +178,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to set role: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function listSessions(headers: Headers, userId: string) {
+  async function listSessions(userId: string, headers?: Headers) {
     try {
       const result = await auth.api.listUserSessions({
         headers,
@@ -209,13 +195,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to list sessions: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function revokeSession(headers: Headers, sessionToken: string) {
+  async function revokeSession(sessionToken: string, headers?: Headers) {
     try {
       return await auth.api.revokeUserSession({
         headers,
@@ -224,13 +210,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to revoke session: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function revokeSessions(headers: Headers, userId: string) {
+  async function revokeSessions(userId: string, headers?: Headers) {
     try {
       return await auth.api.revokeUserSessions({
         headers,
@@ -239,13 +225,13 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to revoke sessions: ${e.message}`)
       }
       throw e
     }
   }
 
-  async function impersonate(headers: Headers, userId: string) {
+  async function impersonate(userId: string, headers?: Headers) {
     try {
       return await auth.api.impersonateUser({
         headers,
@@ -254,7 +240,7 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to impersonate user: ${e.message}`)
       }
       throw e
     }
@@ -268,7 +254,7 @@ export function createUserService(auth: Auth): UserService {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to stop impersonating: ${e.message}`)
       }
       throw e
     }

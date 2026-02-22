@@ -2,7 +2,7 @@ import type { MutationResolvers } from './../../../../__generated__/types.genera
 
 export const setActiveOrganization: NonNullable<MutationResolvers['setActiveOrganization']> = async (_parent, _arg, _ctx) =>
   _ctx.auth.organizationService.setActive(
-    _ctx.request.headers,
     _arg.organizationId ?? undefined,
+    _ctx.request.headers,
     _arg.organizationSlug ?? undefined,
   )

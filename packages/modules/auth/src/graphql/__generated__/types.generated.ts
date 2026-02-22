@@ -49,9 +49,11 @@ export type BooleanFilterInput = {
 };
 
 export type CreateOrganizationInput = {
+  keepCurrentActiveOrganization?: InputMaybe<Scalars['Boolean']['input']>;
   logo?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   slug: Scalars['String']['input'];
+  type?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type CreateUserInput = {
@@ -319,6 +321,7 @@ export type UpdateOrganizationInput = {
   logo?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
+  type?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateUserInput = {

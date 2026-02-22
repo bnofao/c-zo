@@ -21,7 +21,7 @@ export function organizationConfig(option?: OrganizationOptions) {
           updatedAt: 'updated_at',
         },
         additionalFields: {
-          type: { type: 'string' as const, required: false, defaultValue: null, input: false },
+          type: { type: 'string' as const, required: false, defaultValue: null, input: true },
         },
       },
       member: {

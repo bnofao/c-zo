@@ -23,9 +23,11 @@ input BooleanFilterInput {
 }
 
 input CreateOrganizationInput {
+  keepCurrentActiveOrganization: Boolean
   logo: String
   name: String!
   slug: String!
+  type: String
 }
 
 input CreateUserInput {
@@ -142,6 +144,7 @@ input UpdateOrganizationInput {
   logo: String
   name: String
   slug: String
+  type: String
 }
 
 input UpdateUserInput {
