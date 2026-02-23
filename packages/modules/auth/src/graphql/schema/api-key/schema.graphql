@@ -1,0 +1,47 @@
+type ApiKey {
+  id: ID!
+  name: String
+  prefix: String
+  start: String
+  enabled: Boolean!
+  expiresAt: DateTime
+  lastRequest: DateTime
+  createdAt: DateTime!
+}
+
+input CreateApiKeyInput {
+  name: String!
+  expiresIn: Int
+  prefix: String
+  remaining: Int
+  metadata: JSON
+  refillAmount: Int
+  refillInterval: Int
+  rateLimitEnabled: Boolean
+  rateLimitTimeWindow: Int
+  rateLimitMax: Int
+}
+
+input UpdateApiKeyInput {
+  name: String
+  enabled: Boolean
+  remaining: Int
+  metadata: JSON
+  expiresIn: Int
+  refillAmount: Int
+  refillInterval: Int
+  rateLimitEnabled: Boolean
+  rateLimitTimeWindow: Int
+  rateLimitMax: Int
+}
+
+extend type Query {
+  myApiKeys: [ApiKey!]! @auth
+  apiKey(keyId: ID!): ApiKey @auth
+}
+
+extend type Mutation {
+  createApiKey(input: CreateApiKeyInput!): ApiKey! @auth
+  updateApiKey(keyId: ID!, input: UpdateApiKeyInput!): ApiKey! @auth
+  deleteApiKey(keyId: ID!): Boolean! @auth
+}

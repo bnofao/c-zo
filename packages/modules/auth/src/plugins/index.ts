@@ -8,6 +8,7 @@ import { useStorage } from 'nitro/storage'
 import { useAccessService } from '../config/access'
 import { useAuthActorService } from '../config/actor'
 import { createAuth } from '../config/auth'
+import { createApiKeyService } from '../services/apiKey.service'
 import { createAuthService } from '../services/auth.service'
 import { createOrganizationService } from '../services/organization.service'
 import { createUserService } from '../services/user.service'
@@ -87,6 +88,9 @@ export default definePlugin(async (nitroApp) => {
     const organizationService = createOrganizationService(auth)
     container.singleton('auth:organizations', () => organizationService)
 
+    const apiKeyService = createApiKeyService(auth)
+    container.singleton('auth:apikeys', () => apiKeyService)
+
     const actorService = await container.make('auth:actor')
     actorService.freeze()
     accessService.freeze()
@@ -95,6 +99,7 @@ export default definePlugin(async (nitroApp) => {
     await import('../graphql/context-factory')
     await import('../graphql/typedefs')
     await import('../graphql/resolvers')
+    await import('../graphql/directives')
 
     logger.success('Booted !')
     logger.info('Auth restriction registry frozen')

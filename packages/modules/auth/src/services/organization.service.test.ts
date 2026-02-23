@@ -18,6 +18,9 @@ function createMockApi() {
     listInvitations: vi.fn(),
     removeMember: vi.fn(),
     updateMemberRole: vi.fn(),
+    leaveOrganization: vi.fn(),
+    getActiveMember: vi.fn(),
+    getActiveMemberRole: vi.fn(),
     checkOrganizationSlug: vi.fn(),
     listUserInvitations: vi.fn(),
     listMembers: vi.fn(),
@@ -208,7 +211,7 @@ describe('organizationService', () => {
     it('should call setActiveOrganization with organizationId', async () => {
       api(auth).setActiveOrganization.mockResolvedValue(mockFullOrg)
 
-      const result = await service.setActive('org-1', headers)
+      const result = await service.setActive({ organizationId: 'org-1' }, headers)
 
       expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
         headers,
@@ -220,7 +223,7 @@ describe('organizationService', () => {
     it('should accept organizationSlug instead', async () => {
       api(auth).setActiveOrganization.mockResolvedValue(mockFullOrg)
 
-      await service.setActive(undefined, headers, 'acme-corp')
+      await service.setActive({ organizationSlug: 'acme-corp' }, headers)
 
       expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
         headers,
@@ -231,7 +234,7 @@ describe('organizationService', () => {
     it('should accept null to clear active org', async () => {
       api(auth).setActiveOrganization.mockResolvedValue(null)
 
-      await service.setActive(null, headers)
+      await service.setActive({ organizationId: null }, headers)
 
       expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
         headers,
@@ -244,7 +247,7 @@ describe('organizationService', () => {
     it('should call getFullOrganization with organizationId', async () => {
       api(auth).getFullOrganization.mockResolvedValue(mockFullOrg)
 
-      const result = await service.get('org-1', headers)
+      const result = await service.get({ organizationId: 'org-1' }, headers)
 
       expect(api(auth).getFullOrganization).toHaveBeenCalledWith({
         headers,
@@ -256,7 +259,7 @@ describe('organizationService', () => {
     it('should accept slug and membersLimit', async () => {
       api(auth).getFullOrganization.mockResolvedValue(mockFullOrg)
 
-      await service.get(undefined, headers, 'acme-corp', 50)
+      await service.get({ organizationSlug: 'acme-corp', membersLimit: 50 }, headers)
 
       expect(api(auth).getFullOrganization).toHaveBeenCalledWith({
         headers,
@@ -267,7 +270,7 @@ describe('organizationService', () => {
     it('should return null when not found', async () => {
       api(auth).getFullOrganization.mockResolvedValue(null)
 
-      const result = await service.get('unknown', headers)
+      const result = await service.get({ organizationId: 'unknown' }, headers)
 
       expect(result).toBeNull()
     })
@@ -464,7 +467,7 @@ describe('organizationService', () => {
     it('should call removeMember with memberIdOrEmail', async () => {
       api(auth).removeMember.mockResolvedValue({ member: mockMember })
 
-      const result = await service.removeMember('m1', headers)
+      const result = await service.removeMember({ memberIdOrEmail: 'm1' }, headers)
 
       expect(api(auth).removeMember).toHaveBeenCalledWith({
         headers,
@@ -476,7 +479,7 @@ describe('organizationService', () => {
     it('should accept email as identifier', async () => {
       api(auth).removeMember.mockResolvedValue({ member: mockMember })
 
-      await service.removeMember('user@test.com', headers, 'org-1')
+      await service.removeMember({ memberIdOrEmail: 'user@test.com', organizationId: 'org-1' }, headers)
 
       expect(api(auth).removeMember).toHaveBeenCalledWith({
         headers,
@@ -487,7 +490,7 @@ describe('organizationService', () => {
     it('should propagate error', async () => {
       api(auth).removeMember.mockRejectedValue(new Error('Cannot remove owner'))
 
-      await expect(service.removeMember('m1', headers)).rejects.toThrow('Cannot remove owner')
+      await expect(service.removeMember({ memberIdOrEmail: 'm1' }, headers)).rejects.toThrow('Cannot remove owner')
     })
   })
 
@@ -496,7 +499,7 @@ describe('organizationService', () => {
       const updated = { ...mockMember, role: 'admin' }
       api(auth).updateMemberRole.mockResolvedValue(updated)
 
-      const result = await service.updateMemberRole('m1', 'admin', headers)
+      const result = await service.updateMemberRole({ memberId: 'm1', role: 'admin' }, headers)
 
       expect(api(auth).updateMemberRole).toHaveBeenCalledWith({
         headers,
@@ -509,12 +512,101 @@ describe('organizationService', () => {
       const updated = { ...mockMember, role: 'admin' }
       api(auth).updateMemberRole.mockResolvedValue(updated)
 
-      await service.updateMemberRole('m1', ['admin', 'editor'], headers, 'org-1')
+      await service.updateMemberRole({ memberId: 'm1', role: ['admin', 'editor'], organizationId: 'org-1' }, headers)
 
       expect(api(auth).updateMemberRole).toHaveBeenCalledWith({
         headers,
         body: { memberId: 'm1', role: ['admin', 'editor'], organizationId: 'org-1' },
       })
+    })
+  })
+
+  describe('leave', () => {
+    it('should call leaveOrganization with organizationId', async () => {
+      const leftMember = { ...mockMember, organizationId: 'org-1' }
+      api(auth).leaveOrganization.mockResolvedValue(leftMember)
+
+      const result = await service.leave('org-1', headers)
+
+      expect(api(auth).leaveOrganization).toHaveBeenCalledWith({
+        headers,
+        body: { organizationId: 'org-1' },
+      })
+      expect(result.id).toBe('m1')
+    })
+
+    it('should propagate error', async () => {
+      api(auth).leaveOrganization.mockRejectedValue(new Error('Cannot leave as only owner'))
+
+      await expect(service.leave('org-1', headers)).rejects.toThrow('Cannot leave as only owner')
+    })
+  })
+
+  describe('getActiveMember', () => {
+    it('should call getActiveMember and return member', async () => {
+      api(auth).getActiveMember.mockResolvedValue(mockMember)
+
+      const result = await service.getActiveMember(headers)
+
+      expect(api(auth).getActiveMember).toHaveBeenCalledWith({ headers })
+      expect(result!.id).toBe('m1')
+      expect(result!.role).toBe('owner')
+    })
+
+    it('should return null when no active member', async () => {
+      api(auth).getActiveMember.mockResolvedValue(null)
+
+      const result = await service.getActiveMember(headers)
+
+      expect(result).toBeNull()
+    })
+
+    it('should propagate error', async () => {
+      api(auth).getActiveMember.mockRejectedValue(new Error('No active org'))
+
+      await expect(service.getActiveMember(headers)).rejects.toThrow('No active org')
+    })
+  })
+
+  describe('getActiveMemberRole', () => {
+    it('should call getActiveMemberRole without params', async () => {
+      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'admin' })
+
+      const result = await service.getActiveMemberRole({}, headers)
+
+      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
+        headers,
+        query: { userId: undefined, organizationId: undefined, organizationSlug: undefined },
+      })
+      expect(result.role).toBe('admin')
+    })
+
+    it('should pass userId and organizationId when provided', async () => {
+      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'member' })
+
+      await service.getActiveMemberRole({ userId: 'u1', organizationId: 'org-1' }, headers)
+
+      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
+        headers,
+        query: { userId: 'u1', organizationId: 'org-1', organizationSlug: undefined },
+      })
+    })
+
+    it('should accept organizationSlug', async () => {
+      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'owner' })
+
+      await service.getActiveMemberRole({ organizationSlug: 'acme-corp' }, headers)
+
+      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
+        headers,
+        query: { userId: undefined, organizationId: undefined, organizationSlug: 'acme-corp' },
+      })
+    })
+
+    it('should propagate error', async () => {
+      api(auth).getActiveMemberRole.mockRejectedValue(new Error('Not a member'))
+
+      await expect(service.getActiveMemberRole({}, headers)).rejects.toThrow('Not a member')
     })
   })
 

@@ -163,7 +163,7 @@ describe('userService', () => {
       const user = { id: 'u1', name: 'Updated', email: 'u1@test.com', role: 'user', createdAt: new Date() }
       api(auth).adminUpdateUser.mockResolvedValue(user)
 
-      const result = await service.update('u1', { name: 'Updated' }, headers)
+      const result = await service.update({ userId: 'u1', data: { name: 'Updated' } }, headers)
 
       expect(api(auth).adminUpdateUser).toHaveBeenCalledWith({
         headers,
@@ -176,7 +176,7 @@ describe('userService', () => {
       const user = { id: 'u1', name: 'User', email: 'new@test.com', role: 'user', createdAt: new Date() }
       api(auth).adminUpdateUser.mockResolvedValue(user)
 
-      await service.update('u1', { email: 'new@test.com' }, headers)
+      await service.update({ userId: 'u1', data: { email: 'new@test.com' } }, headers)
 
       expect(api(auth).adminUpdateUser).toHaveBeenCalledWith({
         headers,
@@ -188,7 +188,7 @@ describe('userService', () => {
       const user = { id: 'u1', name: 'Updated', email: 'u1@test.com', role: 'user', createdAt: new Date() }
       api(auth).adminUpdateUser.mockResolvedValue(user)
 
-      await service.update('u1', { name: 'Updated' })
+      await service.update({ userId: 'u1', data: { name: 'Updated' } })
 
       expect(api(auth).adminUpdateUser).toHaveBeenCalledWith({
         headers: undefined,
@@ -292,7 +292,7 @@ describe('userService', () => {
       const user = { id: 'u1', name: 'User', email: 'user@test.com', role: 'admin', createdAt: new Date() }
       api(auth).setRole.mockResolvedValue({ user })
 
-      const result = await service.setRole('u1', 'admin', headers)
+      const result = await service.setRole({ userId: 'u1', role: 'admin' }, headers)
 
       expect(api(auth).setRole).toHaveBeenCalledWith({
         headers,

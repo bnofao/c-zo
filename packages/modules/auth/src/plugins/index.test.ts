@@ -64,6 +64,15 @@ const mockAuthService = vi.hoisted(() => ({
 }))
 const mockCreateAuthService = vi.hoisted(() => vi.fn(() => mockAuthService))
 
+const mockApiKeyService = vi.hoisted(() => ({
+  create: vi.fn(),
+  get: vi.fn(),
+  update: vi.fn(),
+  remove: vi.fn(),
+  list: vi.fn(),
+}))
+const mockCreateApiKeyService = vi.hoisted(() => vi.fn(() => mockApiKeyService))
+
 vi.mock('../config/auth', () => ({
   createAuth: mockCreateAuth,
 }))
@@ -74,6 +83,10 @@ vi.mock('../services/user.service', () => ({
 
 vi.mock('../services/auth.service', () => ({
   createAuthService: mockCreateAuthService,
+}))
+
+vi.mock('../services/apiKey.service', () => ({
+  createApiKeyService: mockCreateApiKeyService,
 }))
 
 vi.mock('nitro', () => ({
@@ -88,6 +101,7 @@ vi.mock('nitro/storage', () => ({
 vi.mock('../graphql/context-factory', () => ({}))
 vi.mock('../graphql/typedefs', () => ({}))
 vi.mock('../graphql/resolvers', () => ({}))
+vi.mock('../graphql/directives', () => ({}))
 
 describe('auth plugin', () => {
   beforeEach(() => {
@@ -246,6 +260,15 @@ describe('auth plugin', () => {
 
     expect(mockCreateAuthService).toHaveBeenCalledWith(mockAuth)
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:service', expect.any(Function))
+  })
+
+  it('should bind apiKeyService to container during czo:boot', async () => {
+    const { boot } = await setupPlugin()
+
+    await boot()
+
+    expect(mockCreateApiKeyService).toHaveBeenCalledWith(mockAuth)
+    expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apikeys', expect.any(Function))
   })
 
   it('should freeze actor and access registries during czo:boot', async () => {

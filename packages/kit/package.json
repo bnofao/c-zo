@@ -125,6 +125,7 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
     "change-case": "catalog:common",
     "citty": "catalog:common",

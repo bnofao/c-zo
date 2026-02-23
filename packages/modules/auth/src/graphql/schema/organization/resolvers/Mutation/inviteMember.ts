@@ -7,6 +7,7 @@ export const inviteMember: NonNullable<MutationResolvers['inviteMember']> = asyn
     organizationId: _arg.input.organizationId ?? undefined,
     resend: _arg.input.resend ?? undefined,
   }, _ctx.request.headers)
-  if (!result) throw new Error('Failed to invite member')
+  if (!result)
+    throw new Error('Failed to invite member')
   return result
 }

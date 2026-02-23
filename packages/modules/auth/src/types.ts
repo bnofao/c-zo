@@ -3,6 +3,7 @@ import type { SocialProviders } from 'better-auth'
 import type { AccessService } from './config/access'
 import type { AuthActorService } from './config/actor'
 import type { Auth } from './config/auth'
+import type { ApiKeyService } from './services/apiKey.service'
 import type { AuthService } from './services/auth.service'
 import type { OrganizationService } from './services/organization.service'
 import type { UserService } from './services/user.service'
@@ -41,13 +42,10 @@ declare module '@czo/kit/graphql' {
       userService: UserService
       organizationService: OrganizationService
       authService: AuthService
-      session: NonNullable<AuthSession>['session']
-      user: NonNullable<AuthSession>['user']
+      apiKeyService: ApiKeyService
+      session: NonNullable<AuthSession>['session'] | null
+      user: NonNullable<AuthSession>['user'] | null
     }
-    // authInstance: Auth
-    // authRestrictions: AuthRestrictionRegistry
-    // permissionService: PermissionService
-    // userService: UserService
   }
 }
 
@@ -59,6 +57,7 @@ declare module '@czo/kit/ioc' {
     'auth:users': UserService
     'auth:service': AuthService
     'auth:organizations': OrganizationService
+    'auth:apikeys': ApiKeyService
   }
 }
 

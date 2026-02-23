@@ -34,7 +34,7 @@ export default defineNitroModule({
     }, nitro)
     addImportsSources({
       from: '@czo/kit/graphql',
-      imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory'],
+      imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory', 'registerDirective', 'registeredDirectiveTypeDefs', 'applyDirectives'],
     }, nitro)
     addPlugin(resolver.resolve('../plugin/index'), nitro)
   },

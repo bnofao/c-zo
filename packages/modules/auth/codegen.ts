@@ -17,6 +17,7 @@ const config: CodegenConfig = {
       scalarsOverrides: {
         DateTime: { type: 'Date | string' },
         EmailAddress: { type: 'string' },
+        JSON: { type: 'Record<string, unknown> | null' },
       },
       typesPluginsConfig: {
         contextType: '../../types#GraphQLContext',

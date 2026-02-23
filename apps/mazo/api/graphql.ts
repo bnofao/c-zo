@@ -3,14 +3,15 @@ import { createYoga } from 'graphql-yoga'
 import { defineHandler } from 'nitro/h3'
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
 import { makeExecutableSchema } from '@graphql-tools/schema'
-import { registeredTypeDefs, registeredResolvers, buildGraphQLContext } from '@czo/kit/graphql'
+import { registeredTypeDefs, registeredResolvers, registeredDirectiveTypeDefs, applyDirectives, buildGraphQLContext } from '@czo/kit/graphql'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-const schema = makeExecutableSchema({
-  typeDefs: mergeTypeDefs(registeredTypeDefs()),
+let schema = makeExecutableSchema({
+  typeDefs: mergeTypeDefs([...registeredDirectiveTypeDefs(), ...registeredTypeDefs()]),
   resolvers: mergeResolvers(registeredResolvers()),
 })
+schema = applyDirectives(schema)
 
 const yoga = createYoga({
   schema,

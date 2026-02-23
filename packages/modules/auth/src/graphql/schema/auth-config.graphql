@@ -8,5 +8,5 @@ type AuthConfig {
 }
 
 extend type Query {
-  myAuthConfig: AuthConfig!
+  myAuthConfig: AuthConfig! @auth
 }

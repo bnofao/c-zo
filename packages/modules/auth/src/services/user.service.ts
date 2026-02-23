@@ -26,6 +26,16 @@ export interface CreateUserInput {
   data?: Record<string, any>
 }
 
+export interface UpdateUserInput {
+  userId: string
+  data: Record<string, any>
+}
+
+export interface SetRoleInput {
+  userId: string
+  role: string | string[]
+}
+
 export interface BanUserInput {
   userId: string
   banReason?: string
@@ -44,11 +54,11 @@ export interface UserService {
   }>
   get: (userId: string, headers?: Headers) => Promise<UserWithRole>
   create: (input: CreateUserInput, headers?: Headers) => Promise<UserWithRole>
-  update: (userId: string, data: Record<string, any>, headers?: Headers) => Promise<UserWithRole>
+  update: (input: UpdateUserInput, headers?: Headers) => Promise<UserWithRole>
   ban: (input: BanUserInput, headers?: Headers) => Promise<UserWithRole>
   unban: (userId: string, headers?: Headers) => Promise<UserWithRole>
   remove: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
-  setRole: (userId: string, role: string | string[], headers: Headers) => Promise<UserWithRole>
+  setRole: (input: SetRoleInput, headers: Headers) => Promise<UserWithRole>
   listSessions: (userId: string, headers?: Headers) => Promise<SessionWithImpersonatedBy[]>
   revokeSession: (sessionToken: string, headers?: Headers) => Promise<{ success: boolean }>
   revokeSessions: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
@@ -103,11 +113,11 @@ export function createUserService(auth: Auth): UserService {
     }
   }
 
-  async function update(userId: string, data: Record<string, any>, headers?: Headers) {
+  async function update(input: UpdateUserInput, headers?: Headers) {
     try {
       return await auth.api.adminUpdateUser({
         headers,
-        body: { userId, data },
+        body: { userId: input.userId, data: input.data },
       })
     }
     catch (e: unknown) {
@@ -167,11 +177,11 @@ export function createUserService(auth: Auth): UserService {
     }
   }
 
-  async function setRole(userId: string, role: string | string[], headers: Headers) {
+  async function setRole(input: SetRoleInput, headers: Headers) {
     try {
       const result = await auth.api.setRole({
         headers,
-        body: { userId, role: role as any },
+        body: { userId: input.userId, role: input.role as any },
       })
 
       return result.user

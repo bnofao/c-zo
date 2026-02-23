@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@czo/kit": "workspace:*",
-    "@graphql-tools/resolvers-composition": "catalog:common",
+    "@graphql-tools/utils": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
     "graphql": "catalog:common"

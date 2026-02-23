@@ -10,6 +10,7 @@ export const updateOrganization: NonNullable<MutationResolvers['updateOrganizati
     },
     organizationId: _arg.organizationId,
   }, _ctx.request.headers)
-  if (!result) throw new Error('Organization not found')
+  if (!result)
+    throw new Error('Organization not found')
   return result
 }

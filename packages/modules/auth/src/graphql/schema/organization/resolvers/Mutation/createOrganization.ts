@@ -8,6 +8,7 @@ export const createOrganization: NonNullable<MutationResolvers['createOrganizati
     type: _arg.input.type ?? undefined,
     keepCurrentActiveOrganization: _arg.input.keepCurrentActiveOrganization ?? undefined,
   }, _ctx.request.headers)
-  if (!result) throw new Error('Failed to create organization')
+  if (!result)
+    throw new Error('Failed to create organization')
   return result
 }

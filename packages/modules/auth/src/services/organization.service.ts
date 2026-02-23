@@ -31,6 +31,34 @@ export interface InviteMemberInput {
   resend?: boolean
 }
 
+export interface GetOrganizationInput {
+  organizationId?: string
+  organizationSlug?: string
+  membersLimit?: number
+}
+
+export interface SetActiveOrganizationInput {
+  organizationId?: string | null
+  organizationSlug?: string
+}
+
+export interface RemoveMemberInput {
+  memberIdOrEmail: string
+  organizationId?: string
+}
+
+export interface UpdateMemberRoleInput {
+  memberId: string
+  role: string | string[]
+  organizationId?: string
+}
+
+export interface GetActiveMemberRoleInput {
+  userId?: string
+  organizationId?: string
+  organizationSlug?: string
+}
+
 export interface ListMembersParams {
   organizationId?: string
   organizationSlug?: string
@@ -93,13 +121,13 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function setActive(organizationId: string | null | undefined, headers: Headers, organizationSlug?: string) {
+  async function setActive(input: SetActiveOrganizationInput, headers: Headers) {
     try {
       return await auth.api.setActiveOrganization({
         headers,
         body: {
-          organizationId,
-          organizationSlug,
+          organizationId: input.organizationId,
+          organizationSlug: input.organizationSlug,
         },
       })
     }
@@ -111,14 +139,14 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function get(organizationId: string | undefined, headers: Headers, organizationSlug?: string, membersLimit?: number) {
+  async function get(input: GetOrganizationInput, headers: Headers) {
     try {
       return await auth.api.getFullOrganization({
         headers,
         query: {
-          organizationId,
-          organizationSlug,
-          membersLimit,
+          organizationId: input.organizationId,
+          organizationSlug: input.organizationSlug,
+          membersLimit: input.membersLimit,
         },
       })
     }
@@ -232,11 +260,11 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function removeMember(memberIdOrEmail: string, headers: Headers, organizationId?: string) {
+  async function removeMember(input: RemoveMemberInput, headers: Headers) {
     try {
       return await auth.api.removeMember({
         headers,
-        body: { memberIdOrEmail, organizationId },
+        body: { memberIdOrEmail: input.memberIdOrEmail, organizationId: input.organizationId },
       })
     }
     catch (e: unknown) {
@@ -247,11 +275,11 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
-  async function updateMemberRole(memberId: string, role: string | string[], headers: Headers, organizationId?: string) {
+  async function updateMemberRole(input: UpdateMemberRoleInput, headers: Headers) {
     try {
       return await auth.api.updateMemberRole({
         headers,
-        body: { memberId, role, organizationId },
+        body: { memberId: input.memberId, role: input.role, organizationId: input.organizationId },
       })
     }
     catch (e: unknown) {
@@ -307,6 +335,52 @@ export function createOrganizationService(auth: Auth) {
     }
   }
 
+  async function leave(organizationId: string, headers: Headers) {
+    try {
+      return await auth.api.leaveOrganization({
+        headers,
+        body: { organizationId },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to leave organization: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function getActiveMember(headers: Headers) {
+    try {
+      return await auth.api.getActiveMember({ headers })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to get active member: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function getActiveMemberRole(input: GetActiveMemberRoleInput, headers: Headers) {
+    try {
+      return await auth.api.getActiveMemberRole({
+        headers,
+        query: {
+          userId: input.userId,
+          organizationId: input.organizationId,
+          organizationSlug: input.organizationSlug,
+        },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to get active member role: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
   return {
     create,
     update,
@@ -322,6 +396,9 @@ export function createOrganizationService(auth: Auth) {
     listInvitations,
     removeMember,
     updateMemberRole,
+    leave,
+    getActiveMember,
+    getActiveMemberRole,
     checkSlug,
     listUserInvitations,
     listMembers,
