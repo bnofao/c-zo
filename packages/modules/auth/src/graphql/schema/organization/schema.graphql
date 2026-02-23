@@ -7,11 +7,32 @@ type Organization {
   createdAt: DateTime!
 }
 
+type FullOrganization {
+  id: ID!
+  name: String!
+  slug: String!
+  logo: String
+  type: String
+  metadata: JSON
+  createdAt: DateTime!
+  members: [OrgMember!]!
+  invitations: [Invitation!]!
+}
+
 type OrgMember {
   id: ID!
+  organizationId: String!
   userId: String!
   role: String!
   createdAt: DateTime!
+  user: MemberUser
+}
+
+type MemberUser {
+  id: ID!
+  email: String!
+  name: String!
+  image: String
 }
 
 type Invitation {
@@ -22,10 +43,15 @@ type Invitation {
   organizationId: String!
   inviterId: String!
   expiresAt: DateTime!
+  createdAt: DateTime!
 }
 
 type SlugCheckResult {
   available: Boolean!
+}
+
+type MemberRole {
+  role: String!
 }
 
 input CreateOrganizationInput {
@@ -51,23 +77,26 @@ input InviteMemberInput {
 }
 
 extend type Query {
-  organizations: [Organization!]!
-  organization(organizationId: ID, organizationSlug: String): Organization
-  members(organizationId: ID, organizationSlug: String): [OrgMember!]!
-  invitations(organizationId: ID): [Invitation!]!
-  invitation(invitationId: ID!): Invitation
-  checkSlug(slug: String!): SlugCheckResult!
+  organizations: [Organization!]! @auth
+  organization(organizationId: ID, organizationSlug: String): FullOrganization @auth
+  members(organizationId: ID, organizationSlug: String): [OrgMember!]! @auth
+  invitations(organizationId: ID): [Invitation!]! @auth
+  invitation(invitationId: ID!): Invitation @auth
+  checkSlug(slug: String!): SlugCheckResult! @auth
+  activeMember: OrgMember @auth
+  activeMemberRole(userId: ID, organizationId: ID, organizationSlug: String): MemberRole @auth
 }
 
 extend type Mutation {
-  createOrganization(input: CreateOrganizationInput!): Organization!
-  updateOrganization(organizationId: ID!, input: UpdateOrganizationInput!): Organization!
-  deleteOrganization(organizationId: ID!): Boolean!
-  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
-  inviteMember(input: InviteMemberInput!): Invitation!
-  cancelInvitation(invitationId: ID!): Boolean!
-  acceptInvitation(invitationId: ID!): OrgMember!
-  rejectInvitation(invitationId: ID!): Boolean!
-  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
-  updateMemberRole(memberId: ID!, role: String!, organizationId: ID): Boolean!
+  createOrganization(input: CreateOrganizationInput!): Organization! @auth
+  updateOrganization(organizationId: ID!, input: UpdateOrganizationInput!): Organization! @auth
+  deleteOrganization(organizationId: ID!): Boolean! @auth
+  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization @auth
+  inviteMember(input: InviteMemberInput!): Invitation! @auth
+  cancelInvitation(invitationId: ID!): Boolean! @auth
+  acceptInvitation(invitationId: ID!): OrgMember! @auth
+  rejectInvitation(invitationId: ID!): Boolean! @auth
+  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean! @auth
+  updateMemberRole(memberId: ID!, role: String!, organizationId: ID): Boolean! @auth
+  leaveOrganization(organizationId: ID!): Boolean! @auth
 }

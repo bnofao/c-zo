@@ -22,6 +22,19 @@ input BooleanFilterInput {
   eq: Boolean
 }
 
+input CreateApiKeyInput {
+  expiresIn: Int
+  metadata: JSON
+  name: String!
+  prefix: String
+  rateLimitEnabled: Boolean
+  rateLimitMax: Int
+  rateLimitTimeWindow: Int
+  refillAmount: Int
+  refillInterval: Int
+  remaining: Int
+}
+
 input CreateOrganizationInput {
   keepCurrentActiveOrganization: Boolean
   logo: String
@@ -50,7 +63,20 @@ input DateTimeFilterInput {
 
 scalar EmailAddress
 
+type FullOrganization {
+  createdAt: DateTime!
+  id: ID!
+  invitations: [Invitation!]!
+  logo: String
+  members: [OrgMember!]!
+  metadata: JSON
+  name: String!
+  slug: String!
+  type: String
+}
+
 type Invitation {
+  createdAt: DateTime!
   email: EmailAddress!
   expiresAt: DateTime!
   id: ID!
@@ -67,16 +93,32 @@ input InviteMemberInput {
   role: String!
 }
 
+scalar JSON
+
+type MemberRole {
+  role: String!
+}
+
+type MemberUser {
+  email: String!
+  id: ID!
+  image: String
+  name: String!
+}
+
 type Mutation {
   _empty: String
   acceptInvitation(invitationId: ID!): OrgMember!
   banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
   cancelInvitation(invitationId: ID!): Boolean!
+  createApiKey(input: CreateApiKeyInput!): ApiKey!
   createOrganization(input: CreateOrganizationInput!): Organization!
   createUser(input: CreateUserInput!): User!
+  deleteApiKey(keyId: ID!): Boolean!
   deleteOrganization(organizationId: ID!): Boolean!
   impersonateUser(userId: ID!): Boolean!
   inviteMember(input: InviteMemberInput!): Invitation!
+  leaveOrganization(organizationId: ID!): Boolean!
   rejectInvitation(invitationId: ID!): Boolean!
   removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
   removeUser(userId: ID!): Boolean!
@@ -86,6 +128,7 @@ type Mutation {
   setRole(role: String!, userId: ID!): Boolean!
   stopImpersonation: Boolean!
   unbanUser(userId: ID!): Boolean!
+  updateApiKey(input: UpdateApiKeyInput!, keyId: ID!): ApiKey!
   updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
   updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
   updateUser(input: UpdateUserInput!, userId: ID!): User!
@@ -99,7 +142,9 @@ enum OrderDirection {
 type OrgMember {
   createdAt: DateTime!
   id: ID!
+  organizationId: String!
   role: String!
+  user: MemberUser
   userId: String!
 }
 
@@ -114,13 +159,16 @@ type Organization {
 
 type Query {
   _empty: String
+  activeMember: OrgMember
+  activeMemberRole(organizationId: ID, organizationSlug: String, userId: ID): MemberRole
+  apiKey(keyId: ID!): ApiKey
   checkSlug(slug: String!): SlugCheckResult!
   invitation(invitationId: ID!): Invitation
   invitations(organizationId: ID): [Invitation!]!
   members(organizationId: ID, organizationSlug: String): [OrgMember!]!
   myApiKeys: [ApiKey!]!
   myAuthConfig: AuthConfig!
-  organization(organizationId: ID, organizationSlug: String): Organization
+  organization(organizationId: ID, organizationSlug: String): FullOrganization
   organizations: [Organization!]!
   user(userId: ID!): User!
   userSessions(userId: ID!): [UserSession!]!
@@ -138,6 +186,19 @@ input StringFilterInput {
   in: [String!]
   ne: String
   startsWith: String
+}
+
+input UpdateApiKeyInput {
+  enabled: Boolean
+  expiresIn: Int
+  metadata: JSON
+  name: String
+  rateLimitEnabled: Boolean
+  rateLimitMax: Int
+  rateLimitTimeWindow: Int
+  refillAmount: Int
+  refillInterval: Int
+  remaining: Int
 }
 
 input UpdateOrganizationInput {
