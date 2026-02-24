@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -93,6 +93,32 @@ export const twoFactor = pgTable('two_factors', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 })
 
+export const apps = pgTable('apps', {
+  id: text('id').primaryKey(),
+  appId: text('app_id').notNull().unique(),
+  manifest: jsonb('manifest').notNull(),
+  status: text('status').notNull().default('active'),
+  installedBy: text('installed_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: text('id').primaryKey(),
+  appId: text('app_id').notNull().references(() => apps.id),
+  event: text('event').notNull(),
+  payload: text('payload').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').default(0),
+  lastAttemptAt: timestamp('last_attempt_at'),
+  responseCode: integer('response_code'),
+  responseBody: text('response_body'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, t => [
+  index('webhook_deliveries_app_id_idx').on(t.appId),
+  index('webhook_deliveries_status_idx').on(t.status),
+])
+
 export const apikeys = pgTable('apikeys', {
   id: text('id').primaryKey(),
   name: text('name'),
@@ -115,4 +141,5 @@ export const apikeys = pgTable('apikeys', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   permissions: text('permissions'),
   metadata: text('metadata'),
+  installedAppId: text('installed_app_id').references(() => apps.id, { onDelete: 'cascade' }),
 })
