@@ -39,14 +39,6 @@ export default definePlugin(async (nitroApp) => {
     return
   }
 
-  nitroApp.hooks.hook('request', async (event: { context: Record<string, unknown> }) => {
-    const auth = await container.make('auth')
-    if (!auth) {
-      throw new Error('Auth not initialized — ensure czo:boot hook has been called before handling requests')
-    }
-    event.context.generateOpenAPISchema = () => auth.api.generateOpenAPISchema()
-  })
-
   nitroApp.hooks.hook('czo:init', async () => {
     const actorService = useAuthActorService()
     container.singleton('auth:actor', () => actorService)

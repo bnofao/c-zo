@@ -1,0 +1,67 @@
+type LinkedAccount {
+  id: ID!
+  providerId: String!
+  accountId: String!
+  createdAt: DateTime!
+}
+
+type AccountInfoUser {
+  id: ID!
+  name: String
+  email: String
+  image: String
+  emailVerified: Boolean!
+}
+
+type AccountInfo {
+  user: AccountInfoUser!
+  data: JSON
+}
+
+type MySession {
+  id: ID!
+  token: String!
+  userId: ID!
+  expiresAt: DateTime!
+  ipAddress: String
+  userAgent: String
+  createdAt: DateTime!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+  revokeOtherSessions: Boolean
+}
+
+input ChangeEmailInput {
+  newEmail: EmailAddress!
+  callbackURL: String
+}
+
+input UpdateProfileInput {
+  name: String
+  image: String
+}
+
+input DeleteAccountInput {
+  password: String
+  callbackURL: String
+}
+
+extend type Query {
+  me: User! @auth
+  mySessions: [MySession!]! @auth
+  myAccounts: [LinkedAccount!]! @auth
+  accountInfo: AccountInfo! @auth
+}
+
+extend type Mutation {
+  changePassword(input: ChangePasswordInput!): Boolean! @auth
+  changeEmail(input: ChangeEmailInput!): Boolean! @auth
+  updateProfile(input: UpdateProfileInput!): User! @auth
+  deleteAccount(input: DeleteAccountInput): Boolean! @auth
+  unlinkAccount(providerId: String!, accountId: String): Boolean! @auth
+  revokeMySession(token: String!): Boolean! @auth
+  revokeOtherSessions: Boolean! @auth
+}

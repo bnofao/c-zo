@@ -47,6 +47,13 @@ describe('auth typedefs', () => {
     expect(names).toContain('CreateUserInput')
     expect(names).toContain('UpdateUserInput')
     expect(names).toContain('CreateOrganizationInput')
+    expect(names).toContain('LinkedAccount')
+    expect(names).toContain('AccountInfo')
+    expect(names).toContain('MySession')
+    expect(names).toContain('ChangePasswordInput')
+    expect(names).toContain('ChangeEmailInput')
+    expect(names).toContain('UpdateProfileInput')
+    expect(names).toContain('DeleteAccountInput')
   })
 
   it('should contain Query with all expected fields', () => {
@@ -59,6 +66,10 @@ describe('auth typedefs', () => {
     expect(queryFields).toContain('users')
     expect(queryFields).toContain('user')
     expect(queryFields).toContain('userSessions')
+    expect(queryFields).toContain('me')
+    expect(queryFields).toContain('mySessions')
+    expect(queryFields).toContain('myAccounts')
+    expect(queryFields).toContain('accountInfo')
   })
 
   it('should contain Mutation with all expected fields', () => {
@@ -80,6 +91,13 @@ describe('auth typedefs', () => {
     expect(mutationFields).toContain('removeUser')
     expect(mutationFields).toContain('revokeSession')
     expect(mutationFields).toContain('revokeSessions')
+    expect(mutationFields).toContain('changePassword')
+    expect(mutationFields).toContain('changeEmail')
+    expect(mutationFields).toContain('updateProfile')
+    expect(mutationFields).toContain('deleteAccount')
+    expect(mutationFields).toContain('unlinkAccount')
+    expect(mutationFields).toContain('revokeMySession')
+    expect(mutationFields).toContain('revokeOtherSessions')
   })
 
   it('should define User type with expected fields', () => {

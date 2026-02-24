@@ -181,7 +181,7 @@ export function createAccessService() {
     let roles = {} as Record<string, AccessRole<any>>
 
     for (const [name, hierarchy] of _hierarchies.entries()) {
-      const _roles = builder.createHierarchy(hierarchy as any)
+      const _roles = builder.createHierarchy(hierarchy.hierarchy as any)
       roles = Object.assign(roles, _roles)
       _providers.set(
         name,

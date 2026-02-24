@@ -11,6 +11,53 @@ export interface PermissionCheckContext {
   organizationId?: string
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string
+  newPassword: string
+  revokeOtherSessions?: boolean
+}
+
+export interface ChangeEmailInput {
+  newEmail: string
+  callbackURL?: string
+}
+
+export interface UpdateProfileInput {
+  name?: string
+  image?: string
+}
+
+export interface DeleteAccountInput {
+  password?: string
+  callbackURL?: string
+}
+
+export interface UnlinkAccountInput {
+  providerId: string
+  accountId?: string
+}
+
+export interface EnableTwoFactorInput {
+  password: string
+  issuer?: string
+}
+
+export interface VerifyTotpInput {
+  code: string
+  trustDevice?: boolean
+}
+
+export interface VerifyOtpInput {
+  code: string
+  trustDevice?: boolean
+}
+
+export interface VerifyBackupCodeInput {
+  code: string
+  disableSession?: boolean
+  trustDevice?: boolean
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 const cacheOrgRoles = new Map<
@@ -153,7 +200,258 @@ export function createAuthService(auth: Auth) {
     }
     catch (e: unknown) {
       if (e instanceof APIError) {
-        // todo : throw appropriate error
+        throw new Error(`Failed to list sessions: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  // ─── Self-service: Account ──────────────────────────────────────
+
+  async function changePassword(input: ChangePasswordInput, headers: Headers) {
+    try {
+      return await auth.api.changePassword({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to change password: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function changeEmail(input: ChangeEmailInput, headers: Headers) {
+    try {
+      return await auth.api.changeEmail({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to change email: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function updateProfile(input: UpdateProfileInput, headers: Headers) {
+    try {
+      return await auth.api.updateUser({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to update profile: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function deleteAccount(input: DeleteAccountInput, headers: Headers) {
+    try {
+      return await auth.api.deleteUser({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to delete account: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function listAccounts(headers: Headers) {
+    try {
+      return await auth.api.listUserAccounts({ headers })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to list accounts: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function unlinkAccount(input: UnlinkAccountInput, headers: Headers) {
+    try {
+      return await auth.api.unlinkAccount({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to unlink account: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function accountInfo(headers: Headers) {
+    try {
+      return await auth.api.accountInfo({ headers })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to get account info: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  // ─── Self-service: Sessions ─────────────────────────────────────
+
+  async function revokeSession(token: string, headers: Headers) {
+    try {
+      return await auth.api.revokeSession({
+        headers,
+        body: { token },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to revoke session: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function revokeOtherSessions(headers: Headers) {
+    try {
+      return await auth.api.revokeOtherSessions({ headers })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to revoke other sessions: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  // ─── Self-service: Two-Factor ────────────────────────────────────
+
+  async function getTotpUri(password: string, headers: Headers) {
+    try {
+      return await auth.api.getTOTPURI({
+        headers,
+        body: { password },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to get TOTP URI: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function enableTwoFactor(input: EnableTwoFactorInput, headers: Headers) {
+    try {
+      return await auth.api.enableTwoFactor({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to enable two-factor: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function disableTwoFactor(password: string, headers: Headers) {
+    try {
+      return await auth.api.disableTwoFactor({
+        headers,
+        body: { password },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to disable two-factor: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function verifyTotp(input: VerifyTotpInput, headers: Headers) {
+    try {
+      return await auth.api.verifyTOTP({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to verify TOTP: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function sendOtp(headers: Headers) {
+    try {
+      return await auth.api.sendTwoFactorOTP({
+        headers,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to send OTP: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function verifyOtp(input: VerifyOtpInput, headers: Headers) {
+    try {
+      return await auth.api.verifyTwoFactorOTP({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to verify OTP: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function verifyBackupCode(input: VerifyBackupCodeInput, headers: Headers) {
+    try {
+      return await auth.api.verifyBackupCode({
+        headers,
+        body: input,
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to verify backup code: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
+  async function generateBackupCodes(password: string, headers: Headers) {
+    try {
+      return await auth.api.generateBackupCodes({
+        headers,
+        body: { password },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to generate backup codes: ${e.message}`)
       }
       throw e
     }
@@ -192,6 +490,23 @@ export function createAuthService(auth: Auth) {
   return {
     getSession,
     listSessions,
+    changePassword,
+    changeEmail,
+    updateProfile,
+    deleteAccount,
+    listAccounts,
+    unlinkAccount,
+    accountInfo,
+    revokeSession,
+    revokeOtherSessions,
+    getTotpUri,
+    enableTwoFactor,
+    disableTwoFactor,
+    verifyTotp,
+    sendOtp,
+    verifyOtp,
+    verifyBackupCode,
+    generateBackupCodes,
     hasPermission,
   }
 }

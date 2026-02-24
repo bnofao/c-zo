@@ -54,6 +54,18 @@ type MemberRole {
   role: String!
 }
 
+type UserInvitation {
+  id: ID!
+  email: EmailAddress!
+  role: String!
+  status: String!
+  organizationId: String!
+  inviterId: String!
+  organizationName: String
+  expiresAt: DateTime!
+  createdAt: DateTime!
+}
+
 input CreateOrganizationInput {
   name: String!
   slug: String!
@@ -83,6 +95,7 @@ extend type Query {
   invitations(organizationId: ID): [Invitation!]! @auth
   invitation(invitationId: ID!): Invitation @auth
   checkSlug(slug: String!): SlugCheckResult! @auth
+  myInvitations: [UserInvitation!]! @auth
   activeMember: OrgMember @auth
   activeMemberRole(userId: ID, organizationId: ID, organizationSlug: String): MemberRole @auth
 }

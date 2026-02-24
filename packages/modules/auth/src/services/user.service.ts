@@ -36,6 +36,11 @@ export interface SetRoleInput {
   role: string | string[]
 }
 
+export interface SetUserPasswordInput {
+  userId: string
+  newPassword: string
+}
+
 export interface BanUserInput {
   userId: string
   banReason?: string
@@ -59,6 +64,7 @@ export interface UserService {
   unban: (userId: string, headers?: Headers) => Promise<UserWithRole>
   remove: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
   setRole: (input: SetRoleInput, headers: Headers) => Promise<UserWithRole>
+  setUserPassword: (input: SetUserPasswordInput, headers: Headers) => Promise<{ status: boolean }>
   listSessions: (userId: string, headers?: Headers) => Promise<SessionWithImpersonatedBy[]>
   revokeSession: (sessionToken: string, headers?: Headers) => Promise<{ success: boolean }>
   revokeSessions: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
@@ -194,6 +200,21 @@ export function createUserService(auth: Auth): UserService {
     }
   }
 
+  async function setUserPassword(input: SetUserPasswordInput, headers: Headers) {
+    try {
+      return await auth.api.setUserPassword({
+        headers,
+        body: { userId: input.userId, newPassword: input.newPassword },
+      })
+    }
+    catch (e: unknown) {
+      if (e instanceof APIError) {
+        throw new Error(`Failed to set user password: ${e.message}`)
+      }
+      throw e
+    }
+  }
+
   async function listSessions(userId: string, headers?: Headers) {
     try {
       const result = await auth.api.listUserSessions({
@@ -279,6 +300,7 @@ export function createUserService(auth: Auth): UserService {
     unban,
     remove,
     setRole,
+    setUserPassword,
     listSessions,
     revokeSession,
     revokeSessions,

@@ -12,6 +12,7 @@ function createMockApi() {
     unbanUser: vi.fn(),
     removeUser: vi.fn(),
     setRole: vi.fn(),
+    setUserPassword: vi.fn(),
     listUserSessions: vi.fn(),
     revokeUserSession: vi.fn(),
     revokeUserSessions: vi.fn(),
@@ -299,6 +300,37 @@ describe('userService', () => {
         body: { userId: 'u1', role: 'admin' },
       })
       expect(result.role).toBe('admin')
+    })
+  })
+
+  describe('setUserPassword', () => {
+    it('should call setUserPassword with userId and newPassword', async () => {
+      api(auth).setUserPassword.mockResolvedValue({ status: true })
+
+      const result = await service.setUserPassword({ userId: 'u1', newPassword: 'new-secret' }, headers)
+
+      expect(api(auth).setUserPassword).toHaveBeenCalledWith({
+        headers,
+        body: { userId: 'u1', newPassword: 'new-secret' },
+      })
+      expect(result).toEqual({ status: true })
+    })
+
+    it('should wrap APIError with contextual message', async () => {
+      const { APIError } = await import('better-auth')
+      api(auth).setUserPassword.mockRejectedValue(new APIError('BAD_REQUEST', { message: 'Weak password' }))
+
+      await expect(service.setUserPassword({ userId: 'u1', newPassword: 'short' }, headers))
+        .rejects
+        .toThrow('Failed to set user password')
+    })
+
+    it('should propagate non-APIError', async () => {
+      api(auth).setUserPassword.mockRejectedValue(new Error('DB error'))
+
+      await expect(service.setUserPassword({ userId: 'u1', newPassword: 'new-secret' }, headers))
+        .rejects
+        .toThrow('DB error')
     })
   })
 
