@@ -26,6 +26,7 @@ const SEVERITY_MAP: Record<number, number> = {
  */
 export async function createLogBridgeReporter(): Promise<ConsolaReporter | null> {
   try {
+    // @ts-expect-error optional peer dependency
     const { logs } = await import('@opentelemetry/api-logs')
     const otelLogger = logs.getLogger('czo')
 

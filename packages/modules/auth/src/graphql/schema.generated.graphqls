@@ -1,0 +1,367 @@
+type AccountInfo {
+  data: JSON
+  user: AccountInfoUser!
+}
+
+type AccountInfoUser {
+  email: String
+  emailVerified: Boolean!
+  id: ID!
+  image: String
+  name: String
+}
+
+type ApiKey {
+  createdAt: DateTime!
+  enabled: Boolean!
+  expiresAt: DateTime
+  id: ID!
+  lastRequest: DateTime
+  name: String
+  prefix: String
+  start: String
+}
+
+type BackupCodesResult {
+  backupCodes: [String!]!
+  status: Boolean!
+}
+
+input BooleanFilterInput {
+  eq: Boolean
+}
+
+input ChangeEmailInput {
+  callbackURL: String
+  newEmail: EmailAddress!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+  revokeOtherSessions: Boolean
+}
+
+input CreateApiKeyInput {
+  expiresIn: Int
+  metadata: JSON
+  name: String!
+  prefix: String
+  rateLimitEnabled: Boolean
+  rateLimitMax: Int
+  rateLimitTimeWindow: Int
+  refillAmount: Int
+  refillInterval: Int
+  remaining: Int
+}
+
+input CreateOrganizationInput {
+  keepCurrentActiveOrganization: Boolean
+  logo: String
+  name: String!
+  slug: String!
+  type: String
+}
+
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+
+scalar DateTime
+
+input DateTimeFilterInput {
+  eq: DateTime
+  gt: DateTime
+  gte: DateTime
+  lt: DateTime
+  lte: DateTime
+  ne: DateTime
+}
+
+input DeleteAccountInput {
+  callbackURL: String
+  password: String
+}
+
+scalar EmailAddress
+
+type EnableTwoFactorResult {
+  backupCodes: [String!]!
+  totpURI: String!
+}
+
+type FullOrganization {
+  createdAt: DateTime!
+  id: ID!
+  invitations: [Invitation!]!
+  logo: String
+  members: [OrgMember!]!
+  metadata: JSON
+  name: String!
+  slug: String!
+  type: String
+}
+
+type Invitation {
+  createdAt: DateTime!
+  email: EmailAddress!
+  expiresAt: DateTime!
+  id: ID!
+  inviterId: String!
+  organizationId: String!
+  role: String!
+  status: String!
+}
+
+input InviteMemberInput {
+  email: EmailAddress!
+  organizationId: ID
+  resend: Boolean
+  role: String!
+}
+
+scalar JSON
+
+type LinkedAccount {
+  accountId: String!
+  createdAt: DateTime!
+  id: ID!
+  providerId: String!
+}
+
+type MemberRole {
+  role: String!
+}
+
+type MemberUser {
+  email: String!
+  id: ID!
+  image: String
+  name: String!
+}
+
+type Mutation {
+  _empty: String
+  acceptInvitation(invitationId: ID!): OrgMember!
+  banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
+  cancelInvitation(invitationId: ID!): Boolean!
+  changeEmail(input: ChangeEmailInput!): Boolean!
+  changePassword(input: ChangePasswordInput!): Boolean!
+  createApiKey(input: CreateApiKeyInput!): ApiKey!
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  createUser(input: CreateUserInput!): User!
+  deleteAccount(input: DeleteAccountInput): Boolean!
+  deleteApiKey(keyId: ID!): Boolean!
+  deleteOrganization(organizationId: ID!): Boolean!
+  disableTwoFactor(password: String!): Boolean!
+  enableTwoFactor(issuer: String, password: String!): EnableTwoFactorResult!
+  generateBackupCodes(password: String!): BackupCodesResult!
+  impersonateUser(userId: ID!): Boolean!
+  inviteMember(input: InviteMemberInput!): Invitation!
+  leaveOrganization(organizationId: ID!): Boolean!
+  rejectInvitation(invitationId: ID!): Boolean!
+  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
+  removeUser(userId: ID!): Boolean!
+  revokeMySession(token: String!): Boolean!
+  revokeOtherSessions: Boolean!
+  revokeSession(sessionToken: String!): Boolean!
+  revokeSessions(userId: ID!): Boolean!
+  sendOtp: Boolean!
+  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
+  setRole(role: String!, userId: ID!): Boolean!
+  setUserPassword(newPassword: String!, userId: ID!): Boolean!
+  stopImpersonation: Boolean!
+  unbanUser(userId: ID!): Boolean!
+  unlinkAccount(accountId: String, providerId: String!): Boolean!
+  updateApiKey(input: UpdateApiKeyInput!, keyId: ID!): ApiKey!
+  updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
+  updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
+  updateProfile(input: UpdateProfileInput!): User!
+  updateUser(input: UpdateUserInput!, userId: ID!): User!
+  verifyBackupCode(input: VerifyBackupCodeInput!): TwoFactorVerifyResult!
+  verifyOtp(input: VerifyOtpInput!): TwoFactorVerifyResult!
+  verifyTotp(input: VerifyTotpInput!): TwoFactorVerifyResult!
+}
+
+type MySession {
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  id: ID!
+  ipAddress: String
+  token: String!
+  userAgent: String
+  userId: ID!
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+type OrgMember {
+  createdAt: DateTime!
+  id: ID!
+  organizationId: String!
+  role: String!
+  user: MemberUser
+  userId: String!
+}
+
+type Organization {
+  createdAt: DateTime!
+  id: ID!
+  logo: String
+  name: String!
+  slug: String!
+  type: String
+}
+
+type Query {
+  _empty: String
+  accountInfo: AccountInfo!
+  activeMember: OrgMember
+  activeMemberRole(organizationId: ID, organizationSlug: String, userId: ID): MemberRole
+  apiKey(keyId: ID!): ApiKey
+  checkSlug(slug: String!): SlugCheckResult!
+  invitation(invitationId: ID!): Invitation
+  invitations(organizationId: ID): [Invitation!]!
+  me: User!
+  members(organizationId: ID, organizationSlug: String): [OrgMember!]!
+  myAccounts: [LinkedAccount!]!
+  myApiKeys: [ApiKey!]!
+  myInvitations: [UserInvitation!]!
+  mySessions: [MySession!]!
+  organization(organizationId: ID, organizationSlug: String): FullOrganization
+  organizations: [Organization!]!
+  totpUri(password: String!): TotpUri!
+  user(userId: ID!): User!
+  userSessions(userId: ID!): [UserSession!]!
+  users(limit: Int, offset: Int, orderBy: UserOrderByInput, search: String, where: UserWhereInput): UserList!
+}
+
+type SlugCheckResult {
+  available: Boolean!
+}
+
+input StringFilterInput {
+  contains: String
+  endsWith: String
+  eq: String
+  in: [String!]
+  ne: String
+  startsWith: String
+}
+
+type TotpUri {
+  totpURI: String!
+}
+
+type TwoFactorVerifyResult {
+  token: String!
+}
+
+input UpdateApiKeyInput {
+  enabled: Boolean
+  expiresIn: Int
+  metadata: JSON
+  name: String
+  rateLimitEnabled: Boolean
+  rateLimitMax: Int
+  rateLimitTimeWindow: Int
+  refillAmount: Int
+  refillInterval: Int
+  remaining: Int
+}
+
+input UpdateOrganizationInput {
+  logo: String
+  name: String
+  slug: String
+  type: String
+}
+
+input UpdateProfileInput {
+  image: String
+  name: String
+}
+
+input UpdateUserInput {
+  email: EmailAddress
+  name: String
+}
+
+type User {
+  banExpires: DateTime
+  banReason: String
+  banned: Boolean!
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  name: String!
+  role: String!
+}
+
+type UserInvitation {
+  createdAt: DateTime!
+  email: EmailAddress!
+  expiresAt: DateTime!
+  id: ID!
+  inviterId: String!
+  organizationId: String!
+  organizationName: String
+  role: String!
+  status: String!
+}
+
+type UserList {
+  total: Int!
+  users: [User!]!
+}
+
+input UserOrderByInput {
+  direction: OrderDirection!
+  field: UserOrderField!
+}
+
+enum UserOrderField {
+  createdAt
+  email
+  name
+}
+
+type UserSession {
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  id: ID!
+  impersonatedBy: String
+  ipAddress: String
+  userAgent: String
+  userId: ID!
+}
+
+input UserWhereInput {
+  AND: [UserWhereInput!]
+  NOT: UserWhereInput
+  OR: [UserWhereInput!]
+  createdAt: DateTimeFilterInput
+  emailVerified: BooleanFilterInput
+}
+
+input VerifyBackupCodeInput {
+  code: String!
+  disableSession: Boolean
+  trustDevice: Boolean
+}
+
+input VerifyOtpInput {
+  code: String!
+  trustDevice: Boolean
+}
+
+input VerifyTotpInput {
+  code: String!
+  trustDevice: Boolean
+}

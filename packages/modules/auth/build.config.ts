@@ -72,11 +72,12 @@ export default defineBuildConfig({
     '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',
-    'ioredis',
+    'nitro/storage',
     'better-auth/crypto',
     'better-auth/plugins/access',
     '@czo/kit/graphql',
     'graphql',
     'graphql-scalars',
+    '@graphql-tools/resolvers-composition',
   ],
 })

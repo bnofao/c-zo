@@ -78,6 +78,7 @@ export function addScanDir(dirs: string | string[], nitro: Nitro, opts: { prepen
  */
 export function addImportsSources(presets: InlinePreset | InlinePreset[], nitro: Nitro) {
   if (nitro.options.imports !== false) {
+    nitro.options.imports.presets ||= []
     nitro.options.imports.presets.push(...toArray(presets))
   }
 }

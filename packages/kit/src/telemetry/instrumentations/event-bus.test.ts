@@ -90,7 +90,7 @@ describe('instrumentEventBus', () => {
       instrumented.subscribe('product.*', handler)
 
       // Extract the wrapped handler
-      const wrappedHandler = (bus.subscribe as ReturnType<typeof vi.fn>).mock.calls[0][1]
+      const wrappedHandler = (bus.subscribe as ReturnType<typeof vi.fn>).mock.calls[0]![1]
       await wrappedHandler(testEvent)
 
       expect(handler).toHaveBeenCalledWith(testEvent)
@@ -105,7 +105,7 @@ describe('instrumentEventBus', () => {
       const handler = vi.fn().mockRejectedValue(new Error('handler crash'))
       instrumented.subscribe('product.*', handler)
 
-      const wrappedHandler = (bus.subscribe as ReturnType<typeof vi.fn>).mock.calls[0][1]
+      const wrappedHandler = (bus.subscribe as ReturnType<typeof vi.fn>).mock.calls[0]![1]
       await expect(wrappedHandler(testEvent)).rejects.toThrow('handler crash')
 
       expect(metrics.handleErrors.add).toHaveBeenCalledWith(1, { 'event.type': 'product.created' })

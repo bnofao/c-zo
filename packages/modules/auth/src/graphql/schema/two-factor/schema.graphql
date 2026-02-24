@@ -1,0 +1,47 @@
+type TotpUri {
+  totpURI: String!
+}
+
+type EnableTwoFactorResult {
+  totpURI: String!
+  backupCodes: [String!]!
+}
+
+type BackupCodesResult {
+  status: Boolean!
+  backupCodes: [String!]!
+}
+
+type TwoFactorVerifyResult {
+  token: String!
+}
+
+input VerifyTotpInput {
+  code: String!
+  trustDevice: Boolean
+}
+
+input VerifyOtpInput {
+  code: String!
+  trustDevice: Boolean
+}
+
+input VerifyBackupCodeInput {
+  code: String!
+  disableSession: Boolean
+  trustDevice: Boolean
+}
+
+extend type Query {
+  totpUri(password: String!): TotpUri! @auth
+}
+
+extend type Mutation {
+  enableTwoFactor(password: String!, issuer: String): EnableTwoFactorResult! @auth
+  disableTwoFactor(password: String!): Boolean! @auth
+  verifyTotp(input: VerifyTotpInput!): TwoFactorVerifyResult! @auth
+  sendOtp: Boolean! @auth
+  verifyOtp(input: VerifyOtpInput!): TwoFactorVerifyResult! @auth
+  verifyBackupCode(input: VerifyBackupCodeInput!): TwoFactorVerifyResult! @auth
+  generateBackupCodes(password: String!): BackupCodesResult! @auth
+}

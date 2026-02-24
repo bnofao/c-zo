@@ -105,7 +105,7 @@ describe('useEventBus', () => {
     })
 
     it('should use rabbitmq provider when configured', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = false
       mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
@@ -134,7 +134,7 @@ describe('useEventBus', () => {
     })
 
     it('should throw when provider is rabbitmq but rabbitmq config is missing', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = false
       vi.resetModules()
 
@@ -147,7 +147,7 @@ describe('useEventBus', () => {
 
   describe('dual-write mode', () => {
     it('should publish to both hookable and rabbitmq when dualWrite is true', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = true
       mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
@@ -164,7 +164,7 @@ describe('useEventBus', () => {
     })
 
     it('should propagate publish errors in dual-write mode', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = true
       mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
@@ -182,7 +182,7 @@ describe('useEventBus', () => {
     })
 
     it('should subscribe to hookable only in dual-write mode', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = true
       mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()
@@ -212,7 +212,7 @@ describe('useEventBus', () => {
     })
 
     it('should shut down both buses in dual-write mode', async () => {
-      mockConfig.eventBus.provider = 'rabbitmq'
+      mockConfig.eventBus.provider = 'rabbitmq' as any
       mockConfig.eventBus.dualWrite = true
       mockConfig.eventBus.rabbitmq = { url: 'amqp://localhost' }
       vi.resetModules()

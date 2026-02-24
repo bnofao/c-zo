@@ -28,282 +28,59 @@ vi.mock('@czo/kit', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { AuthEventsService } from './auth-events'
+import { publishAuthEvent, resetPublishAuthEvent } from './auth-events'
 
-describe('authEventsService', () => {
-  let service: AuthEventsService
+const eventCases = [
+  [AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'test@czo.dev', actorType: 'customer' }],
+  [AUTH_EVENTS.USER_UPDATED, { userId: 'u1', changes: { name: 'New Name' } }],
+  [AUTH_EVENTS.SESSION_CREATED, { sessionId: 's1', userId: 'u1', actorType: 'admin', authMethod: 'email' }],
+  [AUTH_EVENTS.SESSION_REVOKED, { sessionId: 's1', userId: 'u1', reason: 'user_initiated' as const }],
+  [AUTH_EVENTS.ORG_CREATED, { orgId: 'org1', ownerId: 'u1', name: 'My Org', type: 'merchant' as string | null }],
+  [AUTH_EVENTS.ORG_MEMBER_ADDED, { orgId: 'org1', userId: 'u2', role: 'member' }],
+  [AUTH_EVENTS.ORG_MEMBER_REMOVED, { orgId: 'org1', userId: 'u2' }],
+  [AUTH_EVENTS.ORG_ROLE_CHANGED, { orgId: 'org1', userId: 'u2', previousRole: 'member', newRole: 'admin' }],
+  [AUTH_EVENTS.TWO_FA_ENABLED, { userId: 'u1', actorType: 'customer' }],
+  [AUTH_EVENTS.TWO_FA_DISABLED, { userId: 'u1', actorType: 'admin' }],
+  [AUTH_EVENTS.API_KEY_CREATED, { apiKeyId: 'ak1', userId: 'u1', name: 'My Key', prefix: 'czo_' }],
+  [AUTH_EVENTS.API_KEY_REVOKED, { apiKeyId: 'ak1', userId: 'u1' }],
+  [AUTH_EVENTS.RESTRICTION_DENIED, { actorType: 'customer', authMethod: 'oauth:github', userId: 'u1', reason: 'Not allowed' }],
+  [AUTH_EVENTS.IMPERSONATION_STARTED, { adminUserId: 'u1', targetUserId: 'u2' }],
+  [AUTH_EVENTS.IMPERSONATION_STOPPED, { adminUserId: 'u1', targetUserId: 'u2' }],
+  [AUTH_EVENTS.USER_BANNED, { userId: 'u2', bannedBy: 'u1', reason: 'spam' as string | null, expiresIn: 3600 as number | null }],
+  [AUTH_EVENTS.USER_UNBANNED, { userId: 'u2', unbannedBy: 'u1' }],
+  [AUTH_EVENTS.PASSWORD_RESET_REQUESTED, { email: 'test@czo.dev', userName: 'Test', url: 'http://reset', token: 'tok' }],
+  [AUTH_EVENTS.VERIFICATION_EMAIL_REQUESTED, { email: 'test@czo.dev', userName: 'Test', url: 'http://verify', token: 'tok' }],
+  [AUTH_EVENTS.INVITATION_REQUESTED, { email: 'test@czo.dev', organizationName: 'Acme', inviterName: 'Admin', invitationId: 'inv1' }],
+] as const
 
+describe('publishAuthEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    service = new AuthEventsService()
+    resetPublishAuthEvent()
   })
 
-  describe('userRegistered', () => {
-    it('should publish auth.user.registered event with correct payload', async () => {
-      const payload = { userId: 'u1', email: 'test@czo.dev', actorType: 'customer' }
-
-      await service.userRegistered(payload)
+  it.each(eventCases)(
+    'should publish %s event with correct payload',
+    async (type, payload) => {
+      await publishAuthEvent(type, payload as any)
 
       expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.USER_REGISTERED,
+        type,
         payload,
         metadata: { source: 'auth' },
       })
       expect(mockPublish).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: AUTH_EVENTS.USER_REGISTERED,
-          payload,
-        }),
+        expect.objectContaining({ type, payload }),
       )
-    })
-  })
+    },
+  )
 
-  describe('userUpdated', () => {
-    it('should publish auth.user.updated event with correct payload', async () => {
-      const payload = { userId: 'u1', changes: { name: 'New Name' } }
-
-      await service.userUpdated(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.USER_UPDATED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('sessionCreated', () => {
-    it('should publish auth.session.created event with correct payload', async () => {
-      const payload = { sessionId: 's1', userId: 'u1', actorType: 'admin', authMethod: 'email' }
-
-      await service.sessionCreated(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.SESSION_CREATED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('sessionRevoked', () => {
-    it('should publish auth.session.revoked event with correct payload', async () => {
-      const payload = { sessionId: 's1', userId: 'u1', reason: 'user_initiated' as const }
-
-      await service.sessionRevoked(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.SESSION_REVOKED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('orgCreated', () => {
-    it('should publish auth.org.created event with correct payload', async () => {
-      const payload = { orgId: 'org1', ownerId: 'u1', name: 'My Org', type: 'merchant' as string | null }
-
-      await service.orgCreated(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.ORG_CREATED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('orgMemberAdded', () => {
-    it('should publish auth.org.member.added event with correct payload', async () => {
-      const payload = { orgId: 'org1', userId: 'u2', role: 'member' }
-
-      await service.orgMemberAdded(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.ORG_MEMBER_ADDED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('orgMemberRemoved', () => {
-    it('should publish auth.org.member.removed event with correct payload', async () => {
-      const payload = { orgId: 'org1', userId: 'u2' }
-
-      await service.orgMemberRemoved(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.ORG_MEMBER_REMOVED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('orgRoleChanged', () => {
-    it('should publish auth.org.role.changed event with correct payload', async () => {
-      const payload = { orgId: 'org1', userId: 'u2', previousRole: 'member', newRole: 'admin' }
-
-      await service.orgRoleChanged(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.ORG_ROLE_CHANGED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('twoFactorEnabled', () => {
-    it('should publish auth.2fa.enabled event with correct payload', async () => {
-      const payload = { userId: 'u1', actorType: 'customer' }
-
-      await service.twoFactorEnabled(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.TWO_FA_ENABLED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('twoFactorDisabled', () => {
-    it('should publish auth.2fa.disabled event with correct payload', async () => {
-      const payload = { userId: 'u1', actorType: 'admin' }
-
-      await service.twoFactorDisabled(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.TWO_FA_DISABLED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('apiKeyCreated', () => {
-    it('should publish auth.api-key.created event with correct payload', async () => {
-      const payload = { apiKeyId: 'ak1', userId: 'u1', name: 'My Key', prefix: 'czo_' }
-
-      await service.apiKeyCreated(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.API_KEY_CREATED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('apiKeyRevoked', () => {
-    it('should publish auth.api-key.revoked event with correct payload', async () => {
-      const payload = { apiKeyId: 'ak1', userId: 'u1' }
-
-      await service.apiKeyRevoked(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.API_KEY_REVOKED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('restrictionDenied', () => {
-    it('should publish auth.restriction.denied event with correct payload', async () => {
-      const payload = { actorType: 'customer', authMethod: 'oauth:github', reason: 'Not allowed' }
-
-      await service.restrictionDenied(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.RESTRICTION_DENIED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('impersonationStarted', () => {
-    it('should publish auth.admin.impersonation.started event with correct payload', async () => {
-      const payload = { adminUserId: 'u1', targetUserId: 'u2' }
-
-      await service.impersonationStarted(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.IMPERSONATION_STARTED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('impersonationStopped', () => {
-    it('should publish auth.admin.impersonation.stopped event with correct payload', async () => {
-      const payload = { adminUserId: 'u1', targetUserId: 'u2' }
-
-      await service.impersonationStopped(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.IMPERSONATION_STOPPED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('userBanned', () => {
-    it('should publish auth.admin.user.banned event with correct payload', async () => {
-      const payload = { userId: 'u2', bannedBy: 'u1', reason: 'spam' as string | null, expiresIn: 3600 as number | null }
-
-      await service.userBanned(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.USER_BANNED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('userUnbanned', () => {
-    it('should publish auth.admin.user.unbanned event with correct payload', async () => {
-      const payload = { userId: 'u2', unbannedBy: 'u1' }
-
-      await service.userUnbanned(payload)
-
-      expect(mockCreateDomainEvent).toHaveBeenCalledWith({
-        type: AUTH_EVENTS.USER_UNBANNED,
-        payload,
-        metadata: { source: 'auth' },
-      })
-      expect(mockPublish).toHaveBeenCalled()
-    })
-  })
-
-  describe('safePublish (fire-and-forget)', () => {
+  describe('fire-and-forget error handling', () => {
     it('should catch and log errors without throwing', async () => {
       mockPublish.mockRejectedValueOnce(new Error('Bus offline'))
 
       await expect(
-        service.userRegistered({ userId: 'u1', email: 'a@b.c', actorType: 'customer' }),
+        publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'a@b.c', actorType: 'customer' }),
       ).resolves.toBeUndefined()
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -314,10 +91,9 @@ describe('authEventsService', () => {
 
     it('should catch errors when useEventBus fails', async () => {
       mockUseEventBus.mockRejectedValueOnce(new Error('Config missing'))
-      const failService = new AuthEventsService()
 
       await expect(
-        failService.sessionCreated({
+        publishAuthEvent(AUTH_EVENTS.SESSION_CREATED, {
           sessionId: 's1',
           userId: 'u1',
           actorType: 'customer',
@@ -333,17 +109,15 @@ describe('authEventsService', () => {
 
     it('should retry useEventBus after a failure (clears cached rejection)', async () => {
       mockUseEventBus.mockRejectedValueOnce(new Error('Transient error'))
-      const retryService = new AuthEventsService()
 
       // First call fails
-      await retryService.userRegistered({ userId: 'u1', email: 'a@b.c', actorType: 'customer' })
+      await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'a@b.c', actorType: 'customer' })
       expect(mockLogger.warn).toHaveBeenCalledTimes(1)
 
       // Second call should retry useEventBus (not reuse cached rejection)
       mockUseEventBus.mockResolvedValueOnce({ publish: mockPublish })
-      await retryService.userUpdated({ userId: 'u1', changes: { name: 'X' } })
+      await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, { userId: 'u1', changes: { name: 'X' } })
 
-      // retryService calls useEventBus twice: once failing, once succeeding
       expect(mockUseEventBus).toHaveBeenCalledTimes(2)
       expect(mockPublish).toHaveBeenCalled()
     })
@@ -351,9 +125,9 @@ describe('authEventsService', () => {
 
   describe('lazy bus resolution', () => {
     it('should call useEventBus only once across multiple publishes', async () => {
-      await service.userRegistered({ userId: 'u1', email: 'a@b.c', actorType: 'customer' })
-      await service.userUpdated({ userId: 'u1', changes: { name: 'X' } })
-      await service.sessionCreated({ sessionId: 's1', userId: 'u1', actorType: 'admin', authMethod: 'email' })
+      await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'a@b.c', actorType: 'customer' })
+      await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, { userId: 'u1', changes: { name: 'X' } })
+      await publishAuthEvent(AUTH_EVENTS.SESSION_CREATED, { sessionId: 's1', userId: 'u1', actorType: 'admin', authMethod: 'email' })
 
       expect(mockUseEventBus).toHaveBeenCalledTimes(1)
     })

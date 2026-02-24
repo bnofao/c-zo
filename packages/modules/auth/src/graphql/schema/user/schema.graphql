@@ -1,0 +1,76 @@
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  role: String!
+  banned: Boolean!
+  banReason: String
+  banExpires: DateTime
+  createdAt: DateTime!
+}
+
+type UserList {
+  users: [User!]!
+  total: Int!
+}
+
+type UserSession {
+  id: ID!
+  userId: ID!
+  expiresAt: DateTime!
+  ipAddress: String
+  userAgent: String
+  impersonatedBy: String
+  createdAt: DateTime!
+}
+
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+
+input UpdateUserInput {
+  name: String
+  email: EmailAddress
+}
+
+input UserWhereInput {
+  emailVerified: BooleanFilterInput
+  createdAt: DateTimeFilterInput
+  AND: [UserWhereInput!]
+  OR: [UserWhereInput!]
+  NOT: UserWhereInput
+}
+
+enum UserOrderField {
+  name
+  email
+  createdAt
+}
+
+input UserOrderByInput {
+  field: UserOrderField!
+  direction: OrderDirection!
+}
+
+extend type Query {
+  users(search: String, where: UserWhereInput, orderBy: UserOrderByInput, limit: Int, offset: Int): UserList! @admin
+  user(userId: ID!): User! @admin
+  userSessions(userId: ID!): [UserSession!]! @admin
+}
+
+extend type Mutation {
+  createUser(input: CreateUserInput!): User! @admin
+  updateUser(userId: ID!, input: UpdateUserInput!): User! @admin
+  impersonateUser(userId: ID!): Boolean! @admin
+  stopImpersonation: Boolean! @admin
+  banUser(userId: ID!, reason: String, expiresIn: Int): Boolean! @admin
+  unbanUser(userId: ID!): Boolean! @admin
+  setRole(userId: ID!, role: String!): Boolean! @admin
+  setUserPassword(userId: ID!, newPassword: String!): Boolean! @admin
+  removeUser(userId: ID!): Boolean! @admin
+  revokeSession(sessionToken: String!): Boolean! @admin
+  revokeSessions(userId: ID!): Boolean! @admin
+}

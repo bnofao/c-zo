@@ -1,7 +1,8 @@
 import { addPlugin, addScanDir, createResolver, defineNitroModule } from '@czo/kit/author'
+import './types'
 
 export default defineNitroModule({
-  setup: (nitro) => {
+  setup: async (nitro) => {
     const resolver = createResolver(import.meta.url)
 
     const existing = (nitro.options.runtimeConfig as Record<string, any>).czo ?? {}

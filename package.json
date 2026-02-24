@@ -24,6 +24,7 @@
     "lint:fix": "turbo lint:fix",
     "start:mazo": "pnpm --filter @czo/mazo start",
     "test": "vitest",
+    "check-types": "turbo check-types",
     "typecheck": "turbo check-types"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import type { DocumentNode } from 'graphql'
 import { describe, expect, it, vi } from 'vitest'
 
 const mockRegisterTypeDefs = vi.hoisted(() => vi.fn())
@@ -6,141 +7,136 @@ vi.mock('@czo/kit/graphql', () => ({
   registerTypeDefs: mockRegisterTypeDefs,
 }))
 
+function getDefinitionNames(doc: DocumentNode): string[] {
+  return doc.definitions
+    .filter(d => 'name' in d && d.name != null)
+    .map(d => (d as any).name.value)
+}
+
+function getFieldNames(doc: DocumentNode, typeName: string): string[] {
+  const def = doc.definitions.find(
+    d => 'name' in d && (d as any).name?.value === typeName && 'fields' in d,
+  ) as any
+  return def?.fields.map((f: any) => f.name.value) ?? []
+}
+
 describe('auth typedefs', () => {
-  it('should register type definitions as strings with the kit registry', async () => {
+  it('should register a single merged DocumentNode with the kit registry', async () => {
     await import('./typedefs')
 
-    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(4)
-    const orgSdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    const apiKeySdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
-    const authConfigSdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
-    const adminSdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(typeof orgSdl).toBe('string')
-    expect(typeof apiKeySdl).toBe('string')
-    expect(typeof authConfigSdl).toBe('string')
-    expect(typeof adminSdl).toBe('string')
+    expect(mockRegisterTypeDefs).toHaveBeenCalledTimes(1)
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    expect(typeDefs.kind).toBe('Document')
+    expect(typeDefs.definitions.length).toBeGreaterThan(0)
+  })
+
+  it('should contain all expected type definitions', () => {
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const names = getDefinitionNames(typeDefs)
+
+    expect(names).toContain('Organization')
+    expect(names).toContain('OrgMember')
+    expect(names).toContain('Invitation')
+    expect(names).toContain('ApiKey')
+    expect(names).toContain('User')
+    expect(names).toContain('UserList')
+    expect(names).toContain('UserSession')
+    expect(names).toContain('UserWhereInput')
+    expect(names).toContain('UserOrderByInput')
+    expect(names).toContain('UserOrderField')
+    expect(names).toContain('CreateUserInput')
+    expect(names).toContain('UpdateUserInput')
+    expect(names).toContain('CreateOrganizationInput')
+    expect(names).toContain('LinkedAccount')
+    expect(names).toContain('AccountInfo')
+    expect(names).toContain('MySession')
+    expect(names).toContain('ChangePasswordInput')
+    expect(names).toContain('ChangeEmailInput')
+    expect(names).toContain('UpdateProfileInput')
+    expect(names).toContain('DeleteAccountInput')
+  })
+
+  it('should contain Query with all expected fields', () => {
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const queryFields = getFieldNames(typeDefs, 'Query')
+
+    expect(queryFields).toContain('organizations')
+    expect(queryFields).toContain('organization')
+    expect(queryFields).toContain('myApiKeys')
+    expect(queryFields).toContain('users')
+    expect(queryFields).toContain('user')
+    expect(queryFields).toContain('userSessions')
+    expect(queryFields).toContain('me')
+    expect(queryFields).toContain('mySessions')
+    expect(queryFields).toContain('myAccounts')
+    expect(queryFields).toContain('accountInfo')
+  })
+
+  it('should contain Mutation with all expected fields', () => {
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const mutationFields = getFieldNames(typeDefs, 'Mutation')
+
+    expect(mutationFields).toContain('createOrganization')
+    expect(mutationFields).toContain('setActiveOrganization')
+    expect(mutationFields).toContain('inviteMember')
+    expect(mutationFields).toContain('removeMember')
+    expect(mutationFields).toContain('acceptInvitation')
+    expect(mutationFields).toContain('createUser')
+    expect(mutationFields).toContain('updateUser')
+    expect(mutationFields).toContain('impersonateUser')
+    expect(mutationFields).toContain('stopImpersonation')
+    expect(mutationFields).toContain('banUser')
+    expect(mutationFields).toContain('unbanUser')
+    expect(mutationFields).toContain('setRole')
+    expect(mutationFields).toContain('removeUser')
+    expect(mutationFields).toContain('revokeSession')
+    expect(mutationFields).toContain('revokeSessions')
+    expect(mutationFields).toContain('changePassword')
+    expect(mutationFields).toContain('changeEmail')
+    expect(mutationFields).toContain('updateProfile')
+    expect(mutationFields).toContain('deleteAccount')
+    expect(mutationFields).toContain('unlinkAccount')
+    expect(mutationFields).toContain('revokeMySession')
+    expect(mutationFields).toContain('revokeOtherSessions')
+  })
+
+  it('should define User type with expected fields', () => {
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const fields = getFieldNames(typeDefs, 'User')
+
+    expect(fields).toContain('id')
+    expect(fields).toContain('name')
+    expect(fields).toContain('email')
+    expect(fields).toContain('role')
+    expect(fields).toContain('banned')
+    expect(fields).toContain('banReason')
+    expect(fields).toContain('banExpires')
+    expect(fields).toContain('createdAt')
   })
 
   it('should define Organization type with expected fields', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('type Organization')
-    expect(sdl).toContain('id: ID!')
-    expect(sdl).toContain('name: String!')
-    expect(sdl).toContain('slug: String!')
-    expect(sdl).toContain('logo: String')
-    expect(sdl).toContain('type: String')
-    expect(sdl).toContain('createdAt: DateTime!')
-  })
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const fields = getFieldNames(typeDefs, 'Organization')
 
-  it('should define OrgMember type', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('type OrgMember')
-    expect(sdl).toContain('userId: String!')
-    expect(sdl).toContain('role: String!')
-  })
-
-  it('should define Invitation type with scalars', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('type Invitation')
-    expect(sdl).toContain('email: EmailAddress!')
-    expect(sdl).toContain('expiresAt: DateTime')
-  })
-
-  it('should extend Query with myOrganizations and organization', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('extend type Query')
-    expect(sdl).toContain('myOrganizations: [Organization!]!')
-    expect(sdl).toContain('organization(id: ID!): Organization')
-  })
-
-  it('should extend Mutation with org operations', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('extend type Mutation')
-    expect(sdl).toContain('createOrganization')
-    expect(sdl).toContain('setActiveOrganization')
-    expect(sdl).toContain('inviteMember')
-    expect(sdl).toContain('removeMember')
-    expect(sdl).toContain('acceptInvitation')
-  })
-
-  it('should define CreateOrganizationInput with type field', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[0]![0] as string
-    expect(sdl).toContain('input CreateOrganizationInput')
-    expect(sdl).toContain('type: String')
+    expect(fields).toContain('id')
+    expect(fields).toContain('name')
+    expect(fields).toContain('slug')
+    expect(fields).toContain('logo')
+    expect(fields).toContain('type')
+    expect(fields).toContain('createdAt')
   })
 
   it('should define ApiKey type with expected fields', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
-    expect(sdl).toContain('type ApiKey')
-    expect(sdl).toContain('id: ID!')
-    expect(sdl).toContain('name: String')
-    expect(sdl).toContain('prefix: String')
-    expect(sdl).toContain('start: String')
-    expect(sdl).toContain('enabled: Boolean!')
-    expect(sdl).toContain('expiresAt: DateTime')
-    expect(sdl).toContain('lastRequest: DateTime')
-    expect(sdl).toContain('createdAt: DateTime!')
-  })
+    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
+    const fields = getFieldNames(typeDefs, 'ApiKey')
 
-  it('should extend Query with myApiKeys', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[1]![0] as string
-    expect(sdl).toContain('extend type Query')
-    expect(sdl).toContain('myApiKeys: [ApiKey!]!')
-  })
-
-  it('should define AuthConfig type with expected fields', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
-    expect(sdl).toContain('type AuthConfig')
-    expect(sdl).toContain('require2FA: Boolean!')
-    expect(sdl).toContain('sessionDuration: Int!')
-    expect(sdl).toContain('allowImpersonation: Boolean!')
-    expect(sdl).toContain('dominantActorType: String!')
-    expect(sdl).toContain('allowedMethods: [String!]!')
-    expect(sdl).toContain('actorTypes: [String!]!')
-  })
-
-  it('should extend Query with myAuthConfig', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[2]![0] as string
-    expect(sdl).toContain('extend type Query')
-    expect(sdl).toContain('myAuthConfig: AuthConfig!')
-  })
-
-  it('should define AdminUser type with expected fields', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('type AdminUser')
-    expect(sdl).toContain('id: ID!')
-    expect(sdl).toContain('name: String!')
-    expect(sdl).toContain('email: String!')
-    expect(sdl).toContain('role: String!')
-    expect(sdl).toContain('banned: Boolean!')
-    expect(sdl).toContain('banReason: String')
-    expect(sdl).toContain('banExpires: DateTime')
-    expect(sdl).toContain('createdAt: DateTime!')
-  })
-
-  it('should define AdminUserList type', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('type AdminUserList')
-    expect(sdl).toContain('users: [AdminUser!]!')
-    expect(sdl).toContain('total: Int!')
-  })
-
-  it('should extend Query with adminUsers', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('extend type Query')
-    expect(sdl).toContain('adminUsers')
-  })
-
-  it('should extend Mutation with admin operations', () => {
-    const sdl = mockRegisterTypeDefs.mock.calls[3]![0] as string
-    expect(sdl).toContain('extend type Mutation')
-    expect(sdl).toContain('adminImpersonateUser')
-    expect(sdl).toContain('adminStopImpersonation')
-    expect(sdl).toContain('adminBanUser')
-    expect(sdl).toContain('adminUnbanUser')
-    expect(sdl).toContain('adminSetRole')
-    expect(sdl).toContain('adminRemoveUser')
-    expect(sdl).toContain('adminRevokeSession')
-    expect(sdl).toContain('adminRevokeSessions')
+    expect(fields).toContain('id')
+    expect(fields).toContain('name')
+    expect(fields).toContain('prefix')
+    expect(fields).toContain('start')
+    expect(fields).toContain('enabled')
+    expect(fields).toContain('expiresAt')
+    expect(fields).toContain('lastRequest')
+    expect(fields).toContain('createdAt')
   })
 })

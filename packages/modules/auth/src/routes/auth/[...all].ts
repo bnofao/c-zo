@@ -1,4 +1,4 @@
-import type { Auth } from '../../config/auth.config'
+import type { Auth } from '../../config/auth'
 import { defineHandler } from 'nitro/h3'
 import { defineRouteMeta } from './_openapi'
 

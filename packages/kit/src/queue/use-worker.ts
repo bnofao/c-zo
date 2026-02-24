@@ -31,14 +31,14 @@ export function useWorker<D = unknown, R = unknown, N extends string = string>(
 ): Worker<D, R, N> {
   const existing = workers.get(name)
   if (existing) {
-    return existing as Worker<D, R, N>
+    return existing as unknown as Worker<D, R, N>
   }
 
   const worker = new Worker<D, R, N>(name, processor, {
     ...opts,
     connection: getConnection(),
   })
-  workers.set(name, worker)
+  workers.set(name, worker as unknown as CachedWorker)
   return worker
 }
 

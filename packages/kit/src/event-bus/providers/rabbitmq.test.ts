@@ -89,7 +89,7 @@ describe('createRabbitMQEventBus', () => {
     mockConnection = createMockConnection(mockChannel)
 
     amqplibMod = await import('amqplib')
-    vi.mocked(amqplibMod.default.connect).mockResolvedValue(mockConnection as any)
+    vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(mockConnection as any)
 
     const mod = await import('./rabbitmq')
     createRabbitMQEventBus = mod.createRabbitMQEventBus
@@ -102,7 +102,7 @@ describe('createRabbitMQEventBus', () => {
 
   describe('connection setup', () => {
     it('should connect to RabbitMQ', () => {
-      expect(amqplibMod.default.connect).toHaveBeenCalledWith(defaultConfig.url)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledWith(defaultConfig.url)
     })
 
     it('should create a confirm channel', () => {
@@ -161,7 +161,7 @@ describe('createRabbitMQEventBus', () => {
       const event = makeEvent('order.placed', { orderId: 'abc' })
       await bus.publish(event)
 
-      const bufferArg = mockChannel.publish.mock.calls[0][2]
+      const bufferArg = mockChannel.publish.mock.calls[0]![2]
       const parsed = JSON.parse(bufferArg.toString())
       expect(parsed.type).toBe('order.placed')
       expect(parsed.payload.orderId).toBe('abc')
@@ -199,7 +199,7 @@ describe('createRabbitMQEventBus', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
 
       expect(handler).toHaveBeenCalledOnce()
-      expect(handler.mock.calls[0][0].type).toBe('product.created')
+      expect(handler.mock.calls[0]![0].type).toBe('product.created')
     })
 
     it('should ack the message after successful handler execution', async () => {
@@ -267,7 +267,7 @@ describe('createRabbitMQEventBus', () => {
       vi.clearAllMocks()
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       const minimalConfig: RabbitMQConfig = { url: 'amqp://localhost:5672' }
       const minimalBus = await createRabbitMQEventBus(minimalConfig)
@@ -319,19 +319,19 @@ describe('createRabbitMQEventBus', () => {
 
       const disabledChannel = createMockChannel()
       const disabledConnection = createMockConnection(disabledChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(disabledConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(disabledConnection as any)
 
       const disabledBus = await createRabbitMQEventBus({
         ...defaultConfig,
         reconnect: { enabled: false },
       })
 
-      const connectCountBefore = vi.mocked(amqplibMod.default.connect).mock.calls.length
+      const connectCountBefore = vi.mocked((amqplibMod as any).default.connect).mock.calls.length
       disabledConnection.emit('close')
 
       await vi.advanceTimersByTimeAsync(5000)
 
-      expect(vi.mocked(amqplibMod.default.connect).mock.calls.length).toBe(connectCountBefore)
+      expect(vi.mocked((amqplibMod as any).default.connect).mock.calls.length).toBe(connectCountBefore)
 
       vi.useRealTimers()
       vi.restoreAllMocks()
@@ -349,7 +349,7 @@ describe('createRabbitMQEventBus', () => {
       await new Promise(resolve => setTimeout(resolve, 50))
 
       // connect was called once (initial), should NOT be called again
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(1)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -371,7 +371,7 @@ describe('createRabbitMQEventBus', () => {
     it('should reconnect when connection closes unexpectedly', async () => {
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       // Simulate unexpected close
       mockConnection.emit('close')
@@ -380,12 +380,12 @@ describe('createRabbitMQEventBus', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       // Should have called connect again
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(2)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(2)
     })
 
     it('should use exponential backoff with correct delays', async () => {
       // Make first attempt fail so it retries
-      vi.mocked(amqplibMod.default.connect)
+      vi.mocked((amqplibMod as any).default.connect)
         .mockRejectedValueOnce(new Error('fail-1'))
         .mockRejectedValueOnce(new Error('fail-2'))
         .mockResolvedValueOnce(createMockConnection(createMockChannel()) as any)
@@ -394,29 +394,29 @@ describe('createRabbitMQEventBus', () => {
 
       // 1st attempt at 1000ms
       await vi.advanceTimersByTimeAsync(1000)
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(2)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(2)
 
       // 2nd attempt at 2000ms (1000 * 2^1)
       await vi.advanceTimersByTimeAsync(2000)
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(3)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(3)
 
       // 3rd attempt at 4000ms (1000 * 2^2)
       await vi.advanceTimersByTimeAsync(4000)
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(4)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(4)
     })
 
     it('should cap delay at maxDelayMs', async () => {
       // Create a dedicated connection for this bus so we can emit close on it
       const cappedChannel = createMockChannel()
       const cappedConnection = createMockConnection(cappedChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(cappedConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(cappedConnection as any)
 
       const cappedBus = await createRabbitMQEventBus({
         ...defaultConfig,
         reconnect: { initialDelayMs: 1000, maxDelayMs: 3000, multiplier: 10 },
       })
 
-      vi.mocked(amqplibMod.default.connect)
+      vi.mocked((amqplibMod as any).default.connect)
         .mockRejectedValueOnce(new Error('fail'))
         .mockResolvedValueOnce(createMockConnection(createMockChannel()) as any)
 
@@ -429,7 +429,7 @@ describe('createRabbitMQEventBus', () => {
       await vi.advanceTimersByTimeAsync(3000)
 
       // Should have attempted reconnect at least twice after the close
-      const connectCalls = vi.mocked(amqplibMod.default.connect).mock.calls.length
+      const connectCalls = vi.mocked((amqplibMod as any).default.connect).mock.calls.length
       expect(connectCalls).toBeGreaterThanOrEqual(4) // 2 initial + 2 reconnect attempts
 
       await cappedBus.shutdown()
@@ -438,7 +438,7 @@ describe('createRabbitMQEventBus', () => {
     it('should give up after maxAttempts', async () => {
       const limitedChannel = createMockChannel()
       const limitedConnection = createMockConnection(limitedChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(limitedConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(limitedConnection as any)
 
       await createRabbitMQEventBus({
         ...defaultConfig,
@@ -446,7 +446,7 @@ describe('createRabbitMQEventBus', () => {
       })
 
       // Set up failures for reconnection attempts
-      vi.mocked(amqplibMod.default.connect)
+      vi.mocked((amqplibMod as any).default.connect)
         .mockRejectedValueOnce(new Error('fail-1'))
         .mockRejectedValueOnce(new Error('fail-2'))
 
@@ -457,12 +457,12 @@ describe('createRabbitMQEventBus', () => {
       // Attempt 2 at 200ms
       await vi.advanceTimersByTimeAsync(200)
 
-      const connectCountAfterRetries = vi.mocked(amqplibMod.default.connect).mock.calls.length
+      const connectCountAfterRetries = vi.mocked((amqplibMod as any).default.connect).mock.calls.length
 
       // Advance more — no more attempts should happen
       await vi.advanceTimersByTimeAsync(10_000)
 
-      expect(vi.mocked(amqplibMod.default.connect).mock.calls.length).toBe(connectCountAfterRetries)
+      expect(vi.mocked((amqplibMod as any).default.connect).mock.calls.length).toBe(connectCountAfterRetries)
 
       // Don't call shutdown again — it's already in closed state
     })
@@ -470,7 +470,7 @@ describe('createRabbitMQEventBus', () => {
     it('should re-assert exchanges and prefetch after reconnect', async () => {
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       mockConnection.emit('close')
       await vi.advanceTimersByTimeAsync(1100)
@@ -484,7 +484,7 @@ describe('createRabbitMQEventBus', () => {
     it('should detach listeners from old connection/channel on reconnect', async () => {
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       // Verify old objects have listeners before reconnect
       expect(mockConnection.listenerCount('close')).toBeGreaterThanOrEqual(1)
@@ -510,7 +510,7 @@ describe('createRabbitMQEventBus', () => {
     it('should not trigger concurrent reconnection attempts', async () => {
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       // Emit close from both connection and channel
       mockConnection.emit('close')
@@ -519,7 +519,7 @@ describe('createRabbitMQEventBus', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       // Only one additional connect call despite two close events
-      expect(amqplibMod.default.connect).toHaveBeenCalledTimes(2)
+      expect((amqplibMod as any).default.connect).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -543,7 +543,7 @@ describe('createRabbitMQEventBus', () => {
 
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       mockConnection.emit('close')
       await vi.advanceTimersByTimeAsync(1000)
@@ -563,7 +563,7 @@ describe('createRabbitMQEventBus', () => {
 
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       mockConnection.emit('close')
       await vi.advanceTimersByTimeAsync(1000)
@@ -571,7 +571,7 @@ describe('createRabbitMQEventBus', () => {
       // Only order.* should be re-subscribed
       const bindCalls = freshChannel.bindQueue.mock.calls
       expect(bindCalls).toHaveLength(1)
-      expect(bindCalls[0][2]).toBe('order.*')
+      expect(bindCalls[0]![2]).toBe('order.*')
     })
 
     it('should use new consumer tags after reconnect', async () => {
@@ -580,7 +580,7 @@ describe('createRabbitMQEventBus', () => {
 
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       mockConnection.emit('close')
       await vi.advanceTimersByTimeAsync(1000)
@@ -599,7 +599,7 @@ describe('createRabbitMQEventBus', () => {
 
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       mockConnection.emit('close')
       await vi.advanceTimersByTimeAsync(1000)
@@ -619,7 +619,7 @@ describe('createRabbitMQEventBus', () => {
       await vi.advanceTimersByTimeAsync(0)
 
       expect(handler).toHaveBeenCalledOnce()
-      expect(handler.mock.calls[0][0].type).toBe('product.created')
+      expect(handler.mock.calls[0]![0].type).toBe('product.created')
     })
   })
 
@@ -640,7 +640,7 @@ describe('createRabbitMQEventBus', () => {
     it('should buffer publishes during reconnection and flush after recovery', async () => {
       const freshChannel = createMockChannel()
       const freshConnection = createMockConnection(freshChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(freshConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(freshConnection as any)
 
       // Trigger reconnecting state
       mockConnection.emit('close')
@@ -668,7 +668,7 @@ describe('createRabbitMQEventBus', () => {
     it('should reject when publish buffer is full', async () => {
       const tinyChannel = createMockChannel()
       const tinyConnection = createMockConnection(tinyChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(tinyConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(tinyConnection as any)
 
       const tinyBufferBus = await createRabbitMQEventBus({
         ...defaultConfig,
@@ -686,7 +686,7 @@ describe('createRabbitMQEventBus', () => {
 
       // Cleanup: reconnect so buffered promises resolve
       const freshCh = createMockChannel()
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(createMockConnection(freshCh) as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(createMockConnection(freshCh) as any)
       await vi.advanceTimersByTimeAsync(1000)
       await Promise.allSettled([p1, p2])
 
@@ -715,7 +715,7 @@ describe('createRabbitMQEventBus', () => {
     it('should reject buffered publishes when maxAttempts exceeded', async () => {
       const limitedChannel = createMockChannel()
       const limitedConnection = createMockConnection(limitedChannel)
-      vi.mocked(amqplibMod.default.connect).mockResolvedValue(limitedConnection as any)
+      vi.mocked((amqplibMod as any).default.connect).mockResolvedValue(limitedConnection as any)
 
       const limitedBus = await createRabbitMQEventBus({
         ...defaultConfig,
@@ -723,7 +723,7 @@ describe('createRabbitMQEventBus', () => {
       })
 
       // Set up failure for reconnection
-      vi.mocked(amqplibMod.default.connect)
+      vi.mocked((amqplibMod as any).default.connect)
         .mockRejectedValueOnce(new Error('fail-1'))
 
       limitedConnection.emit('close')

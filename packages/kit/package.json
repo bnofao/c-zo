@@ -30,6 +30,10 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
+    "./ioc": {
+      "types": "./src/ioc/index.ts",
+      "default": "./dist/ioc/index.mjs"
+    },
     "./cache": {
       "types": "./src/cache/index.ts",
       "default": "./dist/cache/index.mjs"
@@ -73,7 +77,8 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check-types": "pnpm tsc --noEmit"
   },
   "peerDependencies": {
     "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
@@ -121,6 +126,7 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
     "change-case": "catalog:common",
     "citty": "catalog:common",

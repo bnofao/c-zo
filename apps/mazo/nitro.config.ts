@@ -25,10 +25,11 @@ export default defineNitroConfig({
     },
   },
 
-  runtimeConfig: {      // ← mapped from NITRO_CZO_REDIS_URL
+  runtimeConfig: {
+    app: 'mazo',
+    baseUrl: '',
     auth: {
       secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
-      baseUrl: '',       // ← mapped from NITRO_CZO_AUTH_BASE_URL
     },
     czo: {
       databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
@@ -60,8 +61,9 @@ export default defineNitroConfig({
   modules: [
     // productModule,
     // '@czo/product',
+    '@czo/auth',
+    // authModule,
     kitModule,
-    authModule,
   ],
   imports: {
     imports: [],
@@ -77,6 +79,10 @@ export default defineNitroConfig({
         url: process.env.REDIS_URL,
         ttl: 300, // Default TTL 5 minutes
       }),
+    },
+    auth: {
+      driver: process.env.REDIS_URL ? 'redis' : 'memory',
+      ...(process.env.REDIS_URL && { url: process.env.REDIS_URL }),
     },
   },
 

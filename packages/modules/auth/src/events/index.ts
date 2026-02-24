@@ -1,4 +1,4 @@
-export { AuthEventsService } from './auth-events'
+export { publishAuthEvent, resetPublishAuthEvent } from './auth-events'
 export { AUTH_EVENTS } from './types'
 export type {
   Auth2FADisabledPayload,

@@ -135,6 +135,7 @@ class TestRepository extends Repository<
 
   async afterCreate(row: any) {
     this.afterCreateCalls.push(row)
+    return row
   }
 
   async beforeUpdate(row: any) {
@@ -266,8 +267,8 @@ describe('repository', () => {
 
   describe('update() with optimistic locking', () => {
     it('should increment version on every update', async () => {
-      const existingRow = { id: 'test-1', name: 'Original', version: 1 }
-      const updatedRow = { id: 'test-1', name: 'Updated', version: 2 }
+      const existingRow = { id: 'test-1', name: 'Original', version: 1 } as TestEntity
+      const updatedRow = { id: 'test-1', name: 'Updated', version: 2 } as TestEntity
 
       mockQueryRows = [existingRow]
       mockUpdateResult = [updatedRow]
@@ -278,11 +279,11 @@ describe('repository', () => {
       )
 
       expect(result).toHaveLength(1)
-      expect(result[0].version).toBe(2)
+      expect(result![0]!.version).toBe(2)
     })
 
     it('should throw OptimisticLockError when expectedVersion does not match', async () => {
-      const existingRow = { id: 'test-1', name: 'Original', version: 3 }
+      const existingRow = { id: 'test-1', name: 'Original', version: 3 } as TestEntity
 
       mockQueryRows = [existingRow]
       mockUpdateResult = [] // No rows updated due to version mismatch
@@ -299,8 +300,8 @@ describe('repository', () => {
     })
 
     it('should succeed when expectedVersion matches current version', async () => {
-      const existingRow = { id: 'test-1', name: 'Original', version: 2 }
-      const updatedRow = { id: 'test-1', name: 'Updated', version: 3 }
+      const existingRow = { id: 'test-1', name: 'Original', version: 2 } as TestEntity
+      const updatedRow = { id: 'test-1', name: 'Updated', version: 3 } as TestEntity
 
       mockQueryRows = [existingRow]
       mockUpdateResult = [updatedRow]
@@ -314,7 +315,7 @@ describe('repository', () => {
       )
 
       expect(result).toHaveLength(1)
-      expect(result[0].version).toBe(3)
+      expect(result![0]!.version).toBe(3)
     })
 
     it('should call beforeUpdate hook', async () => {
@@ -351,8 +352,8 @@ describe('repository', () => {
 
   describe('delete() with soft delete', () => {
     it('should set deletedAt when soft=true', async () => {
-      const existingRow = { id: 'test-1', name: 'Test', deletedAt: null }
-      const softDeletedRow = { id: 'test-1', name: 'Test', deletedAt: new Date() }
+      const existingRow = { id: 'test-1', name: 'Test', deletedAt: null } as TestEntity
+      const softDeletedRow = { id: 'test-1', name: 'Test', deletedAt: new Date() } as TestEntity
 
       mockQueryRows = [existingRow]
       mockUpdateResult = [softDeletedRow]
@@ -369,7 +370,7 @@ describe('repository', () => {
     })
 
     it('should perform hard delete when soft=false', async () => {
-      const existingRow = { id: 'test-1', name: 'Test' }
+      const existingRow = { id: 'test-1', name: 'Test' } as TestEntity
 
       mockQueryRows = [existingRow]
       mockDeleteResult = [existingRow]
@@ -384,7 +385,7 @@ describe('repository', () => {
     })
 
     it('should perform hard delete by default', async () => {
-      const existingRow = { id: 'test-1', name: 'Test' }
+      const existingRow = { id: 'test-1', name: 'Test' } as TestEntity
 
       mockQueryRows = [existingRow]
       mockDeleteResult = [existingRow]
@@ -400,7 +401,7 @@ describe('repository', () => {
       const deletedRows = [
         { id: 'test-1', name: 'Test 1' },
         { id: 'test-2', name: 'Test 2' },
-      ]
+      ] as TestEntity[]
 
       mockQueryRows = deletedRows
       mockDeleteResult = deletedRows
@@ -423,8 +424,8 @@ describe('repository', () => {
 
   describe('restore()', () => {
     it('should set deletedAt to null', async () => {
-      const softDeletedRow = { id: 'test-1', name: 'Test', deletedAt: new Date() }
-      const restoredRow = { id: 'test-1', name: 'Test', deletedAt: null }
+      const softDeletedRow = { id: 'test-1', name: 'Test', deletedAt: new Date() } as TestEntity
+      const restoredRow = { id: 'test-1', name: 'Test', deletedAt: null } as TestEntity
 
       mockQueryRows = [softDeletedRow]
       mockUpdateResult = [restoredRow]
@@ -434,7 +435,7 @@ describe('repository', () => {
       })
 
       expect(result).toHaveLength(1)
-      expect(result[0].deletedAt).toBeNull()
+      expect(result![0]!.deletedAt).toBeNull()
     })
 
     it('should throw error when table does not have deletedAt column', async () => {
@@ -459,7 +460,7 @@ describe('repository', () => {
 
   describe('findFirst() with soft delete filtering', () => {
     it('should exclude soft-deleted records by default', async () => {
-      const activeRow = { id: 'test-1', name: 'Active', deletedAt: null }
+      const activeRow = { id: 'test-1', name: 'Active', deletedAt: null } as TestEntity
 
       mockQueryRows = [activeRow]
 
@@ -471,7 +472,7 @@ describe('repository', () => {
     })
 
     it('should include soft-deleted records when includeDeleted=true', async () => {
-      const deletedRow = { id: 'test-1', name: 'Deleted', deletedAt: new Date() }
+      const deletedRow = { id: 'test-1', name: 'Deleted', deletedAt: new Date() } as TestEntity
 
       mockQueryRows = [deletedRow]
 
@@ -481,7 +482,7 @@ describe('repository', () => {
     })
 
     it('should call afterFind hook when row is found', async () => {
-      const row = { id: 'test-1', name: 'Test' }
+      const row = { id: 'test-1', name: 'Test' } as TestEntity
       mockQueryRows = [row]
 
       await repository.findFirst()
@@ -506,7 +507,7 @@ describe('repository', () => {
       const activeRows = [
         { id: 'test-1', name: 'Active 1', deletedAt: null },
         { id: 'test-2', name: 'Active 2', deletedAt: null },
-      ]
+      ] as TestEntity[]
 
       mockQueryRows = activeRows
 
@@ -519,7 +520,7 @@ describe('repository', () => {
       const allRows = [
         { id: 'test-1', name: 'Active', deletedAt: null },
         { id: 'test-2', name: 'Deleted', deletedAt: new Date() },
-      ]
+      ] as TestEntity[]
 
       mockQueryRows = allRows
 
@@ -532,7 +533,7 @@ describe('repository', () => {
       const rows = [
         { id: 'test-1', name: 'Test 1' },
         { id: 'test-2', name: 'Test 2' },
-      ]
+      ] as TestEntity[]
       mockQueryRows = rows
 
       await repository.findMany()
@@ -566,7 +567,7 @@ describe('repository', () => {
       const rows = [
         { id: 'test-1', name: 'Active 1', deletedAt: null },
         { id: 'test-2', name: 'Active 2', deletedAt: null },
-      ]
+      ] as TestEntity[]
       mockQueryRows = rows
 
       const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
@@ -578,7 +579,7 @@ describe('repository', () => {
       const rows = [
         { id: 'test-1', name: 'Active', deletedAt: null },
         { id: 'test-2', name: 'Deleted', deletedAt: new Date() },
-      ]
+      ] as TestEntity[]
       mockQueryRows = rows
 
       const result = await repository.paginateByOffset({
@@ -594,7 +595,7 @@ describe('repository', () => {
       const rows = Array.from({ length: 11 }, (_, i) => ({
         id: `test-${i}`,
         name: `Test ${i}`,
-      }))
+      })) as TestEntity[]
       mockQueryRows = rows
       db.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
@@ -613,7 +614,7 @@ describe('repository', () => {
     })
 
     it('should indicate no next page when on last page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }]
+      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
       mockQueryRows = rows
       db.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
@@ -627,7 +628,7 @@ describe('repository', () => {
     })
 
     it('should indicate previous page when not on first page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }]
+      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
       mockQueryRows = rows
 
       const result = await repository.paginateByOffset({ page: 2, perPage: 10 })
@@ -676,7 +677,7 @@ describe('repository', () => {
     })
 
     it('should always perform hard delete when table has no deletedAt column', async () => {
-      const existingRow = { id: 'test-1', name: 'Test' }
+      const existingRow = { id: 'test-1', name: 'Test' } as TestEntity
 
       mockQueryRows = [existingRow]
       mockDeleteResult = [existingRow]
@@ -693,7 +694,7 @@ describe('repository', () => {
       const rows = [
         { id: 'test-1', name: 'Test 1' },
         { id: 'test-2', name: 'Test 2' },
-      ]
+      ] as TestEntity[]
       mockQueryRows = rows
 
       const result = await repoWithoutSoftDelete.findMany()
@@ -788,7 +789,7 @@ describe('repository', () => {
         { id: 'test-1', name: 'Test 1' },
         { id: 'test-2', name: 'Test 2' },
         { id: 'test-3', name: 'Test 3' },
-      ]
+      ] as TestEntity[]
       mockQueryRows = rows
 
       await repository.findMany()
@@ -806,7 +807,7 @@ describe('repository', () => {
       const deletedRows = [
         { id: 'test-1', name: 'Test 1' },
         { id: 'test-2', name: 'Test 2' },
-      ]
+      ] as TestEntity[]
       mockQueryRows = deletedRows
       mockDeleteResult = deletedRows
 
@@ -827,7 +828,7 @@ describe('repository', () => {
     })
 
     it('should handle SQL where clause object', async () => {
-      const rows = [{ id: 'test-1', name: 'Test' }]
+      const rows = [{ id: 'test-1', name: 'Test' }] as TestEntity[]
       mockQueryRows = rows
 
       // Create a mock SQL object with queryChunks
@@ -841,7 +842,7 @@ describe('repository', () => {
     it('should handle function where clause in findMany', async () => {
       // Note: function-style where clauses require drizzle getTableColumns/getOperators
       // which is tested separately. Here we test with mock SQL object.
-      const rows = [{ id: 'test-1', name: 'Test' }]
+      const rows = [{ id: 'test-1', name: 'Test' }] as TestEntity[]
       mockQueryRows = rows
 
       // Using SQL object style instead of function style
@@ -909,7 +910,7 @@ describe('repository', () => {
     })
 
     it('should handle columns option in delete', async () => {
-      const deletedRow = { id: 'test-1', name: 'Deleted' }
+      const deletedRow = { id: 'test-1', name: 'Deleted' } as TestEntity
       mockQueryRows = [deletedRow]
       mockDeleteResult = [deletedRow]
 
@@ -966,8 +967,8 @@ describe('repository', () => {
       const pgModule = await import('pg')
       const pgError = new pgModule.default.DatabaseError(
         'duplicate key value violates unique constraint',
-        'error',
-        'error',
+        'error' as any,
+        'error' as any,
       )
       ;(pgError as any).code = '23505'
       ;(pgError as any).detail = 'Key (email)=(test@example.com) already exists.'
@@ -1002,7 +1003,7 @@ describe('repository', () => {
 
     it('should re-throw OptimisticLockError without wrapping in update', async () => {
       mockUpdateResult = []
-      mockQueryRows = [{ id: 'test-1', name: 'Original', version: 5 }]
+      mockQueryRows = [{ id: 'test-1', name: 'Original', version: 5 } as TestEntity]
 
       await expect(
         repository.update(
@@ -1055,7 +1056,7 @@ describe('repository', () => {
       const rows = Array.from({ length: 10 }, (_, i) => ({
         id: `test-${i}`,
         name: `Test ${i}`,
-      }))
+      })) as TestEntity[]
       mockQueryRows = rows
       db.select.mockReturnValue({
         from: vi.fn().mockReturnValue({
