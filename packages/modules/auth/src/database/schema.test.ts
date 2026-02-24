@@ -233,6 +233,88 @@ describe('auth database schema', () => {
     })
   })
 
+  describe('apps table', () => {
+    it('should be named "apps"', () => {
+      expect(getTableName(schema.apps)).toBe('apps')
+    })
+
+    it('should have required columns', () => {
+      const config = getTableConfig(schema.apps)
+      const columnNames = config.columns.map(c => c.name)
+
+      expect(columnNames).toContain('id')
+      expect(columnNames).toContain('app_id')
+      expect(columnNames).toContain('manifest')
+      expect(columnNames).toContain('installed_by')
+      expect(columnNames).toContain('created_at')
+      expect(columnNames).toContain('updated_at')
+    })
+
+    it('should have app_id as unique', () => {
+      const config = getTableConfig(schema.apps)
+      const col = config.columns.find(c => c.name === 'app_id')
+      expect(col?.isUnique).toBe(true)
+    })
+
+    it('should have a foreign key to users for installed_by', () => {
+      const config = getTableConfig(schema.apps)
+      expect(config.foreignKeys.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('webhookDeliveries table', () => {
+    it('should be named "webhook_deliveries"', () => {
+      expect(getTableName(schema.webhookDeliveries)).toBe('webhook_deliveries')
+    })
+
+    it('should have required columns', () => {
+      const config = getTableConfig(schema.webhookDeliveries)
+      const columnNames = config.columns.map(c => c.name)
+
+      expect(columnNames).toContain('id')
+      expect(columnNames).toContain('app_id')
+      expect(columnNames).toContain('event')
+      expect(columnNames).toContain('payload')
+      expect(columnNames).toContain('status')
+      expect(columnNames).toContain('attempts')
+      expect(columnNames).toContain('last_attempt_at')
+      expect(columnNames).toContain('response_code')
+      expect(columnNames).toContain('response_body')
+      expect(columnNames).toContain('created_at')
+    })
+
+    it('should have status with default "pending"', () => {
+      const config = getTableConfig(schema.webhookDeliveries)
+      const col = config.columns.find(c => c.name === 'status')
+      expect(col).toBeDefined()
+      expect(col!.default).toBe('pending')
+    })
+
+    it('should have indexes defined', () => {
+      const config = getTableConfig(schema.webhookDeliveries)
+      expect(config.indexes.length).toBe(2)
+    })
+
+    it('should have a foreign key to apps', () => {
+      const config = getTableConfig(schema.webhookDeliveries)
+      expect(config.foreignKeys.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('apikeys table — app integration', () => {
+    it('should have installed_app_id column', () => {
+      const config = getTableConfig(schema.apikeys)
+      const col = config.columns.find(c => c.name === 'installed_app_id')
+      expect(col).toBeDefined()
+      expect(col!.notNull).toBe(false)
+    })
+
+    it('should have two foreign keys (users + apps)', () => {
+      const config = getTableConfig(schema.apikeys)
+      expect(config.foreignKeys.length).toBe(2)
+    })
+  })
+
   it('should export all tables', () => {
     expect(schema.users).toBeDefined()
     expect(schema.sessions).toBeDefined()
@@ -240,5 +322,7 @@ describe('auth database schema', () => {
     expect(schema.verifications).toBeDefined()
     expect(schema.twoFactor).toBeDefined()
     expect(schema.apikeys).toBeDefined()
+    expect(schema.apps).toBeDefined()
+    expect(schema.webhookDeliveries).toBeDefined()
   })
 })
