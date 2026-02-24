@@ -1,7 +1,8 @@
 CREATE TABLE "apps" (
   "id" text PRIMARY KEY NOT NULL,
   "app_id" text NOT NULL UNIQUE,
-  "manifest" text NOT NULL,
+  "manifest" jsonb NOT NULL,
+  "status" text NOT NULL DEFAULT 'active',
   "installed_by" text NOT NULL REFERENCES "users"("id"),
   "created_at" timestamp NOT NULL DEFAULT now(),
   "updated_at" timestamp NOT NULL DEFAULT now()

@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -96,7 +96,8 @@ export const twoFactor = pgTable('two_factors', {
 export const apps = pgTable('apps', {
   id: text('id').primaryKey(),
   appId: text('app_id').notNull().unique(),
-  manifest: text('manifest').notNull(),
+  manifest: jsonb('manifest').notNull(),
+  status: text('status').notNull().default('active'),
   installedBy: text('installed_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
