@@ -23,8 +23,11 @@ export function userConfig(): BetterAuthOptions['user'] {
       beforeDelete: async (_user, _request) => {
 
       },
-      afterDelete: async (_user, _request) => {
-
+      afterDelete: async (user, _request) => {
+        void publishAuthEvent(AUTH_EVENTS.ACCOUNT_DELETED, {
+          userId: user.id,
+          email: user.email,
+        })
       },
     },
   }
@@ -60,6 +63,11 @@ export function userHooks(): Exclude<BetterAuthOptions['databaseHooks'], undefin
               actorType,
             })
           }
+        }
+
+        if ('hashedPassword' in changes || 'password' in changes) {
+          const email = ('email' in user ? user.email : '') as string
+          void publishAuthEvent(AUTH_EVENTS.PASSWORD_CHANGED, { userId, email })
         }
       },
     },

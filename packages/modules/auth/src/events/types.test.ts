@@ -2,12 +2,16 @@ import type { DomainEvent, EventMap, EventPayload } from '@czo/kit/event-bus'
 import type {
   Auth2FADisabledPayload,
   Auth2FAEnabledPayload,
+  AuthAccountDeletedPayload,
   AuthApiKeyCreatedPayload,
   AuthApiKeyRevokedPayload,
   AuthEventType,
   AuthImpersonationStartedPayload,
   AuthImpersonationStoppedPayload,
   AuthInvitationRequestedPayload,
+  AuthLoginFailedAlertPayload,
+  AuthNewDeviceLoginPayload,
+  AuthPasswordChangedPayload,
   AuthPasswordResetRequestedPayload,
   AuthRestrictionDeniedPayload,
   AuthSessionCreatedPayload,
@@ -24,7 +28,7 @@ import { AUTH_EVENTS } from './types'
 describe('auth event types', () => {
   describe('auth events constants', () => {
     it('should define all 20 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(20)
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(24)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -72,6 +76,13 @@ describe('auth event types', () => {
       expect(AUTH_EVENTS.PASSWORD_RESET_REQUESTED).toBe('auth.email.password-reset-requested')
       expect(AUTH_EVENTS.VERIFICATION_EMAIL_REQUESTED).toBe('auth.email.verification-requested')
       expect(AUTH_EVENTS.INVITATION_REQUESTED).toBe('auth.email.invitation-requested')
+    })
+
+    it('should have correct routing keys for security notification events', () => {
+      expect(AUTH_EVENTS.PASSWORD_CHANGED).toBe('auth.security.password-changed')
+      expect(AUTH_EVENTS.NEW_DEVICE_LOGIN).toBe('auth.security.new-device-login')
+      expect(AUTH_EVENTS.LOGIN_FAILED_ALERT).toBe('auth.security.login-failed-alert')
+      expect(AUTH_EVENTS.ACCOUNT_DELETED).toBe('auth.security.account-deleted')
     })
   })
 
@@ -289,6 +300,61 @@ describe('auth event types', () => {
       }
       expect(p.organizationName).toBe('Acme')
     })
+
+    it('should enforce required fields on AuthPasswordChangedPayload', () => {
+      const p: AuthPasswordChangedPayload = {
+        userId: 'u1',
+        email: 'test@czo.dev',
+      }
+      expect(p).toEqual({ userId: 'u1', email: 'test@czo.dev' })
+    })
+
+    it('should enforce required fields on AuthNewDeviceLoginPayload', () => {
+      const p: AuthNewDeviceLoginPayload = {
+        userId: 'u1',
+        sessionId: 's1',
+        ipAddress: '192.168.1.1',
+        userAgent: 'Mozilla/5.0',
+      }
+      expect(p.ipAddress).toBe('192.168.1.1')
+    })
+
+    it('should allow null ipAddress and userAgent on AuthNewDeviceLoginPayload', () => {
+      const p: AuthNewDeviceLoginPayload = {
+        userId: 'u1',
+        sessionId: 's1',
+        ipAddress: null,
+        userAgent: null,
+      }
+      expect(p.ipAddress).toBeNull()
+      expect(p.userAgent).toBeNull()
+    })
+
+    it('should enforce required fields on AuthLoginFailedAlertPayload', () => {
+      const p: AuthLoginFailedAlertPayload = {
+        email: 'test@czo.dev',
+        ipAddress: '10.0.0.1',
+        reason: 'invalid_credentials',
+      }
+      expect(p.reason).toBe('invalid_credentials')
+    })
+
+    it('should allow null ipAddress on AuthLoginFailedAlertPayload', () => {
+      const p: AuthLoginFailedAlertPayload = {
+        email: 'test@czo.dev',
+        ipAddress: null,
+        reason: 'invalid_credentials',
+      }
+      expect(p.ipAddress).toBeNull()
+    })
+
+    it('should enforce required fields on AuthAccountDeletedPayload', () => {
+      const p: AuthAccountDeletedPayload = {
+        userId: 'u1',
+        email: 'test@czo.dev',
+      }
+      expect(p).toEqual({ userId: 'u1', email: 'test@czo.dev' })
+    })
   })
 
   describe('authEventType union', () => {
@@ -314,8 +380,12 @@ describe('auth event types', () => {
         'auth.email.password-reset-requested',
         'auth.email.verification-requested',
         'auth.email.invitation-requested',
+        'auth.security.password-changed',
+        'auth.security.new-device-login',
+        'auth.security.login-failed-alert',
+        'auth.security.account-deleted',
       ]
-      expect(types).toHaveLength(20)
+      expect(types).toHaveLength(24)
     })
   })
 })

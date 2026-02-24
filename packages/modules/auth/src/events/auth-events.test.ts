@@ -51,6 +51,10 @@ const eventCases = [
   [AUTH_EVENTS.PASSWORD_RESET_REQUESTED, { email: 'test@czo.dev', userName: 'Test', url: 'http://reset', token: 'tok' }],
   [AUTH_EVENTS.VERIFICATION_EMAIL_REQUESTED, { email: 'test@czo.dev', userName: 'Test', url: 'http://verify', token: 'tok' }],
   [AUTH_EVENTS.INVITATION_REQUESTED, { email: 'test@czo.dev', organizationName: 'Acme', inviterName: 'Admin', invitationId: 'inv1' }],
+  [AUTH_EVENTS.PASSWORD_CHANGED, { userId: 'u1', email: 'test@czo.dev' }],
+  [AUTH_EVENTS.NEW_DEVICE_LOGIN, { userId: 'u1', sessionId: 's1', ipAddress: '192.168.1.1' as string | null, userAgent: 'Mozilla/5.0' as string | null }],
+  [AUTH_EVENTS.LOGIN_FAILED_ALERT, { email: 'test@czo.dev', ipAddress: '10.0.0.1' as string | null, reason: 'invalid_credentials' }],
+  [AUTH_EVENTS.ACCOUNT_DELETED, { userId: 'u1', email: 'test@czo.dev' }],
 ] as const
 
 describe('publishAuthEvent', () => {

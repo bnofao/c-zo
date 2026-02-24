@@ -129,6 +129,31 @@ export interface AuthInvitationRequestedPayload {
   invitationId: string
 }
 
+// ─── Security notification payloads ───────────────────────────────────
+
+export interface AuthPasswordChangedPayload {
+  userId: string
+  email: string
+}
+
+export interface AuthNewDeviceLoginPayload {
+  userId: string
+  sessionId: string
+  ipAddress: string | null
+  userAgent: string | null
+}
+
+export interface AuthLoginFailedAlertPayload {
+  email: string
+  ipAddress: string | null
+  reason: string
+}
+
+export interface AuthAccountDeletedPayload {
+  userId: string
+  email: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -152,6 +177,10 @@ export const AUTH_EVENTS = {
   PASSWORD_RESET_REQUESTED: 'auth.email.password-reset-requested',
   VERIFICATION_EMAIL_REQUESTED: 'auth.email.verification-requested',
   INVITATION_REQUESTED: 'auth.email.invitation-requested',
+  PASSWORD_CHANGED: 'auth.security.password-changed',
+  NEW_DEVICE_LOGIN: 'auth.security.new-device-login',
+  LOGIN_FAILED_ALERT: 'auth.security.login-failed-alert',
+  ACCOUNT_DELETED: 'auth.security.account-deleted',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -180,5 +209,9 @@ declare module '@czo/kit/event-bus' {
     'auth.email.password-reset-requested': AuthPasswordResetRequestedPayload
     'auth.email.verification-requested': AuthVerificationEmailRequestedPayload
     'auth.email.invitation-requested': AuthInvitationRequestedPayload
+    'auth.security.password-changed': AuthPasswordChangedPayload
+    'auth.security.new-device-login': AuthNewDeviceLoginPayload
+    'auth.security.login-failed-alert': AuthLoginFailedAlertPayload
+    'auth.security.account-deleted': AuthAccountDeletedPayload
   }
 }
