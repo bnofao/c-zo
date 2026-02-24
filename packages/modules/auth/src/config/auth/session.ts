@@ -62,6 +62,13 @@ export function sessionHooks() {
       actorType: session.actorType as string | undefined,
       authMethod: session.authMethod as string | undefined,
     })
+
+    void publishAuthEvent(AUTH_EVENTS.NEW_DEVICE_LOGIN, {
+      userId: session.userId,
+      sessionId: session.id,
+      ipAddress: (session.ipAddress as string | null) ?? null,
+      userAgent: (session.userAgent as string | null) ?? null,
+    })
   }
 
   return {
