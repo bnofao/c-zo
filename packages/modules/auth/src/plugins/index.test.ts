@@ -304,7 +304,7 @@ describe('auth plugin', () => {
     await boot()
 
     expect(mockLogger.success).toHaveBeenCalledWith(
-      expect.stringContaining('Booted'),
+      expect.stringContaining('booted'),
     )
   })
 

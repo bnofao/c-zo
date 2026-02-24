@@ -48,15 +48,17 @@ export default definePlugin(async (nitroApp) => {
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
-    logger.start('Begin registration...')
+    logger.start('Registering auth domains...')
 
-    // const restrictionRegistry = useAuthActorService()
     const actorService = await container.make('auth:actor')
+    const actorTypes = Object.keys(DEFAULT_ACTOR_RESTRICTIONS)
     for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
       actorService.registerActor(actorType, config)
     }
+    logger.info(`Registered ${actorTypes.length} actor types: ${actorTypes.join(', ')}`)
 
     const accessService = await container.make('auth:access')
+    const domains = ['organization', 'admin', 'api-key'] as const
     accessService.register({
       name: 'organization',
       statements: ORGANIZATION_STATEMENTS,
@@ -72,12 +74,20 @@ export default definePlugin(async (nitroApp) => {
       statements: API_KEY_STATEMENTS,
       hierarchy: API_KEY_HIERARCHY,
     })
+    logger.info(`Registered ${domains.length} access domains: ${domains.join(', ')}`)
+
+    logger.success('Auth domains registered')
   })
 
   nitroApp.hooks.hook('czo:boot', async () => {
+    logger.start('Booting auth module...')
+
     const db = useDatabase()
     const accessService = await container.make('auth:access')
     const { ac, roles } = accessService.buildRoles()
+    const roleNames = Object.keys(roles)
+    logger.info(`Built ${roleNames.length} roles: ${roleNames.join(', ') || '(none)'}`)
+
     const authOption: AuthOption = {
       app: config.app,
       secret: authConfig.secret,
@@ -90,6 +100,7 @@ export default definePlugin(async (nitroApp) => {
 
     const auth = createAuth(db, authOption)
     container.singleton('auth', () => auth)
+    logger.info('Auth instance created and bound to container')
 
     const userService = createUserService(auth)
     container.singleton('auth:users', () => userService)
@@ -102,19 +113,20 @@ export default definePlugin(async (nitroApp) => {
 
     const apiKeyService = createApiKeyService(auth)
     container.singleton('auth:apikeys', () => apiKeyService)
+    logger.info('Services bound: users, auth, organizations, apiKeys')
 
     const actorService = await container.make('auth:actor')
     actorService.freeze()
     accessService.freeze()
+    logger.info('Actor and access registries frozen')
 
     // Register GraphQL schema, resolvers and context only when auth is properly configured
     await import('../graphql/context-factory')
     await import('../graphql/typedefs')
     await import('../graphql/resolvers')
     await import('../graphql/directives')
+    logger.info('GraphQL schema, resolvers and directives registered')
 
-    logger.success('Booted !')
-    logger.info('Auth restriction registry frozen')
-    logger.info('Access statement registry frozen — auth created with domain roles')
+    logger.success('Auth module booted')
   })
 })
