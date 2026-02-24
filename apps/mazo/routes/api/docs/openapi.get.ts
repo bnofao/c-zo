@@ -15,10 +15,12 @@ export default defineHandler(async (event) => {
   //   return cachedSpec
   // }
 
+  const auth = await useContainer().make('auth')
+
   const origin = getRequestURL(event).origin
   const [nitroRes, betterAuthSpec] = await Promise.all([
     fetch(`${origin}/_nitro/openapi.json`),
-    (event.context.generateOpenAPISchema as (() => Promise<OpenAPISpec>) | undefined)?.()
+    await auth.api.generateOpenAPISchema?.()
       ?? Promise.resolve({} as OpenAPISpec),
   ])
 

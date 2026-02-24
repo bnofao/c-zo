@@ -53,7 +53,7 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     verification: verificationConfig(),
     emailAndPassword: emailAndPasswordConfig(),
     emailVerification: emailVerificationConfig(),
-    rateLimit: rateLimitConfig(),
+    rateLimit: rateLimitConfig(undefined, option.storage),
     advanced: advancedConfig({ cookiePrefix }),
     plugins: [
       adminConfig({ ac: option.ac, roles: option.roles }),
