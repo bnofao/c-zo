@@ -45,7 +45,7 @@ describe('createEventEmitter', () => {
       await emitter.emit('user:created', payload)
 
       expect(handler).toHaveBeenCalledOnce()
-      const [receivedPayload, context] = handler.mock.calls[0]
+      const [receivedPayload, context] = handler.mock.calls[0]!
       expect(receivedPayload).toEqual(payload)
       expect(context.eventId).toBe(MOCK_UUID)
       expect(context.timestamp).toBeInstanceOf(Date)
@@ -123,7 +123,7 @@ describe('createEventEmitter', () => {
       await emitter.emit('one-time', { second: true })
 
       expect(handler).toHaveBeenCalledOnce()
-      expect(handler.mock.calls[0][0]).toEqual({ first: true })
+      expect(handler.mock.calls[0]![0]).toEqual({ first: true })
     })
 
     it('should return an unsubscribe function that works before firing', async () => {

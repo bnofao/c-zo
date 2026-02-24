@@ -100,8 +100,8 @@ describe('useQueue', () => {
 
       await closeQueues()
 
-      expect(mockQueueInstances.orders.close).toHaveBeenCalledOnce()
-      expect(mockQueueInstances.payments.close).toHaveBeenCalledOnce()
+      expect(mockQueueInstances.orders!.close).toHaveBeenCalledOnce()
+      expect(mockQueueInstances.payments!.close).toHaveBeenCalledOnce()
       expect(mockRedisInstance.disconnect).toHaveBeenCalledOnce()
     })
 

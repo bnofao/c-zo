@@ -121,8 +121,8 @@ describe('useWorker', () => {
 
       await closeWorkers()
 
-      expect(mockWorkerInstances.orders.close).toHaveBeenCalledOnce()
-      expect(mockWorkerInstances.payments.close).toHaveBeenCalledOnce()
+      expect(mockWorkerInstances.orders!.close).toHaveBeenCalledOnce()
+      expect(mockWorkerInstances.payments!.close).toHaveBeenCalledOnce()
       expect(mockRedisInstance.disconnect).toHaveBeenCalledOnce()
     })
 

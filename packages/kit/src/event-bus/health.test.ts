@@ -18,7 +18,7 @@ describe('checkRabbitMQHealth', () => {
 
   it('should return ok when connection succeeds', async () => {
     const mockClose = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(amqplibMod.default.connect).mockResolvedValue({ close: mockClose } as any)
+    vi.mocked((amqplibMod as any).default.connect).mockResolvedValue({ close: mockClose } as any)
 
     const result = await checkRabbitMQHealth('amqp://localhost:5672')
 
@@ -29,7 +29,7 @@ describe('checkRabbitMQHealth', () => {
   })
 
   it('should return error when connection fails', async () => {
-    vi.mocked(amqplibMod.default.connect).mockRejectedValue(new Error('ECONNREFUSED'))
+    vi.mocked((amqplibMod as any).default.connect).mockRejectedValue(new Error('ECONNREFUSED'))
 
     const result = await checkRabbitMQHealth('amqp://localhost:5672')
 
