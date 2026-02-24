@@ -1,4 +1,4 @@
-import type { BetterAuthAdvancedOptions, BetterAuthOptions } from 'better-auth'
+import type { BetterAuthAdvancedOptions, BetterAuthOptions, BetterAuthRateLimitOptions } from 'better-auth'
 import type { useStorage } from 'nitro/storage'
 import { AUTH_EVENTS, publishAuthEvent } from '../../events'
 import { validatePasswordStrength } from '../utils'
@@ -59,10 +59,23 @@ export function emailVerificationConfig(option?: EmailVerificationOption) {
   }
 }
 
-export function rateLimitConfig() {
+export function rateLimitConfig(option?: BetterAuthRateLimitOptions, storage?: Storage): BetterAuthRateLimitOptions {
   return {
+    enabled: true,
     window: 60,
-    max: 10,
+    max: 30,
+    storage: storage ? 'secondary-storage' : 'memory',
+    customRules: {
+      '/sign-in/email': { window: 900, max: 5 },
+      '/sign-up/email': { window: 3600, max: 3 },
+      '/forget-password': { window: 3600, max: 3 },
+      '/reset-password': { window: 3600, max: 3 },
+      '/two-factor/verify-totp': { window: 900, max: 5 },
+      '/two-factor/verify-otp': { window: 900, max: 5 },
+      '/two-factor/verify-backup-code': { window: 900, max: 5 },
+      '/get-session': { window: 10, max: 60 },
+    },
+    ...option
   }
 }
 
