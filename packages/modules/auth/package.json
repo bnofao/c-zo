@@ -45,14 +45,14 @@
     "@graphql-tools/utils": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
-    "graphql": "catalog:common",
-    "graphql-scalars": "catalog:common"
+    "graphql": "catalog:common"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "catalog:dev",
+    "graphql-scalars": "catalog:common",
     "nitro": "catalog:dev",
     "vitest": "catalog:testing"
   }
