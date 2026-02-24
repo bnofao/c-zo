@@ -75,7 +75,7 @@ export function rateLimitConfig(option?: BetterAuthRateLimitOptions, storage?: S
       '/two-factor/verify-backup-code': { window: 900, max: 5 },
       '/get-session': { window: 10, max: 60 },
     },
-    ...option
+    ...option,
   }
 }
 

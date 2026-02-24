@@ -19,8 +19,8 @@ describe('rateLimitConfig', () => {
   })
 
   it('returns storage: "secondary-storage" when storage provided', () => {
-    const fakeStorage = {} as Parameters<typeof rateLimitConfig>[0]
-    const config = rateLimitConfig(fakeStorage)
+    const fakeStorage = {} as Parameters<typeof rateLimitConfig>[1]
+    const config = rateLimitConfig(undefined, fakeStorage)
     expect(config.storage).toBe('secondary-storage')
   })
 
