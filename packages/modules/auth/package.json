@@ -45,7 +45,8 @@
     "@graphql-tools/utils": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
-    "graphql": "catalog:common"
+    "graphql": "catalog:common",
+    "graphql-scalars": "catalog:common"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "catalog:testing",

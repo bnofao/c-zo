@@ -9,16 +9,15 @@ vi.mock('@czo/kit/graphql', () => ({
 
 function getDefinitionNames(doc: DocumentNode): string[] {
   return doc.definitions
-    .filter((d): d is { kind: string, name: { value: string } } => 'name' in d && d.name != null)
-    .map(d => d.name.value)
+    .filter(d => 'name' in d && d.name != null)
+    .map(d => (d as any).name.value)
 }
 
 function getFieldNames(doc: DocumentNode, typeName: string): string[] {
   const def = doc.definitions.find(
-    (d): d is { kind: string, name: { value: string }, fields: Array<{ name: { value: string } }> } =>
-      'name' in d && d.name?.value === typeName && 'fields' in d,
-  )
-  return def?.fields.map(f => f.name.value) ?? []
+    d => 'name' in d && (d as any).name?.value === typeName && 'fields' in d,
+  ) as any
+  return def?.fields.map((f: any) => f.name.value) ?? []
 }
 
 describe('auth typedefs', () => {

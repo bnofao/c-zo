@@ -308,7 +308,7 @@ describe('apiKeyService', () => {
 
       expect(api(auth).listApiKeys).toHaveBeenCalledWith({ headers })
       expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('key-1')
+      expect(result[0]!.id).toBe('key-1')
     })
 
     it('should call listApiKeys without headers for server-side usage', async () => {

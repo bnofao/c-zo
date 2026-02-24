@@ -93,7 +93,7 @@ describe('organizationService', () => {
         headers,
         body: { name: 'Acme Corp', slug: 'acme-corp' },
       })
-      expect(result.id).toBe('org-1')
+      expect(result!.id).toBe('org-1')
     })
 
     it('should call createOrganization without headers for server-side usage', async () => {
@@ -166,7 +166,7 @@ describe('organizationService', () => {
           organizationId: 'org-1',
         },
       })
-      expect(result.name).toBe('Acme Inc')
+      expect(result!.name).toBe('Acme Inc')
     })
 
     it('should allow update without organizationId (uses active org)', async () => {
@@ -197,7 +197,7 @@ describe('organizationService', () => {
         headers,
         body: { organizationId: 'org-1' },
       })
-      expect(result.id).toBe('org-1')
+      expect(result!.id).toBe('org-1')
     })
 
     it('should propagate error', async () => {
@@ -217,7 +217,7 @@ describe('organizationService', () => {
         headers,
         body: { organizationId: 'org-1', organizationSlug: undefined },
       })
-      expect(result.id).toBe('org-1')
+      expect(result!.id).toBe('org-1')
     })
 
     it('should accept organizationSlug instead', async () => {
@@ -284,7 +284,7 @@ describe('organizationService', () => {
 
       expect(api(auth).listOrganizations).toHaveBeenCalledWith({ headers })
       expect(result).toHaveLength(1)
-      expect(result[0].slug).toBe('acme-corp')
+      expect(result[0]!.slug).toBe('acme-corp')
     })
 
     it('should return empty array when no orgs', async () => {
@@ -359,7 +359,7 @@ describe('organizationService', () => {
         headers,
         body: { invitationId: 'inv-1' },
       })
-      expect(result.status).toBe('canceled')
+      expect(result!.status).toBe('canceled')
     })
 
     it('should propagate error', async () => {
@@ -655,7 +655,7 @@ describe('organizationService', () => {
         query: { email: undefined },
       })
       expect(result).toHaveLength(1)
-      expect(result[0].organizationName).toBe('Acme Corp')
+      expect(result[0]!.organizationName).toBe('Acme Corp')
     })
 
     it('should call listUserInvitations without headers for server-side usage', async () => {
