@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { isAbsolute } from 'pathe'
 import { describe, expect, it } from 'vitest'
 import { discoverModuleSchemas } from './discover'
 
@@ -16,7 +17,7 @@ describe('discoverModuleSchemas', () => {
     const schemas = discoverModuleSchemas('./nitro.config.ts', { cwd: mazoDir })
 
     for (const schema of schemas) {
-      expect(schema).toMatch(/^\//)
+      expect(isAbsolute(schema)).toBe(true)
     }
   })
 
