@@ -21,21 +21,24 @@ export interface AccessStatementProvider<
   roles: Record<R, AccessRole<S>>
 }
 
+export interface HierarchyLevel<S extends Statements = Statements> {
+  name: string
+  permissions: RolePermissions<S>
+}
+
 export interface AccessProviderOption<
   S extends Statements = Statements,
-  R extends string = string,
 > {
   name: string
   statements: S
-  hierarchy: Record<R, RolePermissions<S>>[]
+  hierarchy: HierarchyLevel<S>[]
 }
 
 export interface AccessHierarchyProvider<
   S extends Statements = Statements,
-  R extends string = string,
 > {
   name: string
-  hierarchy: Record<R, RolePermissions<S>>[]
+  hierarchy: HierarchyLevel<S>[]
 }
 
 // ─── Permission Check ────────────────────────────────────────────────
@@ -105,8 +108,8 @@ export function createAccessService() {
   const _providers = new Map<string, AccessStatementProvider>()
   let frozen = false
 
-  function register<S extends Statements, R extends string>(
-    option: AccessProviderOption<S, R>,
+  function register<S extends Statements>(
+    option: AccessProviderOption<S>,
   ): void {
     if (frozen) {
       throw new Error(`Cannot register statements "${option.name}" — registry is frozen`)
@@ -125,7 +128,7 @@ export function createAccessService() {
         throw new Error(`Statement resource "${resource}" is already registered`)
       }
 
-      _statements.set(resource, permissions)
+      _statements.set(resource, permissions as readonly string[])
     }
 
     _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })

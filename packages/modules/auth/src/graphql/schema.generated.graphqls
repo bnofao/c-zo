@@ -9,15 +9,6 @@ type ApiKey {
   start: String
 }
 
-type AuthConfig {
-  actorTypes: [String!]!
-  allowImpersonation: Boolean!
-  allowedMethods: [String!]!
-  dominantActorType: String!
-  require2FA: Boolean!
-  sessionDuration: Int!
-}
-
 input BooleanFilterInput {
   eq: Boolean
 }
@@ -167,7 +158,6 @@ type Query {
   invitations(organizationId: ID): [Invitation!]!
   members(organizationId: ID, organizationSlug: String): [OrgMember!]!
   myApiKeys: [ApiKey!]!
-  myAuthConfig: AuthConfig!
   organization(organizationId: ID, organizationSlug: String): FullOrganization
   organizations: [Organization!]!
   user(userId: ID!): User!

@@ -11,7 +11,7 @@ export const banUser: NonNullable<MutationResolvers['banUser']> = async (_parent
 
   void publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
     userId: _arg.userId,
-    bannedBy: _ctx.auth.user.id,
+    bannedBy: _ctx.auth.user!.id,
     reason: _arg.reason ?? null,
     expiresIn: _arg.expiresIn ?? null,
   })

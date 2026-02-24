@@ -7,7 +7,7 @@ export const unbanUser: NonNullable<MutationResolvers['unbanUser']> = async (_pa
 
   void publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
     userId: _arg.userId,
-    unbannedBy: _ctx.auth.user.id,
+    unbannedBy: _ctx.auth.user!.id,
   })
 
   return true

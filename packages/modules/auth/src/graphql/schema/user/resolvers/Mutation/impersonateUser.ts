@@ -23,7 +23,7 @@ export const impersonateUser: NonNullable<MutationResolvers['impersonateUser']> 
   await _ctx.auth.userService.impersonate(_arg.userId, _ctx.request.headers)
 
   void publishAuthEvent(AUTH_EVENTS.IMPERSONATION_STARTED, {
-    adminUserId: _ctx.auth.user.id,
+    adminUserId: _ctx.auth.user!.id,
     targetUserId: _arg.userId,
   })
 

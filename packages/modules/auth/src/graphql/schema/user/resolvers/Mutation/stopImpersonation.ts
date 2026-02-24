@@ -6,8 +6,8 @@ export const stopImpersonation: NonNullable<MutationResolvers['stopImpersonation
   await _ctx.auth.userService.stopImpersonating(_ctx.request.headers)
 
   void publishAuthEvent(AUTH_EVENTS.IMPERSONATION_STOPPED, {
-    adminUserId: _ctx.auth.user.id,
-    targetUserId: _ctx.auth.session.userId,
+    adminUserId: _ctx.auth.user!.id,
+    targetUserId: _ctx.auth.session!.userId,
   })
 
   return true

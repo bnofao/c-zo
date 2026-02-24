@@ -35,16 +35,6 @@ export type ApiKey = {
   start?: Maybe<Scalars['String']['output']>;
 };
 
-export type AuthConfig = {
-  __typename?: 'AuthConfig';
-  actorTypes: Array<Scalars['String']['output']>;
-  allowImpersonation: Scalars['Boolean']['output'];
-  allowedMethods: Array<Scalars['String']['output']>;
-  dominantActorType: Scalars['String']['output'];
-  require2FA: Scalars['Boolean']['output'];
-  sessionDuration: Scalars['Int']['output'];
-};
-
 export type BooleanFilterInput = {
   eq?: InputMaybe<Scalars['Boolean']['input']>;
 };
@@ -320,7 +310,6 @@ export type Query = {
   invitations: Array<Invitation>;
   members: Array<OrgMember>;
   myApiKeys: Array<ApiKey>;
-  myAuthConfig: AuthConfig;
   organization?: Maybe<FullOrganization>;
   organizations: Array<Organization>;
   user: User;
@@ -550,10 +539,9 @@ export type ResolversTypes = ResolversObject<{
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
-  AuthConfig: ResolverTypeWrapper<AuthConfig>;
-  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   BooleanFilterInput: BooleanFilterInput;
   CreateApiKeyInput: CreateApiKeyInput;
+  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
@@ -589,10 +577,9 @@ export type ResolversParentTypes = ResolversObject<{
   Boolean: Scalars['Boolean']['output'];
   ID: Scalars['ID']['output'];
   String: Scalars['String']['output'];
-  AuthConfig: AuthConfig;
-  Int: Scalars['Int']['output'];
   BooleanFilterInput: BooleanFilterInput;
   CreateApiKeyInput: CreateApiKeyInput;
+  Int: Scalars['Int']['output'];
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
   DateTime: Scalars['DateTime']['output'];
@@ -629,15 +616,6 @@ export type ApiKeyResolvers<ContextType = GraphQLContext, ParentType extends Res
   name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   prefix?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   start?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-}>;
-
-export type AuthConfigResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AuthConfig'] = ResolversParentTypes['AuthConfig']> = ResolversObject<{
-  actorTypes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
-  allowImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  allowedMethods?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
-  dominantActorType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  require2FA?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  sessionDuration?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
 
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
@@ -744,7 +722,6 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   invitations?: Resolver<Array<ResolversTypes['Invitation']>, ParentType, ContextType, Partial<QueryinvitationsArgs>>;
   members?: Resolver<Array<ResolversTypes['OrgMember']>, ParentType, ContextType, Partial<QuerymembersArgs>>;
   myApiKeys?: Resolver<Array<ResolversTypes['ApiKey']>, ParentType, ContextType>;
-  myAuthConfig?: Resolver<ResolversTypes['AuthConfig'], ParentType, ContextType>;
   organization?: Resolver<Maybe<ResolversTypes['FullOrganization']>, ParentType, ContextType, Partial<QueryorganizationArgs>>;
   organizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   user?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<QueryuserArgs, 'userId'>>;
@@ -786,7 +763,6 @@ export type UserSessionResolvers<ContextType = GraphQLContext, ParentType extend
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   ApiKey?: ApiKeyResolvers<ContextType>;
-  AuthConfig?: AuthConfigResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   FullOrganization?: FullOrganizationResolvers<ContextType>;

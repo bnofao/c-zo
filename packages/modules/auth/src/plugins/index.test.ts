@@ -46,6 +46,7 @@ const mockActorService = vi.hoisted(() => ({
 }))
 
 const mockAccessService = vi.hoisted(() => ({
+  register: vi.fn(),
   buildRoles: vi.fn(() => ({ ac: {}, roles: {} })),
   freeze: vi.fn(),
 }))
@@ -228,6 +229,23 @@ describe('auth plugin', () => {
         require2FA: true,
         sessionDuration: 28800,
       }),
+    )
+  })
+
+  it('should register access statements and hierarchies during czo:register', async () => {
+    const { register } = await setupPlugin()
+
+    await register()
+
+    expect(mockAccessService.register).toHaveBeenCalledTimes(3)
+    expect(mockAccessService.register).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'organization' }),
+    )
+    expect(mockAccessService.register).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'admin' }),
+    )
+    expect(mockAccessService.register).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'api-key' }),
     )
   })
 

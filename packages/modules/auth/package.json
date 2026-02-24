@@ -37,7 +37,8 @@
     "graphql:generate": "graphql-codegen --config codegen.ts",
     "migrate:generate": "drizzle-kit generate",
     "migrate:latest": "drizzle-kit migrate",
-    "migrate:status": "drizzle-kit check"
+    "migrate:status": "drizzle-kit check",
+    "check-types": "pnpm tsc --noEmit"
   },
   "dependencies": {
     "@czo/kit": "workspace:*",

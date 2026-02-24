@@ -39,7 +39,6 @@ describe('auth typedefs', () => {
     expect(names).toContain('OrgMember')
     expect(names).toContain('Invitation')
     expect(names).toContain('ApiKey')
-    expect(names).toContain('AuthConfig')
     expect(names).toContain('User')
     expect(names).toContain('UserList')
     expect(names).toContain('UserSession')
@@ -58,7 +57,6 @@ describe('auth typedefs', () => {
     expect(queryFields).toContain('organizations')
     expect(queryFields).toContain('organization')
     expect(queryFields).toContain('myApiKeys')
-    expect(queryFields).toContain('myAuthConfig')
     expect(queryFields).toContain('users')
     expect(queryFields).toContain('user')
     expect(queryFields).toContain('userSessions')
@@ -123,17 +121,5 @@ describe('auth typedefs', () => {
     expect(fields).toContain('expiresAt')
     expect(fields).toContain('lastRequest')
     expect(fields).toContain('createdAt')
-  })
-
-  it('should define AuthConfig type with expected fields', () => {
-    const typeDefs = mockRegisterTypeDefs.mock.calls[0]![0] as DocumentNode
-    const fields = getFieldNames(typeDefs, 'AuthConfig')
-
-    expect(fields).toContain('require2FA')
-    expect(fields).toContain('sessionDuration')
-    expect(fields).toContain('allowImpersonation')
-    expect(fields).toContain('dominantActorType')
-    expect(fields).toContain('allowedMethods')
-    expect(fields).toContain('actorTypes')
   })
 })

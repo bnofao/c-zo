@@ -5,6 +5,14 @@ import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 import { useStorage } from 'nitro/storage'
+import {
+  ADMIN_HIERARCHY,
+  ADMIN_STATEMENTS,
+  API_KEY_HIERARCHY,
+  API_KEY_STATEMENTS,
+  ORGANIZATION_HIERARCHY,
+  ORGANIZATION_STATEMENTS,
+} from '../config'
 import { useAccessService } from '../config/access'
 import { useAuthActorService } from '../config/actor'
 import { createAuth } from '../config/auth'
@@ -56,10 +64,22 @@ export default definePlugin(async (nitroApp) => {
       actorService.registerActor(actorType, config)
     }
 
-    // const accessRegistry = useAccessService()
-    const _accessService = await container.make('auth:access')
-    // todo: register statements and roles hierarchies
-    // registerAuthStatements(accessRegistry)
+    const accessService = await container.make('auth:access')
+    accessService.register({
+      name: 'organization',
+      statements: ORGANIZATION_STATEMENTS,
+      hierarchy: ORGANIZATION_HIERARCHY,
+    })
+    accessService.register({
+      name: 'admin',
+      statements: ADMIN_STATEMENTS,
+      hierarchy: ADMIN_HIERARCHY,
+    })
+    accessService.register({
+      name: 'api-key',
+      statements: API_KEY_STATEMENTS,
+      hierarchy: API_KEY_HIERARCHY,
+    })
   })
 
   nitroApp.hooks.hook('czo:boot', async () => {

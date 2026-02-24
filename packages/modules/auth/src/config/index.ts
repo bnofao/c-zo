@@ -1,3 +1,5 @@
+import type { HierarchyLevel } from './access'
+
 export const ORGANIZATION_STATEMENTS = {
   organization: ['read', 'update', 'delete'],
   member: ['read', 'create', 'update', 'delete'],
@@ -5,16 +7,15 @@ export const ORGANIZATION_STATEMENTS = {
 } as const
 
 export const ADMIN_STATEMENTS = {
-  'user': ['create', 'read', 'update', 'delete', 'ban', 'impersonate', 'set-role'],
-  'session': ['read', 'revoke'],
-  'api-key': ['create', 'read', 'update', 'delete'],
+  user: ['create', 'read', 'update', 'delete', 'ban', 'impersonate', 'set-role'],
+  session: ['read', 'revoke'],
 } as const
 
 export const API_KEY_STATEMENTS = {
   'api-key': ['create', 'read', 'update', 'delete'],
 } as const
 
-export const ORGANIZATION_HIERARCHY = [
+export const ORGANIZATION_HIERARCHY: HierarchyLevel<typeof ORGANIZATION_STATEMENTS>[] = [
   {
     name: 'org:member',
     permissions: {},
@@ -43,27 +44,45 @@ export const ORGANIZATION_HIERARCHY = [
   },
 ]
 
-export const ADMIN_HIERARCHY = [
+export const ADMIN_HIERARCHY: HierarchyLevel<typeof ADMIN_STATEMENTS>[] = [
   {
     name: 'admin:viewer',
     permissions: {
-      'user': ['read'],
-      'session': ['read'],
-      'api-key': ['read'],
+      user: ['read'],
+      session: ['read'],
     },
   },
   {
     name: 'admin:manager',
     permissions: {
-      'user': ['create', 'update'],
-      'session': ['revoke'],
-      'api-key': ['create', 'update'],
+      user: ['create', 'update'],
+      session: ['revoke'],
     },
   },
   {
     name: 'admin',
     permissions: {
-      'user': ['delete', 'ban', 'impersonate'],
+      user: ['delete', 'ban', 'impersonate'],
+    },
+  },
+]
+
+export const API_KEY_HIERARCHY: HierarchyLevel<typeof API_KEY_STATEMENTS>[] = [
+  {
+    name: 'api-key:viewer',
+    permissions: {
+      'api-key': ['read'],
+    },
+  },
+  {
+    name: 'api-key:manager',
+    permissions: {
+      'api-key': ['create', 'update'],
+    },
+  },
+  {
+    name: 'api-key:admin',
+    permissions: {
       'api-key': ['delete'],
     },
   },
