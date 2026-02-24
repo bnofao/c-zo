@@ -208,10 +208,10 @@ describe('auth plugin', () => {
 
   // ─── Hook registration ─────────────────────────────────────────────
 
-  it('should register request, czo:register and czo:boot hooks', async () => {
+  it('should register czo:init, czo:register and czo:boot hooks', async () => {
     const { hookCallbacks } = await setupPlugin()
 
-    expect(hookCallbacks.has('request')).toBe(true)
+    expect(hookCallbacks.has('czo:init')).toBe(true)
     expect(hookCallbacks.has('czo:register')).toBe(true)
     expect(hookCallbacks.has('czo:boot')).toBe(true)
   })
@@ -306,27 +306,6 @@ describe('auth plugin', () => {
     expect(mockLogger.success).toHaveBeenCalledWith(
       expect.stringContaining('Booted'),
     )
-  })
-
-  // ─── request hook ─────────────────────────────────────────────────
-
-  it('should inject generateOpenAPISchema into request context', async () => {
-    const { boot, request } = await setupPlugin()
-
-    await boot()
-
-    const event = { context: {} as Record<string, unknown> }
-    await request(event)
-
-    expect(event.context.generateOpenAPISchema).toBeTypeOf('function')
-  })
-
-  it('should throw if auth is not initialized when request hook fires', async () => {
-    const { request } = await setupPlugin()
-
-    // Don't call boot — auth is not bound
-    const event = { context: {} as Record<string, unknown> }
-    await expect(request(event)).rejects.toThrow('Auth not initialized')
   })
 
   // ─── czo:boot — access service integration ────────────────────────
