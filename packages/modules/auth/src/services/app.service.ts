@@ -4,6 +4,7 @@ import type { ApiKeyService } from './apiKey.service'
 import type { AuthService } from './auth.service'
 import { Repository } from '@czo/kit/db'
 import { eq } from 'drizzle-orm'
+import { Kind, parse } from 'graphql'
 import { z } from 'zod'
 import * as schema from '../database/schema'
 import { publishAuthEvent } from '../events/auth-events'
@@ -21,6 +22,7 @@ const webhookSchema = z.object({
   event: z.string(),
   targetUrl: z.string(),
   asyncEvents: z.boolean().optional(),
+  query: z.string().optional(),
 })
 
 const authorSchema = z.object({
@@ -57,6 +59,27 @@ function buildManifestSchema(subscribableEvents: ReadonlySet<string>) {
           message: `Event "${webhook.event}" is not allowed. Declare the corresponding resource in permissions (e.g. "${webhook.event.split('.')[0]}") or use a base subscribable event.`,
           path: ['webhooks'],
         })
+      }
+
+      if (webhook.query) {
+        try {
+          const doc = parse(webhook.query)
+          const firstDef = doc.definitions[0]
+          if (!firstDef || firstDef.kind !== Kind.OPERATION_DEFINITION || firstDef.operation !== 'subscription') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Webhook query for event "${webhook.event}" must be a subscription operation.`,
+              path: ['webhooks'],
+            })
+          }
+        }
+        catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Webhook query for event "${webhook.event}" contains invalid GraphQL syntax.`,
+            path: ['webhooks'],
+          })
+        }
       }
     }
   })

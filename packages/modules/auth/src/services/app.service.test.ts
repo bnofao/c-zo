@@ -331,6 +331,43 @@ describe('appService', () => {
       expect(authService.hasPermission).not.toHaveBeenCalled()
     })
 
+    it('should accept a webhook with a valid subscription query', async () => {
+      queryFirstResult = null
+      insertResult = [{ ...APP_ROW, id: MOCK_UUID }]
+      apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_x' })
+
+      const manifest = {
+        ...VALID_MANIFEST,
+        webhooks: [{ event: 'products.created', targetUrl: 'https://example.com/hook', query: 'subscription { event { id } }' }],
+      }
+
+      await expect(
+        service.install({ manifest, installedBy: 'user-1', organizationId: 'org-1' }),
+      ).resolves.not.toThrow()
+    })
+
+    it('should reject a webhook with invalid GraphQL syntax in query', async () => {
+      const manifest = {
+        ...VALID_MANIFEST,
+        webhooks: [{ event: 'products.created', targetUrl: 'https://example.com/hook', query: 'subscription { event {' }],
+      }
+
+      await expect(
+        service.install({ manifest, installedBy: 'user-1', organizationId: 'org-1' }),
+      ).rejects.toThrow('invalid GraphQL syntax')
+    })
+
+    it('should reject a webhook query that is not a subscription operation', async () => {
+      const manifest = {
+        ...VALID_MANIFEST,
+        webhooks: [{ event: 'products.created', targetUrl: 'https://example.com/hook', query: 'query { users { id } }' }],
+      }
+
+      await expect(
+        service.install({ manifest, installedBy: 'user-1', organizationId: 'org-1' }),
+      ).rejects.toThrow('must be a subscription')
+    })
+
     it('should publish auth.app.installed event after installation', async () => {
       queryFirstResult = null
       insertResult = [{ ...APP_ROW, id: MOCK_UUID }]
