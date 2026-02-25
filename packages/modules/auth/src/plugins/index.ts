@@ -16,7 +16,9 @@ import {
 import { useAccessService } from '../config/access'
 import { useAuthActorService } from '../config/actor'
 import { createAuth } from '../config/auth'
+import { registerAppConsumer } from '../consumers/app-register.consumer'
 import { createApiKeyService } from '../services/apiKey.service'
+import { createAppService } from '../services/app.service'
 import { createAuthService } from '../services/auth.service'
 import { createOrganizationService } from '../services/organization.service'
 import { createUserService } from '../services/user.service'
@@ -113,7 +115,16 @@ export default definePlugin(async (nitroApp) => {
 
     const apiKeyService = createApiKeyService(auth)
     container.singleton('auth:apikeys', () => apiKeyService)
-    logger.info('Services bound: users, auth, organizations, apiKeys')
+
+    const subscribableEvents = authConfig.app?.subscribableEvents?.length
+      ? new Set(authConfig.app.subscribableEvents)
+      : new Set([])
+
+    const appService = createAppService(db as any, apiKeyService, authService, subscribableEvents)
+    container.singleton('auth:apps', () => appService)
+    logger.info('Services bound: users, auth, organizations, apiKeys, apps')
+
+    await registerAppConsumer()
 
     const actorService = await container.make('auth:actor')
     actorService.freeze()

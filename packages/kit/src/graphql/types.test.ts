@@ -13,6 +13,7 @@ describe('graphql/types', () => {
     expect(defs.length).toBeGreaterThanOrEqual(3)
     expect(defs[0]).toContain('type Query')
     expect(defs[0]).toContain('type Mutation')
+    expect(defs[0]).toContain('type Subscription')
   })
 
   it('should append type defs via registerTypeDefs()', async () => {

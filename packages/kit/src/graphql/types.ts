@@ -9,6 +9,9 @@ const typeDefs: Array<DocumentNode | string> = [
     type Mutation {
       _empty: String
     }
+    type Subscription {
+      _empty: String
+    }
   `,
   ...scalarTypeDefs,
 ]
