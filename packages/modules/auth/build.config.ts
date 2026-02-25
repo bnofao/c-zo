@@ -46,6 +46,11 @@ export default defineBuildConfig({
       ...dirImport,
     },
     {
+      input: 'src/consumers/',
+      outDir: 'dist/consumers',
+      ...dirImport,
+    },
+    {
       input: 'src/services/',
       outDir: 'dist/services',
       ...dirImport,

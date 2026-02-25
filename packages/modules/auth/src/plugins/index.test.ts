@@ -74,6 +74,18 @@ const mockApiKeyService = vi.hoisted(() => ({
 }))
 const mockCreateApiKeyService = vi.hoisted(() => vi.fn(() => mockApiKeyService))
 
+const mockAppService = vi.hoisted(() => ({
+  install: vi.fn(),
+  installFromUrl: vi.fn(),
+  uninstall: vi.fn(),
+  getApp: vi.fn(),
+  listApps: vi.fn(),
+  updateManifest: vi.fn(),
+  setStatus: vi.fn(),
+}))
+const mockCreateAppService = vi.hoisted(() => vi.fn(() => mockAppService))
+const mockRegisterAppConsumer = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
 vi.mock('../config/auth', () => ({
   createAuth: mockCreateAuth,
 }))
@@ -88,6 +100,14 @@ vi.mock('../services/auth.service', () => ({
 
 vi.mock('../services/apiKey.service', () => ({
   createApiKeyService: mockCreateApiKeyService,
+}))
+
+vi.mock('../services/app.service', () => ({
+  createAppService: mockCreateAppService,
+}))
+
+vi.mock('../consumers/app-register.consumer', () => ({
+  registerAppConsumer: mockRegisterAppConsumer,
 }))
 
 vi.mock('nitro', () => ({
@@ -287,6 +307,15 @@ describe('auth plugin', () => {
 
     expect(mockCreateApiKeyService).toHaveBeenCalledWith(mockAuth)
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apikeys', expect.any(Function))
+  })
+
+  it('should bind appService to container during czo:boot', async () => {
+    const { boot } = await setupPlugin()
+
+    await boot()
+
+    expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, mockApiKeyService, mockAuthService, expect.any(Set))
+    expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apps', expect.any(Function))
   })
 
   it('should freeze actor and access registries during czo:boot', async () => {

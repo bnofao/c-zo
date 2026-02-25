@@ -4,6 +4,7 @@ import type { AccessService } from './config/access'
 import type { AuthActorService } from './config/actor'
 import type { Auth } from './config/auth'
 import type { ApiKeyService } from './services/apiKey.service'
+import type { AppService } from './services/app.service'
 import type { AuthService } from './services/auth.service'
 import type { OrganizationService } from './services/organization.service'
 import type { UserService } from './services/user.service'
@@ -58,6 +59,7 @@ declare module '@czo/kit/ioc' {
     'auth:service': AuthService
     'auth:organizations': OrganizationService
     'auth:apikeys': ApiKeyService
+    'auth:apps': AppService
   }
 }
 
@@ -66,6 +68,10 @@ declare module 'nitro/types' {
     auth: {
       secret: string
       socials?: SocialProviders
+      app?: {
+        /** Additional event types apps can subscribe to via webhooks, merged with BASE_SUBSCRIBABLE_EVENTS. */
+        subscribableEvents?: string[]
+      }
     }
   }
 }

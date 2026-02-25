@@ -154,6 +154,34 @@ export interface AuthAccountDeletedPayload {
   email: string
 }
 
+// ─── App system payloads ───────────────────────────────────────────────
+
+export interface AuthAppInstalledPayload {
+  /** Manifest ID (e.g. 'stripe-payments') — used to update status */
+  appId: string
+  /** URL of the app's registration endpoint */
+  registerUrl: string
+  /** Raw API key value to transmit to the app */
+  apiKey: string
+  /** User who triggered the installation */
+  installedBy: string
+}
+
+export interface AuthAppUninstalledPayload {
+  appId: string
+}
+
+export interface AuthAppManifestUpdatedPayload {
+  appId: string
+  /** New manifest version string */
+  version: string
+}
+
+export interface AuthAppStatusChangedPayload {
+  appId: string
+  status: string
+}
+
 // ─── Routing key constants ─────────────────────────────────────────────
 
 export const AUTH_EVENTS = {
@@ -181,6 +209,10 @@ export const AUTH_EVENTS = {
   NEW_DEVICE_LOGIN: 'auth.security.new-device-login',
   LOGIN_FAILED_ALERT: 'auth.security.login-failed-alert',
   ACCOUNT_DELETED: 'auth.security.account-deleted',
+  APP_INSTALLED: 'auth.app.installed',
+  APP_UNINSTALLED: 'auth.app.uninstalled',
+  APP_MANIFEST_UPDATED: 'auth.app.manifest-updated',
+  APP_STATUS_CHANGED: 'auth.app.status-changed',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -213,5 +245,9 @@ declare module '@czo/kit/event-bus' {
     'auth.security.new-device-login': AuthNewDeviceLoginPayload
     'auth.security.login-failed-alert': AuthLoginFailedAlertPayload
     'auth.security.account-deleted': AuthAccountDeletedPayload
+    'auth.app.installed': AuthAppInstalledPayload
+    'auth.app.uninstalled': AuthAppUninstalledPayload
+    'auth.app.manifest-updated': AuthAppManifestUpdatedPayload
+    'auth.app.status-changed': AuthAppStatusChangedPayload
   }
 }
