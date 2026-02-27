@@ -85,29 +85,31 @@ const mockAppService = vi.hoisted(() => ({
 }))
 const mockCreateAppService = vi.hoisted(() => vi.fn(() => mockAppService))
 const mockRegisterAppConsumer = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockRegisterWebhookDispatcher = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
-vi.mock('../config/auth', () => ({
+vi.mock('@czo/auth/config', () => ({
   createAuth: mockCreateAuth,
+  useAccessService: vi.fn(() => mockAccessService),
+  useAuthActorService: vi.fn(() => mockActorService),
+  ORGANIZATION_STATEMENTS: [],
+  ORGANIZATION_HIERARCHY: {},
+  ADMIN_STATEMENTS: [],
+  ADMIN_HIERARCHY: {},
+  API_KEY_STATEMENTS: [],
+  API_KEY_HIERARCHY: {},
 }))
 
-vi.mock('../services/user.service', () => ({
+vi.mock('@czo/auth/services', () => ({
   createUserService: mockCreateUserService,
-}))
-
-vi.mock('../services/auth.service', () => ({
   createAuthService: mockCreateAuthService,
-}))
-
-vi.mock('../services/apiKey.service', () => ({
   createApiKeyService: mockCreateApiKeyService,
-}))
-
-vi.mock('../services/app.service', () => ({
   createAppService: mockCreateAppService,
+  createOrganizationService: vi.fn(() => ({})),
 }))
 
-vi.mock('../consumers/app-register.consumer', () => ({
+vi.mock('@czo/auth/listeners', () => ({
   registerAppConsumer: mockRegisterAppConsumer,
+  registerWebhookDispatcher: mockRegisterWebhookDispatcher,
 }))
 
 vi.mock('nitro', () => ({
@@ -118,11 +120,8 @@ vi.mock('nitro/storage', () => ({
   useStorage: () => mockStorageInstance,
 }))
 
-// Mock GraphQL module imports (called inside czo:boot)
-vi.mock('../graphql/context-factory', () => ({}))
-vi.mock('../graphql/typedefs', () => ({}))
-vi.mock('../graphql/resolvers', () => ({}))
-vi.mock('../graphql/directives', () => ({}))
+// Mock GraphQL module import (called inside czo:boot)
+vi.mock('@czo/auth/graphql', () => ({}))
 
 describe('auth plugin', () => {
   beforeEach(() => {
@@ -139,7 +138,8 @@ describe('auth plugin', () => {
     }))
 
     vi.doMock('@czo/kit/db', () => ({
-      useDatabase: () => mockDb,
+      useDatabase: () => Promise.resolve(mockDb),
+      Repository: class MockRepository {},
     }))
 
     vi.doMock('@czo/kit/ioc', () => ({
@@ -316,6 +316,14 @@ describe('auth plugin', () => {
 
     expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, mockApiKeyService, mockAuthService, expect.any(Set))
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apps', expect.any(Function))
+  })
+
+  it('should register the webhook dispatcher during czo:boot', async () => {
+    const { boot } = await setupPlugin()
+
+    await boot()
+
+    expect(mockRegisterWebhookDispatcher).toHaveBeenCalled()
   })
 
   it('should freeze actor and access registries during czo:boot', async () => {

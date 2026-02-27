@@ -2,13 +2,12 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { ApiKeyService } from './apiKey.service'
 import type { AuthService } from './auth.service'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
+import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
 import { eq } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
-import * as schema from '../database/schema'
-import { publishAuthEvent } from '../events/auth-events'
-import { AUTH_EVENTS } from '../events/types'
 
 const { apps, apikeys } = schema
 
@@ -151,6 +150,7 @@ export function createAppService(
     }
 
     const id = crypto.randomUUID()
+    const webhookSecret = crypto.randomUUID()
     const now = new Date()
 
     const row = await repo.create({
@@ -158,6 +158,7 @@ export function createAppService(
       appId: manifest.id,
       manifest,
       status: 'pending',
+      webhookSecret,
       installedBy: input.installedBy,
       createdAt: now,
       updatedAt: now,
@@ -184,6 +185,7 @@ export function createAppService(
       registerUrl: manifest.register,
       apiKey: apiKey.key,
       installedBy: input.installedBy,
+      webhookSecret,
     })
 
     return { ...row, apiKey: { id: apiKey.id } }
@@ -258,6 +260,14 @@ export function createAppService(
     return result[0]!
   }
 
+  async function getActiveAppsByEvent(event: string): Promise<AppRow[]> {
+    const activeApps = await listApps()
+    return activeApps.filter((app) => {
+      const manifest = app.manifest as AppManifest
+      return manifest.webhooks.some(w => w.event === event)
+    })
+  }
+
   return {
     install,
     installFromUrl,
@@ -266,5 +276,6 @@ export function createAppService(
     listApps,
     updateManifest,
     setStatus,
+    getActiveAppsByEvent,
   }
 }

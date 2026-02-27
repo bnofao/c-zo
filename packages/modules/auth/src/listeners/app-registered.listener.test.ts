@@ -44,7 +44,7 @@ const mockBus = vi.hoisted(() => ({
 }))
 
 vi.mock('@czo/kit/event-bus', () => ({
-  useEventBus: vi.fn(() => Promise.resolve(mockBus)),
+  useHookable: vi.fn(() => Promise.resolve(mockBus)),
 }))
 
 // ─── Mock @czo/kit/ioc ───────────────────────────────────────────────
@@ -97,14 +97,14 @@ describe('registerAppConsumer', () => {
     workerProcessor = undefined
     workerFailedHandler = undefined
 
-    const { registerAppConsumer } = await import('./app-register.consumer')
+    const { registerAppConsumer } = await import('./app-registered.listener')
     await registerAppConsumer()
   })
 
   // ─── Setup ──────────────────────────────────────────────────────
 
-  it('should register a BullMQ worker for auth:app-register', () => {
-    expect(mockUseWorker).toHaveBeenCalledWith('auth:app-register', expect.any(Function))
+  it('should register a BullMQ worker for auth.app-register', () => {
+    expect(mockUseWorker).toHaveBeenCalledWith('auth.app-register', expect.any(Function))
   })
 
   it('should subscribe to auth.app.installed on the event bus', () => {

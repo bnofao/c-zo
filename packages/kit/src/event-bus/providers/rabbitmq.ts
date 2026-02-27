@@ -1,8 +1,8 @@
 import type { DomainEvent, DomainEventHandler, EventBus, RabbitMQConfig, Unsubscribe } from '../types'
 import { Buffer } from 'node:buffer'
+import { useLogger } from '@czo/kit'
+import { getContext, runWithContext } from '@czo/kit/telemetry'
 import amqplib from 'amqplib'
-import { useLogger } from '../../logger'
-import { getContext, runWithContext } from '../../telemetry/context'
 
 type BusState = 'connected' | 'reconnecting' | 'closed'
 

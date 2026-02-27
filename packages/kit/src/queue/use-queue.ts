@@ -1,33 +1,15 @@
 import type { QueueOptions } from 'bullmq'
 import { Queue } from 'bullmq'
-import Redis from 'ioredis'
-import { useCzoConfig } from '../config'
+import { getQueueConnection } from './connection'
 
 type CachedQueue = Queue<any, any, string>
 
 const queues = new Map<string, CachedQueue>()
-let connection: Redis | undefined
 
-function getConnection(): Redis {
-  if (!connection) {
-    const { redisUrl } = useCzoConfig()
-    if (!redisUrl) {
-      throw new Error(
-        'Redis URL is required for queue support. '
-        + 'Set NITRO_CZO_REDIS_URL or configure runtimeConfig.czo.redisUrl',
-      )
-    }
-    // maxRetriesPerRequest: null prevents ioredis from throwing
-    // MaxRetriesPerRequestError during BullMQ blocking commands (BRPOPLPUSH)
-    connection = new Redis(redisUrl, { maxRetriesPerRequest: null })
-  }
-  return connection
-}
-
-export function useQueue<D = unknown, R = unknown, N extends string = string>(
+export async function useQueue<D = unknown, R = unknown, N extends string = string>(
   name: N,
   opts?: Omit<QueueOptions, 'connection'>,
-): Queue<D, R, N> {
+): Promise<Queue<D, R, N>> {
   const existing = queues.get(name)
   if (existing) {
     return existing as Queue<D, R, N>
@@ -35,28 +17,23 @@ export function useQueue<D = unknown, R = unknown, N extends string = string>(
 
   const queue = new Queue<D, R, N>(name, {
     ...opts,
-    connection: getConnection(),
+    connection: await getQueueConnection(),
   })
   queues.set(name, queue)
   return queue
 }
 
 /**
- * Reset all cached queues and connection.
- * Intended for testing with mocked BullMQ/ioredis — does not close real connections.
+ * Reset all cached queues.
+ * Intended for testing with mocked BullMQ — does not close real connections.
  * For production graceful shutdown, use closeQueues() instead.
  */
 export function resetQueues(): void {
   queues.clear()
-  connection = undefined
 }
 
-/** Gracefully close all cached queues and the shared Redis connection */
+/** Gracefully close all cached queues */
 export async function closeQueues(): Promise<void> {
   await Promise.all([...queues.values()].map(q => q.close()))
   queues.clear()
-  if (connection) {
-    connection.disconnect()
-    connection = undefined
-  }
 }

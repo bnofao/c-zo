@@ -6,26 +6,19 @@
  * if the SDK packages are not installed or if telemetry is disabled.
  */
 import type { Telemetry, TelemetryConfig } from './types'
+import { useContainer } from '@czo/kit/ioc'
 import { NoopTelemetry } from './noop'
 
 let _instance: Telemetry | undefined
 let _initPromise: Promise<Telemetry> | undefined
 
-const defaultConfig: TelemetryConfig = {
-  enabled: true,
-  serviceName: 'czo',
-  serviceVersion: '0.0.0',
-  endpoint: 'http://localhost:4318',
-  protocol: 'http',
-  samplingRatio: 1.0,
-  logBridge: false,
-}
-
 /**
  * Initialize and return the telemetry singleton (async).
  * On first call, tries to load the OTel SDK. Subsequent calls return the cached instance.
+ *
+ * When no config is provided, resolves it from the IoC container (`config.telemetry`).
  */
-export async function useTelemetry(config?: Partial<TelemetryConfig>): Promise<Telemetry> {
+export async function useTelemetry(config?: TelemetryConfig): Promise<Telemetry> {
   if (_instance) {
     return _instance
   }
@@ -67,16 +60,26 @@ export function resetTelemetry(): void {
 
 /* ─── Internal init ─────────────────────────── */
 
-async function initTelemetry(partial?: Partial<TelemetryConfig>): Promise<Telemetry> {
-  const config: TelemetryConfig = { ...defaultConfig, ...partial }
+async function resolveConfig(): Promise<TelemetryConfig | undefined> {
+  try {
+    const runtimeConfig = await useContainer().make('config')
+    return runtimeConfig.telemetry as TelemetryConfig | undefined
+  }
+  catch {
+    return undefined
+  }
+}
 
-  if (!config.enabled) {
+async function initTelemetry(config?: TelemetryConfig): Promise<Telemetry> {
+  const resolved = config ?? await resolveConfig()
+
+  if (!resolved?.enabled) {
     return new NoopTelemetry()
   }
 
   try {
     const { createSdkTelemetry } = await import('./sdk')
-    const sdk = await createSdkTelemetry(config)
+    const sdk = await createSdkTelemetry(resolved)
     if (sdk) {
       return sdk
     }

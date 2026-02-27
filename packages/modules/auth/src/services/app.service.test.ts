@@ -10,8 +10,14 @@ const TEST_SUBSCRIBABLE_EVENTS: ReadonlySet<string> = new Set([
 ])
 
 const mockPublishAuthEvent = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-vi.mock('../events/auth-events', () => ({
+vi.mock('@czo/auth/events', () => ({
   publishAuthEvent: mockPublishAuthEvent,
+  AUTH_EVENTS: {
+    APP_INSTALLED: 'auth.app.installed',
+    APP_UNINSTALLED: 'auth.app.uninstalled',
+    APP_MANIFEST_UPDATED: 'auth.app.manifest-updated',
+    APP_STATUS_CHANGED: 'auth.app.status-changed',
+  },
 }))
 
 // ─── Mock Drizzle DB (Repository-compatible) ─────────────────────────
@@ -44,15 +50,17 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...queryManyResult]),
   }
 
+  const schema = {
+    appsRelations: {
+      config: vi.fn().mockReturnValue({}),
+    },
+  }
+
   return {
     query: {
       apps: mockQueryBuilder,
     },
-    schema: {
-      appsRelations: {
-        config: vi.fn().mockReturnValue({}),
-      },
-    },
+    _: { schema },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => insertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => updateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),
@@ -385,6 +393,32 @@ describe('appService', () => {
         }),
       )
     })
+
+    it('should generate a webhookSecret and include it in the insert', async () => {
+      queryFirstResult = null
+      insertResult = [{ ...APP_ROW, id: MOCK_UUID, webhookSecret: MOCK_UUID }]
+      apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_x' })
+
+      await service.install({ manifest: VALID_MANIFEST, installedBy: 'user-1', organizationId: 'org-1' })
+
+      const insertChain = db.insert.mock.results[0]!.value
+      expect(insertChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ webhookSecret: MOCK_UUID }),
+      )
+    })
+
+    it('should include webhookSecret in the APP_INSTALLED event payload', async () => {
+      queryFirstResult = null
+      insertResult = [{ ...APP_ROW, id: MOCK_UUID, webhookSecret: MOCK_UUID }]
+      apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_abc123' })
+
+      await service.install({ manifest: VALID_MANIFEST, installedBy: 'user-1', organizationId: 'org-1' })
+
+      expect(mockPublishAuthEvent).toHaveBeenCalledWith(
+        'auth.app.installed',
+        expect.objectContaining({ webhookSecret: MOCK_UUID }),
+      )
+    })
   })
 
   // ─── installFromUrl ──────────────────────────────────────────────
@@ -628,6 +662,53 @@ describe('appService', () => {
         appId: 'my-app',
         status: 'disabled',
       })
+    })
+  })
+
+  // ─── getActiveAppsByEvent ─────────────────────────────────────────
+
+  describe('getActiveAppsByEvent', () => {
+    it('should return apps whose manifest webhooks contain the matching event', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.getActiveAppsByEvent('products.created')
+
+      expect(result).toHaveLength(1)
+      expect(result[0]!.appId).toBe('my-app')
+    })
+
+    it('should return empty array when no apps match the event', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.getActiveAppsByEvent('orders.created')
+
+      expect(result).toEqual([])
+    })
+
+    it('should return empty array when there are no active apps', async () => {
+      queryManyResult = []
+
+      const result = await service.getActiveAppsByEvent('products.created')
+
+      expect(result).toEqual([])
+    })
+
+    it('should return multiple apps when they all subscribe to the same event', async () => {
+      const app2 = {
+        ...APP_ROW,
+        id: 'uuid-2',
+        appId: 'app-two',
+        manifest: {
+          ...VALID_MANIFEST,
+          id: 'app-two',
+          webhooks: [{ event: 'products.created', targetUrl: 'https://other.com/hook' }],
+        },
+      }
+      queryManyResult = [APP_ROW, app2]
+
+      const result = await service.getActiveAppsByEvent('products.created')
+
+      expect(result).toHaveLength(2)
     })
   })
 })

@@ -1,8 +1,7 @@
-import type { HttpMetrics } from '../metrics'
+import type { HttpMetrics } from './http-instrumentation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getContext } from '../context'
-import { NoopTelemetry } from '../noop'
-import { createHttpInstrumentation } from './http'
+import { getContext, NoopTelemetry } from '@czo/kit/telemetry'
+import { createHttpInstrumentation } from './http-instrumentation'
 
 function createMockMetrics(): HttpMetrics {
   return {

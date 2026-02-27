@@ -17,6 +17,30 @@
     "./types": {
       "types": "./src/types.ts",
       "default": "./dist/types.mjs"
+    },
+    "./config": {
+      "types": "./src/config/index.ts",
+      "default": "./dist/config/index.mjs"
+    },
+    "./schema": {
+      "types": "./src/database/schema.ts",
+      "default": "./dist/database/schema.mjs"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "default": "./dist/services/index.mjs"
+    },
+    "./graphql": {
+      "types": "./src/graphql/index.ts",
+      "default": "./dist/graphql/index.mjs"
+    },
+    "./events": {
+      "types": "./src/events/index.ts",
+      "default": "./dist/events/index.mjs"
+    },
+    "./listeners": {
+      "types": "./src/listeners/index.ts",
+      "default": "./dist/listeners/index.mjs"
     }
   },
   "main": "./dist/module.mjs",

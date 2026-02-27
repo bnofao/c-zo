@@ -1,7 +1,7 @@
 import type { ZodSafeParseResult } from 'zod'
 import type { DomainEvent, EventMap, EventMetadata } from './types'
+import { getCorrelationId } from '@czo/kit/telemetry'
 import { z } from 'zod'
-import { getCorrelationId } from '../telemetry/context'
 
 export interface CreateDomainEventOptions<T = unknown> {
   type: string

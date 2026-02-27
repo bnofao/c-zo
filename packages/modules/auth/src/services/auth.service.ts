@@ -1,5 +1,5 @@
+import type { Auth } from '@czo/auth/config'
 import type { AdminOptions, OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
-import type { Auth } from '../config/auth'
 import { APIError } from 'better-auth'
 
 // ─── Types ───────────────────────────────────────────────────────────

@@ -15,6 +15,12 @@ export default defineBuildConfig({
   entries: [
     'src/module',
     'src/types',
+    'src/config/index',
+    'src/database/schema',
+    'src/events/index',
+    'src/listeners/index',
+    'src/services/index',
+    'src/graphql/index',
     {
       input: 'src/plugins/',
       outDir: 'dist/plugins',
@@ -30,36 +36,36 @@ export default defineBuildConfig({
       outDir: 'dist/middleware',
       ...dirImport,
     },
-    {
-      input: 'src/config/',
-      outDir: 'dist/config',
-      ...dirImport,
-    },
-    {
-      input: 'src/database/',
-      outDir: 'dist/database',
-      ...dirImport,
-    },
-    {
-      input: 'src/events/',
-      outDir: 'dist/events',
-      ...dirImport,
-    },
-    {
-      input: 'src/consumers/',
-      outDir: 'dist/consumers',
-      ...dirImport,
-    },
-    {
-      input: 'src/services/',
-      outDir: 'dist/services',
-      ...dirImport,
-    },
-    {
-      input: 'src/graphql/',
-      outDir: 'dist/graphql',
-      ...dirImport,
-    },
+    // {
+    //   input: 'src/config/',
+    //   outDir: 'dist/config',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/database/',
+    //   outDir: 'dist/database',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/events/',
+    //   outDir: 'dist/events',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/consumers/',
+    //   outDir: 'dist/consumers',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/services/',
+    //   outDir: 'dist/services',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/graphql/',
+    //   outDir: 'dist/graphql',
+    //   ...dirImport,
+    // },
   ],
   externals: [
     'nitropack',
@@ -71,9 +77,8 @@ export default defineBuildConfig({
     'better-auth/plugins',
     'better-auth/adapters/drizzle',
     '@czo/kit',
-    '@czo/kit/author',
+    '@czo/kit/nitro',
     '@czo/kit/db',
-    '@czo/kit/config',
     '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',

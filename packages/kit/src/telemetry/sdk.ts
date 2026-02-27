@@ -240,6 +240,16 @@ export async function createSdkTelemetry(config: TelemetryConfig): Promise<Telem
 
     api.metrics.setGlobalMeterProvider(meterProvider)
 
+    // Log bridge: forward consola logs to OTel LoggerProvider
+    if (config.logBridge) {
+      const { createLogBridgeReporter } = await import('./log-bridge')
+      const reporter = await createLogBridgeReporter()
+      if (reporter) {
+        const { consola } = await import('consola')
+        consola.addReporter(reporter)
+      }
+    }
+
     return new SdkTelemetry(api, {
       tracerProvider,
       meterProvider,

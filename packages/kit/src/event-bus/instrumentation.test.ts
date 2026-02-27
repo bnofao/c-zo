@@ -1,8 +1,8 @@
-import type { DomainEvent, EventBus } from '../../event-bus/types'
-import type { EventBusMetrics } from '../metrics'
+import type { EventBusMetrics } from './instrumentation'
+import type { DomainEvent, EventBus } from './types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NoopTelemetry } from '../noop'
-import { instrumentEventBus } from './event-bus'
+import { NoopTelemetry } from '../telemetry/noop'
+import { instrumentEventBus } from './instrumentation'
 
 function createMockBus(): EventBus {
   return {
@@ -53,6 +53,15 @@ describe('instrumentEventBus', () => {
     it('delegates to the underlying bus', async () => {
       await instrumented.publish(testEvent)
       expect(bus.publish).toHaveBeenCalledWith(testEvent)
+    })
+
+    it('passes through the return value from the underlying bus', async () => {
+      const hookResult = [{ appId: 'a', ok: true }]
+      ;(bus.publish as ReturnType<typeof vi.fn>).mockResolvedValueOnce(hookResult)
+
+      const result = await instrumented.publish(testEvent)
+
+      expect(result).toBe(hookResult)
     })
 
     it('records publish count metric on success', async () => {

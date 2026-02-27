@@ -1,5 +1,5 @@
-import type { DomainEvent, DomainEventHandler, EventBus, Unsubscribe } from '../types'
-import { runWithContext } from '../../telemetry/context'
+import type { DomainEvent, DomainEventHandler, HookableEventBus, PublishHook, Unsubscribe } from '../types'
+import { runWithContext } from '@czo/kit/telemetry'
 
 interface Subscription {
   pattern: string
@@ -61,27 +61,31 @@ function patternToRegex(pattern: string): RegExp {
  * Implements AMQP-style pattern matching (`*` and `#` wildcards)
  * with parallel handler execution via `Promise.allSettled()`.
  */
-export async function createHookableEventBus(): Promise<EventBus> {
+export async function createHookableEventBus(): Promise<HookableEventBus> {
   let subscriptions: Subscription[] = []
+  const noop: PublishHook = () => undefined
+  let publishHook: PublishHook = noop
 
-  const publish = async (event: DomainEvent): Promise<void> => {
+  const publish = async (event: DomainEvent): Promise<unknown> => {
     const matching = subscriptions.filter(sub => sub.regex.test(event.type))
-    if (matching.length === 0)
-      return
 
-    await Promise.allSettled(
-      matching.map(async (sub) => {
-        try {
-          const ctx = {
-            correlationId: event.metadata.correlationId ?? crypto.randomUUID(),
+    if (matching.length > 0) {
+      await Promise.allSettled(
+        matching.map(async (sub) => {
+          try {
+            const ctx = {
+              correlationId: event.metadata.correlationId ?? crypto.randomUUID(),
+            }
+            await runWithContext(ctx, () => sub.handler(event))
           }
-          await runWithContext(ctx, () => sub.handler(event))
-        }
-        catch {
-          // Swallow — domain event handlers must not break publishers
-        }
-      }),
-    )
+          catch {
+            // Swallow — domain event handlers must not break publishers
+          }
+        }),
+      )
+    }
+
+    return publishHook(event)
   }
 
   const subscribe = (pattern: string, handler: DomainEventHandler): Unsubscribe => {
@@ -97,9 +101,14 @@ export async function createHookableEventBus(): Promise<EventBus> {
     }
   }
 
-  const shutdown = async (): Promise<void> => {
-    subscriptions = []
+  const onPublish = (hook: PublishHook): void => {
+    publishHook = hook
   }
 
-  return { publish, subscribe, shutdown }
+  const shutdown = async (): Promise<void> => {
+    subscriptions = []
+    publishHook = noop
+  }
+
+  return { publish, subscribe, shutdown, onPublish }
 }
