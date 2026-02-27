@@ -92,15 +92,17 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...mockQueryRows]),
   }
 
+  const schema = {
+    testEntitiesRelations: {
+      config: vi.fn().mockReturnValue({}),
+    },
+  }
+
   const db = {
     query: {
       testEntities: mockQueryBuilder,
     },
-    schema: {
-      testEntitiesRelations: {
-        config: vi.fn().mockReturnValue({}),
-      },
-    },
+    _: { schema },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => mockInsertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => mockUpdateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => mockDeleteResult)),

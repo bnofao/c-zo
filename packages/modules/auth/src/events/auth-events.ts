@@ -1,7 +1,7 @@
 import type { EventBus, EventMap } from '@czo/kit/event-bus'
 import type { AuthEventType } from './types'
 import { useLogger } from '@czo/kit'
-import { createDomainEvent, useEventBus } from '@czo/kit/event-bus'
+import { createDomainEvent, useHookable } from '@czo/kit/event-bus'
 
 const logger = useLogger('auth:events')
 
@@ -9,7 +9,7 @@ let busPromise: Promise<EventBus> | undefined
 
 function getBus(): Promise<EventBus> {
   if (!busPromise) {
-    busPromise = useEventBus().catch((err) => {
+    busPromise = useHookable().catch((err) => {
       busPromise = undefined
       throw err
     })

@@ -4,10 +4,39 @@
  * Provides a `withSpan()` helper for tracing database operations.
  * Designed to replace commented Sentry span code in the Repository base class.
  */
-import type { DbMetrics } from '../metrics'
-import type { Span, Telemetry } from '../types'
-import { createDbMetrics } from '../metrics'
-import { useTelemetrySync } from '../use-telemetry'
+import type { Counter, Histogram, Meter, Span, Telemetry } from '@czo/kit/telemetry'
+import { useTelemetrySync } from '@czo/kit/telemetry'
+
+/* ─── Database Metrics ──────────────────────── */
+
+export interface DbMetrics {
+  /** Total database queries executed */
+  queryCount: Counter
+  /** Database query duration in milliseconds */
+  queryDuration: Histogram
+  /** Total database query errors */
+  queryErrors: Counter
+}
+
+export function createDbMetrics(meter?: Meter): DbMetrics {
+  const m = meter ?? useTelemetrySync().meter('czo.db')
+  return {
+    queryCount: m.createCounter('db.client.operation.count', {
+      description: 'Total database queries executed',
+      unit: '{query}',
+    }),
+    queryDuration: m.createHistogram('db.client.operation.duration', {
+      description: 'Database query duration',
+      unit: 'ms',
+    }),
+    queryErrors: m.createCounter('db.client.operation.errors', {
+      description: 'Total database query errors',
+      unit: '{error}',
+    }),
+  }
+}
+
+/* ─── Instrumentation Options ───────────────── */
 
 export interface RepositoryInstrumentationOptions {
   telemetry?: Telemetry

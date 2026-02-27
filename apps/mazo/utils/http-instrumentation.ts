@@ -7,11 +7,39 @@
  * 3. Propagates TelemetryContext via AsyncLocalStorage
  * 4. Records HTTP metrics (count, duration, active requests)
  */
-import type { HttpMetrics } from '../metrics'
-import type { Telemetry } from '../types'
-import { runWithContext } from '../context'
-import { createHttpMetrics } from '../metrics'
-import { useTelemetrySync } from '../use-telemetry'
+import type { Counter, Histogram, Meter, Telemetry, UpDownCounter } from '@czo/kit/telemetry'
+import { runWithContext, useTelemetrySync } from '@czo/kit/telemetry'
+
+/* ─── HTTP Metrics ──────────────────────────── */
+
+export interface HttpMetrics {
+  /** Total HTTP requests received */
+  requestCount: Counter
+  /** HTTP request duration in milliseconds */
+  requestDuration: Histogram
+  /** Currently active HTTP requests */
+  activeRequests: UpDownCounter
+}
+
+export function createHttpMetrics(meter?: Meter): HttpMetrics {
+  const m = meter ?? useTelemetrySync().meter('czo.http')
+  return {
+    requestCount: m.createCounter('http.server.request.count', {
+      description: 'Total number of HTTP requests received',
+      unit: '{request}',
+    }),
+    requestDuration: m.createHistogram('http.server.request.duration', {
+      description: 'HTTP request duration',
+      unit: 'ms',
+    }),
+    activeRequests: m.createUpDownCounter('http.server.active_requests', {
+      description: 'Number of active HTTP requests',
+      unit: '{request}',
+    }),
+  }
+}
+
+/* ─── Instrumentation Options ───────────────── */
 
 export interface HttpInstrumentationOptions {
   telemetry?: Telemetry

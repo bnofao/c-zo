@@ -5,11 +5,58 @@
  * Uses the decorator pattern — returns a new object that proxies
  * all calls through tracing, preserving the original immutably.
  */
-import type { DomainEvent, DomainEventHandler, EventBus, Unsubscribe } from '../../event-bus/types'
-import type { EventBusMetrics } from '../metrics'
-import type { Telemetry } from '../types'
-import { createEventBusMetrics } from '../metrics'
-import { useTelemetrySync } from '../use-telemetry'
+import type { Counter, Histogram, Meter, Telemetry } from '@czo/kit/telemetry'
+import type { DomainEvent, DomainEventHandler, EventBus, Unsubscribe } from './types'
+import { useTelemetrySync } from '@czo/kit/telemetry'
+
+/* ─── EventBus Metrics ──────────────────────── */
+
+export interface EventBusMetrics {
+  /** Total events published */
+  publishCount: Counter
+  /** Total events consumed (handler invocations) */
+  consumeCount: Counter
+  /** Event publish duration in milliseconds */
+  publishDuration: Histogram
+  /** Event handler processing duration in milliseconds */
+  handleDuration: Histogram
+  /** Total publish errors */
+  publishErrors: Counter
+  /** Total handler errors */
+  handleErrors: Counter
+}
+
+export function createEventBusMetrics(meter?: Meter): EventBusMetrics {
+  const m = meter ?? useTelemetrySync().meter('czo.event-bus')
+  return {
+    publishCount: m.createCounter('event_bus.publish.count', {
+      description: 'Total events published',
+      unit: '{event}',
+    }),
+    consumeCount: m.createCounter('event_bus.consume.count', {
+      description: 'Total events consumed',
+      unit: '{event}',
+    }),
+    publishDuration: m.createHistogram('event_bus.publish.duration', {
+      description: 'Event publish duration',
+      unit: 'ms',
+    }),
+    handleDuration: m.createHistogram('event_bus.consume.duration', {
+      description: 'Event handler processing duration',
+      unit: 'ms',
+    }),
+    publishErrors: m.createCounter('event_bus.publish.errors', {
+      description: 'Total event publish errors',
+      unit: '{error}',
+    }),
+    handleErrors: m.createCounter('event_bus.consume.errors', {
+      description: 'Total event handler errors',
+      unit: '{error}',
+    }),
+  }
+}
+
+/* ─── Instrumentation Options ───────────────── */
 
 export interface InstrumentEventBusOptions {
   telemetry?: Telemetry
@@ -27,7 +74,7 @@ export function instrumentEventBus(bus: EventBus, options?: InstrumentEventBusOp
   const metrics = options?.metrics ?? createEventBusMetrics()
 
   return {
-    async publish(event: DomainEvent): Promise<void> {
+    async publish(event: DomainEvent): Promise<unknown> {
       const start = Date.now()
 
       return tracer.startActiveSpan(
@@ -35,9 +82,10 @@ export function instrumentEventBus(bus: EventBus, options?: InstrumentEventBusOp
         { kind: 'PRODUCER', attributes: { 'messaging.event.type': event.type, 'messaging.event.id': event.id } },
         async (span) => {
           try {
-            await bus.publish(event)
+            const result = await bus.publish(event)
             span.setStatus('OK')
             metrics.publishCount.add(1, { 'event.type': event.type })
+            return result
           }
           catch (error) {
             span.setStatus('ERROR', (error as Error).message)

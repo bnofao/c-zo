@@ -246,10 +246,15 @@ export abstract class Repository<
       }
     })
 
+    if (this.db._.schema) {
     // @ts-expect-error unknown
-    this.#relations = this.db.schema[`${this.#modelName}Relations`].config(
-      createTableRelationsHelpers(this.table),
-    )
+      this.#relations = this.db._.schema[`${this.#modelName}Relations`].config(
+        createTableRelationsHelpers(this.table),
+      )
+    }
+    else {
+      this.#relations = {}
+    }
   }
 
   get columns() {

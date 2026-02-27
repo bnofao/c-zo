@@ -2,6 +2,8 @@ export {}
 declare global {
   const applyDirectives: typeof import('@czo/kit/graphql').applyDirectives
   const buildGraphQLContext: typeof import('@czo/kit/graphql').buildGraphQLContext
+  const createHttpInstrumentation: typeof import('/workspace/c-zo/apps/mazo/utils/http-instrumentation').createHttpInstrumentation
+  const createHttpMetrics: typeof import('/workspace/c-zo/apps/mazo/utils/http-instrumentation').createHttpMetrics
   const registerContextFactory: typeof import('@czo/kit/graphql').registerContextFactory
   const registerDirective: typeof import('@czo/kit/graphql').registerDirective
   const registeredDirectiveTypeDefs: typeof import('@czo/kit/graphql').registeredDirectiveTypeDefs
@@ -10,4 +12,10 @@ declare global {
   const useContainer: typeof import('@czo/kit/ioc').useContainer
   const useDatabase: typeof import('@czo/kit/db').useDatabase
   const useLogger: typeof import('@czo/kit').useLogger
+}
+// for type re-export
+declare global {
+  // @ts-ignore
+  export type { HttpMetrics, HttpInstrumentationOptions, IncomingRequest, OutgoingResponse } from '/workspace/c-zo/apps/mazo/utils/http-instrumentation'
+  import('/workspace/c-zo/apps/mazo/utils/http-instrumentation')
 }

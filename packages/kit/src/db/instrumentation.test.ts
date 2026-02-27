@@ -1,7 +1,7 @@
-import type { DbMetrics } from '../metrics'
+import type { DbMetrics } from './instrumentation'
+import { NoopTelemetry } from '@czo/kit/telemetry'
 import { describe, expect, it, vi } from 'vitest'
-import { NoopTelemetry } from '../noop'
-import { createRepositoryInstrumentation } from './repository'
+import { createRepositoryInstrumentation } from './instrumentation'
 
 function createMockMetrics(): DbMetrics {
   return {

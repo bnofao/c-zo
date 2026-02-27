@@ -14,9 +14,9 @@
       "types": "./src/index.ts",
       "default": "./dist/index.mjs"
     },
-    "./author": {
-      "types": "./src/author.ts",
-      "default": "./dist/author.mjs"
+    "./nitro": {
+      "types": "./src/nitro/index.ts",
+      "default": "./dist/nitro/index.mjs"
     },
     "./module": {
       "types": "./src/module/index.ts",
@@ -38,17 +38,9 @@
       "types": "./src/cache/index.ts",
       "default": "./dist/cache/index.mjs"
     },
-    "./events": {
-      "types": "./src/events/index.ts",
-      "default": "./dist/events/index.mjs"
-    },
     "./queue": {
       "types": "./src/queue/index.ts",
       "default": "./dist/queue/index.mjs"
-    },
-    "./config": {
-      "types": "./src/config.ts",
-      "default": "./dist/config.mjs"
     },
     "./event-bus": {
       "types": "./src/event-bus/index.ts",
@@ -61,9 +53,6 @@
   },
   "main": "./dist/index.mjs",
   "types": "./src/index.ts",
-  "bin": {
-    "czo": "./dist/cli.mjs"
-  },
   "files": [
     "dist"
   ],

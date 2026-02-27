@@ -1,13 +1,12 @@
 import { defineBuildConfig } from 'unbuild'
 // import { addRollupTimingsPlugin, stubOptions } from '../../debug/build-config'
-const dirImport = {
+const _dirImport = {
   addRelativeDeclarationExtensions: true,
   // eslint-disable-next-line node/prefer-global/process
   ext: process.env.NODE_ENV === 'development' ? 'ts' : 'js',
   pattern: [
     '**',
-    '!**/*.stories.{js,cts,mts,ts,jsx,tsx}', // ignore storybook files
-    '!**/*.{spec,test}.{js,cts,mts,ts,jsx,tsx}', // ignore tests
+    '!**/*.{spec,test}.{js,cts,mts,ts,jsx,tsx}',
   ],
 }
 
@@ -20,18 +19,56 @@ export default defineBuildConfig({
     'src/db/index',
     'src/ioc/index',
     'src/cache/index',
-    'src/events/index',
     'src/event-bus/index',
     'src/telemetry/index',
     'src/queue/index',
-    'src/author',
-    'src/config',
-    'src/cli',
-    {
-      input: 'src/plugin/',
-      outDir: 'dist/plugin',
-      ...dirImport,
-    },
+    'src/nitro/index',
+    'src/plugins/index',
+    // {
+    //   input: 'src/module/',
+    //   outDir: 'dist/module',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/db/',
+    //   outDir: 'dist/db',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/cache/',
+    //   outDir: 'dist/cache',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/event-bus/',
+    //   outDir: 'dist/event-bus',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/telemetry/',
+    //   outDir: 'dist/telemetry',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/queue/',
+    //   outDir: 'dist/queue',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/ioc/',
+    //   outDir: 'dist/ioc',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/nitro/',
+    //   outDir: 'dist/nitro',
+    //   ...dirImport,
+    // },
+    // {
+    //   input: 'src/plugin/',
+    //   outDir: 'dist/plugin',
+    //   ...dirImport,
+    // },
   ],
   // stubOptions,
   // hooks: {
