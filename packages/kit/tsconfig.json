@@ -4,6 +4,7 @@
     "baseUrl": ".",
     "module": "preserve",
     "moduleResolution": "bundler",
+    "rootDir": ".",
     "paths": {
       "@czo/kit/*": ["./src/*"]
     },
