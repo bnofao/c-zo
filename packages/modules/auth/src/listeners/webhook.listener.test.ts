@@ -132,7 +132,7 @@ const SYNC_APP_ROW = {
 
 const MOCK_UUID = '00000000-0000-0000-0000-000000000099'
 
-function makeDomainEvent(type = 'products.created', payload = { id: 'prod-1' }) {
+function makeDomainEvent(type = 'products.created', payload: Record<string, unknown> = { id: 'prod-1' }) {
   return {
     id: 'evt-1',
     type,
