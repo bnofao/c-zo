@@ -1,30 +1,27 @@
 import type { NitroHooks } from 'nitro/types'
-import type { CzoConfig } from './config'
-import type { EventBus } from './event-bus/types'
-import type { EventEmitter } from './events/types'
+import type { EventBus, RabbitMQConfig } from './event-bus/types'
 import type { Container } from './ioc'
+import type { TelemetryConfig } from './telemetry/types'
 
-export * from './commands'
-export type { CzoConfig } from './config'
-export { czoConfigDefaults, useCzoConfig } from './config'
-// export * from './ioc'
 export { logger, useLogger } from './logger'
-export * from './module'
-export { addDevHandler, addHandler, addImports, addImportsDir, addPlugin, addScanDir } from './nitro'
-export type { ResolvePathOptions, Resolver } from './resolve'
-export { createResolver, directoryToURL, findPath, resolveAlias, resolveFiles, resolvePath } from './resolve'
 export * from './types'
 
 declare module 'nitro/types' {
   interface NitroApp {
     container: Container<Record<any, any>>
-    events: EventEmitter
-    eventBus: EventBus
+    hookable: EventBus
   }
   interface NitroRuntimeConfig {
     app: string
     baseUrl?: string
-    czo?: Partial<CzoConfig>
+    telemetry?: TelemetryConfig
+    queue?: {
+      storage: string
+    }
+    database?: {
+      url?: string
+    }
+    rabbitmq?: RabbitMQConfig
   }
   interface NitroRuntimeHooks {
     'czo:init': () => void

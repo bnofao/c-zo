@@ -1,10 +1,8 @@
 import { defineNitroConfig } from "nitro/config"
 import kitModule from "@czo/kit/module"
-import authModule from "@czo/auth"
-// import productModule from '@czo/product'
 
 export default defineNitroConfig({
-  scanDirs: ['./'],
+  scanDirs: ['./', /* '/workspace/c-zo/packages/kit/dist', '/workspace/c-zo/packages/modules/auth/dist' */],
   preset: "standard",
 
   experimental: {
@@ -27,42 +25,21 @@ export default defineNitroConfig({
 
   runtimeConfig: {
     app: 'mazo',
-    baseUrl: '',
+    baseUrl: 'http://localhost:4000',
     auth: {
-      secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
+      secret: 'hvAcEau3mQZfLC48zhO9WUy4r4A3JuHW2Dkx8SdMb8QDR3XupjSOAyXBmrOKd5qJ',        // ← mapped from NITRO_CZO_AUTH_SECRET
     },
-    czo: {
-      databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
-      redisUrl: '',  
-      queue: {
-        prefix: 'czo',
-        defaultAttempts: 3,
-      },
-      eventBus: {
-        provider: 'hookable',
-        source: 'monolith',
-        dualWrite: false,
-        rabbitmq: {
-          url: '',         // ← mapped from NITRO_CZO_EVENT_BUS_RABBITMQ_URL
-          exchange: 'czo.events',
-          deadLetterExchange: 'czo.dlx',
-          systemExchange: 'czo.system',
-          prefetch: 10,
-        },
-      },
+    database: {
+      url: process.env.DATABASE_URL
     },
+    queue: {
+      storage: 'redis'
+    }
   },
 
-  plugins: [
-    // '@czo/kit/plugins/ioc',
-    // 'old/tests.js',
-    // '/workspace/c-zo/packages/kit/src/plugins/ioc.ts',
-  ],
+  plugins: [],
   modules: [
-    // productModule,
-    // '@czo/product',
     '@czo/auth',
-    // authModule,
     kitModule,
   ],
   imports: {
@@ -84,6 +61,12 @@ export default defineNitroConfig({
       driver: process.env.REDIS_URL ? 'redis' : 'memory',
       ...(process.env.REDIS_URL && { url: process.env.REDIS_URL }),
     },
+    redis: {
+      driver: 'redis',
+      url: process.env.REDIS_URL,
+      maxRetriesPerRequest: null
+      // ttl: 300, // Default TTL 5 minutes
+    }
   },
 
   // Route-level caching (optional)
@@ -97,9 +80,4 @@ export default defineNitroConfig({
       },
     },
   },
-
-  // apiDir: 'api',
-  // alias: {
-  //   '@czo/product': '@czo/product',
-  // }
 });

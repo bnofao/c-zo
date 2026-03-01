@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const mockMake = vi.hoisted(() => vi.fn())
+
+vi.mock('@czo/kit/ioc', () => ({
+  useContainer: vi.fn(() => ({
+    make: mockMake,
+  })),
+}))
+
 describe('useTelemetry', () => {
   afterEach(() => {
     vi.resetModules()
+    mockMake.mockReset()
   })
 
   it('returns a telemetry instance on init', async () => {
@@ -10,7 +19,6 @@ describe('useTelemetry', () => {
     resetTelemetry()
 
     const telemetry = await useTelemetry()
-    // Returns either SdkTelemetry or NoopTelemetry depending on available packages
     expect(telemetry).toBeDefined()
     expect(typeof telemetry.tracer).toBe('function')
     expect(typeof telemetry.meter).toBe('function')
@@ -24,7 +32,7 @@ describe('useTelemetry', () => {
     const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
     resetTelemetry()
 
-    const telemetry = await useTelemetry({ enabled: false })
+    const telemetry = await useTelemetry({ enabled: false } as any)
     expect(telemetry.isActive).toBe(false)
 
     resetTelemetry()
@@ -47,7 +55,6 @@ describe('useTelemetry', () => {
     resetTelemetry()
 
     const sync = useTelemetrySync()
-    // Before init, always returns noop
     expect(sync.isActive).toBe(false)
 
     resetTelemetry()
@@ -57,7 +64,7 @@ describe('useTelemetry', () => {
     const { useTelemetry, shutdownTelemetry, resetTelemetry } = await import('./use-telemetry')
     resetTelemetry()
 
-    const telemetry = await useTelemetry({ enabled: false })
+    const telemetry = await useTelemetry({ enabled: false } as any)
     const shutdownSpy = vi.spyOn(telemetry, 'shutdown')
 
     await shutdownTelemetry()
@@ -79,11 +86,10 @@ describe('useTelemetry', () => {
     const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
     resetTelemetry()
 
-    const first = await useTelemetry({ enabled: false })
+    const first = await useTelemetry({ enabled: false } as any)
     resetTelemetry()
-    const second = await useTelemetry({ enabled: false })
+    const second = await useTelemetry({ enabled: false } as any)
 
-    // Different instances after reset
     expect(first).not.toBe(second)
     expect(first.isActive).toBe(false)
     expect(second.isActive).toBe(false)
@@ -99,9 +105,61 @@ describe('useTelemetry', () => {
     const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
     resetTelemetry()
 
-    const telemetry = await useTelemetry({ enabled: true })
+    const telemetry = await useTelemetry({ enabled: true } as any)
     expect(telemetry.isActive).toBe(false)
 
     resetTelemetry()
+  })
+
+  describe('container config fallback', () => {
+    it('should resolve telemetry config from the container when no config is passed', async () => {
+      mockMake.mockResolvedValue({
+        telemetry: {
+          enabled: false,
+          serviceName: 'test',
+          serviceVersion: '1.0.0',
+          endpoint: 'http://localhost:4318',
+          protocol: 'http',
+          samplingRatio: 1.0,
+          logBridge: false,
+        },
+      })
+
+      const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
+      resetTelemetry()
+
+      const telemetry = await useTelemetry()
+
+      expect(telemetry.isActive).toBe(false)
+      expect(mockMake).toHaveBeenCalledWith('config')
+
+      resetTelemetry()
+    })
+
+    it('should return NoopTelemetry when container has no telemetry config', async () => {
+      mockMake.mockResolvedValue({})
+
+      const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
+      resetTelemetry()
+
+      const telemetry = await useTelemetry()
+
+      expect(telemetry.isActive).toBe(false)
+
+      resetTelemetry()
+    })
+
+    it('should return NoopTelemetry when container throws', async () => {
+      mockMake.mockRejectedValue(new Error('Container not ready'))
+
+      const { useTelemetry, resetTelemetry } = await import('./use-telemetry')
+      resetTelemetry()
+
+      const telemetry = await useTelemetry()
+
+      expect(telemetry.isActive).toBe(false)
+
+      resetTelemetry()
+    })
   })
 })

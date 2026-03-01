@@ -5,7 +5,6 @@
     "build": "nitro build",
     "dev": "NODE_ENV=development nitro dev",
     "preview": "npx srvx --prod .output/",
-    "share": "czo publish --dir migrations --outdir ./_migrations --config ./nitro.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:status": "drizzle-kit check",

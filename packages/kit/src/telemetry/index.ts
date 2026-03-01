@@ -7,19 +7,8 @@ export {
   getTraceId,
   runWithContext,
 } from './context'
-
-/* ─── Instrumentations ─────────────────────── */
-export { instrumentEventBus } from './instrumentations/event-bus'
-export { createHttpInstrumentation } from './instrumentations/http'
-
-export { createRepositoryInstrumentation } from './instrumentations/repository'
-
 /* ─── Log bridge ────────────────────────────── */
 export { createLogBridgeReporter } from './log-bridge'
-/* ─── Predefined metrics ───────────────────── */
-export type { DbMetrics, EventBusMetrics, HttpMetrics } from './metrics'
-
-export { createDbMetrics, createEventBusMetrics, createHttpMetrics } from './metrics'
 
 /* ─── No-op implementations ─────────────────── */
 export {

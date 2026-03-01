@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUTH_EVENTS } from './types'
 
 const mockPublish = vi.hoisted(() => vi.fn())
-const mockUseEventBus = vi.hoisted(() => vi.fn(() => Promise.resolve({ publish: mockPublish })))
+const mockUseHookable = vi.hoisted(() => vi.fn(() => Promise.resolve({ publish: mockPublish })))
 const mockCreateDomainEvent = vi.hoisted(() => vi.fn((opts: { type: string, payload: unknown, metadata: unknown }) => ({
   id: 'evt-123',
   type: opts.type,
@@ -19,7 +19,7 @@ const mockLogger = vi.hoisted(() => ({
 }))
 
 vi.mock('@czo/kit/event-bus', () => ({
-  useEventBus: mockUseEventBus,
+  useHookable: mockUseHookable,
   createDomainEvent: mockCreateDomainEvent,
 }))
 
@@ -93,8 +93,8 @@ describe('publishAuthEvent', () => {
       )
     })
 
-    it('should catch errors when useEventBus fails', async () => {
-      mockUseEventBus.mockRejectedValueOnce(new Error('Config missing'))
+    it('should catch errors when useHookable fails', async () => {
+      mockUseHookable.mockRejectedValueOnce(new Error('Config missing'))
 
       await expect(
         publishAuthEvent(AUTH_EVENTS.SESSION_CREATED, {
@@ -111,29 +111,29 @@ describe('publishAuthEvent', () => {
       )
     })
 
-    it('should retry useEventBus after a failure (clears cached rejection)', async () => {
-      mockUseEventBus.mockRejectedValueOnce(new Error('Transient error'))
+    it('should retry useHookable after a failure (clears cached rejection)', async () => {
+      mockUseHookable.mockRejectedValueOnce(new Error('Transient error'))
 
       // First call fails
       await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'a@b.c', actorType: 'customer' })
       expect(mockLogger.warn).toHaveBeenCalledTimes(1)
 
-      // Second call should retry useEventBus (not reuse cached rejection)
-      mockUseEventBus.mockResolvedValueOnce({ publish: mockPublish })
+      // Second call should retry useHookable (not reuse cached rejection)
+      mockUseHookable.mockResolvedValueOnce({ publish: mockPublish })
       await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, { userId: 'u1', changes: { name: 'X' } })
 
-      expect(mockUseEventBus).toHaveBeenCalledTimes(2)
+      expect(mockUseHookable).toHaveBeenCalledTimes(2)
       expect(mockPublish).toHaveBeenCalled()
     })
   })
 
   describe('lazy bus resolution', () => {
-    it('should call useEventBus only once across multiple publishes', async () => {
+    it('should call useHookable only once across multiple publishes', async () => {
       await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, { userId: 'u1', email: 'a@b.c', actorType: 'customer' })
       await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, { userId: 'u1', changes: { name: 'X' } })
       await publishAuthEvent(AUTH_EVENTS.SESSION_CREATED, { sessionId: 's1', userId: 'u1', actorType: 'admin', authMethod: 'email' })
 
-      expect(mockUseEventBus).toHaveBeenCalledTimes(1)
+      expect(mockUseHookable).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -1,13 +1,12 @@
 import { defineBuildConfig } from 'unbuild'
 // import { addRollupTimingsPlugin, stubOptions } from '../../debug/build-config'
-const dirImport = {
+const _dirImport = {
   addRelativeDeclarationExtensions: true,
   // eslint-disable-next-line node/prefer-global/process
   ext: process.env.NODE_ENV === 'development' ? 'ts' : 'js',
   pattern: [
     '**',
-    '!**/*.stories.{js,cts,mts,ts,jsx,tsx}', // ignore storybook files
-    '!**/*.{spec,test}.{js,cts,mts,ts,jsx,tsx}', // ignore tests
+    '!**/*.{spec,test}.{js,cts,mts,ts,jsx,tsx}',
   ],
 }
 
@@ -20,25 +19,12 @@ export default defineBuildConfig({
     'src/db/index',
     'src/ioc/index',
     'src/cache/index',
-    'src/events/index',
     'src/event-bus/index',
     'src/telemetry/index',
     'src/queue/index',
-    'src/author',
-    'src/config',
-    'src/cli',
-    {
-      input: 'src/plugin/',
-      outDir: 'dist/plugin',
-      ...dirImport,
-    },
+    'src/nitro/index',
+    'src/plugins/index',
   ],
-  // stubOptions,
-  // hooks: {
-  //   'rollup:options' (ctx, options) {
-  //     addRollupTimingsPlugin(options)
-  //   },
-  // },
   externals: [
     'nitropack',
     'nitropack/runtime',
@@ -60,7 +46,5 @@ export default defineBuildConfig({
     'bullmq',
     'ioredis',
     'citty',
-    // 'jiti',
-    // 'pathe',
   ],
 })

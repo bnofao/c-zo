@@ -8,7 +8,6 @@ import type { AppService } from './services/app.service'
 import type { AuthService } from './services/auth.service'
 import type { OrganizationService } from './services/organization.service'
 import type { UserService } from './services/user.service'
-// import { Session, User } from 'better-auth'
 
 export interface AuthContext {
   session: {
@@ -47,6 +46,22 @@ declare module '@czo/kit/graphql' {
       session: NonNullable<AuthSession>['session'] | null
       user: NonNullable<AuthSession>['user'] | null
     }
+  }
+}
+
+declare module '@czo/kit/db' {
+  interface SchemaRegistry {
+    users: typeof import('./database/schema').users
+    sessions: typeof import('./database/schema').sessions
+    accounts: typeof import('./database/schema').accounts
+    verifications: typeof import('./database/schema').verifications
+    organizations: typeof import('./database/schema').organizations
+    members: typeof import('./database/schema').members
+    invitations: typeof import('./database/schema').invitations
+    twoFactor: typeof import('./database/schema').twoFactor
+    apps: typeof import('./database/schema').apps
+    webhookDeliveries: typeof import('./database/schema').webhookDeliveries
+    apikeys: typeof import('./database/schema').apikeys
   }
 }
 

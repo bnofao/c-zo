@@ -1,42 +1,59 @@
-import type { AnyColumn, AnyTable, BuildQueryResult, DBQueryConfig, DrizzleTypeError, Equal, ExtractTablesWithRelations, GetColumnData, InferSelectModel, KnownKeysOnly, Relation, SQL } from 'drizzle-orm'
-import type { NodePgClient } from 'drizzle-orm/node-postgres'
+import type { AnyColumn, AnyTable, DBQueryConfig, DrizzleTypeError, Equal, GetColumnData, InferSelectModel, SQL } from 'drizzle-orm'
 import type {
   IndexColumn,
-  PgInsertBase,
-  PgInsertOnConflictDoUpdateConfig,
+  PgAsyncTransaction,
   PgInsertValue,
   PgQueryResultHKT,
   PgTable,
-  PgTableWithColumns,
-  PgTransaction,
   PgUpdateSetSource,
   SelectedFieldsFlat,
 } from 'drizzle-orm/pg-core'
-import type { Pool } from 'pg'
 import type { Database } from './manager'
 import { camelCase } from 'change-case'
 import {
-
+  and,
   asc,
-  createTableRelationsHelpers,
   desc,
-  getOperators,
-  getTableColumns,
+  getColumns,
+  isNull,
   sql,
 } from 'drizzle-orm'
 import pg from 'pg'
+
+// ─── Helpers ──────────────────────────────────────────────────────────
 
 /**
  * Retrieves the keys of the given object as an array of its own keyof type,
  * ensuring the keys are typed according to the keys actually present in `O`.
  *
  * @template O - The object type from which keys are extracted.
- * @param {O} obj - The object whose keys are to be retrieved.
- * @returns {(keyof O)[]} An array of keys of the object `O`.
+ * @param obj - The object whose keys are to be retrieved.
+ * @returns An array of keys of the object `O`.
  */
 export function objectKeys<O extends object>(obj: O): (keyof O)[] {
   return Object.keys(obj) as (keyof O)[]
 }
+
+/**
+ * Access a drizzle table's Symbol(drizzle:Name) value safely.
+ */
+function getTableSymbolValue(table: PgTable, symbolName: string): string | undefined {
+  for (const sym of Object.getOwnPropertySymbols(table)) {
+    if (sym.toString() === symbolName) {
+      return (table as unknown as Record<symbol, string>)[sym]
+    }
+  }
+  return undefined
+}
+
+/**
+ * Access a column from a table by name (bypasses strict PgTable index signature).
+ */
+function getColumnByName(table: PgTable, name: string): AnyColumn | undefined {
+  return (table as unknown as Record<string, AnyColumn>)[name]
+}
+
+// ─── Error Classes ────────────────────────────────────────────────────
 
 /**
  * The database error class.
@@ -80,86 +97,43 @@ export class OptimisticLockError extends Error {
   }
 }
 
-/**
- * The options for finding the first record.
- */
-export type FindFirstOpts<T extends Record<string, unknown>> = KnownKeysOnly<
-  T,
-  FindFirstQueryConfig<T, keyof ExtractTablesWithRelations<T>>
->
+// ─── Config Types ─────────────────────────────────────────────────────
 
-/**
- * The options for finding many records.
- */
-export type FindManyOpts<T extends Record<string, unknown>> = KnownKeysOnly<
-  T,
-  FindManyQueryConfig<T, keyof ExtractTablesWithRelations<T>>
->
-
-/**
- * The options for paginating the records by offset.
- */
-export type PaginateByOffsetOpts<T extends Record<string, unknown>>
-  = KnownKeysOnly<
-    T,
-    PaginateByOffsetQueryConfig<T, keyof ExtractTablesWithRelations<T>>
-  >
-
-/**
- * The find first query builder config.
- */
-export type FindFirstQueryConfig<
-  T extends Record<string, unknown>,
-  U extends keyof ExtractTablesWithRelations<T>,
-> = Omit<
-  DBQueryConfig<
-    'many',
-    true,
-    ExtractTablesWithRelations<T>,
-    ExtractTablesWithRelations<T>[U]
-  >,
-  'limit'
-> & {
-  tx?: Transaction<T>
+/** Base query config that accepts both RQBv2 object filters and raw SQL for `where`. */
+interface BaseQueryConfig {
+  where?: DBQueryConfig['where'] | SQL<unknown>
+  columns?: DBQueryConfig['columns']
+  extras?: DBQueryConfig['extras']
+  with?: DBQueryConfig['with']
+  orderBy?: DBQueryConfig['orderBy']
+  offset?: number
+  tx?: Transaction
   /** If true, includes soft-deleted records (where deletedAt is not null) */
   includeDeleted?: boolean
 }
 
 /**
- * The find many query builder config.
+ * The find first query builder config (RQBv2).
  */
-export type FindManyQueryConfig<
-  T extends Record<string, unknown>,
-  U extends keyof ExtractTablesWithRelations<T>,
-> = DBQueryConfig<
-  'many',
-  true,
-  ExtractTablesWithRelations<T>,
-  ExtractTablesWithRelations<T>[U]
-> & {
-  tx?: Transaction<T>
-  /** If true, includes soft-deleted records (where deletedAt is not null) */
-  includeDeleted?: boolean
+export interface FindFirstQueryConfig extends BaseQueryConfig {}
+
+/**
+ * The find many query builder config (RQBv2).
+ */
+export interface FindManyQueryConfig extends BaseQueryConfig {
+  limit?: number
 }
 
 /**
  * The paginate by offset query builder config.
  */
-export type PaginateByOffsetQueryConfig<
-  T extends Record<string, unknown>,
-  U extends keyof ExtractTablesWithRelations<T>,
-> = Omit<
-  DBQueryConfig<
-    'many',
-    true,
-    ExtractTablesWithRelations<T>,
-    ExtractTablesWithRelations<T>[U]
-  > & {
+export type PaginateByOffsetQueryConfig = Omit<
+  DBQueryConfig & {
     page?: number
     perPage?: number
-    sortBy?: keyof ExtractTablesWithRelations<T>[U]['columns']
+    sortBy?: string
     sortDirection?: 'asc' | 'desc'
-    tx?: Transaction<T>
+    tx?: Transaction
     /** If true, includes soft-deleted records (where deletedAt is not null) */
     includeDeleted?: boolean
   },
@@ -169,11 +143,23 @@ export type PaginateByOffsetQueryConfig<
 /**
  * The generic transaction session.
  */
-export type Transaction<T extends Record<string, unknown>> = PgTransaction<
-  PgQueryResultHKT,
-  T,
-  ExtractTablesWithRelations<T>
->
+// eslint-disable-next-line ts/no-empty-object-type
+export type Transaction = PgAsyncTransaction<PgQueryResultHKT, {}, {}>
+
+/**
+ * Conflict do-update config used by Repository.create().
+ * Decoupled from drizzle's internal PgInsertOnConflictDoUpdateConfig
+ * which now requires the full insert builder type — not just the table.
+ */
+interface ConflictDoUpdateConfig {
+  target: IndexColumn | IndexColumn[]
+  set: Record<string, unknown>
+  where?: SQL
+  targetWhere?: SQL
+  setWhere?: SQL
+}
+
+// ─── Internal utility types ───────────────────────────────────────────
 
 type SimplifyShallow<T> = {
   [K in keyof T]: T[K];
@@ -182,9 +168,9 @@ type SimplifyShallow<T> = {
 type SelectResultField<
   T,
   TDeep extends boolean = true,
-> = T extends DrizzleTypeError<any>
+> = T extends DrizzleTypeError<infer _TMessage>
   ? T
-  : T extends AnyTable<any>
+  : T extends AnyTable<infer _TTableConfig>
     ? Equal<TDeep, true> extends true
       ? SelectResultField<T['_']['columns'], false>
       : never
@@ -192,7 +178,7 @@ type SelectResultField<
       ? GetColumnData<T>
       : T extends SQL | SQL.Aliased
         ? T['_']['type']
-        : T extends Record<string, any>
+        : T extends Record<string, unknown>
           ? SelectResultFields<T, true>
           : never
 
@@ -206,17 +192,28 @@ type SelectResultFields<
   >;
 }>
 
+/**
+ * Type for the RQBv2 query API accessed via db.query[modelName].
+ * Uses structural typing to avoid depending on drizzle's internal types.
+ */
+interface RelationalQueryApi<TRow> {
+  findFirst: (config: Record<string, unknown>) => Promise<TRow | undefined>
+  findMany: (config: Record<string, unknown>) => Promise<TRow[]>
+}
+
+// ─── Repository ───────────────────────────────────────────────────────
+
 export abstract class Repository<
   T extends Record<string, unknown>,
-  U extends PgTableWithColumns<any>,
-  V extends keyof ExtractTablesWithRelations<T>,
-  // TSchema extends Record<string, unknown> = Record<string, never>,
-  TClient extends NodePgClient = Pool,
+  U extends PgTable,
+  // V is kept for backward compatibility with subclasses (e.g. AppRepository<AppSchema, typeof apps, 'apps'>)
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  V extends string = string,
 > {
   /**
    * The DB instance.
    */
-  db: Database<T, TClient>
+  db: Database<T>
 
   /**
    * The DB table.
@@ -224,49 +221,39 @@ export abstract class Repository<
   table: U
 
   /**
-   * The DB model name.
+   * The DB model name (camelCased table name for RQBv2 `db.query[modelName]`).
    */
-  #modelName!: keyof ExtractTablesWithRelations<T>
+  #modelName!: string
 
-  /**
-   * The DB table relations.
-   */
-  #relations: Record<string, Relation>
-
-  constructor(db: Database<T, TClient>, table: U) {
+  constructor(db: Database<T>, table: U) {
     this.db = db
     this.table = table
 
-    Object.getOwnPropertySymbols(table).forEach((k) => {
-      if (k.toString() === 'Symbol(drizzle:Name)') {
-        // Replace graphile-worker's table prefix.
-        this.#modelName = camelCase(
-          table[k as unknown as string].replace('_private_', ''),
-        ) as keyof ExtractTablesWithRelations<T>
-      }
-    })
+    const tableName = getTableSymbolValue(table, 'Symbol(drizzle:Name)')
+    if (tableName) {
+      // Replace graphile-worker's table prefix.
+      this.#modelName = camelCase(tableName.replace('_private_', ''))
+    }
+  }
 
-    // @ts-expect-error unknown
-    this.#relations = this.db.schema[`${this.#modelName}Relations`].config(
-      createTableRelationsHelpers(this.table),
-    )
+  /**
+   * Access the RQBv2 query API for this model.
+   * `db.query[modelName]` provides findFirst/findMany.
+   */
+  #queryApi(db: Database<T> | Transaction): RelationalQueryApi<InferSelectModel<U>> {
+    const queryObj = (db as unknown as { query: Record<string, RelationalQueryApi<InferSelectModel<U>>> }).query
+    return queryObj[this.#modelName]!
   }
 
   get columns() {
-    return objectKeys(getTableColumns(this.table))
+    return objectKeys(getColumns(this.table))
   }
 
   /**
    * Asynchronously invalidates the storage cache/object for the provided rows.
-   *
-   * @param {Array<InferSelectModel<T>>} rows The rows to be checked for
-   * cache/object invalidation.
-   * @returns {Promise<any>} A promise that resolves once all relevant
-   * cache/object entries have been invalidated.
-   * @private
    */
-  async #cleanUpStorage(rows: Array<InferSelectModel<U>>): Promise<any> {
-    const promises: Promise<any>[] = []
+  async #cleanUpStorage(rows: Array<InferSelectModel<U>>): Promise<void> {
+    const promises: Promise<unknown>[] = []
 
     rows.forEach((row) => {
       Object.values(row).forEach((value) => {
@@ -287,30 +274,10 @@ export abstract class Repository<
     await Promise.all(promises)
   }
 
-  //   /**
-  //    * Get the Sentry's tracing span attributes.
-  //    *
-  //    * @returns {StartSpanOptions} The Sentry options to start a tracing span.
-  //    */
-  //   #getSentryAttributes(): Partial<StartSpanOptions> {
-  //     return {
-  //       attributes: {
-  //         'db.system': 'postgresql',
-  //       },
-  //       op: 'db.query',
-  //     }
-  //   }
-
   /**
    * Convert the unknown error to DatabaseError class with best efforts.
-   *
-   * @param {unknown} err The unknown error.
-   * @returns {unknown | DatabaseError} error object
    */
   #toDatabaseError(err: unknown) {
-    /**
-     * Refer to the errors list at https://github.com/rails/rails/blob/main/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb#L769.
-     */
     if (err instanceof pg.DatabaseError) {
       switch (err.code) {
         case '23505': {
@@ -330,15 +297,6 @@ export abstract class Repository<
             const isComposite = keys?.length && keys.length > 1
 
             // TODO: Finish up composite key error handling.
-            // keys.forEach((key, _idx) => {
-            //  fieldErrors[
-            //    `${pluralize.singular(this.#tableName)}.${camel(key)}`
-            //  ] = [
-            //    isComposite
-            //      ? "app:errors.dbUniqueCompositeConstraint"
-            //      : "app:errors.dbUniqueConstraint",
-            //  ] satisfies I18nKeys[];
-            // });
 
             return new DatabaseError(err.message, fieldErrors)
           }
@@ -350,108 +308,73 @@ export abstract class Repository<
   }
 
   /**
-   * A hook that is invoked right before a row is inserted.
-   *
-   * @param {PgInsertValue<U>} _
-   * @returns {Promise<void>}
+   * Apply soft-delete filter to a RQBv2 config.
+   * Merges an `isNull(deletedAt)` condition into the where clause.
    */
+  #applySoftDeleteFilter(config: Record<string, unknown>): void {
+    const deletedAtCol = getColumnByName(this.table, 'deletedAt')
+    if (!deletedAtCol)
+      return
+
+    const deletedAtFilter = isNull(deletedAtCol)
+    const originalWhere = config.where
+
+    if (originalWhere && typeof originalWhere === 'object' && 'queryChunks' in originalWhere) {
+      // SQL where — combine with AND
+      config.where = and(originalWhere as SQL<unknown>, deletedAtFilter)
+    }
+    else if (originalWhere && typeof originalWhere === 'object') {
+      // RQBv2 object-style where — add RAW for deletedAt
+      config.where = { ...(originalWhere as Record<string, unknown>), RAW: () => deletedAtFilter }
+    }
+    else {
+      config.where = { RAW: () => deletedAtFilter }
+    }
+  }
+
+  // ─── Hooks ──────────────────────────────────────────────────────────
+
   async beforeCreate(_: PgInsertValue<U>): Promise<void> {}
-
-  /**
-   * A hook that is invoked after a row is inserted and right before returning to the caller.
-   *
-   * @param {InferSelectModel<U>} _
-   * @returns {Promise<InferSelectModel<U>>} model
-   */
   async afterCreate(_: InferSelectModel<U>): Promise<InferSelectModel<U>> { return _ }
-
-  /**
-   * A hook that is invoked after a row is deleted and right before returning to the caller.
-   *
-   * @param {InferSelectModel<U>} _
-   * @returns {Promise<void>}
-   */
   async afterDelete(_: InferSelectModel<U>): Promise<void> {}
 
   /**
    * A hook that is invoked right before returning to the caller which applies to:
-   *
-   * - findFirst()
-   * - findMany()
-   * - paginateByOffset()
-   *
-   * The common use cases:
-   *
-   * - post process s3 storage path to a private s3 URL and cache it
-   *
-   * @param {InferSelectModel<U>} _
-   * @returns {Promise<void>}
+   * findFirst(), findMany(), paginateByOffset()
    */
   async afterFind(_: InferSelectModel<U>) {}
 
-  /**
-   * A hook that is invoked right before a row is updated.
-   *
-   * @param {PgUpdateSetSource<U>} _
-   * @returns {Promise<void>}
-   */
   async beforeUpdate(_: PgUpdateSetSource<U>) {}
-
-  /**
-   * A hook that is invoked after a row is updated and right before returning to the caller.
-   *
-   * @param {InferSelectModel<U>} _
-   * @returns {Promise<void>}
-   */
   async afterUpdate(_: InferSelectModel<U>) {}
 
-  /**
-   * Insert 1 value into the database.
-   *
-   * @param {PgInsertValue<U>} value The values to insert.
-   * @param {object} [opts] The insert options.
-   * @param {object} [opts.columns] The fields to return.
-   * @param {Transaction<U>} [opts.tx] The SQL transaction.
-   * @returns
-   */
+  // ─── Create ─────────────────────────────────────────────────────────
+
   async create<TSelectedFields extends SelectedFieldsFlat>(
     value: PgInsertValue<U>,
     opts: {
       columns: TSelectedFields
-      onConflictDoNothing?: {
-        target?: IndexColumn | IndexColumn[]
-      }
-      onConflictDoUpdate?: PgInsertOnConflictDoUpdateConfig<
-        PgInsertBase<U, PgQueryResultHKT>
-      >
-      tx?: Transaction<T>
+      onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
+      onConflictDoUpdate?: ConflictDoUpdateConfig
+      tx?: Transaction
     },
   ): Promise<SelectResultFields<TSelectedFields> | null>
   async create(
     value: PgInsertValue<U>,
     opts?: {
-      onConflictDoNothing?: {
-        target?: IndexColumn | IndexColumn[]
-      }
-      onConflictDoUpdate?: PgInsertOnConflictDoUpdateConfig<
-        PgInsertBase<U, PgQueryResultHKT>
-      >
-      tx?: Transaction<T>
+      onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
+      onConflictDoUpdate?: ConflictDoUpdateConfig
+      tx?: Transaction
     },
   ): Promise<InferSelectModel<U> | null>
-  async create<TSelectedFields extends SelectedFieldsFlat | undefined>(
+  async create(
     value: PgInsertValue<U>,
     opts?: {
-      columns?: TSelectedFields
-      onConflictDoNothing?: {
-        target?: IndexColumn | IndexColumn[]
-      }
-      onConflictDoUpdate?: PgInsertOnConflictDoUpdateConfig<
-        PgInsertBase<U, PgQueryResultHKT>
-      >
-      tx?: Transaction<T>
+      columns?: SelectedFieldsFlat
+      onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
+      onConflictDoUpdate?: ConflictDoUpdateConfig
+      tx?: Transaction
     },
-  ) {
+  ): Promise<unknown> {
     try {
       await this.beforeCreate(value)
 
@@ -464,7 +387,7 @@ export abstract class Repository<
       const qb = (opts?.tx || this.db).insert(this.table).values(createValue)
 
       if (opts?.onConflictDoUpdate) {
-        qb.onConflictDoUpdate({
+        const conflictConfig = {
           ...opts.onConflictDoUpdate,
           ...(Object.keys(this.table).includes('updatedAt')
             ? {
@@ -474,7 +397,10 @@ export abstract class Repository<
                 },
               }
             : {}),
-        })
+        }
+        // The drizzle v1 onConflictDoUpdate expects its own internal type,
+        // but structurally our ConflictDoUpdateConfig is compatible.
+        ;(qb as unknown as { onConflictDoUpdate: (c: ConflictDoUpdateConfig) => void }).onConflictDoUpdate(conflictConfig)
       }
       else if (opts?.onConflictDoNothing) {
         qb.onConflictDoNothing(opts.onConflictDoNothing)
@@ -487,19 +413,13 @@ export abstract class Repository<
         qb.returning()
       }
 
-      const rows = await qb as any/* startSpan(
-        {
-          ...this.#getSentryAttributes(),
-          name: qb.toSQL().sql,
-        },
-        async () => qb.,
-      ) */
+      const rows = await qb as unknown as InferSelectModel<U>[]
 
       if (rows.length < 1) {
         return null
       }
 
-      await this.afterCreate(rows[0])
+      await this.afterCreate(rows[0]!)
 
       return rows[0]
     }
@@ -508,31 +428,24 @@ export abstract class Repository<
     }
   }
 
-  /**
-   * Insert many values into the database.
-   *
-   * @param {PgInsertValue<U>[]} values The values to insert.
-   * @param {object} [opts] The insert options.
-   * @param {object} [opts.columns] The columns to return.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
-   */
+  // ─── Create Many ────────────────────────────────────────────────────
+
   async createMany<TSelectedFields extends SelectedFieldsFlat>(
     value: PgInsertValue<U>[],
     opts: {
       columns: TSelectedFields
-      tx?: Transaction<T>
+      tx?: Transaction
     },
   ): Promise<SelectResultFields<TSelectedFields>[]>
   async createMany(
     value: PgInsertValue<U>[],
-    opts?: { tx?: Transaction<T> },
+    opts?: { tx?: Transaction },
   ): Promise<InferSelectModel<U>[]>
   async createMany<TSelectedFields extends SelectedFieldsFlat>(
     values: PgInsertValue<U>[],
     opts?: {
       columns?: TSelectedFields
-      tx?: Transaction<T>
+      tx?: Transaction
     },
   ) {
     try {
@@ -542,7 +455,6 @@ export abstract class Repository<
             .map((value) => {
               return async () => {
                 await this.beforeCreate(value)
-
                 return value
               }
             })
@@ -557,19 +469,12 @@ export abstract class Repository<
         qb.returning()
       }
 
-      const rows = await qb as any/* startSpan(
-        {
-          ...this.#getSentryAttributes(),
-          name: qb.toSQL().sql,
-        },
-        async () => qb,
-      ) */
+      const rows = await qb as unknown as InferSelectModel<U>[]
 
       if (rows.length < 1) {
         return []
       }
 
-      // @ts-expect-error force rows to any
       await Promise.all(rows.map(async row => this.afterCreate(row)))
 
       return rows
@@ -579,56 +484,37 @@ export abstract class Repository<
     }
   }
 
-  /**
-   * Delete the data rows in the database based on the where condition.
-   *
-   * @param {object} [opts] The delete options.
-   * @param {object} [opts.columns] The columns to return.
-   * @param {SQL<unknown>} [opts.where] The SQL where filter.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @param {boolean} [opts.soft] If true, performs soft delete by setting deletedAt.
-   * @returns
-   */
-  async delete<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(opts: {
+  // ─── Delete ─────────────────────────────────────────────────────────
+
+  async delete<TSelectedFields extends SelectedFieldsFlat>(opts: {
     columns: TSelectedFields
-    where?: QConfig['where']
-    tx?: Transaction<T>
+    where?: SQL<unknown>
+    tx?: Transaction
     soft?: boolean
   }): Promise<SelectResultFields<TSelectedFields>[] | null>
-  async delete<QConfig extends FindManyQueryConfig<T, V>>(opts?: {
-    where?: QConfig['where']
-    tx?: Transaction<T>
+  async delete(opts?: {
+    where?: SQL<unknown>
+    tx?: Transaction
     soft?: boolean
   }): Promise<InferSelectModel<U>[] | null>
-  async delete<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(opts?: {
+  async delete<TSelectedFields extends SelectedFieldsFlat>(opts?: {
     columns?: TSelectedFields
-    where?: QConfig['where']
-    tx?: Transaction<T>
+    where?: SQL<unknown>
+    tx?: Transaction
     soft?: boolean
-  },
-  ) {
-    let where
-    if (opts?.where) {
-      if ('queryChunks' in opts.where) {
-        where = opts.where
-      }
-      else if (typeof opts.where === 'function') {
-        where = opts.where(getTableColumns(this.table), getOperators())
-      }
-    }
+  }) {
+    const where = opts?.where
 
-    const deletingRows = await this.findMany({ where, tx: opts?.tx })
+    // SQL where is runtime-compatible with RQBv2's findMany, cast through unknown
+    const deletingRows = await this.findMany({
+      ...(where ? { where: where as unknown as FindManyQueryConfig['where'] } : {}),
+      tx: opts?.tx,
+    })
     if (deletingRows.length > 0) {
       await this.#cleanUpStorage(deletingRows)
     }
 
-    let rows: any[]
+    let rows: InferSelectModel<U>[]
 
     // Check if soft delete is requested and table has deletedAt column
     const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
@@ -636,7 +522,7 @@ export abstract class Repository<
       // Soft delete: set deletedAt timestamp
       const qb = (opts?.tx || this.db)
         .update(this.table)
-        .set({ deletedAt: sql`NOW()` } as any)
+        .set({ deletedAt: sql`NOW()` } as PgUpdateSetSource<U>)
         .where(where)
 
       if (opts?.columns) {
@@ -646,7 +532,7 @@ export abstract class Repository<
         qb.returning()
       }
 
-      rows = await qb as any[]
+      rows = await qb as unknown as InferSelectModel<U>[]
     }
     else {
       // Hard delete
@@ -659,7 +545,7 @@ export abstract class Repository<
         qb.returning()
       }
 
-      rows = await qb as any[]
+      rows = await qb as unknown as InferSelectModel<U>[]
     }
 
     if (rows.length < 1) {
@@ -671,54 +557,31 @@ export abstract class Repository<
     return rows
   }
 
-  /**
-   * Restore soft-deleted records by unsetting deletedAt.
-   *
-   * @param {object} [opts] The restore options.
-   * @param {object} [opts.columns] The columns to return.
-   * @param {SQL<unknown>} [opts.where] The SQL where filter.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
-   */
-  async restore<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(opts: {
+  // ─── Restore ────────────────────────────────────────────────────────
+
+  async restore<TSelectedFields extends SelectedFieldsFlat>(opts: {
     columns: TSelectedFields
-    where?: QConfig['where']
-    tx?: Transaction<T>
+    where?: SQL<unknown>
+    tx?: Transaction
   }): Promise<SelectResultFields<TSelectedFields>[]>
-  async restore<QConfig extends FindManyQueryConfig<T, V>>(opts?: {
-    where?: QConfig['where']
-    tx?: Transaction<T>
+  async restore(opts?: {
+    where?: SQL<unknown>
+    tx?: Transaction
   }): Promise<InferSelectModel<U>[]>
-  async restore<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(opts?: {
+  async restore<TSelectedFields extends SelectedFieldsFlat>(opts?: {
     columns?: TSelectedFields
-    where?: QConfig['where']
-    tx?: Transaction<T>
-  },
-  ) {
-    // Check if table supports soft delete
+    where?: SQL<unknown>
+    tx?: Transaction
+  }) {
     if (!Object.keys(this.table).includes('deletedAt')) {
       throw new Error('Table does not support soft delete (missing deletedAt column)')
     }
 
-    let where
-    if (opts?.where) {
-      if ('queryChunks' in opts.where) {
-        where = opts.where
-      }
-      else if (typeof opts.where === 'function') {
-        where = opts.where(getTableColumns(this.table), getOperators())
-      }
-    }
+    const where = opts?.where
 
     const qb = (opts?.tx || this.db)
       .update(this.table)
-      .set({ deletedAt: null } as any)
+      .set({ deletedAt: null } as PgUpdateSetSource<U>)
       .where(where)
 
     if (opts?.columns) {
@@ -728,7 +591,7 @@ export abstract class Repository<
       qb.returning()
     }
 
-    const rows = await qb as any
+    const rows = await qb as unknown as InferSelectModel<U>[]
 
     if (rows.length < 1) {
       return []
@@ -737,43 +600,23 @@ export abstract class Repository<
     return rows
   }
 
+  // ─── Find First ─────────────────────────────────────────────────────
+
   /**
    * Return the 1st record based on the config.
-   *
-   * @param {FindFirstOpts<QConfig>} [opts] The find many options with pagination.
-   * @param {object} [opts.columns] The columns to select.
-   * @param {object} [opts.extras] The extras columns to return.
-   * @param {object} [opts.offset] The offset of the returned rows.
-   * @param {object} [opts.orderBy] The sorting order.
-   * @param {SQL<unknown>} [opts.where] The where filter.
-   * @param {object} [opts.with] The relations to include in query.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns result
+   * Uses RQBv2 `db.query[model].findFirst(...)` with object-style where filters.
    */
-  async findFirst<QConfig extends FindFirstQueryConfig<T, V>>(
-    opts?: FindFirstOpts<QConfig>,
-  ) {
+  async findFirst(opts?: FindFirstQueryConfig) {
     const { tx, includeDeleted, ...config } = opts || {}
     const qb = tx || this.db
 
     // Apply soft-delete filter if table has deletedAt column and includeDeleted is not true
     const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
     if (hasDeletedAt && !includeDeleted) {
-      const originalWhere = (config as any).where
-      ;(config as any).where = (columns: any, operators: any) => {
-        const deletedAtFilter = operators.isNull(columns.deletedAt)
-        if (originalWhere) {
-          if (typeof originalWhere === 'function') {
-            return operators.and(originalWhere(columns, operators), deletedAtFilter)
-          }
-          return operators.and(originalWhere, deletedAtFilter)
-        }
-        return deletedAtFilter
-      }
+      this.#applySoftDeleteFilter(config as Record<string, unknown>)
     }
 
-    // @ts-expect-error unknown error
-    const row = await qb.query[this.#modelName].findFirst(config || {})
+    const row = await this.#queryApi(qb).findFirst(config as Record<string, unknown>)
 
     if (!row) {
       return null
@@ -781,59 +624,26 @@ export abstract class Repository<
 
     await this.afterFind(row)
 
-    return row as BuildQueryResult<
-      ExtractTablesWithRelations<T>,
-      ExtractTablesWithRelations<T>[V],
-      QConfig
-    >
+    return row
   }
+
+  // ─── Find Many ──────────────────────────────────────────────────────
 
   /**
    * Return all the records based on the config.
-   *
-   * @param {FindManyOpts<QConfig>} [opts] The find many options.
-   * @param {object} [opts.columns] The columns to select.
-   * @param {object} [opts.extras] The extras columns to return.
-   * @param {object} [opts.limit] The limit number of the returned rows.
-   * @param {object} [opts.offset] The offset of the returned rows.
-   * @param {object} [opts.orderBy] The sorting order.
-   * @param {SQL<unknown>} [opts.where] The where filter.
-   * @param {object} [opts.with] The relations to include in query.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns result
+   * Uses RQBv2 `db.query[model].findMany(...)` with object-style where filters.
    */
-  async findMany<QConfig extends FindManyQueryConfig<T, V>>(
-    opts?: FindManyOpts<QConfig>,
-  ) {
+  async findMany(opts?: FindManyQueryConfig) {
     const { tx, includeDeleted, ...config } = opts || {}
     const qb = tx || this.db
 
     // Apply soft-delete filter if table has deletedAt column and includeDeleted is not true
     const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
     if (hasDeletedAt && !includeDeleted) {
-      const originalWhere = (config as any).where
-      ;(config as any).where = (columns: any, operators: any) => {
-        const deletedAtFilter = operators.isNull(columns.deletedAt)
-        if (originalWhere) {
-          if (typeof originalWhere === 'function') {
-            return operators.and(originalWhere(columns, operators), deletedAtFilter)
-          }
-          return operators.and(originalWhere, deletedAtFilter)
-        }
-        return deletedAtFilter
-      }
+      this.#applySoftDeleteFilter(config as Record<string, unknown>)
     }
 
-    // @ts-expect-error unknown error
-    const rows = await qb.query[this.#modelName].findMany(config || {}) /* startSpan(
-      {
-        ...this.#getSentryAttributes(),
-        // @ts-expect-error
-        name: qb.query[this.#modelName].findMany(config || {}).toSQL().sql,
-      },
-      // @ts-expect-error
-      async () => qb.query[this.#modelName].findMany(config || {}),
-    ) */
+    const rows = await this.#queryApi(qb).findMany(config as Record<string, unknown>)
 
     if (!rows || rows.length < 1) {
       return []
@@ -847,32 +657,12 @@ export abstract class Repository<
         .map((v: () => Promise<void>) => v()),
     )
 
-    return rows as unknown as BuildQueryResult<
-      ExtractTablesWithRelations<T>,
-      ExtractTablesWithRelations<T>[V],
-      QConfig
-    >[]
+    return rows
   }
 
-  /**
-   * Return the paginated records based on the config.
-   *
-   * @param {PaginateByOffsetOpts<QConfig>} [opts] The find many options with pagination.
-   * @param {object} [opts.columns] The columns to select.
-   * @param {object} [opts.extras] The extras columns to return.
-   * @param {SQL<unknown>} [opts.orderBy] The order by SQL. Can be overwritten by sortBy.
-   * @param {object} [opts.sortBy] The sorting column.
-   * @param {object} [opts.sortDirection] The sorting direction.
-   * @param {SQL<unknown>} [opts.where] The where filter.
-   * @param {object} [opts.with] The relations to include in query.
-   * @param {number} [opts.page] The current page.
-   * @param {number} [opts.perPage] The current page size.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns result
-   */
-  async paginateByOffset<QConfig extends PaginateByOffsetQueryConfig<T, V>>(
-    opts?: PaginateByOffsetOpts<QConfig>,
-  ) {
+  // ─── Paginate By Offset ─────────────────────────────────────────────
+
+  async paginateByOffset(opts?: PaginateByOffsetQueryConfig) {
     const {
       page = 1,
       perPage = 10,
@@ -890,53 +680,21 @@ export abstract class Repository<
     const qb = config.tx || this.db
 
     let countWhere: SQL<unknown> | undefined
-    if (config.where) {
-      if ('queryChunks' in config.where) {
-        countWhere = config.where
-      }
-      else if (typeof config.where === 'function') {
-        countWhere = config.where(getTableColumns(this.table), getOperators())
-      }
+    if (config.where && typeof config.where === 'object' && 'queryChunks' in config.where) {
+      countWhere = config.where as unknown as SQL<unknown>
     }
 
     if (sortBy) {
-      config.orderBy
-        = sortDirection === 'asc'
-          ? [
-              asc(
-                this.table[sortBy as keyof (typeof this.table)['_']['columns']],
-              ),
-            ]
-          : [
-              desc(
-                this.table[sortBy as keyof (typeof this.table)['_']['columns']],
-              ),
-            ]
+      const sortColumn = getColumnByName(this.table, sortBy)
+      if (sortColumn) {
+        // RQBv2 orderBy accepts callback or object-style, but the runtime also
+        // supports SQL[] — cast through unknown at the type boundary
+        ;(config as Record<string, unknown>).orderBy
+          = sortDirection === 'asc'
+            ? [asc(sortColumn)]
+            : [desc(sortColumn)]
+      }
     }
-
-    // const [rows, totals] = await startSpan(
-    //   {
-    //     ...this.#getSentryAttributes(),
-    //     name: qb
-    //       .select({ count: sql<number>`count(*)`.mapWith(Number) })
-    //       .from(this.table)
-    //       .where(countWhere)
-    //       .toSQL()
-    //       .sql,
-    //   },
-    //   async () =>
-    //     Promise.all([
-    //       this.findMany({
-    //         ...config,
-    //         offset: (page - 1) * perPage,
-    //         limit: perPage + 1,
-    //       }),
-    //       qb
-    //         .select({ count: sql<number>`count(*)`.mapWith(Number) })
-    //         .from(this.table)
-    //         .where(countWhere),
-    //     ]),
-    // )
 
     const [rows, totals] = await Promise.all([
       this.findMany({
@@ -967,62 +725,37 @@ export abstract class Repository<
     }
   }
 
-  /**
-   * Update the data rows in the database based on the where condition.
-   *
-   * @param {PgUpdateSetSource<U>} value The values to update to.
-   * @param {object} [opts] The insert options.
-   * @param {object} [opts.columns] The fields to return.
-   * @param {SQL<unknown>} [opts.where] The SQL where filter.
-   * @param {Transaction<T>} [opts.tx] The SQL transaction.
-   * @returns
-   */
-  async update<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(
+  // ─── Update ─────────────────────────────────────────────────────────
+
+  async update<TSelectedFields extends SelectedFieldsFlat>(
     value: PgUpdateSetSource<U>,
     opts: {
       columns: TSelectedFields
-      where?: QConfig['where']
-      tx?: Transaction<T>
+      where?: SQL<unknown>
+      tx?: Transaction
       expectedVersion?: number
     },
   ): Promise<SelectResultFields<TSelectedFields>[]>
-  async update<QConfig extends FindManyQueryConfig<T, V>>(
+  async update(
     value: PgUpdateSetSource<U>,
     opts?: {
-      where?: QConfig['where']
-      tx?: Transaction<T>
+      where?: SQL<unknown>
+      tx?: Transaction
       expectedVersion?: number
     },
   ): Promise<InferSelectModel<U>[]>
-  async update<
-    TSelectedFields extends SelectedFieldsFlat,
-    QConfig extends FindManyQueryConfig<T, V>,
-  >(
+  async update<TSelectedFields extends SelectedFieldsFlat>(
     value: PgUpdateSetSource<U>,
     opts?: {
       columns?: TSelectedFields
-      where?: QConfig['where']
-      tx?: Transaction<T>
+      where?: SQL<unknown>
+      tx?: Transaction
       expectedVersion?: number
     },
   ) {
     try {
-      let where: SQL<unknown> | undefined
-      let originalWhere: SQL<unknown> | undefined
-
-      if (opts?.where) {
-        if ('queryChunks' in opts.where) {
-          where = opts.where as SQL<unknown>
-          originalWhere = where
-        }
-        else if (typeof opts.where === 'function') {
-          where = opts.where(getTableColumns(this.table), getOperators())
-          originalWhere = where
-        }
-      }
+      let where: SQL<unknown> | undefined = opts?.where
+      const originalWhere = where
 
       await this.beforeUpdate(value)
 
@@ -1037,19 +770,19 @@ export abstract class Repository<
       // Handle optimistic locking if version column exists
       const hasVersionColumn = Object.keys(this.table).includes('version')
       if (hasVersionColumn) {
+        const versionCol = getColumnByName(this.table, 'version')!
         // Always increment version on update
-        updateValues.version = sql`${(this.table as any).version} + 1`
+        updateValues.version = sql`${versionCol} + 1`
 
         if (opts?.expectedVersion !== undefined) {
-          // Add version check to where clause
-          const versionCheck = sql`${(this.table as any).version} = ${opts.expectedVersion}`
+          const versionCheck = sql`${versionCol} = ${opts.expectedVersion}`
           where = where ? sql`${where} AND ${versionCheck}` : versionCheck
         }
       }
 
       const qb = (opts?.tx || this.db)
         .update(this.table)
-        .set(updateValues as any)
+        .set(updateValues as PgUpdateSetSource<U>)
         .where(where)
 
       if (opts?.columns) {
@@ -1059,17 +792,19 @@ export abstract class Repository<
         qb.returning()
       }
 
-      const rows = await qb as any
+      const rows = await qb as unknown as InferSelectModel<U>[]
 
       // Check for optimistic lock failure
       if (rows.length === 0 && opts?.expectedVersion !== undefined && hasVersionColumn) {
-        // Fetch current record to provide better error message
-        const current = await this.findFirst({ where: originalWhere as any, tx: opts?.tx })
+        const current = await this.findFirst({
+          ...(originalWhere ? { where: originalWhere as unknown as FindFirstQueryConfig['where'] } : {}),
+          tx: opts?.tx,
+        })
         const entityId = originalWhere?.toString() || 'unknown'
         throw new OptimisticLockError(
           entityId,
           opts.expectedVersion,
-          (current as any)?.version ?? null,
+          (current as Record<string, unknown> | null)?.version as number | null ?? null,
         )
       }
 
@@ -1077,7 +812,6 @@ export abstract class Repository<
         return []
       }
 
-      // @ts-expect-error force rows to any
       await Promise.all(rows.map(row => this.afterUpdate(row)))
 
       return rows

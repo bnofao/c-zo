@@ -58,6 +58,9 @@ export type DomainEventHandler<T = unknown> = (event: DomainEvent<T>) => Promise
 /** Function returned by subscribe() to remove the subscription */
 export type Unsubscribe = () => void
 
+/** Hook invoked on every publish, after subscribers. Returns a value to the publisher. */
+export type PublishHook = (event: DomainEvent) => Promise<unknown> | unknown
+
 /**
  * High-level EventBus interface — provider-agnostic.
  *
@@ -66,7 +69,7 @@ export type Unsubscribe = () => void
  */
 export interface EventBus {
   /** Publish a domain event to all matching subscribers */
-  publish: (event: DomainEvent) => Promise<void>
+  publish: (event: DomainEvent) => Promise<unknown>
 
   /**
    * Subscribe to events matching a pattern.
@@ -82,23 +85,19 @@ export interface EventBus {
   shutdown: () => Promise<void>
 }
 
-/**
- * Provider factory — each transport implements this to create an EventBus.
- */
-export interface EventBusProvider {
-  readonly name: string
-  create: (config: EventBusConfig) => Promise<EventBus>
+/** Extended EventBus with a publish hook slot (hookable only). */
+export interface HookableEventBus extends EventBus {
+  /** Register a hook that runs on every publish. Single slot — last registration wins. */
+  onPublish: (hook: PublishHook) => void
 }
 
-export interface EventBusConfig {
-  /** Which provider to use */
-  provider: 'hookable' | 'rabbitmq'
+/**
+ * Configuration for the RabbitMQ message broker.
+ * Extends RabbitMQConfig with a source tag for event metadata.
+ */
+export interface MessageBrokerConfig extends RabbitMQConfig {
   /** Default source tag for events produced by this instance */
   source: string
-  /** When true, publish to both hookable AND rabbitmq simultaneously */
-  dualWrite: boolean
-  /** RabbitMQ-specific configuration (required when provider is 'rabbitmq') */
-  rabbitmq?: RabbitMQConfig
 }
 
 export interface RabbitMQReconnectConfig {

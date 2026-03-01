@@ -1,48 +1,73 @@
-import type { NodePgClient } from 'drizzle-orm/node-postgres'
-import type { DrizzleConfig } from 'drizzle-orm/utils'
-import type { Pool } from 'pg'
+import type { DrizzleConfig } from 'drizzle-orm'
+import process from 'node:process'
+import { useContainer } from '@czo/kit/ioc'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { withReplicas } from 'drizzle-orm/pg-core'
-import { useCzoConfig } from '../config'
+import { registeredRelations } from './schema-registry'
 
 export type Database<
   TSchema extends Record<string, unknown> = Record<string, never>,
-  TClient extends NodePgClient = Pool,
-> = ReturnType<typeof createDatabase<TSchema, TClient>>
+> = Awaited<ReturnType<typeof createDatabase<TSchema>>>
 
-export function useDatabase<
+export async function useDatabase<
   TSchema extends Record<string, unknown> = Record<string, never>,
-  TClient extends NodePgClient = Pool,
->(config?: DrizzleConfig<TSchema>): Database<TSchema, TClient> {
+>(config?: DrizzleConfig<TSchema>): Promise<Database<TSchema>> {
   if (config) {
-    return ((useDatabase as any).__instance__ = createDatabase<TSchema, TClient>(config))
+    return ((useDatabase as any).__instance__ = await createDatabase<TSchema>(config))
   }
-  return ((useDatabase as any).__instance__ ??= createDatabase<TSchema, TClient>())
+  return ((useDatabase as any).__instance__ ??= await createDatabase<TSchema>(autoSchemaConfig<TSchema>()))
 }
 
-function createDatabase<
-  TSchema extends Record<string, unknown> = Record<string, never>,
-  TClient extends NodePgClient = Pool,
->(config?: DrizzleConfig<TSchema>) {
-  const { databaseUrl } = useCzoConfig()
-  const connections = databaseUrl?.split(',') ?? []
-  const master = connections[0]
-  const replicas = connections.slice(1)
+function autoSchemaConfig<TSchema extends Record<string, unknown>>(): DrizzleConfig<TSchema> | undefined {
+  const mergedRelations = registeredRelations()
+  const hasRelations = Object.keys(mergedRelations).length > 0
 
-  if (!master) {
-    throw new Error(
-      'Database URL is required. '
-      + 'Set NITRO_CZO_DATABASE_URL or configure runtimeConfig.czo.databaseUrl',
-    )
+  if (!hasRelations)
+    return undefined
+
+  // RQBv2: only relations are needed for db.query[model].findFirst/findMany.
+  // Schemas are still registered (for drizzle-kit) but not passed to drizzle().
+  return {
+    relations: mergedRelations,
+  } as DrizzleConfig<TSchema>
+}
+
+async function getDatabaseUrl() {
+  try {
+    const config = await useContainer().make('config')
+    const url = config.database?.url
+
+    if (url)
+      return url
+  }
+  catch {
+    const url = process.env.DATABASE_URL
+    if (url)
+      return url
   }
 
-  // @ts-expect-error config must be undefined
-  const masterDb = drizzleNodePg<TSchema, TClient>(master, config)
+  throw new Error(
+    'Database URL is required. '
+    + 'Set DATABASE_URL or configure runtimeConfig.database.url',
+  )
+}
+
+async function createDatabase<
+  TSchema extends Record<string, unknown> = Record<string, never>,
+>(config?: DrizzleConfig<TSchema>) {
+  const databaseUrl = await getDatabaseUrl()
+  const connections = databaseUrl?.split(',') ?? []
+  const master = connections[0] as string
+  const replicas = connections.slice(1)
+
+  const connect = (url: string) =>
+    config ? drizzleNodePg(url, config) : drizzleNodePg(url)
+
+  const masterDb = connect(master)
 
   if (replicas.length > 0) {
-    // @ts-expect-error config must be undefined
-    const replicasDb = replicas.map(url => drizzleNodePg<TSchema, TClient>(url, config))
-    return withReplicas(masterDb, <any> replicasDb)
+    const replicasDb = replicas.map(connect)
+    return withReplicas(masterDb, replicasDb as [typeof masterDb, ...typeof masterDb[]])
   }
 
   return masterDb
