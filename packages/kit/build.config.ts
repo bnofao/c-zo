@@ -24,58 +24,7 @@ export default defineBuildConfig({
     'src/queue/index',
     'src/nitro/index',
     'src/plugins/index',
-    // {
-    //   input: 'src/module/',
-    //   outDir: 'dist/module',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/db/',
-    //   outDir: 'dist/db',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/cache/',
-    //   outDir: 'dist/cache',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/event-bus/',
-    //   outDir: 'dist/event-bus',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/telemetry/',
-    //   outDir: 'dist/telemetry',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/queue/',
-    //   outDir: 'dist/queue',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/ioc/',
-    //   outDir: 'dist/ioc',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/nitro/',
-    //   outDir: 'dist/nitro',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/plugin/',
-    //   outDir: 'dist/plugin',
-    //   ...dirImport,
-    // },
   ],
-  // stubOptions,
-  // hooks: {
-  //   'rollup:options' (ctx, options) {
-  //     addRollupTimingsPlugin(options)
-  //   },
-  // },
   externals: [
     'nitropack',
     'nitropack/runtime',
@@ -97,7 +46,5 @@ export default defineBuildConfig({
     'bullmq',
     'ioredis',
     'citty',
-    // 'jiti',
-    // 'pathe',
   ],
 })

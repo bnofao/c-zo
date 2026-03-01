@@ -1,10 +1,8 @@
 import { defineNitroConfig } from "nitro/config"
 import kitModule from "@czo/kit/module"
-// import authModule from "@czo/auth"
-// import productModule from '@czo/product'
 
 export default defineNitroConfig({
-  scanDirs: ['./'],
+  scanDirs: ['./', /* '/workspace/c-zo/packages/kit/dist', '/workspace/c-zo/packages/modules/auth/dist' */],
   preset: "standard",
 
   experimental: {
@@ -27,9 +25,9 @@ export default defineNitroConfig({
 
   runtimeConfig: {
     app: 'mazo',
-    baseUrl: '',
+    baseUrl: 'http://localhost:4000',
     auth: {
-      secret: 'dsdfsdfsdsdfsdfsdfsdfsdfsdfsdfsdfsdfsdfdsf',        // ← mapped from NITRO_CZO_AUTH_SECRET
+      secret: 'hvAcEau3mQZfLC48zhO9WUy4r4A3JuHW2Dkx8SdMb8QDR3XupjSOAyXBmrOKd5qJ',        // ← mapped from NITRO_CZO_AUTH_SECRET
     },
     database: {
       url: process.env.DATABASE_URL
@@ -37,24 +35,6 @@ export default defineNitroConfig({
     queue: {
       storage: 'redis'
     }
-    // czo: {
-    //   databaseUrl: '',     // ← mapped from NITRO_CZO_DATABASE_URL
-    //   redisUrl: '',  
-    //   queue: {
-    //     Storage: 'czo',
-    //   },
-    //   hookable: {
-    //     source: 'monolith',
-    //   },
-    //   messageBroker: {
-    //     source: 'monolith',
-    //     url: '',           // ← mapped from NITRO_CZO_MESSAGE_BROKER_URL
-    //     exchange: 'czo.events',
-    //     deadLetterExchange: 'czo.dlx',
-    //     systemExchange: 'czo.system',
-    //     prefetch: 10,
-    //   },
-    // },
   },
 
   plugins: [],
@@ -100,9 +80,4 @@ export default defineNitroConfig({
       },
     },
   },
-
-  // apiDir: 'api',
-  // alias: {
-  //   '@czo/product': '@czo/product',
-  // }
 });

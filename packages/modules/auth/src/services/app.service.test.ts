@@ -50,17 +50,10 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...queryManyResult]),
   }
 
-  const schema = {
-    appsRelations: {
-      config: vi.fn().mockReturnValue({}),
-    },
-  }
-
   return {
     query: {
       apps: mockQueryBuilder,
     },
-    _: { schema },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => insertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => updateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),

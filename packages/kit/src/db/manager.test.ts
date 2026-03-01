@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDrizzle, mockWithReplicas, mockMake } = vi.hoisted(() => ({
+const { mockDrizzle, mockWithReplicas, mockMake, mockRegisteredRelations } = vi.hoisted(() => ({
   mockDrizzle: vi.fn().mockReturnValue({ _type: 'masterDb' }),
   mockWithReplicas: vi.fn().mockImplementation((master: any, replicas: any) => ({
     _type: 'replicaDb',
@@ -8,6 +8,7 @@ const { mockDrizzle, mockWithReplicas, mockMake } = vi.hoisted(() => ({
     replicas,
   })),
   mockMake: vi.fn(),
+  mockRegisteredRelations: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('drizzle-orm/node-postgres', () => ({
@@ -22,6 +23,10 @@ vi.mock('@czo/kit/ioc', () => ({
   useContainer: vi.fn(() => ({ make: mockMake })),
 }))
 
+vi.mock('./schema-registry', () => ({
+  registeredRelations: mockRegisteredRelations,
+}))
+
 describe('useDatabase', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -32,6 +37,7 @@ describe('useDatabase', () => {
       replicas,
     }))
     mockMake.mockReset()
+    mockRegisteredRelations.mockReturnValue({})
   })
 
   afterEach(() => {
@@ -60,7 +66,7 @@ describe('useDatabase', () => {
 
     const db = await useDatabase()
 
-    expect(mockDrizzle).toHaveBeenCalledWith('postgresql://localhost/mydb', undefined)
+    expect(mockDrizzle).toHaveBeenCalledWith('postgresql://localhost/mydb')
     expect(mockWithReplicas).not.toHaveBeenCalled()
     expect(db).toEqual({ _type: 'masterDb' })
   })
@@ -115,5 +121,48 @@ describe('useDatabase', () => {
 
     expect(first).not.toBe(second)
     expect(mockDrizzle).toHaveBeenCalledTimes(2)
+  })
+
+  it('should pass undefined config when relations registry is empty', async () => {
+    mockMake.mockResolvedValue({
+      database: { url: 'postgresql://localhost/mydb' },
+    })
+    mockRegisteredRelations.mockReturnValue({})
+
+    const { useDatabase } = await import('./manager')
+    await useDatabase()
+
+    expect(mockDrizzle).toHaveBeenCalledWith('postgresql://localhost/mydb')
+  })
+
+  it('should prioritize explicit config over registered relations', async () => {
+    mockMake.mockResolvedValue({
+      database: { url: 'postgresql://localhost/mydb' },
+    })
+    mockRegisteredRelations.mockReturnValue({ apps: { installedByUser: 'rel' } })
+    const explicitConfig = { schema: { products: 'productsTable' } }
+
+    const { useDatabase } = await import('./manager')
+    await useDatabase(explicitConfig as any)
+
+    expect(mockDrizzle).toHaveBeenCalledWith(
+      'postgresql://localhost/mydb',
+      { schema: { products: 'productsTable' } },
+    )
+  })
+
+  it('should auto-inject registered relations when available', async () => {
+    mockMake.mockResolvedValue({
+      database: { url: 'postgresql://localhost/mydb' },
+    })
+    mockRegisteredRelations.mockReturnValue({ apps: { installedByUser: 'rel' } })
+
+    const { useDatabase } = await import('./manager')
+    await useDatabase()
+
+    expect(mockDrizzle).toHaveBeenCalledWith(
+      'postgresql://localhost/mydb',
+      { relations: { apps: { installedByUser: 'rel' } } },
+    )
   })
 })

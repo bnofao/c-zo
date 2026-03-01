@@ -11,16 +11,18 @@ import {
   useAuthActorService,
 } from '@czo/auth/config'
 import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
+import { authRelations } from '@czo/auth/relations'
+import * as authSchema from '@czo/auth/schema'
 import { createApiKeyService, createAppService, createAuthService, createOrganizationService, createUserService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
-import { useDatabase } from '@czo/kit/db'
+import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 import { useRuntimeConfig } from 'nitro/runtime-config'
 import { useStorage } from 'nitro/storage'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 
-export default definePlugin(async (nitroApp) => {
+export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
   const container = useContainer()
   const config = useRuntimeConfig()
@@ -43,6 +45,9 @@ export default definePlugin(async (nitroApp) => {
 
     const accessService = useAccessService()
     container.singleton('auth:access', () => accessService)
+    
+    registerSchema(authSchema)
+    registerRelations(authRelations)
   })
 
   nitroApp.hooks.hook('czo:register', async () => {

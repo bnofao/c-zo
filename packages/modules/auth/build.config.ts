@@ -17,6 +17,7 @@ export default defineBuildConfig({
     'src/types',
     'src/config/index',
     'src/database/schema',
+    'src/database/relations',
     'src/events/index',
     'src/listeners/index',
     'src/services/index',
@@ -36,36 +37,6 @@ export default defineBuildConfig({
       outDir: 'dist/middleware',
       ...dirImport,
     },
-    // {
-    //   input: 'src/config/',
-    //   outDir: 'dist/config',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/database/',
-    //   outDir: 'dist/database',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/events/',
-    //   outDir: 'dist/events',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/consumers/',
-    //   outDir: 'dist/consumers',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/services/',
-    //   outDir: 'dist/services',
-    //   ...dirImport,
-    // },
-    // {
-    //   input: 'src/graphql/',
-    //   outDir: 'dist/graphql',
-    //   ...dirImport,
-    // },
   ],
   externals: [
     'nitropack',

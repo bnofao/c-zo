@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
@@ -145,19 +144,3 @@ export const apikeys = pgTable('apikeys', {
   metadata: text('metadata'),
   installedAppId: text('installed_app_id').references(() => apps.id, { onDelete: 'cascade' }),
 })
-
-// ─── Relations ────────────────────────────────────────────────────────
-
-export const appsRelations = relations(apps, ({ one, many }) => ({
-  installedByUser: one(users, { fields: [apps.installedBy], references: [users.id] }),
-  webhookDeliveries: many(webhookDeliveries),
-  apiKeys: many(apikeys),
-}))
-
-export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
-  app: one(apps, { fields: [webhookDeliveries.appId], references: [apps.id] }),
-}))
-
-export const apikeysRelations = relations(apikeys, ({ one }) => ({
-  installedApp: one(apps, { fields: [apikeys.installedAppId], references: [apps.id] }),
-}))

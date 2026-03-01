@@ -26,6 +26,10 @@
       "types": "./src/database/schema.ts",
       "default": "./dist/database/schema.mjs"
     },
+    "./relations": {
+      "types": "./src/database/relations.ts",
+      "default": "./dist/database/relations.mjs"
+    },
     "./services": {
       "types": "./src/services/index.ts",
       "default": "./dist/services/index.mjs"

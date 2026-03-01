@@ -140,6 +140,8 @@ describe('auth plugin', () => {
     vi.doMock('@czo/kit/db', () => ({
       useDatabase: () => Promise.resolve(mockDb),
       Repository: class MockRepository {},
+      registerSchema: vi.fn(),
+      registerRelations: vi.fn(),
     }))
 
     vi.doMock('@czo/kit/ioc', () => ({

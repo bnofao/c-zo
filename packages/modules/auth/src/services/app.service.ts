@@ -134,7 +134,7 @@ export function createAppService(
           )
         : Promise.resolve(true),
       repo.findFirst({
-        where: (columns, { eq: colEq }) => colEq(columns.appId, manifest.id),
+        where: eq(apps.appId, manifest.id),
       }),
     ])
 
@@ -206,7 +206,7 @@ export function createAppService(
 
   async function uninstall(appId: string): Promise<void> {
     const result = await repo.delete({
-      where: (columns, { eq: colEq }) => colEq(columns.appId, appId),
+      where: eq(apps.appId, appId),
     })
 
     if (!result || result.length === 0) {
@@ -218,13 +218,13 @@ export function createAppService(
 
   async function getApp(appId: string): Promise<AppRow | null> {
     return repo.findFirst({
-      where: (columns, { eq: colEq }) => colEq(columns.appId, appId),
+      where: eq(apps.appId, appId),
     })
   }
 
   async function listApps(): Promise<AppRow[]> {
     return repo.findMany({
-      where: (columns, { eq: colEq }) => colEq(columns.status, 'active'),
+      where: eq(apps.status, 'active'),
     })
   }
 
@@ -233,7 +233,7 @@ export function createAppService(
 
     const result = await repo.update(
       { manifest: parsed },
-      { where: (columns, { eq: colEq }) => colEq(columns.appId, appId) },
+      { where: eq(apps.appId, appId) },
     )
 
     if (result.length === 0) {
@@ -248,7 +248,7 @@ export function createAppService(
   async function setStatus(appId: string, status: AppStatus): Promise<AppRow> {
     const result = await repo.update(
       { status },
-      { where: (columns, { eq: colEq }) => colEq(columns.appId, appId) },
+      { where: eq(apps.appId, appId) },
     )
 
     if (result.length === 0) {
