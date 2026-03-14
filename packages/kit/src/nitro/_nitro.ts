@@ -1,5 +1,6 @@
 import type { Nitro, NitroDevEventHandler, NitroEventHandler } from 'nitro/types'
 import type { Import, InlinePreset } from 'unimport'
+import type { ServerTemplate } from './utils'
 import { normalize } from 'pathe'
 import { toArray } from './utils'
 
@@ -81,4 +82,12 @@ export function addImportsSources(presets: InlinePreset | InlinePreset[], nitro:
     nitro.options.imports.presets ||= []
     nitro.options.imports.presets.push(...toArray(presets))
   }
+}
+
+/**
+ * Adds a virtual file that can be used within the Nuxt Nitro server build.
+ */
+export function addTemplate(template: ServerTemplate, nitro: Nitro) {
+  nitro.options.virtual ||= {}
+  nitro.options.virtual[template.id] = template.getContents
 }

@@ -1,6 +1,5 @@
 import type Redis from 'ioredis'
 import { useContainer } from '@czo/kit/ioc'
-import { useStorage } from 'nitro/storage'
 
 let connection: Redis | undefined
 
@@ -17,6 +16,7 @@ export async function getQueueConnection(): Promise<Redis> {
 
   try {
     const config = await useContainer().make('config')
+    const useStorage = await useContainer().make('useStorage')
     const queueConfig = config.queue
 
     if (queueConfig) {

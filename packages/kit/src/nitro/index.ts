@@ -6,6 +6,7 @@ export {
   addImportsSources,
   addPlugin,
   addScanDir,
+  addTemplate,
 } from './_nitro'
 export { defineNitroModule } from './module'
 export type { ResolvePathOptions, Resolver } from './resolve'

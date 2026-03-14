@@ -193,31 +193,45 @@ describe('auth plugin', () => {
   async function setupPlugin(authConfig?: Record<string, string>) {
     mockKitModules(authConfig)
 
-    // Pre-register the services that module.ts would normally bind
-    mockSingletons.set('auth:actor', () => mockActorService)
-    mockSingletons.set('auth:access', () => mockAccessService)
+    // Bind config into the container so hooks can resolve it
+    const runtimeAuth = {
+      secret: 'test-secret-key-32-chars-minimum!',
+      baseUrl: 'http://localhost:4000',
+      ...authConfig,
+    }
+    mockSingletons.set('config', () => ({
+      app: 'czo-test',
+      baseUrl: 'http://localhost:4000',
+      auth: runtimeAuth,
+    }))
 
     const { default: plugin } = await import('./index')
     const app = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(app.nitroApp)
+
+    // Run czo:init to register auth:actor and auth:access into the container
+    const init = app.hookCallbacks.get('czo:init')
+    if (init)
+      await init()
+
     return { plugin, ...app }
   }
 
   // ─── Secret validation ──────────────────────────────────────────────
 
   it('should warn and skip when auth secret is not configured', async () => {
-    const { hookCallbacks } = await setupPlugin({ secret: '', baseUrl: '' })
+    await setupPlugin({ secret: '', baseUrl: '' })
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Auth secret not configured'),
     )
-    // No hooks registered because plugin returned early
-    expect(hookCallbacks.has('czo:boot')).toBe(false)
+    // czo:init returned early — auth:actor and auth:access not registered
+    expect(mockSingletons.has('auth:actor')).toBe(false)
   })
 
   it('should error and skip when auth secret is too short', async () => {
-    const { hookCallbacks } = await setupPlugin({
+    await setupPlugin({
       secret: 'too-short',
       baseUrl: 'http://localhost:4000',
     })
@@ -225,7 +239,8 @@ describe('auth plugin', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('at least 32 characters'),
     )
-    expect(hookCallbacks.has('czo:boot')).toBe(false)
+    // czo:init returned early — auth:actor and auth:access not registered
+    expect(mockSingletons.has('auth:actor')).toBe(false)
   })
 
   // ─── Hook registration ─────────────────────────────────────────────

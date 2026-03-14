@@ -37,7 +37,7 @@ describe('auth module', () => {
     expect(mod.default).toBeDefined()
   })
 
-  it('should register scan dir and plugin during setup', async () => {
+  it('should register plugin during setup', async () => {
     const { setup } = await importAndGetSetup()
 
     const nitro = {
@@ -49,10 +49,6 @@ describe('auth module', () => {
     setup(nitro)
 
     expect(mockCreateResolver).toHaveBeenCalled()
-    expect(mockAddScanDir).toHaveBeenCalledWith(
-      expect.any(String),
-      nitro,
-    )
     expect(mockAddPlugin).toHaveBeenCalledWith(
       expect.any(String),
       nitro,

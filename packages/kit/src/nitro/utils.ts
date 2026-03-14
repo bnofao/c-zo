@@ -22,3 +22,9 @@ export const MODE_RE = /\.(server|client)(\.\w+)*$/
 export const distDirURL = new URL('.', import.meta.url)
 
 export type RequirePicked<T extends Record<string, any>, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>
+
+export interface ServerTemplate {
+  /** The target id once the template is copied into the Nitro buildDir */
+  id: string
+  getContents: () => string | Promise<string>
+}

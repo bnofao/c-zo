@@ -18,39 +18,56 @@ import { useLogger } from '@czo/kit'
 import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
-import { useRuntimeConfig } from 'nitro/runtime-config'
+// import { useRuntimeConfig } from 'nitro/runtime-config'
 import { useStorage } from 'nitro/storage'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
-  const container = useContainer()
-  const config = useRuntimeConfig()
+  // const container = useContainer()
+  // const config = useRuntimeConfig()
 
-  const authConfig = config.auth
+  // const authConfig = config.auth
 
-  if (!authConfig?.secret) {
-    logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
-    return
-  }
+  // if (!authConfig?.secret) {
+  //   logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
+  //   return
+  // }
 
-  if (authConfig.secret.length < 32) {
-    logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
-    return
-  }
+  // if (authConfig.secret.length < 32) {
+  //   logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
+  //   return
+  // }
 
   nitroApp.hooks.hook('czo:init', async () => {
+    const container = useContainer()
+    const config = await container.make('config')
+
+    const authConfig = config.auth
+
+    if (!authConfig?.secret) {
+      logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
+      return
+    }
+
+    if (authConfig.secret.length < 32) {
+      logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
+      return
+    }
+
     const actorService = useAuthActorService()
     container.singleton('auth:actor', () => actorService)
 
     const accessService = useAccessService()
     container.singleton('auth:access', () => accessService)
-    
+
     registerSchema(authSchema)
     registerRelations(authRelations)
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
+    const container = useContainer()
+
     logger.start('Registering auth domains...')
 
     const actorService = await container.make('auth:actor')
@@ -83,6 +100,11 @@ export default definePlugin((nitroApp) => {
   })
 
   nitroApp.hooks.hook('czo:boot', async () => {
+    const container = useContainer()
+    const config = await container.make('config')
+
+    const authConfig = config.auth
+
     logger.start('Booting auth module...')
 
     const db = await useDatabase()
