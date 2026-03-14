@@ -77,7 +77,7 @@ describe('schema-registry', () => {
     registerSchema({ products: 'productsTable', attributes: 'attributesTable' })
     registerRelations(() => ({ apps: { installedByUser: 'rel1' } }))
     registerRelations(schema => ({
-      products: { attributes: `rel-to-${schema.attributes}` },
+      products: { attributes: `rel-to-${(schema as Record<string, unknown>).attributes}` },
     }))
 
     expect(registeredRelations()).toEqual({
