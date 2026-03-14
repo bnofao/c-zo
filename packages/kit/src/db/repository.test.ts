@@ -1,5 +1,4 @@
 import type { PgTableWithColumns } from 'drizzle-orm/pg-core'
-import type { Pool } from 'pg'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseError, OptimisticLockError, Repository } from './repository'
 
@@ -96,11 +95,6 @@ function createMockDb() {
     query: {
       testEntities: mockQueryBuilder,
     },
-    schema: {
-      testEntitiesRelations: {
-        config: vi.fn().mockReturnValue({}),
-      },
-    },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => mockInsertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => mockUpdateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => mockDeleteResult)),
@@ -118,8 +112,7 @@ function createMockDb() {
 class TestRepository extends Repository<
   { testEntities: any },
   PgTableWithColumns<any>,
-  'testEntities',
-  Pool
+  'testEntities'
 > {
   // Expose hooks for testing
   public beforeCreateCalls: any[] = []

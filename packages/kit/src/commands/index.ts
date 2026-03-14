@@ -1,1 +1,0 @@
-export { publishCommand } from './publish'

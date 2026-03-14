@@ -1,4 +1,4 @@
-import type { DomainEvent, EventBus } from '../types'
+import type { DomainEvent, HookableEventBus } from '../types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDomainEvent } from '../domain-event'
 import { createHookableEventBus } from './hookable'
@@ -11,7 +11,7 @@ function makeEvent(type: string, payload: unknown = {}): DomainEvent {
 }
 
 describe('createHookableEventBus', () => {
-  let bus: EventBus
+  let bus: HookableEventBus
 
   beforeEach(async () => {
     bus = await createHookableEventBus()
@@ -21,11 +21,12 @@ describe('createHookableEventBus', () => {
     await bus.shutdown()
   })
 
-  it('should create an EventBus instance', () => {
+  it('should create a HookableEventBus instance', () => {
     expect(bus).toBeDefined()
     expect(bus.publish).toBeInstanceOf(Function)
     expect(bus.subscribe).toBeInstanceOf(Function)
     expect(bus.shutdown).toBeInstanceOf(Function)
+    expect(bus.onPublish).toBeInstanceOf(Function)
   })
 
   describe('publish / subscribe', () => {
@@ -204,8 +205,85 @@ describe('createHookableEventBus', () => {
   })
 
   describe('publish with no subscribers', () => {
-    it('should be a no-op when no subscribers exist', async () => {
+    it('should return undefined when no hook is registered', async () => {
       await expect(bus.publish(makeEvent('orphan.event'))).resolves.toBeUndefined()
+    })
+  })
+
+  describe('onPublish hook', () => {
+    it('should return the hook value from publish', async () => {
+      bus.onPublish(() => 'hook-result')
+
+      const result = await bus.publish(makeEvent('test.event'))
+
+      expect(result).toBe('hook-result')
+    })
+
+    it('should pass the event to the hook', async () => {
+      const hook = vi.fn(() => 'ok')
+      bus.onPublish(hook)
+
+      const event = makeEvent('test.event', { id: '1' })
+      await bus.publish(event)
+
+      expect(hook).toHaveBeenCalledWith(event)
+    })
+
+    it('should return the async hook value from publish', async () => {
+      bus.onPublish(async () => [{ appId: 'a', ok: true }])
+
+      const result = await bus.publish(makeEvent('test.event'))
+
+      expect(result).toEqual([{ appId: 'a', ok: true }])
+    })
+
+    it('should call hook after subscribers', async () => {
+      const order: string[] = []
+
+      bus.subscribe('test.event', () => {
+        order.push('subscriber')
+      })
+      bus.onPublish(() => {
+        order.push('hook')
+        return 'done'
+      })
+
+      await bus.publish(makeEvent('test.event'))
+
+      expect(order).toEqual(['subscriber', 'hook'])
+    })
+
+    it('should use last-registered hook (single slot)', async () => {
+      bus.onPublish(() => 'first')
+      bus.onPublish(() => 'second')
+
+      const result = await bus.publish(makeEvent('test.event'))
+
+      expect(result).toBe('second')
+    })
+
+    it('should reset hook to noop on shutdown', async () => {
+      bus.onPublish(() => 'active')
+      await bus.shutdown()
+
+      // Recreate bus after shutdown to test reset
+      bus = await createHookableEventBus()
+
+      const result = await bus.publish(makeEvent('test.event'))
+
+      expect(result).toBeUndefined()
+    })
+
+    it('should reset hook on the same bus instance after shutdown', async () => {
+      bus.onPublish(() => 'active')
+
+      const beforeShutdown = await bus.publish(makeEvent('test.event'))
+      expect(beforeShutdown).toBe('active')
+
+      await bus.shutdown()
+
+      const afterShutdown = await bus.publish(makeEvent('test.event'))
+      expect(afterShutdown).toBeUndefined()
     })
   })
 })

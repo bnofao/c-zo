@@ -10,7 +10,7 @@ describe('discoverModuleSchemas', () => {
     const schemas = discoverModuleSchemas('./nitro.config.ts', { cwd: mazoDir })
 
     expect(schemas.length).toBeGreaterThanOrEqual(1)
-    expect(schemas.some(s => s.includes('auth/dist/database/schema.js'))).toBe(true)
+    expect(schemas.some(s => s.includes('auth/dist/database/schema.mjs'))).toBe(true)
   })
 
   it('should return absolute paths', () => {

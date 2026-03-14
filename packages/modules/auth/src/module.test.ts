@@ -8,7 +8,7 @@ const mockResolver = vi.hoisted(() => ({
 const mockCreateResolver = vi.hoisted(() => vi.fn(() => mockResolver))
 const mockDefineNitroModule = vi.hoisted(() => vi.fn((def: { setup: (...args: unknown[]) => void }) => def))
 
-vi.mock('@czo/kit/author', () => ({
+vi.mock('@czo/kit/nitro', () => ({
   defineNitroModule: mockDefineNitroModule,
   addPlugin: mockAddPlugin,
   addScanDir: mockAddScanDir,
@@ -37,72 +37,21 @@ describe('auth module', () => {
     expect(mod.default).toBeDefined()
   })
 
-  it('should register scan dir and plugin during setup', async () => {
+  it('should register plugin during setup', async () => {
     const { setup } = await importAndGetSetup()
 
     const nitro = {
       options: {
-        runtimeConfig: { czo: {} } as Record<string, any>,
+        runtimeConfig: {} as Record<string, any>,
       },
     }
 
     setup(nitro)
 
     expect(mockCreateResolver).toHaveBeenCalled()
-    expect(mockAddScanDir).toHaveBeenCalledWith(
-      expect.any(String),
-      nitro,
-    )
     expect(mockAddPlugin).toHaveBeenCalledWith(
       expect.any(String),
       nitro,
     )
-  })
-
-  it('should inject auth config defaults into runtimeConfig', async () => {
-    const { setup } = await importAndGetSetup()
-
-    const nitro = {
-      options: {
-        runtimeConfig: { czo: {} } as Record<string, any>,
-      },
-    }
-
-    setup(nitro)
-
-    const czo = nitro.options.runtimeConfig.czo
-    expect(czo.auth).toEqual({
-      secret: '',
-      baseUrl: '',
-      jwtPrivateKey: '',
-      jwtPublicKey: '',
-      googleClientId: '',
-      googleClientSecret: '',
-      githubClientId: '',
-      githubClientSecret: '',
-    })
-  })
-
-  it('should preserve existing auth config values', async () => {
-    const { setup } = await importAndGetSetup()
-
-    const nitro = {
-      options: {
-        runtimeConfig: {
-          czo: {
-            auth: {
-              secret: 'existing-secret',
-              baseUrl: 'http://example.com',
-            },
-          },
-        } as Record<string, any>,
-      },
-    }
-
-    setup(nitro)
-
-    const czo = nitro.options.runtimeConfig.czo
-    expect(czo.auth.secret).toBe('existing-secret')
-    expect(czo.auth.baseUrl).toBe('http://example.com')
   })
 })

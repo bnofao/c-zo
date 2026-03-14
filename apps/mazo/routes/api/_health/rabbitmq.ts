@@ -1,10 +1,10 @@
 import { defineHandler } from 'nitro/h3'
 import { checkRabbitMQHealth } from '@czo/kit/event-bus'
-import { useCzoConfig } from '@czo/kit'
+import { useRuntimeConfig } from 'nitro/runtime-config'
 
 export default defineHandler(async () => {
-  const { eventBus } = useCzoConfig()
-  const url = eventBus.rabbitmq?.url
+  const { rabbitmq } = useRuntimeConfig()
+  const url = rabbitmq?.url
 
   if (!url) {
     return {

@@ -1,24 +1,20 @@
-import { czoConfigDefaults } from '../config-defaults'
-import { defineNitroModule } from '../module'
-import { addImportsSources, addPlugin } from '../nitro'
-import { createResolver } from '../resolve'
+import { addImportsSources, addPlugin, createResolver, defineNitroModule } from '@czo/kit/nitro'
 
 export default defineNitroModule({
   setup: (nitro) => {
     const resolver = createResolver(import.meta.url)
 
-    // Inject czo config defaults into runtimeConfig so Nitro's
-    // applyEnv() can map NITRO_CZO_* env vars automatically.
-    // User values from nitro.config.ts take precedence over defaults.
-    const existing = (nitro.options.runtimeConfig as any).czo ?? {}
-    ;(nitro.options.runtimeConfig as any).czo = {
-      ...czoConfigDefaults,
-      ...existing,
-      queue: {
-        ...czoConfigDefaults.queue,
-        ...existing.queue,
-      },
-    }
+    // addTemplate({
+    //   id: '#czo/kit/config',
+    //   getContents() {
+    //     return `import { runtimeConfig } from "#nitro/virtual/runtime-config";
+    //     import { useContainer } from "@czo/kit/ioc";
+
+    //     console.log('OKOKOKOKOK');
+
+    //     useContainer().bindValue('config', useRuntimeConfig())`
+    //   },
+    // }, nitro)
 
     addImportsSources({
       from: '@czo/kit/db',
@@ -36,6 +32,7 @@ export default defineNitroModule({
       from: '@czo/kit/graphql',
       imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory', 'registerDirective', 'registeredDirectiveTypeDefs', 'applyDirectives'],
     }, nitro)
-    addPlugin(resolver.resolve('../plugin/index'), nitro)
+    // addScanDir(resolver.resolve('../'), nitro)
+    addPlugin(resolver.resolve('../plugins/index'), nitro)
   },
 })

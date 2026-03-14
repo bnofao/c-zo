@@ -165,6 +165,8 @@ export interface AuthAppInstalledPayload {
   apiKey: string
   /** User who triggered the installation */
   installedBy: string
+  /** HMAC secret for signing webhook deliveries to this app */
+  webhookSecret: string
 }
 
 export interface AuthAppUninstalledPayload {

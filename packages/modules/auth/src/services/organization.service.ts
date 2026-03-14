@@ -1,4 +1,4 @@
-import type { Auth } from '../config/auth'
+import type { Auth } from '@czo/auth/config'
 import { APIError } from 'better-auth'
 
 // ─── Types ───────────────────────────────────────────────────────────

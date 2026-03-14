@@ -85,29 +85,31 @@ const mockAppService = vi.hoisted(() => ({
 }))
 const mockCreateAppService = vi.hoisted(() => vi.fn(() => mockAppService))
 const mockRegisterAppConsumer = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockRegisterWebhookDispatcher = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
-vi.mock('../config/auth', () => ({
+vi.mock('@czo/auth/config', () => ({
   createAuth: mockCreateAuth,
+  useAccessService: vi.fn(() => mockAccessService),
+  useAuthActorService: vi.fn(() => mockActorService),
+  ORGANIZATION_STATEMENTS: [],
+  ORGANIZATION_HIERARCHY: {},
+  ADMIN_STATEMENTS: [],
+  ADMIN_HIERARCHY: {},
+  API_KEY_STATEMENTS: [],
+  API_KEY_HIERARCHY: {},
 }))
 
-vi.mock('../services/user.service', () => ({
+vi.mock('@czo/auth/services', () => ({
   createUserService: mockCreateUserService,
-}))
-
-vi.mock('../services/auth.service', () => ({
   createAuthService: mockCreateAuthService,
-}))
-
-vi.mock('../services/apiKey.service', () => ({
   createApiKeyService: mockCreateApiKeyService,
-}))
-
-vi.mock('../services/app.service', () => ({
   createAppService: mockCreateAppService,
+  createOrganizationService: vi.fn(() => ({})),
 }))
 
-vi.mock('../consumers/app-register.consumer', () => ({
+vi.mock('@czo/auth/listeners', () => ({
   registerAppConsumer: mockRegisterAppConsumer,
+  registerWebhookDispatcher: mockRegisterWebhookDispatcher,
 }))
 
 vi.mock('nitro', () => ({
@@ -118,11 +120,8 @@ vi.mock('nitro/storage', () => ({
   useStorage: () => mockStorageInstance,
 }))
 
-// Mock GraphQL module imports (called inside czo:boot)
-vi.mock('../graphql/context-factory', () => ({}))
-vi.mock('../graphql/typedefs', () => ({}))
-vi.mock('../graphql/resolvers', () => ({}))
-vi.mock('../graphql/directives', () => ({}))
+// Mock GraphQL module import (called inside czo:boot)
+vi.mock('@czo/auth/graphql', () => ({}))
 
 describe('auth plugin', () => {
   beforeEach(() => {
@@ -139,7 +138,10 @@ describe('auth plugin', () => {
     }))
 
     vi.doMock('@czo/kit/db', () => ({
-      useDatabase: () => mockDb,
+      useDatabase: () => Promise.resolve(mockDb),
+      Repository: class MockRepository {},
+      registerSchema: vi.fn(),
+      registerRelations: vi.fn(),
     }))
 
     vi.doMock('@czo/kit/ioc', () => ({
@@ -191,31 +193,45 @@ describe('auth plugin', () => {
   async function setupPlugin(authConfig?: Record<string, string>) {
     mockKitModules(authConfig)
 
-    // Pre-register the services that module.ts would normally bind
-    mockSingletons.set('auth:actor', () => mockActorService)
-    mockSingletons.set('auth:access', () => mockAccessService)
+    // Bind config into the container so hooks can resolve it
+    const runtimeAuth = {
+      secret: 'test-secret-key-32-chars-minimum!',
+      baseUrl: 'http://localhost:4000',
+      ...authConfig,
+    }
+    mockSingletons.set('config', () => ({
+      app: 'czo-test',
+      baseUrl: 'http://localhost:4000',
+      auth: runtimeAuth,
+    }))
 
     const { default: plugin } = await import('./index')
     const app = createNitroApp()
 
     await (plugin as (app: unknown) => Promise<void>)(app.nitroApp)
+
+    // Run czo:init to register auth:actor and auth:access into the container
+    const init = app.hookCallbacks.get('czo:init')
+    if (init)
+      await init()
+
     return { plugin, ...app }
   }
 
   // ─── Secret validation ──────────────────────────────────────────────
 
   it('should warn and skip when auth secret is not configured', async () => {
-    const { hookCallbacks } = await setupPlugin({ secret: '', baseUrl: '' })
+    await setupPlugin({ secret: '', baseUrl: '' })
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Auth secret not configured'),
     )
-    // No hooks registered because plugin returned early
-    expect(hookCallbacks.has('czo:boot')).toBe(false)
+    // czo:init returned early — auth:actor and auth:access not registered
+    expect(mockSingletons.has('auth:actor')).toBe(false)
   })
 
   it('should error and skip when auth secret is too short', async () => {
-    const { hookCallbacks } = await setupPlugin({
+    await setupPlugin({
       secret: 'too-short',
       baseUrl: 'http://localhost:4000',
     })
@@ -223,7 +239,8 @@ describe('auth plugin', () => {
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('at least 32 characters'),
     )
-    expect(hookCallbacks.has('czo:boot')).toBe(false)
+    // czo:init returned early — auth:actor and auth:access not registered
+    expect(mockSingletons.has('auth:actor')).toBe(false)
   })
 
   // ─── Hook registration ─────────────────────────────────────────────
@@ -316,6 +333,14 @@ describe('auth plugin', () => {
 
     expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, mockApiKeyService, mockAuthService, expect.any(Set))
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apps', expect.any(Function))
+  })
+
+  it('should register the webhook dispatcher during czo:boot', async () => {
+    const { boot } = await setupPlugin()
+
+    await boot()
+
+    expect(mockRegisterWebhookDispatcher).toHaveBeenCalled()
   })
 
   it('should freeze actor and access registries during czo:boot', async () => {

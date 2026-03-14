@@ -2,6 +2,7 @@
   "extends": "@workspace/typescript-config/library.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "rootDir": "../../..",
     "module": "preserve",
     "moduleResolution": "bundler",
     "paths": {
