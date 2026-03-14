@@ -244,6 +244,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
       }, {
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 },
+        removeOnFail: { count: 1000 },
       })
 
       logger.info(`Webhook job enqueued for app "${app.appId}" event "${domainEvent.type}" (${deliveryId})`)

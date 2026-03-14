@@ -204,7 +204,11 @@ describe('registerWebhookDispatcher', () => {
         targetUrl: 'https://example.com/hook',
         event: 'products.created',
       }),
-      expect.objectContaining({ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }),
+      expect.objectContaining({
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnFail: { count: 1000 },
+      }),
     )
   })
 
