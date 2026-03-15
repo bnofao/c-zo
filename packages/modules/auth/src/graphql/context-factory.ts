@@ -16,6 +16,7 @@ registerContextFactory('auth', async (serverCtx) => {
       organizationService: await container.make('auth:organizations'),
       authService,
       apiKeyService: await container.make('auth:apikeys'),
+      appService: await container.make('auth:apps'),
       session: authSession?.session ?? null,
       user: authSession?.user ?? null,
     },

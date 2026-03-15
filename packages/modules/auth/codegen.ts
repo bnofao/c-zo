@@ -13,7 +13,7 @@ const config: CodegenConfig = {
       resolverTypesPath: './__generated__/types.generated.ts',
       typeDefsFilePath: './__generated__/typedefs.generated.ts',
       resolverMainFile: './__generated__/resolvers.generated.ts',
-      resolverGeneration: 'minimal',
+      resolverGeneration: 'recommended',
       externalResolvers: {
         'Query._empty': './../../../../../kit/src/graphql/resolvers/Query/_empty#_empty as Query__empty',
         'Mutation._empty': './../../../../../kit/src/graphql/resolvers/Mutation/_empty#_empty as Mutation__empty',
@@ -29,6 +29,7 @@ const config: CodegenConfig = {
         useIndexSignature: true,
         mappers: {
           User: 'better-auth/plugins#UserWithRole',
+          App: '../../services/app.service#AppRow',
         },
       },
     }),

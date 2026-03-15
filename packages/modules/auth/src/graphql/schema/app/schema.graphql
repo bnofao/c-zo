@@ -1,0 +1,38 @@
+type App {
+  id: ID!
+  appId: String!
+  manifest: JSON!
+  status: String!
+  organizationId: ID
+  installedBy: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type AppInstallResult {
+  app: App!
+  apiKeyId: String!
+}
+
+input InstallAppInput {
+  manifestUrl: String!
+  organizationId: ID
+}
+
+input InstallAppManifestInput {
+  manifest: JSON!
+  organizationId: ID
+  installedBy: String!
+}
+
+extend type Query {
+  app(appId: String!): App @permission(resource: "apps", action: "read")
+  apps(organizationId: ID): [App!]! @permission(resource: "apps", action: "read")
+}
+
+extend type Mutation {
+  installApp(input: InstallAppInput!): AppInstallResult! @permission(resource: "apps", action: "write")
+  uninstallApp(appId: String!): Boolean! @permission(resource: "apps", action: "delete")
+  updateAppManifest(appId: String!, manifest: JSON!): App! @permission(resource: "apps", action: "write")
+  setAppStatus(appId: String!, status: String!): App! @permission(resource: "apps", action: "write")
+}

@@ -91,3 +91,28 @@ export const API_KEY_HIERARCHY: HierarchyLevel<typeof API_KEY_STATEMENTS>[] = [
     },
   },
 ]
+
+export const APPS_STATEMENTS = {
+  apps: ['read', 'write', 'delete'],
+} as const
+
+export const APPS_HIERARCHY: HierarchyLevel<typeof APPS_STATEMENTS>[] = [
+  {
+    name: 'apps:viewer',
+    permissions: {
+      apps: ['read'],
+    },
+  },
+  {
+    name: 'apps:manager',
+    permissions: {
+      apps: ['write'],
+    },
+  },
+  {
+    name: 'apps:admin',
+    permissions: {
+      apps: ['delete'],
+    },
+  },
+]

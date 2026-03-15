@@ -5,7 +5,7 @@ import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
 
@@ -160,6 +160,7 @@ export function createAppService(
       status: 'pending',
       webhookSecret,
       installedBy: input.installedBy,
+      organizationId: input.organizationId,
       createdAt: now,
       updatedAt: now,
     })
@@ -185,6 +186,7 @@ export function createAppService(
       registerUrl: manifest.register,
       apiKey: apiKey.key,
       installedBy: input.installedBy,
+      organizationId: input.organizationId,
       webhookSecret,
     })
 
@@ -222,7 +224,12 @@ export function createAppService(
     })
   }
 
-  async function listApps(): Promise<AppRow[]> {
+  async function listApps(organizationId?: string): Promise<AppRow[]> {
+    if (organizationId) {
+      return repo.findMany({
+        where: and(eq(apps.status, 'active'), eq(apps.organizationId, organizationId)),
+      })
+    }
     return repo.findMany({
       where: eq(apps.status, 'active'),
     })

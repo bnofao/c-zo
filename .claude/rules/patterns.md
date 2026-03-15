@@ -1,55 +1,22 @@
-# Common Patterns
+# Project Patterns
 
-## API Response Format
+## Module Structure
 
-```typescript
-interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-  meta?: {
-    total: number
-    page: number
-    limit: number
-  }
-}
-```
+Each module in `packages/modules/` follows this layout:
+- `src/database/schema.ts` — Drizzle ORM schema
+- `src/graphql/schema/*/schema.graphql` — GraphQL type definitions
+- `src/graphql/schema/*/resolvers/` — Resolver implementations
+- `src/graphql/context-factory.ts` — GraphQL context with IoC services
+- `src/services/` — Business logic services
+- `src/plugins/index.ts` — Module plugin (IoC registration, boot hook)
+- `migrations/` — Drizzle migration files
 
-## Custom Hooks Pattern
+## GraphQL Codegen
 
-```typescript
-export function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+After editing `.graphql` schema files, run `pnpm generate` from the module directory to regenerate resolver types.
 
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay)
-    return () => clearTimeout(handler)
-  }, [value, delay])
+## IoC Service Registration
 
-  return debouncedValue
-}
-```
-
-## Repository Pattern
-
-```typescript
-interface Repository<T> {
-  findAll(filters?: Filters): Promise<T[]>
-  findById(id: string): Promise<T | null>
-  create(data: CreateDto): Promise<T>
-  update(id: string, data: UpdateDto): Promise<T>
-  delete(id: string): Promise<void>
-}
-```
-
-## Skeleton Projects
-
-When implementing new functionality:
-1. Search for battle-tested skeleton projects
-2. Use parallel agents to evaluate options:
-   - Security assessment
-   - Extensibility analysis
-   - Relevance scoring
-   - Implementation planning
-3. Clone best match as foundation
-4. Iterate within proven structure
+Services are registered in module plugins and resolved from the container in GraphQL context:
+- `useContainer()` to access the container
+- Services available after `czo:boot` hook fires

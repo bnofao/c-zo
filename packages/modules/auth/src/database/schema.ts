@@ -100,6 +100,7 @@ export const apps = pgTable('apps', {
   status: text('status').notNull().default('active'),
   webhookSecret: text('webhook_secret').notNull().default(''),
   installedBy: text('installed_by').notNull().references(() => users.id),
+  organizationId: text('organization_id').references(() => organizations.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

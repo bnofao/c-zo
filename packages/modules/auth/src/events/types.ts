@@ -165,6 +165,8 @@ export interface AuthAppInstalledPayload {
   apiKey: string
   /** User who triggered the installation */
   installedBy: string
+  /** Organization the app was installed into (if org-scoped) */
+  organizationId?: string
   /** HMAC secret for signing webhook deliveries to this app */
   webhookSecret: string
 }

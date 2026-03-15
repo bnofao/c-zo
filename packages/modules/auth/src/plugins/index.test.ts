@@ -97,6 +97,8 @@ vi.mock('@czo/auth/config', () => ({
   ADMIN_HIERARCHY: {},
   API_KEY_STATEMENTS: [],
   API_KEY_HIERARCHY: {},
+  APPS_STATEMENTS: [],
+  APPS_HIERARCHY: {},
 }))
 
 vi.mock('@czo/auth/services', () => ({
@@ -274,7 +276,7 @@ describe('auth plugin', () => {
 
     await register()
 
-    expect(mockAccessService.register).toHaveBeenCalledTimes(3)
+    expect(mockAccessService.register).toHaveBeenCalledTimes(4)
     expect(mockAccessService.register).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'organization' }),
     )
@@ -283,6 +285,9 @@ describe('auth plugin', () => {
     )
     expect(mockAccessService.register).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'api-key' }),
+    )
+    expect(mockAccessService.register).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'apps' }),
     )
   })
 
