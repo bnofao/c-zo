@@ -3,152 +3,147 @@
 **Statut** : Brouillon
 **Auteur** : [Nom]
 **Créé le** : 2026-01-29
-**Dernière mise à jour** : 2026-01-29
+**Dernière mise à jour** : 2026-03-15
 
 ---
 
 ## 1. Aperçu
 
-Channel permet aux marchands de vendre des produits sur plusieurs canaux de vente (vitrines web, applications mobiles, places de marché comme Amazon) à partir d'un catalogue produit unifié. Cette fonctionnalité est essentielle pour les marchands qui souhaitent étendre leur portée sans gérer des inventaires et des données produits séparés pour chaque plateforme.
+Channel permet aux marchands de définir et gérer plusieurs canaux de vente (vitrines web, applications mobiles, places de marché) depuis une interface d'administration unique. Ce module fournit l'infrastructure de base des canaux ; la publication de produits et la tarification par canal seront gérées par le module Product.
 
 ## 2. Énoncé du problème
 
 ### État actuel
-- La plateforme est limitée à une seule vitrine, empêchant les marchands de vendre sur plusieurs plateformes
-- Les marchands doivent synchroniser manuellement les produits et l'inventaire entre les différentes plateformes de vente
-- Impossibilité de définir des prix différents pour différents canaux de vente (ex. : prix plus élevés sur les places de marché pour couvrir les frais)
+- La plateforme ne dispose d'aucune notion de canal de vente
+- Impossible de distinguer les différentes surfaces de vente (web, mobile, marketplace)
 
 ### État cible
-- Les marchands peuvent créer et gérer plusieurs canaux de vente depuis une interface d'administration unique
-- Les produits peuvent être publiés sur n'importe quelle combinaison de canaux avec des paramètres spécifiques à chaque canal
-- L'inventaire reste unifié sur tous les canaux avec une synchronisation automatique des stocks
-- Les prix peuvent être personnalisés par canal tout en maintenant un prix de base
+- Les marchands peuvent créer et gérer plusieurs canaux de vente
+- Chaque canal dispose d'un handle unique, d'un nom et d'une configuration propre
+- Les canaux peuvent être activés ou désactivés sans perte de configuration
+- Les autres modules (Product, Order, etc.) peuvent référencer les canaux pour contextualiser leurs données
 
 ### Impact
-- Les marchands peuvent s'étendre à de nouveaux canaux de vente sans charge opérationnelle supplémentaire
-- Réduction du risque de survente grâce à la gestion unifiée de l'inventaire
-- Potentiel de revenus accru grâce à l'expansion sur les places de marché avec des stratégies de tarification appropriées
+- Prépare l'architecture multi-canal pour l'ensemble de la plateforme
+- Permet aux futurs modules de s'intégrer aux canaux (publication produit, tarification, analytics)
 
 ## 3. Objectifs
 
 ### Objectifs principaux
-- [ ] Permettre la publication multi-canal des produits depuis un catalogue unique
-- [ ] Prendre en charge la tarification spécifique par canal (prix différents par canal)
-- [ ] Maintenir un inventaire unifié sur tous les canaux avec synchronisation en temps réel
-- [ ] Fournir des analyses au niveau du canal pour suivre les performances par canal
+- [ ] Fournir un CRUD complet pour les canaux de vente
+- [ ] Permettre l'activation/désactivation des canaux
+- [ ] Créer un canal par défaut lors de la configuration d'une organisation
+- [ ] Exposer les canaux via l'API GraphQL pour que les autres modules puissent les référencer
 
 ### Non-objectifs (Hors périmètre)
-- Intégration directe avec les places de marché tierces (APIs Amazon, eBay) - ce PRD couvre uniquement l'architecture des canaux
-- Règles d'expédition spécifiques aux canaux (amélioration future)
-- Support multi-devises (fonctionnalité séparée)
+- Publication de produits sur les canaux (responsabilité du module Product)
+- Tarification spécifique par canal (responsabilité du module Product)
+- Intégration directe avec les places de marché tierces (APIs Amazon, eBay)
+- Règles d'expédition spécifiques aux canaux
+- Support multi-devises
+- Analytics et métriques de performance par canal
 
 ## 4. User Stories
 
 ### US-001 : Créer un canal de vente
 **En tant que** marchand
 **Je veux** créer un nouveau canal de vente (ex. : "Application mobile", "Portail grossiste")
-**Afin de** configurer où mes produits sont vendus
+**Afin de** configurer où mes produits pourront être vendus
 
 **Priorité** : Haute
 
-### US-002 : Publier des produits sur un canal
+### US-002 : Modifier un canal de vente
 **En tant que** marchand
-**Je veux** sélectionner quels produits sont disponibles sur chaque canal
-**Afin de** contrôler mon catalogue produit par canal de vente
+**Je veux** modifier le nom, la description ou le handle d'un canal existant
+**Afin de** maintenir mes canaux à jour
 
 **Priorité** : Haute
 
-### US-003 : Définir une tarification spécifique au canal
-**En tant que** marchand
-**Je veux** définir des prix différents pour un produit sur différents canaux
-**Afin de** tenir compte des frais des places de marché ou offrir des remises grossistes
-
-**Priorité** : Haute
-
-### US-004 : Consulter les performances du canal
-**En tant que** marchand
-**Je veux** voir les métriques de ventes et d'inventaire par canal
-**Afin de** comprendre quels canaux performent le mieux
-
-**Priorité** : Moyenne
-
-### US-005 : Gérer la disponibilité du canal
+### US-003 : Gérer la disponibilité du canal
 **En tant que** marchand
 **Je veux** activer ou désactiver rapidement un canal
 **Afin de** mettre en pause les ventes sur un canal sans perdre la configuration
 
+**Priorité** : Haute
+
+### US-004 : Supprimer un canal de vente
+**En tant que** marchand
+**Je veux** supprimer un canal qui n'est plus utilisé
+**Afin de** garder ma liste de canaux propre
+
 **Priorité** : Moyenne
+
+### US-005 : Lister et consulter les canaux
+**En tant que** marchand
+**Je veux** voir la liste de tous mes canaux avec leur statut
+**Afin de** avoir une vue d'ensemble de mes surfaces de vente
+
+**Priorité** : Haute
 
 ## 5. Critères d'acceptation
 
 ### Critères d'acceptation US-001
 - [ ] Peut créer un canal avec nom, handle (slug) et description
-- [ ] Le canal a un handle unique au sein de l'organisation
-- [ ] Le canal peut être marqué comme actif ou inactif
-- [ ] Un canal par défaut est créé lors de la configuration du compte
+- [ ] Le handle est unique au sein de l'organisation
+- [ ] Le canal est créé avec le statut actif par défaut
+- [ ] Un canal par défaut est créé automatiquement lors de la configuration d'une organisation
 
 ### Critères d'acceptation US-002
-- [ ] Peut assigner des produits à un ou plusieurs canaux
-- [ ] Peut assigner/retirer des produits en masse des canaux
-- [ ] La disponibilité des produits par canal est reflétée dans les requêtes de la vitrine
-- [ ] Les produits non publiés ne sont pas retournés dans les listes de produits spécifiques au canal
+- [ ] Peut modifier le nom et la description d'un canal
+- [ ] Peut modifier le handle si le nouveau handle est unique dans l'organisation
+- [ ] La modification met à jour le champ `updatedAt`
 
 ### Critères d'acceptation US-003
-- [ ] Peut définir un prix de substitution pour toute variante de produit par canal
-- [ ] Si aucun prix de canal n'est défini, le prix de base est utilisé
-- [ ] La tarification du canal est retournée dans l'API de la vitrine lors des requêtes par canal
-- [ ] Les changements de prix prennent effet immédiatement
+- [ ] Peut basculer le statut actif/inactif du canal
+- [ ] Le canal par défaut ne peut pas être désactivé
+- [ ] La configuration du canal est préservée lors de la désactivation
 
 ### Critères d'acceptation US-004
-- [ ] Le tableau de bord affiche le total des ventes par canal
-- [ ] Peut filtrer les commandes par canal
-- [ ] Peut voir les produits les plus vendus par canal
+- [ ] La suppression est une suppression logique (soft delete via `deletedAt`)
+- [ ] Le canal par défaut ne peut pas être supprimé
+- [ ] Les canaux supprimés n'apparaissent plus dans les listes
 
 ### Critères d'acceptation US-005
-- [ ] Peut basculer le statut actif/inactif du canal
-- [ ] Les canaux inactifs ne retournent aucun produit dans les requêtes de la vitrine
-- [ ] La configuration du canal est préservée lors de la désactivation
+- [ ] Peut lister tous les canaux actifs d'une organisation
+- [ ] Peut consulter le détail d'un canal par ID ou handle
+- [ ] La liste affiche le statut (actif/inactif) de chaque canal
 
 ## 6. Notes techniques
 
 ### Considérations architecturales
-- Channel sera un nouveau module suivant le pattern de module existant (`@czo/channel`)
-- Le contexte du canal doit être passé à travers le contexte GraphQL pour les requêtes de la vitrine
-- Considérer le canal comme une dimension similaire à la locale pour le futur multi-tenancy
+- Channel est un module autonome suivant le pattern existant (`@czo/channel`)
+- Le contexte du canal est exposé via le GraphQL context pour les autres modules
+- Le canal est une dimension structurante : les modules Product, Order et Analytics s'y rattacheront via leurs propres tables de jonction
 
 ### Modifications de l'API
 - Nouveau type `Channel` avec opérations CRUD
-- Nouveau type de jonction `ProductChannel` pour les assignations produit-canal
-- Nouveau type `ChannelPrice` pour la tarification spécifique au canal
-- Les requêtes de la vitrine doivent accepter un argument optionnel `channelId` ou `channelHandle`
+- Queries : `channels(organizationId: ID)`, `channel(id: ID!)`
+- Mutations : `createChannel`, `updateChannel`, `deleteChannel`, `setChannelStatus`
 
 ### Modifications de la base de données
-- Table `channel` : id, handle, name, description, is_active, deleted_at, version
-- Table `product_channel` : product_id, channel_id, published_at
-- Table `variant_channel_price` : variant_id, channel_id, price, compare_at_price
+- Table `channels` : id, organization_id, handle, name, description, is_default, is_active, deleted_at, version, created_at, updated_at
 
 ### Considérations de sécurité
 - Les canaux appartiennent à une organisation ; l'accès inter-organisation doit être empêché
-- Le handle du canal doit être validé pour prévenir l'injection
+- Le handle du canal doit être validé (alphanumérique + tirets uniquement)
 - L'API de la vitrine ne doit exposer que les canaux actifs
 
 ## 7. Dépendances
 
 ### Bloqueurs
-- Le module Product doit être complété (actuellement en cours)
+- Aucun — le module Channel est autonome
 
 ### Fonctionnalités liées
-- Gestion de l'inventaire (stock unifié sur tous les canaux)
-- Gestion des commandes (commandes taguées avec le canal source)
-- Module d'analytics (métriques de performance des canaux)
+- Module Product (publication de produits sur les canaux, tarification par canal)
+- Module Order (commandes taguées avec le canal source)
+- Module Analytics (métriques de performance des canaux)
 
 ---
 
 ## Annexe
 
 ### Questions ouvertes
-- [ ] Les canaux doivent-ils supporter des champs personnalisés pour les données spécifiques aux places de marché ?
-- [ ] Comment les limites d'inventaire spécifiques aux canaux doivent-elles fonctionner (ex. : réserver 10 unités pour le web uniquement) ?
+- [ ] Les canaux doivent-ils supporter des métadonnées personnalisées (champ JSON) pour les données spécifiques aux places de marché ?
 - [ ] Devons-nous supporter des groupes de canaux pour la gestion en masse ?
 
 ### Références

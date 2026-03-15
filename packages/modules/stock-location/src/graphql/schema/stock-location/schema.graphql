@@ -1,0 +1,42 @@
+type StockLocation {
+  id: ID!
+  organizationId: ID!
+  handle: String!
+  name: String!
+  isDefault: Boolean!
+  isActive: Boolean!
+  metadata: JSON
+  address: StockLocationAddress
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type StockLocationAddress {
+  id: ID!
+  addressLine1: String!
+  addressLine2: String
+  city: String!
+  province: String
+  postalCode: String
+  countryCode: String!
+  phone: String
+}
+
+input CreateStockLocationInput {
+  name: String!
+  handle: String
+  organizationId: ID!
+  addressLine1: String!
+  addressLine2: String
+  city: String!
+  province: String
+  postalCode: String
+  countryCode: String!
+  phone: String
+  metadata: JSON
+}
+
+extend type Mutation {
+  createStockLocation(input: CreateStockLocationInput!): StockLocation!
+    @permission(resource: "stock-location", action: "create")
+}
