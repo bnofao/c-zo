@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apps } from './apps'
 
+const appsResolver = apps as (...args: any[]) => Promise<any>
+
 describe('apps query resolver', () => {
   const mockListApps = vi.fn()
 
@@ -16,7 +18,7 @@ describe('apps query resolver', () => {
   it('should use explicit organizationId over session', async () => {
     mockListApps.mockResolvedValue([])
 
-    await apps({}, { organizationId: 'org-explicit' }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { organizationId: 'org-explicit' }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith('org-explicit')
   })
@@ -24,7 +26,7 @@ describe('apps query resolver', () => {
   it('should fall back to session organizationId when arg is null', async () => {
     mockListApps.mockResolvedValue([])
 
-    await apps({}, { organizationId: null }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { organizationId: null }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith('org-session')
   })
@@ -33,7 +35,7 @@ describe('apps query resolver', () => {
     const expected = [{ id: '1', appId: 'my-app', status: 'active' }]
     mockListApps.mockResolvedValue(expected)
 
-    const result = await apps({}, { organizationId: null }, makeCtx(null), {} as any)
+    const result = await appsResolver({}, { organizationId: null }, makeCtx(null), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(undefined)
     expect(result).toEqual(expected)
