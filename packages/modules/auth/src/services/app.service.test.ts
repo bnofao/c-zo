@@ -106,6 +106,7 @@ const APP_ROW = {
   manifest: VALID_MANIFEST,
   status: 'active',
   installedBy: 'user-1',
+  organizationId: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
 }
@@ -412,6 +413,32 @@ describe('appService', () => {
         expect.objectContaining({ webhookSecret: MOCK_UUID }),
       )
     })
+
+    it('should persist organizationId in the insert', async () => {
+      queryFirstResult = null
+      insertResult = [{ ...APP_ROW, id: MOCK_UUID, organizationId: 'org-1' }]
+      apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_x' })
+
+      await service.install({ manifest: VALID_MANIFEST, installedBy: 'user-1', organizationId: 'org-1' })
+
+      const insertChain = db.insert.mock.results[0]!.value
+      expect(insertChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-1' }),
+      )
+    })
+
+    it('should include organizationId in the APP_INSTALLED event payload', async () => {
+      queryFirstResult = null
+      insertResult = [{ ...APP_ROW, id: MOCK_UUID }]
+      apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_abc123' })
+
+      await service.install({ manifest: VALID_MANIFEST, installedBy: 'user-1', organizationId: 'org-1' })
+
+      expect(mockPublishAuthEvent).toHaveBeenCalledWith(
+        'auth.app.installed',
+        expect.objectContaining({ organizationId: 'org-1' }),
+      )
+    })
   })
 
   // ─── installFromUrl ──────────────────────────────────────────────
@@ -555,6 +582,15 @@ describe('appService', () => {
 
       await service.listApps()
 
+      expect(db.query.apps.findMany).toHaveBeenCalled()
+    })
+
+    it('should filter by organizationId when provided', async () => {
+      queryManyResult = [{ ...APP_ROW, organizationId: 'org-1' }]
+
+      const result = await service.listApps('org-1')
+
+      expect(result).toHaveLength(1)
       expect(db.query.apps.findMany).toHaveBeenCalled()
     })
   })

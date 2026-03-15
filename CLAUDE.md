@@ -21,13 +21,15 @@ pnpm build                  # Build all packages
 pnpm lint                   # Lint all packages
 pnpm lint:fix               # Fix lint issues
 pnpm test                   # Run tests with vitest
+pnpm check-types            # Type-check all packages
+pnpm typecheck              # Alias for check-types
 
 # Package-specific (from package directory)
 pnpm build                  # Build package (unbuild)
 pnpm lint                   # Lint with eslint
 pnpm lint:fix               # Fix lint issues
 
-# Product module (packages/modules/product)
+# Module commands (from module directory, e.g. packages/modules/auth)
 pnpm migrate:latest         # Run all pending migrations
 pnpm migrate:create <name>  # Create new migration
 pnpm migrate:status         # Check migration status
@@ -53,9 +55,7 @@ packages/
     - GraphQL helpers
     - CLI commands
   modules/
-    product/          # Product management module (@czo/product)
-    attribute/        # Attribute module
-    auth/             # Authentication module
+    auth/             # Authentication module (@czo/auth)
   ui/                 # Shared React components (@workspace/ui)
   eslint-config/      # Shared ESLint configurations
   typescript-config/  # Shared TypeScript configurations
@@ -88,7 +88,7 @@ Modules are registered in `apps/mazo/nitro.config.ts`.
 
 ### GraphQL
 
-- Schema-first development with `.gql` files in `src/schema/*/`
+- Schema-first development with `.graphql` files in `src/graphql/schema/*/`
 - Uses `@eddeee888/gcg-typescript-resolver-files` for codegen
 - Resolvers auto-generated from schema
 - Context includes services from IoC container
@@ -134,10 +134,4 @@ Available tools:
 - `qmd vsearch “query”` — semantic vector search
 - `qmd get <file>` — retrieve a specific document
 
-Use qmd search for quick lookups and qmd query for complex questions.
-
-Use Read/Glob only if qmd doesn’t return enough results.
-
-Once this is in place, Claude will always search the index first. It will only fall back to reading full files when it genuinely can’t find what it needs through the
-
-index.
+Use `qmd search` for quick lookups and `qmd query` for complex questions. Use Read/Glob only if qmd doesn’t return enough results.

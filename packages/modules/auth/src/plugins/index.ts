@@ -4,6 +4,8 @@ import {
   ADMIN_STATEMENTS,
   API_KEY_HIERARCHY,
   API_KEY_STATEMENTS,
+  APPS_HIERARCHY,
+  APPS_STATEMENTS,
   createAuth,
   ORGANIZATION_HIERARCHY,
   ORGANIZATION_STATEMENTS,
@@ -78,7 +80,7 @@ export default definePlugin((nitroApp) => {
     logger.info(`Registered ${actorTypes.length} actor types: ${actorTypes.join(', ')}`)
 
     const accessService = await container.make('auth:access')
-    const domains = ['organization', 'admin', 'api-key'] as const
+    const domains = ['organization', 'admin', 'api-key', 'apps'] as const
     accessService.register({
       name: 'organization',
       statements: ORGANIZATION_STATEMENTS,
@@ -93,6 +95,11 @@ export default definePlugin((nitroApp) => {
       name: 'api-key',
       statements: API_KEY_STATEMENTS,
       hierarchy: API_KEY_HIERARCHY,
+    })
+    accessService.register({
+      name: 'apps',
+      statements: APPS_STATEMENTS,
+      hierarchy: APPS_HIERARCHY,
     })
     logger.info(`Registered ${domains.length} access domains: ${domains.join(', ')}`)
 

@@ -43,6 +43,7 @@ declare module '@czo/kit/graphql' {
       organizationService: OrganizationService
       authService: AuthService
       apiKeyService: ApiKeyService
+      appService: AppService
       session: NonNullable<AuthSession>['session'] | null
       user: NonNullable<AuthSession>['user'] | null
     }

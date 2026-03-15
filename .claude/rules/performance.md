@@ -1,47 +1,18 @@
-# Performance Optimization
+# Performance
 
-## Model Selection Strategy
+## Agent Model Selection
 
-**Haiku 4.5** (90% of Sonnet capability, 3x cost savings):
-- Lightweight agents with frequent invocation
-- Pair programming and code generation
-- Worker agents in multi-agent systems
+- **Haiku** (`haiku`): Lightweight agents, frequent invocations, worker agents
+- **Sonnet** (`sonnet`): Main development, orchestration, complex coding
+- **Opus** (`opus`): Architectural decisions, deep reasoning, research
 
-**Sonnet 4.5** (Best coding model):
-- Main development work
-- Orchestrating multi-agent workflows
-- Complex coding tasks
+## Context Window
 
-**Opus 4.5** (Deepest reasoning):
-- Complex architectural decisions
-- Maximum reasoning requirements
-- Research and analysis tasks
-
-## Context Window Management
-
-Avoid last 20% of context window for:
-- Large-scale refactoring
-- Feature implementation spanning multiple files
-- Debugging complex interactions
-
-Lower context sensitivity tasks:
-- Single-file edits
-- Independent utility creation
-- Documentation updates
-- Simple bug fixes
-
-## Ultrathink + Plan Mode
-
-For complex tasks requiring deep reasoning:
-1. Use `ultrathink` for enhanced thinking
-2. Enable **Plan Mode** for structured approach
-3. "Rev the engine" with multiple critique rounds
-4. Use split role sub-agents for diverse analysis
+For tasks spanning many files (refactoring, multi-file features), be mindful of context usage. Single-file edits and utility creation are low-context tasks.
 
 ## Build Troubleshooting
 
 If build fails:
-1. Use **build-error-resolver** agent
-2. Analyze error messages
-3. Fix incrementally
-4. Verify after each fix
+1. Analyze error messages
+2. Fix incrementally
+3. Verify after each fix

@@ -22,6 +22,22 @@ type ApiKey {
   start: String
 }
 
+type App {
+  appId: String!
+  createdAt: DateTime!
+  id: ID!
+  installedBy: String!
+  manifest: JSON!
+  organizationId: ID
+  status: String!
+  updatedAt: DateTime!
+}
+
+type AppInstallResult {
+  apiKeyId: String!
+  app: App!
+}
+
 type BackupCodesResult {
   backupCodes: [String!]!
   status: Boolean!
@@ -105,6 +121,17 @@ type FullOrganization {
   type: String
 }
 
+input InstallAppInput {
+  manifestUrl: String!
+  organizationId: ID
+}
+
+input InstallAppManifestInput {
+  installedBy: String!
+  manifest: JSON!
+  organizationId: ID
+}
+
 type Invitation {
   createdAt: DateTime!
   email: EmailAddress!
@@ -160,6 +187,7 @@ type Mutation {
   enableTwoFactor(issuer: String, password: String!): EnableTwoFactorResult!
   generateBackupCodes(password: String!): BackupCodesResult!
   impersonateUser(userId: ID!): Boolean!
+  installApp(input: InstallAppInput!): AppInstallResult!
   inviteMember(input: InviteMemberInput!): Invitation!
   leaveOrganization(organizationId: ID!): Boolean!
   rejectInvitation(invitationId: ID!): Boolean!
@@ -171,12 +199,15 @@ type Mutation {
   revokeSessions(userId: ID!): Boolean!
   sendOtp: Boolean!
   setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
+  setAppStatus(appId: String!, status: String!): App!
   setRole(role: String!, userId: ID!): Boolean!
   setUserPassword(newPassword: String!, userId: ID!): Boolean!
   stopImpersonation: Boolean!
   unbanUser(userId: ID!): Boolean!
+  uninstallApp(appId: String!): Boolean!
   unlinkAccount(accountId: String, providerId: String!): Boolean!
   updateApiKey(input: UpdateApiKeyInput!, keyId: ID!): ApiKey!
+  updateAppManifest(appId: String!, manifest: JSON!): App!
   updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
   updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
   updateProfile(input: UpdateProfileInput!): User!
@@ -225,6 +256,8 @@ type Query {
   activeMember: OrgMember
   activeMemberRole(organizationId: ID, organizationSlug: String, userId: ID): MemberRole
   apiKey(keyId: ID!): ApiKey
+  app(appId: String!): App
+  apps(organizationId: ID): [App!]!
   checkSlug(slug: String!): SlugCheckResult!
   invitation(invitationId: ID!): Invitation
   invitations(organizationId: ID): [Invitation!]!
