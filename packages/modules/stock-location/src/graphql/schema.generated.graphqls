@@ -1,0 +1,79 @@
+input BooleanFilterInput {
+  eq: Boolean
+}
+
+input CreateStockLocationInput {
+  addressLine1: String!
+  addressLine2: String
+  city: String!
+  countryCode: String!
+  handle: String
+  metadata: JSON
+  name: String!
+  organizationId: ID!
+  phone: String
+  postalCode: String
+  province: String
+}
+
+scalar DateTime
+
+input DateTimeFilterInput {
+  eq: DateTime
+  gt: DateTime
+  gte: DateTime
+  lt: DateTime
+  lte: DateTime
+  ne: DateTime
+}
+
+scalar EmailAddress
+
+scalar JSON
+
+type Mutation {
+  _empty: String
+  createStockLocation(input: CreateStockLocationInput!): StockLocation!
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+type Query {
+  _empty: String
+}
+
+type StockLocation {
+  address: StockLocationAddress
+  createdAt: DateTime!
+  handle: String!
+  id: ID!
+  isActive: Boolean!
+  isDefault: Boolean!
+  metadata: JSON
+  name: String!
+  organizationId: ID!
+  updatedAt: DateTime!
+}
+
+type StockLocationAddress {
+  addressLine1: String!
+  addressLine2: String
+  city: String!
+  countryCode: String!
+  id: ID!
+  phone: String
+  postalCode: String
+  province: String
+}
+
+input StringFilterInput {
+  contains: String
+  endsWith: String
+  eq: String
+  in: [String!]
+  ne: String
+  startsWith: String
+}

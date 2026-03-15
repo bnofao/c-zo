@@ -40,6 +40,7 @@ export default defineNitroConfig({
   plugins: [],
   modules: [
     '@czo/auth',
+    '@czo/stock-location',
     kitModule,
   ],
   imports: {
