@@ -2,18 +2,22 @@ input BooleanFilterInput {
   eq: Boolean
 }
 
-input CreateStockLocationInput {
+input CreateStockLocationAddressInput {
   addressLine1: String!
   addressLine2: String
   city: String!
   countryCode: String!
-  handle: String
-  metadata: JSON
-  name: String!
-  organizationId: ID!
   phone: String
   postalCode: String
   province: String
+}
+
+input CreateStockLocationInput {
+  address: CreateStockLocationAddressInput!
+  handle: String
+  metadata: JSON
+  name: String!
+  organizationId: ID
 }
 
 scalar DateTime
@@ -34,6 +38,8 @@ scalar JSON
 type Mutation {
   _empty: String
   createStockLocation(input: CreateStockLocationInput!): StockLocation!
+  updateStockLocation(id: ID!, input: UpdateStockLocationInput!): StockLocation!
+  updateStockLocationAddress(input: UpdateStockLocationAddressInput!, stockLocationId: ID!): StockLocationAddress!
 }
 
 enum OrderDirection {
@@ -76,4 +82,21 @@ input StringFilterInput {
   in: [String!]
   ne: String
   startsWith: String
+}
+
+input UpdateStockLocationAddressInput {
+  addressLine1: String
+  addressLine2: String
+  city: String
+  countryCode: String
+  phone: String
+  postalCode: String
+  province: String
+}
+
+input UpdateStockLocationInput {
+  address: UpdateStockLocationAddressInput
+  handle: String
+  metadata: JSON
+  name: String
 }

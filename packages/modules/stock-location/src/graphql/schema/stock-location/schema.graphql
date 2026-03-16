@@ -22,10 +22,7 @@ type StockLocationAddress {
   phone: String
 }
 
-input CreateStockLocationInput {
-  name: String!
-  handle: String
-  organizationId: ID!
+input CreateStockLocationAddressInput {
   addressLine1: String!
   addressLine2: String
   city: String!
@@ -33,10 +30,40 @@ input CreateStockLocationInput {
   postalCode: String
   countryCode: String!
   phone: String
+}
+
+input CreateStockLocationInput {
+  name: String!
+  handle: String
+  organizationId: ID
+  address: CreateStockLocationAddressInput!
   metadata: JSON
+}
+
+input UpdateStockLocationInput {
+  name: String
+  handle: String
+  metadata: JSON
+  address: UpdateStockLocationAddressInput
+}
+
+input UpdateStockLocationAddressInput {
+  addressLine1: String
+  addressLine2: String
+  city: String
+  province: String
+  postalCode: String
+  countryCode: String
+  phone: String
 }
 
 extend type Mutation {
   createStockLocation(input: CreateStockLocationInput!): StockLocation!
     @permission(resource: "stock-location", action: "create")
+
+  updateStockLocation(id: ID!, input: UpdateStockLocationInput!): StockLocation!
+    @permission(resource: "stock-location", action: "update")
+
+  updateStockLocationAddress(stockLocationId: ID!, input: UpdateStockLocationAddressInput!): StockLocationAddress!
+    @permission(resource: "stock-location", action: "update")
 }
