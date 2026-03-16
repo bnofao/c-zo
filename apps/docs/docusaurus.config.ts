@@ -69,7 +69,11 @@ const config: Config = {
     ],
   ],
 
-  themes: ['docusaurus-theme-openapi-docs'],
+  markdown: {
+    mermaid: true,
+  },
+
+  themes: ['docusaurus-theme-openapi-docs', '@docusaurus/theme-mermaid'],
 
   themeConfig: {
     navbar: {

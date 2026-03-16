@@ -1,0 +1,3 @@
+/* Styles are in custom.css to keep them global — this file is intentionally empty.
+   Docusaurus expects CSS modules next to page components, but we use global styles
+   for the homepage to allow theme variable access. */
