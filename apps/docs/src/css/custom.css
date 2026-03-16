@@ -568,59 +568,34 @@ tr:nth-child(2n) {
   margin-bottom: 0;
 }
 
-/* ─── API Split Layout (Stripe-style sticky code) ────────────────── */
+/* ─── API Reference Pages ────────────────────────────────────────── */
 
-.api-split-layout {
-  display: flex;
-  gap: 0;
-  max-width: 100%;
-  margin: 0 -1rem;
+/* Hide TOC on API GraphQL pages — not useful with auto-generated content */
+[class*='docItemCol'] + [class*='col']:has(.table-of-contents) {
+  display: none;
 }
 
-.api-split-layout__content {
-  flex: 1.2;
-  min-width: 0;
-  padding: 0 1rem;
-  overflow-y: auto;
+/* Make content full-width when TOC is hidden on API pages */
+.api-graphql-page [class*='docItemCol'] {
+  max-width: 100% !important;
 }
 
-.api-split-layout__code {
-  flex: 0.8;
-  position: sticky;
-  top: var(--ifm-navbar-height);
-  height: calc(100vh - var(--ifm-navbar-height));
-  overflow-y: auto;
-  background: #0f172a;
-  padding: 1.5rem;
-  border-left: 1px solid #1e293b;
+/* Style code blocks as Request/Response cards on API pages */
+[data-theme] .markdown > div[class*='codeBlockContainer'],
+[data-theme] .markdown > pre {
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 1.5rem 0;
 }
 
-.api-split-layout__code pre {
-  background: transparent !important;
-  margin: 0 0 1rem;
-  padding: 0;
-  border: none;
-  box-shadow: none;
-}
-
-.api-split-layout__code pre code {
-  font-size: 0.8rem;
-  color: #e2e8f0;
-}
-
-/* Responsive: stack on tablet and below */
-@media (max-width: 996px) {
-  .api-split-layout {
-    flex-direction: column;
-    margin: 0;
-  }
-
-  .api-split-layout__code {
-    display: none;
-  }
-
-  .api-split-layout__content div[class*='codeBlockContainer'],
-  .api-split-layout__content pre {
-    display: block !important;
-  }
+/* Code block header label style (graphql-markdown generates these) */
+[data-theme] .markdown > div[class*='codeBlockContainer'] div[class*='codeBlockTitle'] {
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #334155;
 }
