@@ -100,13 +100,14 @@
 /* ─── Content ────────────────────────────────────────────────────── */
 
 .markdown h1 {
-  font-size: 2rem;
+  font-size: 2.25rem;
+  font-weight: 700;
   letter-spacing: -0.03em;
   margin-bottom: 1.5rem;
 }
 
 .markdown h2 {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   letter-spacing: -0.02em;
   margin-top: 2.5rem;
   padding-bottom: 0.5rem;
@@ -114,13 +115,96 @@
 }
 
 .markdown h3 {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   letter-spacing: -0.01em;
   margin-top: 2rem;
 }
 
 .markdown p {
+  line-height: 1.8;
   margin-bottom: 1.25rem;
+}
+
+/* ─── Inline Code ────────────────────────────────────────────────── */
+
+code:not(pre code) {
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85em;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #dcfce7;
+}
+
+[data-theme='dark'] code:not(pre code) {
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* ─── Badges ─────────────────────────────────────────────────────── */
+
+.badge--required,
+.badge--optional,
+.badge--deprecated,
+.badge--mutation,
+.badge--query {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.badge--required {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.badge--optional {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.badge--deprecated {
+  background: #fefce8;
+  color: #a16207;
+}
+
+.badge--mutation {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge--query {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+[data-theme='dark'] .badge--required {
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .badge--optional {
+  background: rgba(22, 101, 52, 0.15);
+  color: #86efac;
+}
+
+[data-theme='dark'] .badge--deprecated {
+  background: rgba(161, 98, 7, 0.15);
+  color: #fde047;
+}
+
+[data-theme='dark'] .badge--mutation {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+[data-theme='dark'] .badge--query {
+  background: rgba(37, 99, 235, 0.15);
+  color: #93c5fd;
 }
 
 /* ─── Code Blocks ────────────────────────────────────────────────── */
@@ -129,12 +213,6 @@
   font-size: 0.85rem;
   line-height: 1.7;
   border-radius: 10px;
-}
-
-code {
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 0.85em;
 }
 
 div[class^='codeBlockContainer'] {
