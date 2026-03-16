@@ -1,0 +1,81 @@
+---
+id: create-user-input
+title: CreateUserInput
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+Input for creating a new user account.
+
+
+```graphql
+input CreateUserInput {
+  email: EmailAddress!
+  name: String!
+  password: String
+  role: String
+}
+```
+
+
+
+
+### Fields
+
+#### [<code style={{ fontWeight: 'normal' }}>CreateUserInput.<b>email</b></code>](#email)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>EmailAddress!</b></code>](/api/graphql/auth/types/scalars/email-address.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#email\} 
+Email address for the new user.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>CreateUserInput.<b>name</b></code>](#name)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#name\} 
+Display name for the new user.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>CreateUserInput.<b>password</b></code>](#password)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#password\} 
+Optional password for the new user.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>CreateUserInput.<b>role</b></code>](#role)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#role\} 
+Role to assign to the new user.
+
+
+
+
+
+
+### Member Of
+
+[`createUser`](/api/graphql/auth/operations/mutations/create-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/>

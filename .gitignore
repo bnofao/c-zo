@@ -41,3 +41,11 @@ logs
 *.tgz
 lib-cov
 temp
+
+# Docusaurus
+apps/docs/.docusaurus/
+apps/docs/build/
+
+# Docusaurus
+apps/docs/.docusaurus/
+apps/docs/build/

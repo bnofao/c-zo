@@ -1,47 +1,97 @@
+"""An API key used to authenticate programmatic access to the platform."""
 type ApiKey {
+  """Unique identifier for the API key."""
   id: ID!
+  """Human-readable label for the API key."""
   name: String
+  """Optional prefix prepended to the API key value for identification."""
   prefix: String
+  """The first few characters of the key, used for display without exposing the full secret."""
   start: String
+  """Whether the API key is currently active and usable."""
   enabled: Boolean!
+  """Date and time when the API key expires. Null if the key does not expire."""
   expiresAt: DateTime
+  """Date and time of the most recent request made with this key."""
   lastRequest: DateTime
+  """Date and time when the API key was created."""
   createdAt: DateTime!
 }
 
+"""Input for creating a new API key."""
 input CreateApiKeyInput {
+  """Human-readable label for the new API key."""
   name: String!
+  """Duration in seconds until the key expires. Omit for a non-expiring key."""
   expiresIn: Int
+  """Optional prefix to prepend to the generated key value."""
   prefix: String
+  """Maximum number of requests the key can make. Omit for unlimited usage."""
   remaining: Int
+  """Arbitrary metadata to associate with the API key."""
   metadata: JSON
+  """Number of requests to add to the remaining count on each refill cycle."""
   refillAmount: Int
+  """Interval in seconds between usage quota refills."""
   refillInterval: Int
+  """Whether rate limiting is enabled for this key."""
   rateLimitEnabled: Boolean
+  """Duration in milliseconds of the rate limit sliding window."""
   rateLimitTimeWindow: Int
+  """Maximum number of requests allowed within the rate limit time window."""
   rateLimitMax: Int
 }
 
+"""Input for updating an existing API key."""
 input UpdateApiKeyInput {
+  """New human-readable label for the API key."""
   name: String
+  """Whether the API key should be active (true) or disabled (false)."""
   enabled: Boolean
+  """Updated maximum number of requests the key can make."""
   remaining: Int
+  """Updated metadata to associate with the API key."""
   metadata: JSON
+  """New duration in seconds until the key expires."""
   expiresIn: Int
+  """Updated number of requests to add per refill cycle."""
   refillAmount: Int
+  """Updated interval in seconds between usage quota refills."""
   refillInterval: Int
+  """Whether rate limiting should be enabled for this key."""
   rateLimitEnabled: Boolean
+  """Updated duration in milliseconds of the rate limit sliding window."""
   rateLimitTimeWindow: Int
+  """Updated maximum number of requests allowed within the rate limit window."""
   rateLimitMax: Int
 }
 
 extend type Query {
+  """Retrieve all API keys belonging to the current user."""
   myApiKeys: [ApiKey!]! @auth
-  apiKey(keyId: ID!): ApiKey @auth
+  """Retrieve a single API key by its ID."""
+  apiKey(
+    """The ID of the API key to retrieve."""
+    keyId: ID!
+  ): ApiKey @auth
 }
 
 extend type Mutation {
-  createApiKey(input: CreateApiKeyInput!): ApiKey! @auth
-  updateApiKey(keyId: ID!, input: UpdateApiKeyInput!): ApiKey! @auth
-  deleteApiKey(keyId: ID!): Boolean! @auth
+  """Create a new API key for the current user."""
+  createApiKey(
+    """Details for the new API key."""
+    input: CreateApiKeyInput!
+  ): ApiKey! @auth
+  """Update the configuration of an existing API key."""
+  updateApiKey(
+    """The ID of the API key to update."""
+    keyId: ID!,
+    """Updated API key fields."""
+    input: UpdateApiKeyInput!
+  ): ApiKey! @auth
+  """Permanently delete an API key."""
+  deleteApiKey(
+    """The ID of the API key to delete."""
+    keyId: ID!
+  ): Boolean! @auth
 }

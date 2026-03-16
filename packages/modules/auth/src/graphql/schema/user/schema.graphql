@@ -1,76 +1,188 @@
+"""A registered user on the platform."""
 type User {
+  """Unique identifier for the user."""
   id: ID!
+  """Display name of the user."""
   name: String!
+  """Email address of the user."""
   email: String!
+  """Role assigned to the user (e.g. admin, user)."""
   role: String!
+  """Whether the user is currently banned from the platform."""
   banned: Boolean!
+  """Reason provided when the user was banned."""
   banReason: String
+  """Date and time when the ban expires, if applicable."""
   banExpires: DateTime
+  """Date and time when the user account was created."""
   createdAt: DateTime!
 }
 
+"""Paginated list of users."""
 type UserList {
+  """List of users matching the query."""
   users: [User!]!
+  """Total number of users matching the query."""
   total: Int!
 }
 
+"""An active session belonging to a user."""
 type UserSession {
+  """Unique identifier for the session."""
   id: ID!
+  """Identifier of the user who owns this session."""
   userId: ID!
+  """Date and time when this session expires."""
   expiresAt: DateTime!
+  """IP address from which the session was initiated."""
   ipAddress: String
+  """User agent string of the client that initiated the session."""
   userAgent: String
+  """Identifier of the admin user who is impersonating this account, if any."""
   impersonatedBy: String
+  """Date and time when the session was created."""
   createdAt: DateTime!
 }
 
+"""Input for creating a new user account."""
 input CreateUserInput {
+  """Email address for the new user."""
   email: EmailAddress!
+  """Display name for the new user."""
   name: String!
+  """Optional password for the new user."""
   password: String
+  """Role to assign to the new user."""
   role: String
 }
 
+"""Input for updating an existing user's profile."""
 input UpdateUserInput {
+  """New display name for the user."""
   name: String
+  """New email address for the user."""
   email: EmailAddress
 }
 
+"""Filter conditions for querying users."""
 input UserWhereInput {
+  """Filter by whether the user's email has been verified."""
   emailVerified: BooleanFilterInput
+  """Filter by the date the user account was created."""
   createdAt: DateTimeFilterInput
+  """All of the following conditions must be true."""
   AND: [UserWhereInput!]
+  """At least one of the following conditions must be true."""
   OR: [UserWhereInput!]
+  """The following condition must not be true."""
   NOT: UserWhereInput
 }
 
+"""Fields by which users can be ordered."""
 enum UserOrderField {
+  """Order by the user's display name."""
   name
+  """Order by the user's email address."""
   email
+  """Order by the date the user account was created."""
   createdAt
 }
 
+"""Ordering options for a user list query."""
 input UserOrderByInput {
+  """The field to order users by."""
   field: UserOrderField!
+  """The direction to order results (ascending or descending)."""
   direction: OrderDirection!
 }
 
 extend type Query {
-  users(search: String, where: UserWhereInput, orderBy: UserOrderByInput, limit: Int, offset: Int): UserList! @admin
-  user(userId: ID!): User! @admin
-  userSessions(userId: ID!): [UserSession!]! @admin
+  """Retrieve a paginated, filterable list of all users. Requires admin access."""
+  users(
+    """Optional text search across user fields."""
+    search: String,
+    """Filter conditions to narrow results."""
+    where: UserWhereInput,
+    """Ordering for the returned list."""
+    orderBy: UserOrderByInput,
+    """Maximum number of users to return."""
+    limit: Int,
+    """Number of users to skip before returning results."""
+    offset: Int
+  ): UserList! @admin
+  """Retrieve a single user by their ID. Requires admin access."""
+  user(
+    """The ID of the user to retrieve."""
+    userId: ID!
+  ): User! @admin
+  """Retrieve all active sessions for a specific user. Requires admin access."""
+  userSessions(
+    """The ID of the user whose sessions to retrieve."""
+    userId: ID!
+  ): [UserSession!]! @admin
 }
 
 extend type Mutation {
-  createUser(input: CreateUserInput!): User! @admin
-  updateUser(userId: ID!, input: UpdateUserInput!): User! @admin
-  impersonateUser(userId: ID!): Boolean! @admin
+  """Create a new user account. Requires admin access."""
+  createUser(
+    """Details for the new user account."""
+    input: CreateUserInput!
+  ): User! @admin
+  """Update an existing user's profile details. Requires admin access."""
+  updateUser(
+    """The ID of the user to update."""
+    userId: ID!,
+    """Updated profile fields."""
+    input: UpdateUserInput!
+  ): User! @admin
+  """Begin an impersonation session for the specified user. Requires admin access."""
+  impersonateUser(
+    """The ID of the user to impersonate."""
+    userId: ID!
+  ): Boolean! @admin
+  """End the current admin impersonation session. Requires admin access."""
   stopImpersonation: Boolean! @admin
-  banUser(userId: ID!, reason: String, expiresIn: Int): Boolean! @admin
-  unbanUser(userId: ID!): Boolean! @admin
-  setRole(userId: ID!, role: String!): Boolean! @admin
-  setUserPassword(userId: ID!, newPassword: String!): Boolean! @admin
-  removeUser(userId: ID!): Boolean! @admin
-  revokeSession(sessionToken: String!): Boolean! @admin
-  revokeSessions(userId: ID!): Boolean! @admin
+  """Ban a user from the platform, optionally with a reason and expiry. Requires admin access."""
+  banUser(
+    """The ID of the user to ban."""
+    userId: ID!,
+    """Human-readable reason for the ban."""
+    reason: String,
+    """Duration in seconds until the ban expires. Omit for a permanent ban."""
+    expiresIn: Int
+  ): Boolean! @admin
+  """Lift a ban from a user account. Requires admin access."""
+  unbanUser(
+    """The ID of the user to unban."""
+    userId: ID!
+  ): Boolean! @admin
+  """Assign a role to a user. Requires admin access."""
+  setRole(
+    """The ID of the user whose role will be updated."""
+    userId: ID!,
+    """The new role to assign."""
+    role: String!
+  ): Boolean! @admin
+  """Set a new password for a user account. Requires admin access."""
+  setUserPassword(
+    """The ID of the user whose password will be changed."""
+    userId: ID!,
+    """The new password to set."""
+    newPassword: String!
+  ): Boolean! @admin
+  """Permanently remove a user account. Requires admin access."""
+  removeUser(
+    """The ID of the user to remove."""
+    userId: ID!
+  ): Boolean! @admin
+  """Revoke a specific session by its token. Requires admin access."""
+  revokeSession(
+    """The session token to revoke."""
+    sessionToken: String!
+  ): Boolean! @admin
+  """Revoke all active sessions for a specific user. Requires admin access."""
+  revokeSessions(
+    """The ID of the user whose sessions will be revoked."""
+    userId: ID!
+  ): Boolean! @admin
 }

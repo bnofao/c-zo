@@ -1,0 +1,105 @@
+---
+id: invitation
+title: Invitation
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+A pending invitation to join an organization.
+
+
+```graphql
+type Invitation {
+  id: ID!
+  email: EmailAddress!
+  role: String!
+  status: String!
+  organizationId: String!
+  inviterId: String!
+  expiresAt: DateTime!
+  createdAt: DateTime!
+}
+```
+
+
+
+
+### Fields
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
+Unique identifier for the invitation.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>email</b></code>](#email)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>EmailAddress!</b></code>](/api/graphql/auth/types/scalars/email-address.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#email\} 
+Email address the invitation was sent to.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>role</b></code>](#role)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#role\} 
+Role the invitee will receive upon accepting.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>status</b></code>](#status)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#status\} 
+Current status of the invitation (e.g. pending, accepted, rejected).
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
+Identifier of the organization the invitation is for.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>inviterId</b></code>](#inviter-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#inviter-id\} 
+Identifier of the user who sent the invitation.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>expiresAt</b></code>](#expires-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#expires-at\} 
+Date and time when the invitation expires.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>Invitation.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
+Date and time when the invitation was created.
+
+
+
+
+
+
+### Returned By
+
+[`invitation`](/api/graphql/auth/operations/queries/invitation.mdx)  <Badge class="badge badge--secondary badge--relation" text="query"/><Bullet />[`invitations`](/api/graphql/auth/operations/queries/invitations.mdx)  <Badge class="badge badge--secondary badge--relation" text="query"/><Bullet />[`inviteMember`](/api/graphql/auth/operations/mutations/invite-member.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/>
+
+### Member Of
+
+[`FullOrganization`](/api/graphql/auth/types/objects/full-organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/>

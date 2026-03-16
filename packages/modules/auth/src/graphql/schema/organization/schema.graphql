@@ -1,115 +1,272 @@
+"""A tenant organization on the platform."""
 type Organization {
+  """Unique identifier for the organization."""
   id: ID!
+  """Display name of the organization."""
   name: String!
+  """URL-safe slug used to identify the organization."""
   slug: String!
+  """URL of the organization's logo image."""
   logo: String
+  """Optional classification or category of the organization."""
   type: String
+  """Date and time when the organization was created."""
   createdAt: DateTime!
 }
 
+"""An organization with full membership and invitation details."""
 type FullOrganization {
+  """Unique identifier for the organization."""
   id: ID!
+  """Display name of the organization."""
   name: String!
+  """URL-safe slug used to identify the organization."""
   slug: String!
+  """URL of the organization's logo image."""
   logo: String
+  """Optional classification or category of the organization."""
   type: String
+  """Arbitrary metadata associated with the organization."""
   metadata: JSON
+  """Date and time when the organization was created."""
   createdAt: DateTime!
+  """List of current members belonging to the organization."""
   members: [OrgMember!]!
+  """List of pending invitations for the organization."""
   invitations: [Invitation!]!
 }
 
+"""A user's membership record within an organization."""
 type OrgMember {
+  """Unique identifier for the membership record."""
   id: ID!
+  """Identifier of the organization this member belongs to."""
   organizationId: String!
+  """Identifier of the user who is a member."""
   userId: String!
+  """The member's role within the organization."""
   role: String!
+  """Date and time when the membership was established."""
   createdAt: DateTime!
+  """Basic profile information about the member."""
   user: MemberUser
 }
 
+"""Minimal user profile returned in organization membership contexts."""
 type MemberUser {
+  """Unique identifier for the user."""
   id: ID!
+  """Email address of the user."""
   email: String!
+  """Display name of the user."""
   name: String!
+  """URL of the user's profile image."""
   image: String
 }
 
+"""A pending invitation to join an organization."""
 type Invitation {
+  """Unique identifier for the invitation."""
   id: ID!
+  """Email address the invitation was sent to."""
   email: EmailAddress!
+  """Role the invitee will receive upon accepting."""
   role: String!
+  """Current status of the invitation (e.g. pending, accepted, rejected)."""
   status: String!
+  """Identifier of the organization the invitation is for."""
   organizationId: String!
+  """Identifier of the user who sent the invitation."""
   inviterId: String!
+  """Date and time when the invitation expires."""
   expiresAt: DateTime!
+  """Date and time when the invitation was created."""
   createdAt: DateTime!
 }
 
+"""Result of checking whether an organization slug is available."""
 type SlugCheckResult {
+  """True if the slug is available to use; false if already taken."""
   available: Boolean!
 }
 
+"""The role of a specific member within an organization."""
 type MemberRole {
+  """The role name assigned to the member."""
   role: String!
 }
 
+"""An invitation visible from the invited user's perspective."""
 type UserInvitation {
+  """Unique identifier for the invitation."""
   id: ID!
+  """Email address the invitation was sent to."""
   email: EmailAddress!
+  """Role the invitee will receive upon accepting."""
   role: String!
+  """Current status of the invitation (e.g. pending, accepted, rejected)."""
   status: String!
+  """Identifier of the organization the invitation is for."""
   organizationId: String!
+  """Identifier of the user who sent the invitation."""
   inviterId: String!
+  """Display name of the inviting organization."""
   organizationName: String
+  """Date and time when the invitation expires."""
   expiresAt: DateTime!
+  """Date and time when the invitation was created."""
   createdAt: DateTime!
 }
 
+"""Input for creating a new organization."""
 input CreateOrganizationInput {
+  """Display name for the new organization."""
   name: String!
+  """URL-safe slug for the new organization."""
   slug: String!
+  """URL of the organization's logo image."""
   logo: String
+  """Optional classification or category of the organization."""
   type: String
+  """When true, the user's currently active organization will not change after creation."""
   keepCurrentActiveOrganization: Boolean
 }
 
+"""Input for updating an existing organization's details."""
 input UpdateOrganizationInput {
+  """New display name for the organization."""
   name: String
+  """New URL-safe slug for the organization."""
   slug: String
+  """New URL for the organization's logo image."""
   logo: String
+  """New classification or category for the organization."""
   type: String
 }
 
+"""Input for inviting a user to an organization."""
 input InviteMemberInput {
+  """Email address of the person to invite."""
   email: EmailAddress!
+  """Role to assign the invitee upon acceptance."""
   role: String!
+  """Identifier of the organization to invite the user to. Defaults to the active organization."""
   organizationId: ID
+  """When true, resend the invitation if one already exists."""
   resend: Boolean
 }
 
 extend type Query {
+  """Retrieve all organizations the current user is a member of."""
   organizations: [Organization!]! @auth
-  organization(organizationId: ID, organizationSlug: String): FullOrganization @auth
-  members(organizationId: ID, organizationSlug: String): [OrgMember!]! @auth
-  invitations(organizationId: ID): [Invitation!]! @auth
-  invitation(invitationId: ID!): Invitation @auth
-  checkSlug(slug: String!): SlugCheckResult! @auth
+  """Retrieve detailed information about a specific organization, including members and invitations."""
+  organization(
+    """Look up the organization by its ID."""
+    organizationId: ID,
+    """Look up the organization by its slug."""
+    organizationSlug: String
+  ): FullOrganization @auth
+  """Retrieve all members of an organization."""
+  members(
+    """Identifier of the organization to list members for. Defaults to the active organization."""
+    organizationId: ID,
+    """Slug of the organization to list members for. Defaults to the active organization."""
+    organizationSlug: String
+  ): [OrgMember!]! @auth
+  """Retrieve all pending invitations for an organization."""
+  invitations(
+    """Identifier of the organization to list invitations for. Defaults to the active organization."""
+    organizationId: ID
+  ): [Invitation!]! @auth
+  """Retrieve a single invitation by its ID."""
+  invitation(
+    """The ID of the invitation to retrieve."""
+    invitationId: ID!
+  ): Invitation @auth
+  """Check whether a given organization slug is available."""
+  checkSlug(
+    """The slug to check for availability."""
+    slug: String!
+  ): SlugCheckResult! @auth
+  """Retrieve all pending invitations addressed to the current user."""
   myInvitations: [UserInvitation!]! @auth
+  """Retrieve the current user's membership record in the active organization."""
   activeMember: OrgMember @auth
-  activeMemberRole(userId: ID, organizationId: ID, organizationSlug: String): MemberRole @auth
+  """Retrieve the role of a user within a specific organization."""
+  activeMemberRole(
+    """The ID of the user whose role to look up. Defaults to the current user."""
+    userId: ID,
+    """The ID of the organization to look up the role in. Defaults to the active organization."""
+    organizationId: ID,
+    """The slug of the organization to look up the role in."""
+    organizationSlug: String
+  ): MemberRole @auth
 }
 
 extend type Mutation {
-  createOrganization(input: CreateOrganizationInput!): Organization! @auth
-  updateOrganization(organizationId: ID!, input: UpdateOrganizationInput!): Organization! @auth
-  deleteOrganization(organizationId: ID!): Boolean! @auth
-  setActiveOrganization(organizationId: ID, organizationSlug: String): Organization @auth
-  inviteMember(input: InviteMemberInput!): Invitation! @auth
-  cancelInvitation(invitationId: ID!): Boolean! @auth
-  acceptInvitation(invitationId: ID!): OrgMember! @auth
-  rejectInvitation(invitationId: ID!): Boolean! @auth
-  removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean! @auth
-  updateMemberRole(memberId: ID!, role: String!, organizationId: ID): Boolean! @auth
-  leaveOrganization(organizationId: ID!): Boolean! @auth
+  """Create a new organization with the current user as the owner."""
+  createOrganization(
+    """Details for the new organization."""
+    input: CreateOrganizationInput!
+  ): Organization! @auth
+  """Update the details of an existing organization."""
+  updateOrganization(
+    """The ID of the organization to update."""
+    organizationId: ID!,
+    """Updated organization fields."""
+    input: UpdateOrganizationInput!
+  ): Organization! @auth
+  """Permanently delete an organization."""
+  deleteOrganization(
+    """The ID of the organization to delete."""
+    organizationId: ID!
+  ): Boolean! @auth
+  """Switch the current user's active organization context."""
+  setActiveOrganization(
+    """The ID of the organization to activate."""
+    organizationId: ID,
+    """The slug of the organization to activate."""
+    organizationSlug: String
+  ): Organization @auth
+  """Send an invitation to a user to join an organization."""
+  inviteMember(
+    """Invitation details."""
+    input: InviteMemberInput!
+  ): Invitation! @auth
+  """Cancel a pending invitation."""
+  cancelInvitation(
+    """The ID of the invitation to cancel."""
+    invitationId: ID!
+  ): Boolean! @auth
+  """Accept a pending invitation and join the organization."""
+  acceptInvitation(
+    """The ID of the invitation to accept."""
+    invitationId: ID!
+  ): OrgMember! @auth
+  """Decline a pending invitation."""
+  rejectInvitation(
+    """The ID of the invitation to reject."""
+    invitationId: ID!
+  ): Boolean! @auth
+  """Remove a member from an organization."""
+  removeMember(
+    """The member's ID or email address."""
+    memberIdOrEmail: String!,
+    """The ID of the organization to remove the member from. Defaults to the active organization."""
+    organizationId: ID
+  ): Boolean! @auth
+  """Change the role of an existing organization member."""
+  updateMemberRole(
+    """The ID of the member whose role will be updated."""
+    memberId: ID!,
+    """The new role to assign."""
+    role: String!,
+    """The ID of the organization. Defaults to the active organization."""
+    organizationId: ID
+  ): Boolean! @auth
+  """Remove the current user from an organization."""
+  leaveOrganization(
+    """The ID of the organization to leave."""
+    organizationId: ID!
+  ): Boolean! @auth
 }

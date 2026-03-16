@@ -1,0 +1,3 @@
+directive @auth on FIELD_DEFINITION
+directive @admin on FIELD_DEFINITION
+directive @permission(resource: String!, action: String!) on FIELD_DEFINITION

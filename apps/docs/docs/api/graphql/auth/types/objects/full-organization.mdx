@@ -1,0 +1,106 @@
+---
+id: full-organization
+title: FullOrganization
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+An organization with full membership and invitation details.
+
+
+```graphql
+type FullOrganization {
+  id: ID!
+  name: String!
+  slug: String!
+  logo: String
+  type: String
+  metadata: JSON
+  createdAt: DateTime!
+  members: [OrgMember!]!
+  invitations: [Invitation!]!
+}
+```
+
+
+
+
+### Fields
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
+Unique identifier for the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>name</b></code>](#name)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#name\} 
+Display name of the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>slug</b></code>](#slug)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#slug\} 
+URL-safe slug used to identify the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>logo</b></code>](#logo)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#logo\} 
+URL of the organization's logo image.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>type</b></code>](#type)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#type\} 
+Optional classification or category of the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>metadata</b></code>](#metadata)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>JSON</b></code>](/api/graphql/auth/types/scalars/json.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#metadata\} 
+Arbitrary metadata associated with the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
+Date and time when the organization was created.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>members</b></code>](#members)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[OrgMember!]!</b></code>](/api/graphql/auth/types/objects/org-member.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="object"/> \{#members\} 
+List of current members belonging to the organization.
+
+
+#### [<code style={{ fontWeight: 'normal' }}>FullOrganization.<b>invitations</b></code>](#invitations)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[Invitation!]!</b></code>](/api/graphql/auth/types/objects/invitation.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="object"/> \{#invitations\} 
+List of pending invitations for the organization.
+
+
+
+
+
+
+### Returned By
+
+[`organization`](/api/graphql/auth/operations/queries/organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="query"/>

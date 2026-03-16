@@ -1,38 +1,85 @@
+"""A third-party application installed on the platform."""
 type App {
+  """Unique identifier for the installed app record."""
   id: ID!
+  """Stable identifier for the application, sourced from its manifest."""
   appId: String!
+  """The full app manifest describing the application's capabilities and configuration."""
   manifest: JSON!
+  """Current lifecycle status of the app (e.g. active, suspended)."""
   status: String!
+  """Identifier of the organization the app is installed for, if any."""
   organizationId: ID
+  """Identifier of the user or entity that installed the app."""
   installedBy: String!
+  """Date and time when the app was installed."""
   createdAt: DateTime!
+  """Date and time when the app record was last updated."""
   updatedAt: DateTime!
 }
 
+"""Result returned after successfully installing an application."""
 type AppInstallResult {
+  """The newly installed app record."""
   app: App!
+  """Identifier of the API key generated for the installed app."""
   apiKeyId: String!
 }
 
+"""Input for installing an app from a remote manifest URL."""
 input InstallAppInput {
+  """URL pointing to the application's manifest file."""
   manifestUrl: String!
+  """Identifier of the organization to install the app for."""
   organizationId: ID
 }
 
+"""Input for installing an app directly from a manifest object."""
 input InstallAppManifestInput {
+  """The application manifest as a JSON object."""
   manifest: JSON!
+  """Identifier of the organization to install the app for."""
   organizationId: ID
+  """Identifier of the user or entity performing the installation."""
   installedBy: String!
 }
 
 extend type Query {
-  app(appId: String!): App @permission(resource: "apps", action: "read")
-  apps(organizationId: ID): [App!]! @permission(resource: "apps", action: "read")
+  """Retrieve a single installed app by its app identifier."""
+  app(
+    """The app identifier to look up."""
+    appId: String!
+  ): App @permission(resource: "apps", action: "read")
+  """Retrieve all installed apps, optionally scoped to an organization."""
+  apps(
+    """Filter apps by the organization they are installed for."""
+    organizationId: ID
+  ): [App!]! @permission(resource: "apps", action: "read")
 }
 
 extend type Mutation {
-  installApp(input: InstallAppInput!): AppInstallResult! @permission(resource: "apps", action: "write")
-  uninstallApp(appId: String!): Boolean! @permission(resource: "apps", action: "delete")
-  updateAppManifest(appId: String!, manifest: JSON!): App! @permission(resource: "apps", action: "write")
-  setAppStatus(appId: String!, status: String!): App! @permission(resource: "apps", action: "write")
+  """Install a new application from a remote manifest URL."""
+  installApp(
+    """Installation details including the manifest URL and optional organization."""
+    input: InstallAppInput!
+  ): AppInstallResult! @permission(resource: "apps", action: "write")
+  """Uninstall an application and remove its associated resources."""
+  uninstallApp(
+    """The app identifier of the application to uninstall."""
+    appId: String!
+  ): Boolean! @permission(resource: "apps", action: "delete")
+  """Replace the manifest for an installed application."""
+  updateAppManifest(
+    """The app identifier of the application to update."""
+    appId: String!,
+    """The new manifest to apply."""
+    manifest: JSON!
+  ): App! @permission(resource: "apps", action: "write")
+  """Update the lifecycle status of an installed application."""
+  setAppStatus(
+    """The app identifier of the application to update."""
+    appId: String!,
+    """The new status to assign (e.g. active, suspended)."""
+    status: String!
+  ): App! @permission(resource: "apps", action: "write")
 }
