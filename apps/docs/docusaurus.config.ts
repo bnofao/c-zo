@@ -1,5 +1,6 @@
 import type * as Preset from '@docusaurus/preset-classic'
 import type { Config } from '@docusaurus/types'
+import { themes as prismThemes } from 'prism-react-renderer'
 
 const config: Config = {
   title: 'c-zo',
@@ -145,6 +146,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} c-zo. Built with Docusaurus.`,
     },
     prism: {
+      theme: prismThemes.dracula,
+      darkTheme: prismThemes.dracula,
       additionalLanguages: ['bash', 'graphql', 'json', 'typescript'],
     },
   } satisfies Preset.ThemeConfig,

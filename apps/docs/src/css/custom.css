@@ -209,7 +209,9 @@ code:not(pre code) {
 
 /* ─── Code Blocks ────────────────────────────────────────────────── */
 
+pre[class*='prism'],
 .prism-code {
+  background: #0f172a !important;
   font-size: 0.85rem;
   line-height: 1.7;
   border-radius: 10px;
@@ -221,20 +223,20 @@ div[class^='codeBlockContainer'] {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-[data-theme='dark'] div[class^='codeBlockContainer'] {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
 div[class^='codeBlockTitle'] {
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: #1e293b;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
 }
 
-[data-theme='dark'] div[class^='codeBlockTitle'] {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+div[class^='codeBlockContainer'] button[class*='copyButton'] {
+  opacity: 1 !important;
+  background: #1e293b;
+  border: 1px solid #334155;
 }
 
 /* ─── Tables ─────────────────────────────────────────────────────── */
