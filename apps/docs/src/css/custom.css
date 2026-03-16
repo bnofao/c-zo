@@ -275,13 +275,54 @@ tr:nth-child(2n) {
   border-left-width: 4px;
 }
 
+/* ─── Breadcrumbs ────────────────────────────────────────────────── */
+
+.breadcrumbs {
+  font-size: 0.85rem;
+}
+
+.breadcrumbs__link {
+  color: var(--ifm-color-emphasis-600);
+}
+
+.breadcrumbs__link:hover {
+  color: var(--ifm-color-primary);
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  font-weight: 600;
+}
+
 /* ─── TOC ────────────────────────────────────────────────────────── */
 
+.table-of-contents {
+  border-left: 2px solid var(--ifm-toc-border-color);
+  padding-left: 0.75rem;
+}
+
+.table-of-contents::before {
+  content: 'On this page';
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ifm-color-emphasis-600);
+  margin-bottom: 0.5rem;
+}
+
 .table-of-contents__link {
-  font-size: 0.825rem;
+  font-size: 0.8rem;
+  display: block;
+  border-left: 2px solid transparent;
+  padding-left: 0.5rem;
+  margin-left: -0.75rem;
+  transition: all 0.15s ease;
 }
 
 .table-of-contents__link--active {
+  color: var(--ifm-color-primary);
+  border-left-color: var(--ifm-color-primary);
   font-weight: 600;
 }
 
