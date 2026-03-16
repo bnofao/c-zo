@@ -1,0 +1,62 @@
+---
+id: string
+title: String
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+
+
+```graphql
+scalar String
+```
+
+
+
+
+
+
+
+
+### Returned By
+
+[`_empty`](/api/graphql/stock-location/operations/mutations/empty.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`_empty`](/api/graphql/stock-location/operations/queries/empty.mdx)  <Badge class="badge badge--secondary badge--relation" text="query"/>
+
+### Member Of
+
+[`CreateStockLocationInput`](/api/graphql/stock-location/types/inputs/create-stock-location-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`deprecated`](/api/graphql/stock-location/types/directives/deprecated.mdx)  <Badge class="badge badge--secondary badge--relation" text="directive"/><Bullet />[`permission`](/api/graphql/stock-location/types/directives/permission.mdx)  <Badge class="badge badge--secondary badge--relation" text="directive"/><Bullet />[`specifiedBy`](/api/graphql/stock-location/types/directives/specified-by.mdx)  <Badge class="badge badge--secondary badge--relation" text="directive"/><Bullet />[`StockLocation`](/api/graphql/stock-location/types/objects/stock-location.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`StockLocationAddress`](/api/graphql/stock-location/types/objects/stock-location-address.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`StringFilterInput`](/api/graphql/stock-location/types/inputs/string-filter-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/>

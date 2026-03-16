@@ -1,0 +1,62 @@
+---
+id: boolean
+title: Boolean
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+The `Boolean` scalar type represents `true` or `false`.
+
+
+```graphql
+scalar Boolean
+```
+
+
+
+
+
+
+
+
+### Returned By
+
+[`banUser`](/api/graphql/auth/operations/mutations/ban-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`cancelInvitation`](/api/graphql/auth/operations/mutations/cancel-invitation.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`changeEmail`](/api/graphql/auth/operations/mutations/change-email.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`changePassword`](/api/graphql/auth/operations/mutations/change-password.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`deleteAccount`](/api/graphql/auth/operations/mutations/delete-account.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`deleteApiKey`](/api/graphql/auth/operations/mutations/delete-api-key.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`deleteOrganization`](/api/graphql/auth/operations/mutations/delete-organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`disableTwoFactor`](/api/graphql/auth/operations/mutations/disable-two-factor.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`impersonateUser`](/api/graphql/auth/operations/mutations/impersonate-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`leaveOrganization`](/api/graphql/auth/operations/mutations/leave-organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`rejectInvitation`](/api/graphql/auth/operations/mutations/reject-invitation.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`removeMember`](/api/graphql/auth/operations/mutations/remove-member.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`removeUser`](/api/graphql/auth/operations/mutations/remove-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`revokeMySession`](/api/graphql/auth/operations/mutations/revoke-my-session.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`revokeOtherSessions`](/api/graphql/auth/operations/mutations/revoke-other-sessions.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`revokeSession`](/api/graphql/auth/operations/mutations/revoke-session.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`revokeSessions`](/api/graphql/auth/operations/mutations/revoke-sessions.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`sendOtp`](/api/graphql/auth/operations/mutations/send-otp.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`setRole`](/api/graphql/auth/operations/mutations/set-role.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`setUserPassword`](/api/graphql/auth/operations/mutations/set-user-password.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`stopImpersonation`](/api/graphql/auth/operations/mutations/stop-impersonation.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`unbanUser`](/api/graphql/auth/operations/mutations/unban-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`uninstallApp`](/api/graphql/auth/operations/mutations/uninstall-app.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`unlinkAccount`](/api/graphql/auth/operations/mutations/unlink-account.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/><Bullet />[`updateMemberRole`](/api/graphql/auth/operations/mutations/update-member-role.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/>
+
+### Member Of
+
+[`AccountInfoUser`](/api/graphql/auth/types/objects/account-info-user.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`ApiKey`](/api/graphql/auth/types/objects/api-key.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`BackupCodesResult`](/api/graphql/auth/types/objects/backup-codes-result.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`BooleanFilterInput`](/api/graphql/auth/types/inputs/boolean-filter-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`ChangePasswordInput`](/api/graphql/auth/types/inputs/change-password-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`CreateApiKeyInput`](/api/graphql/auth/types/inputs/create-api-key-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`CreateOrganizationInput`](/api/graphql/auth/types/inputs/create-organization-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`include`](/api/graphql/auth/operations/directives/include.mdx)  <Badge class="badge badge--secondary badge--relation" text="directive"/><Bullet />[`InviteMemberInput`](/api/graphql/auth/types/inputs/invite-member-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`skip`](/api/graphql/auth/operations/directives/skip.mdx)  <Badge class="badge badge--secondary badge--relation" text="directive"/><Bullet />[`SlugCheckResult`](/api/graphql/auth/types/objects/slug-check-result.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`UpdateApiKeyInput`](/api/graphql/auth/types/inputs/update-api-key-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`User`](/api/graphql/auth/types/objects/user.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`VerifyBackupCodeInput`](/api/graphql/auth/types/inputs/verify-backup-code-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`VerifyOtpInput`](/api/graphql/auth/types/inputs/verify-otp-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`VerifyTotpInput`](/api/graphql/auth/types/inputs/verify-totp-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/>

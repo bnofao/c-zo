@@ -8,7 +8,7 @@
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",
     "generate": "pnpm generate:graphql && pnpm generate:openapi",
-    "generate:graphql": "docusaurus graphql-to-doc",
+    "generate:graphql": "docusaurus graphql-to-doc:graphql-auth && docusaurus graphql-to-doc:graphql-stock-location",
     "generate:openapi": "docusaurus gen-api-docs all"
   },
   "dependencies": {

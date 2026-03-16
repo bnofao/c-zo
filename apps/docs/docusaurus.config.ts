@@ -40,15 +40,34 @@ const config: Config = {
     [
       '@graphql-markdown/docusaurus',
       {
+        id: 'graphql-auth',
         schema: [
           '../../packages/kit/src/graphql/directives.graphql',
           '../../packages/kit/src/graphql/base-types.graphql',
           '../../packages/kit/src/graphql/filter-types.graphql',
-          '../../packages/modules/*/src/graphql/schema/**/*.graphql',
+          '../../packages/modules/auth/src/graphql/schema/**/*.graphql',
         ],
         rootPath: './docs',
-        baseURL: 'api/graphql',
-        homepage: './docs/api/graphql/index.md',
+        baseURL: 'api/graphql/auth',
+        homepage: './docs/api/graphql/auth/index.md',
+        loaders: {
+          GraphQLFileLoader: '@graphql-tools/graphql-file-loader',
+        },
+      },
+    ],
+    [
+      '@graphql-markdown/docusaurus',
+      {
+        id: 'graphql-stock-location',
+        schema: [
+          '../../packages/kit/src/graphql/directives.graphql',
+          '../../packages/kit/src/graphql/base-types.graphql',
+          '../../packages/kit/src/graphql/filter-types.graphql',
+          '../../packages/modules/stock-location/src/graphql/schema/**/*.graphql',
+        ],
+        rootPath: './docs',
+        baseURL: 'api/graphql/stock-location',
+        homepage: './docs/api/graphql/stock-location/index.md',
         loaders: {
           GraphQLFileLoader: '@graphql-tools/graphql-file-loader',
         },
