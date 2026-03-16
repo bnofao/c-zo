@@ -16,6 +16,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo watch dev _dev",
+    "dev:docs": "turbo dev --filter=@czo/docs",
     "dev:mazo": "pnpm --filter @czo/mazo dev",
     "dev:czo": "pnpm --filter @czo/czo dev",
     "build:mazo": "pnpm --filter @czo/mazo build",
