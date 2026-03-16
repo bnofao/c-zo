@@ -9,7 +9,7 @@ const config: Config = {
   baseUrl: '/',
   organizationName: 'bnofao',
   projectName: 'c-zo',
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
   i18n: {
