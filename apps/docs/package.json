@@ -1,0 +1,29 @@
+{
+  "name": "@czo/docs",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "docusaurus start",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "generate": "pnpm generate:graphql",
+    "generate:graphql": "graphql-markdown"
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
+    "@graphql-markdown/docusaurus": "^1.30.3",
+    "@graphql-tools/graphql-file-loader": "^8.0.0",
+    "@graphql-tools/load-files": "^7.0.0",
+    "clsx": "^2.1.0",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "^3.9.2",
+    "@docusaurus/tsconfig": "^3.9.2",
+    "typescript": "^5.7.0"
+  }
+}
