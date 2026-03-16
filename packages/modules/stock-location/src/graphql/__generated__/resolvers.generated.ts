@@ -1,6 +1,8 @@
 /* This file was automatically generated. DO NOT UPDATE MANUALLY. */
     import type   { Resolvers } from './types.generated';
     import    { createStockLocation as Mutation_createStockLocation } from './../schema/stock-location/resolvers/Mutation/createStockLocation';
+import    { updateStockLocation as Mutation_updateStockLocation } from './../schema/stock-location/resolvers/Mutation/updateStockLocation';
+import    { updateStockLocationAddress as Mutation_updateStockLocationAddress } from './../schema/stock-location/resolvers/Mutation/updateStockLocationAddress';
 import    { StockLocation } from './../schema/stock-location/resolvers/StockLocation';
 import    { StockLocationAddress } from './../schema/stock-location/resolvers/StockLocationAddress';
 import    { _empty as Query__empty } from '././../../../../../kit/src/graphql/resolvers/Query/_empty';
@@ -8,7 +10,7 @@ import    { _empty as Mutation__empty } from '././../../../../../kit/src/graphql
 import    { DateTimeResolver,EmailAddressResolver,JSONResolver } from 'graphql-scalars';
     export const resolvers: Resolvers = {
       Query: { _empty: Query__empty },
-      Mutation: { createStockLocation: Mutation_createStockLocation,_empty: Mutation__empty },
+      Mutation: { createStockLocation: Mutation_createStockLocation,updateStockLocation: Mutation_updateStockLocation,updateStockLocationAddress: Mutation_updateStockLocationAddress,_empty: Mutation__empty },
       
       StockLocation: StockLocation,
 StockLocationAddress: StockLocationAddress,

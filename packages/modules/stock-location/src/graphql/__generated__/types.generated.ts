@@ -26,18 +26,22 @@ export type BooleanFilterInput = {
   eq?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
-export type CreateStockLocationInput = {
+export type CreateStockLocationAddressInput = {
   addressLine1: Scalars['String']['input'];
   addressLine2?: InputMaybe<Scalars['String']['input']>;
   city: Scalars['String']['input'];
   countryCode: Scalars['String']['input'];
-  handle?: InputMaybe<Scalars['String']['input']>;
-  metadata?: InputMaybe<Scalars['JSON']['input']>;
-  name: Scalars['String']['input'];
-  organizationId: Scalars['ID']['input'];
   phone?: InputMaybe<Scalars['String']['input']>;
   postalCode?: InputMaybe<Scalars['String']['input']>;
   province?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type CreateStockLocationInput = {
+  address: CreateStockLocationAddressInput;
+  handle?: InputMaybe<Scalars['String']['input']>;
+  metadata?: InputMaybe<Scalars['JSON']['input']>;
+  name: Scalars['String']['input'];
+  organizationId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 export type DateTimeFilterInput = {
@@ -53,11 +57,25 @@ export type Mutation = {
   __typename?: 'Mutation';
   _empty?: Maybe<Scalars['String']['output']>;
   createStockLocation: StockLocation;
+  updateStockLocation: StockLocation;
+  updateStockLocationAddress: StockLocationAddress;
 };
 
 
 export type MutationcreateStockLocationArgs = {
   input: CreateStockLocationInput;
+};
+
+
+export type MutationupdateStockLocationArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateStockLocationInput;
+};
+
+
+export type MutationupdateStockLocationAddressArgs = {
+  input: UpdateStockLocationAddressInput;
+  stockLocationId: Scalars['ID']['input'];
 };
 
 export type OrderDirection =
@@ -102,6 +120,23 @@ export type StringFilterInput = {
   in?: InputMaybe<Array<Scalars['String']['input']>>;
   ne?: InputMaybe<Scalars['String']['input']>;
   startsWith?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateStockLocationAddressInput = {
+  addressLine1?: InputMaybe<Scalars['String']['input']>;
+  addressLine2?: InputMaybe<Scalars['String']['input']>;
+  city?: InputMaybe<Scalars['String']['input']>;
+  countryCode?: InputMaybe<Scalars['String']['input']>;
+  phone?: InputMaybe<Scalars['String']['input']>;
+  postalCode?: InputMaybe<Scalars['String']['input']>;
+  province?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateStockLocationInput = {
+  address?: InputMaybe<UpdateStockLocationAddressInput>;
+  handle?: InputMaybe<Scalars['String']['input']>;
+  metadata?: InputMaybe<Scalars['JSON']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type WithIndex<TObject> = TObject & Record<string, any>;
@@ -180,8 +215,9 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 export type ResolversTypes = ResolversObject<{
   BooleanFilterInput: BooleanFilterInput;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
-  CreateStockLocationInput: CreateStockLocationInput;
+  CreateStockLocationAddressInput: CreateStockLocationAddressInput;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
+  CreateStockLocationInput: CreateStockLocationInput;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
   DateTimeFilterInput: DateTimeFilterInput;
@@ -193,14 +229,17 @@ export type ResolversTypes = ResolversObject<{
   StockLocation: ResolverTypeWrapper<StockLocationRow>;
   StockLocationAddress: ResolverTypeWrapper<StockLocationAddressRow>;
   StringFilterInput: StringFilterInput;
+  UpdateStockLocationAddressInput: UpdateStockLocationAddressInput;
+  UpdateStockLocationInput: UpdateStockLocationInput;
 }>;
 
 /** Mapping between all available schema types and the resolvers parents */
 export type ResolversParentTypes = ResolversObject<{
   BooleanFilterInput: BooleanFilterInput;
   Boolean: Scalars['Boolean']['output'];
-  CreateStockLocationInput: CreateStockLocationInput;
+  CreateStockLocationAddressInput: CreateStockLocationAddressInput;
   String: Scalars['String']['output'];
+  CreateStockLocationInput: CreateStockLocationInput;
   ID: Scalars['ID']['output'];
   DateTime: Scalars['DateTime']['output'];
   DateTimeFilterInput: DateTimeFilterInput;
@@ -211,6 +250,8 @@ export type ResolversParentTypes = ResolversObject<{
   StockLocation: StockLocationRow;
   StockLocationAddress: StockLocationAddressRow;
   StringFilterInput: StringFilterInput;
+  UpdateStockLocationAddressInput: UpdateStockLocationAddressInput;
+  UpdateStockLocationInput: UpdateStockLocationInput;
 }>;
 
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
@@ -228,6 +269,8 @@ export interface JSONScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes
 export type MutationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   createStockLocation?: Resolver<ResolversTypes['StockLocation'], ParentType, ContextType, RequireFields<MutationcreateStockLocationArgs, 'input'>>;
+  updateStockLocation?: Resolver<ResolversTypes['StockLocation'], ParentType, ContextType, RequireFields<MutationupdateStockLocationArgs, 'id' | 'input'>>;
+  updateStockLocationAddress?: Resolver<ResolversTypes['StockLocationAddress'], ParentType, ContextType, RequireFields<MutationupdateStockLocationAddressArgs, 'input' | 'stockLocationId'>>;
 }>;
 
 export type OrderDirectionResolvers = EnumResolverSignature<{ ASC?: any, DESC?: any }, ResolversTypes['OrderDirection']>;
