@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve a single installed app by its app identifier.
 
 
 ```graphql
@@ -54,9 +54,10 @@ app(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>app.<b>appId</b></code>](#app-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#app-id\} 
-
+The app identifier to look up.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A third-party application installed on the platform.

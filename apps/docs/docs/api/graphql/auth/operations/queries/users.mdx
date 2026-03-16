@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve a paginated, filterable list of all users. Requires admin access.
 
 
 ```graphql
@@ -58,25 +58,26 @@ users(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>users.<b>search</b></code>](#search)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#search\} 
-
+Optional text search across user fields.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>users.<b>where</b></code>](#where)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>UserWhereInput</b></code>](/api/graphql/auth/types/inputs/user-where-input.mdx) <Badge class="badge badge--secondary " text="input"/> \{#where\} 
-
+Filter conditions to narrow results.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>users.<b>orderBy</b></code>](#order-by)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>UserOrderByInput</b></code>](/api/graphql/auth/types/inputs/user-order-by-input.mdx) <Badge class="badge badge--secondary " text="input"/> \{#order-by\} 
-
+Ordering for the returned list.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>users.<b>limit</b></code>](#limit)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#limit\} 
-
+Maximum number of users to return.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>users.<b>offset</b></code>](#offset)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#offset\} 
-
+Number of users to skip before returning results.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>UserList</b></code>](/api/graphql/auth/types/objects/user-list.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>UserList</b></code>](/api/graphql/auth/types/objects/user-list.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Paginated list of users.

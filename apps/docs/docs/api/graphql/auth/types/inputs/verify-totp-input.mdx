@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Input for verifying a TOTP code from an authenticator app.
 
 
 ```graphql
@@ -55,11 +55,11 @@ input VerifyTotpInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyTotpInput.<b>code</b></code>](#code)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#code\} 
-
+The six-digit TOTP code from the authenticator app.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyTotpInput.<b>trustDevice</b></code>](#trust-device)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#trust-device\} 
-
+When true, the current device will be trusted and skip 2FA for future logins.
 
 
 

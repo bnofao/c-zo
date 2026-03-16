@@ -1,42 +1,78 @@
+"""A physical inventory location (warehouse, store, or fulfillment center)."""
 type StockLocation {
+  """Unique identifier."""
   id: ID!
+  """Organization that owns this location."""
   organizationId: ID!
+  """URL-safe slug, unique per organization. Auto-generated from name if not provided."""
   handle: String!
+  """Display name of the location."""
   name: String!
+  """Whether this is the default location for the organization."""
   isDefault: Boolean!
+  """Whether this location is currently active."""
   isActive: Boolean!
+  """Arbitrary key-value data attached to this location."""
   metadata: JSON
+  """Physical address of the location."""
   address: StockLocationAddress
+  """When the location was created."""
   createdAt: DateTime!
+  """When the location was last updated."""
   updatedAt: DateTime!
 }
 
+"""Physical address associated with a stock location."""
 type StockLocationAddress {
+  """Unique identifier."""
   id: ID!
+  """Street address line 1."""
   addressLine1: String!
+  """Street address line 2 (apartment, suite, etc.)."""
   addressLine2: String
+  """City name."""
   city: String!
+  """State, province, or region."""
   province: String
+  """Postal or ZIP code."""
   postalCode: String
+  """ISO 3166-1 alpha-2 country code (e.g. "FR", "US")."""
   countryCode: String!
+  """Contact phone number."""
   phone: String
 }
 
+"""Input for creating a new stock location with its address."""
 input CreateStockLocationInput {
+  """Display name of the location."""
   name: String!
+  """URL-safe slug. Auto-generated from name if omitted."""
   handle: String
+  """Organization to create the location in. Uses session context if omitted."""
   organizationId: ID!
+  """Street address line 1."""
   addressLine1: String!
+  """Street address line 2 (apartment, suite, etc.)."""
   addressLine2: String
+  """City name."""
   city: String!
+  """State, province, or region."""
   province: String
+  """Postal or ZIP code."""
   postalCode: String
+  """ISO 3166-1 alpha-2 country code (e.g. "FR", "US")."""
   countryCode: String!
+  """Contact phone number."""
   phone: String
+  """Arbitrary key-value metadata."""
   metadata: JSON
 }
 
 extend type Mutation {
-  createStockLocation(input: CreateStockLocationInput!): StockLocation!
+  """Create a new stock location with its address."""
+  createStockLocation(
+    """Location and address details."""
+    input: CreateStockLocationInput!
+  ): StockLocation!
     @permission(resource: "stock-location", action: "create")
 }

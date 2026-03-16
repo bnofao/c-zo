@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Result returned when two-factor authentication is successfully enabled.
 
 
 ```graphql
@@ -55,11 +55,11 @@ type EnableTwoFactorResult {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>EnableTwoFactorResult.<b>totpURI</b></code>](#totp-uri)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#totp-uri\} 
-
+The TOTP URI to scan with an authenticator app.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>EnableTwoFactorResult.<b>backupCodes</b></code>](#backup-codes)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[String!]!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#backup-codes\} 
-
+One-time backup codes that can be used if the authenticator is unavailable.
 
 
 

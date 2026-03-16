@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Result returned when backup codes are generated or retrieved.
 
 
 ```graphql
@@ -55,11 +55,11 @@ type BackupCodesResult {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>BackupCodesResult.<b>status</b></code>](#status)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean!</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#status\} 
-
+Whether the backup code operation was successful.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>BackupCodesResult.<b>backupCodes</b></code>](#backup-codes)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[String!]!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#backup-codes\} 
-
+Newly generated backup codes for account recovery.
 
 
 

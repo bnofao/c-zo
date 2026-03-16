@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Unlink an external provider account from the current user.
 
 
 ```graphql
@@ -55,11 +55,11 @@ unlinkAccount(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>unlinkAccount.<b>providerId</b></code>](#provider-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#provider-id\} 
-
+The identifier of the provider to unlink (e.g. google, github).
 
 
 #### [<code style={{ fontWeight: 'normal' }}>unlinkAccount.<b>accountId</b></code>](#account-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#account-id\} 
-
+The provider-specific account ID to unlink. Required when multiple accounts exist for the same provider.
 
 
 ### Type

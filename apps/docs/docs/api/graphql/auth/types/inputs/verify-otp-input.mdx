@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Input for verifying a one-time password (OTP) delivered via another channel.
 
 
 ```graphql
@@ -55,11 +55,11 @@ input VerifyOtpInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyOtpInput.<b>code</b></code>](#code)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#code\} 
-
+The one-time password code to verify.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyOtpInput.<b>trustDevice</b></code>](#trust-device)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#trust-device\} 
-
+When true, the current device will be trusted and skip 2FA for future logins.
 
 
 

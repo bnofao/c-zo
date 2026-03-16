@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve detailed information about a specific organization, including members and invitations.
 
 
 ```graphql
@@ -55,13 +55,14 @@ organization(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>organization.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+Look up the organization by its ID.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>organization.<b>organizationSlug</b></code>](#organization-slug)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-slug\} 
-
+Look up the organization by its slug.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>FullOrganization</b></code>](/api/graphql/auth/types/objects/full-organization.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>FullOrganization</b></code>](/api/graphql/auth/types/objects/full-organization.mdx) <Badge class="badge badge--secondary " text="object"/> 
+An organization with full membership and invitation details.

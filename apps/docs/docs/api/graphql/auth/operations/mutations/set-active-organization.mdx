@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Switch the current user's active organization context.
 
 
 ```graphql
@@ -55,13 +55,14 @@ setActiveOrganization(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>setActiveOrganization.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+The ID of the organization to activate.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>setActiveOrganization.<b>organizationSlug</b></code>](#organization-slug)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-slug\} 
-
+The slug of the organization to activate.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>Organization</b></code>](/api/graphql/auth/types/objects/organization.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>Organization</b></code>](/api/graphql/auth/types/objects/organization.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A tenant organization on the platform.

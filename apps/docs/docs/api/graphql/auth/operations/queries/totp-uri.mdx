@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve a TOTP provisioning URI for setting up an authenticator app.
 
 
 ```graphql
@@ -54,9 +54,10 @@ totpUri(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>totpUri.<b>password</b></code>](#password)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#password\} 
-
+The current user's password for verification before exposing the TOTP secret.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>TotpUri</b></code>](/api/graphql/auth/types/objects/totp-uri.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>TotpUri</b></code>](/api/graphql/auth/types/objects/totp-uri.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A TOTP provisioning URI used to configure an authenticator app.

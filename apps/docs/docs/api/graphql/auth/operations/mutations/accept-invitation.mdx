@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Accept a pending invitation and join the organization.
 
 
 ```graphql
@@ -54,9 +54,10 @@ acceptInvitation(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>acceptInvitation.<b>invitationId</b></code>](#invitation-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#invitation-id\} 
-
+The ID of the invitation to accept.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>OrgMember</b></code>](/api/graphql/auth/types/objects/org-member.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>OrgMember</b></code>](/api/graphql/auth/types/objects/org-member.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A user's membership record within an organization.

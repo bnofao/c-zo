@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+A user's membership record within an organization.
 
 
 ```graphql
@@ -59,27 +59,27 @@ type OrgMember {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
-
+Unique identifier for the membership record.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+Identifier of the organization this member belongs to.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>userId</b></code>](#user-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#user-id\} 
-
+Identifier of the user who is a member.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>role</b></code>](#role)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#role\} 
-
+The member's role within the organization.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
-
+Date and time when the membership was established.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>OrgMember.<b>user</b></code>](#user)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>MemberUser</b></code>](/api/graphql/auth/types/objects/member-user.mdx) <Badge class="badge badge--secondary " text="object"/> \{#user\} 
-
+Basic profile information about the member.
 
 
 

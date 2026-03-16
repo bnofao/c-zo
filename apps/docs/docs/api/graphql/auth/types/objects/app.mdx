@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+A third-party application installed on the platform.
 
 
 ```graphql
@@ -61,35 +61,35 @@ type App {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
-
+Unique identifier for the installed app record.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>appId</b></code>](#app-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#app-id\} 
-
+Stable identifier for the application, sourced from its manifest.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>manifest</b></code>](#manifest)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>JSON!</b></code>](/api/graphql/auth/types/scalars/json.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#manifest\} 
-
+The full app manifest describing the application's capabilities and configuration.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>status</b></code>](#status)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#status\} 
-
+Current lifecycle status of the app (e.g. active, suspended).
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+Identifier of the organization the app is installed for, if any.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>installedBy</b></code>](#installed-by)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#installed-by\} 
-
+Identifier of the user or entity that installed the app.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
-
+Date and time when the app was installed.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>App.<b>updatedAt</b></code>](#updated-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#updated-at\} 
-
+Date and time when the app record was last updated.
 
 
 

@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Filter conditions for querying users.
 
 
 ```graphql
@@ -58,23 +58,23 @@ input UserWhereInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>UserWhereInput.<b>emailVerified</b></code>](#email-verified)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>BooleanFilterInput</b></code>](/api/graphql/auth/types/inputs/boolean-filter-input.mdx) <Badge class="badge badge--secondary " text="input"/> \{#email-verified\} 
-
+Filter by whether the user's email has been verified.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserWhereInput.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTimeFilterInput</b></code>](/api/graphql/auth/types/inputs/date-time-filter-input.mdx) <Badge class="badge badge--secondary " text="input"/> \{#created-at\} 
-
+Filter by the date the user account was created.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserWhereInput.<b>AND</b></code>](#and)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[UserWhereInput!]</b></code>](/api/graphql/auth/types/inputs/user-where-input.mdx) <Badge class="badge badge--secondary " text="list"/> <Badge class="badge badge--secondary " text="input"/> \{#and\} 
-
+All of the following conditions must be true.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserWhereInput.<b>OR</b></code>](#or)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>[UserWhereInput!]</b></code>](/api/graphql/auth/types/inputs/user-where-input.mdx) <Badge class="badge badge--secondary " text="list"/> <Badge class="badge badge--secondary " text="input"/> \{#or\} 
-
+At least one of the following conditions must be true.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserWhereInput.<b>NOT</b></code>](#not)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>UserWhereInput</b></code>](/api/graphql/auth/types/inputs/user-where-input.mdx) <Badge class="badge badge--secondary " text="input"/> \{#not\} 
-
+The following condition must not be true.
 
 
 

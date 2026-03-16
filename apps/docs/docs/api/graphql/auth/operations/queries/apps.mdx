@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve all installed apps, optionally scoped to an organization.
 
 
 ```graphql
@@ -54,9 +54,10 @@ apps(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>apps.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+Filter apps by the organization they are installed for.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A third-party application installed on the platform.

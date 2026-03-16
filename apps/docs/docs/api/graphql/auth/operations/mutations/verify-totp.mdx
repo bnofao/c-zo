@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Verify a TOTP code to complete a two-factor authentication challenge.
 
 
 ```graphql
@@ -54,9 +54,10 @@ verifyTotp(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>verifyTotp.<b>input</b></code>](#input)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>VerifyTotpInput!</b></code>](/api/graphql/auth/types/inputs/verify-totp-input.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="input"/> \{#input\} 
-
+TOTP verification details.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result returned after a successful two-factor verification.

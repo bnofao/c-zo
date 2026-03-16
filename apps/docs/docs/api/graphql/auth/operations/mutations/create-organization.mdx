@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Create a new organization with the current user as the owner.
 
 
 ```graphql
@@ -54,9 +54,10 @@ createOrganization(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>createOrganization.<b>input</b></code>](#input)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>CreateOrganizationInput!</b></code>](/api/graphql/auth/types/inputs/create-organization-input.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="input"/> \{#input\} 
-
+Details for the new organization.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>Organization</b></code>](/api/graphql/auth/types/objects/organization.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>Organization</b></code>](/api/graphql/auth/types/objects/organization.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A tenant organization on the platform.

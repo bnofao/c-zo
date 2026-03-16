@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+An API key used to authenticate programmatic access to the platform.
 
 
 ```graphql
@@ -61,35 +61,35 @@ type ApiKey {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
-
+Unique identifier for the API key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>name</b></code>](#name)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#name\} 
-
+Human-readable label for the API key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>prefix</b></code>](#prefix)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#prefix\} 
-
+Optional prefix prepended to the API key value for identification.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>start</b></code>](#start)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#start\} 
-
+The first few characters of the key, used for display without exposing the full secret.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>enabled</b></code>](#enabled)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean!</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#enabled\} 
-
+Whether the API key is currently active and usable.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>expiresAt</b></code>](#expires-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#expires-at\} 
-
+Date and time when the API key expires. Null if the key does not expire.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>lastRequest</b></code>](#last-request)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#last-request\} 
-
+Date and time of the most recent request made with this key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>ApiKey.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
-
+Date and time when the API key was created.
 
 
 

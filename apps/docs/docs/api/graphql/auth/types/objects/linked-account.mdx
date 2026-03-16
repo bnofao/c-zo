@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+An external provider account linked to the current user.
 
 
 ```graphql
@@ -57,19 +57,19 @@ type LinkedAccount {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>LinkedAccount.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
-
+Unique identifier for the linked account record.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>LinkedAccount.<b>providerId</b></code>](#provider-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#provider-id\} 
-
+The identifier of the authentication provider (e.g. google, github).
 
 
 #### [<code style={{ fontWeight: 'normal' }}>LinkedAccount.<b>accountId</b></code>](#account-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#account-id\} 
-
+The user's identifier within the external provider.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>LinkedAccount.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
-
+Date and time when the account was linked.
 
 
 

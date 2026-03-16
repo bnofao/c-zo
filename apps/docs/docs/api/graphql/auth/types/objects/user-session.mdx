@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+An active session belonging to a user.
 
 
 ```graphql
@@ -60,31 +60,31 @@ type UserSession {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>id</b></code>](#id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#id\} 
-
+Unique identifier for the session.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>userId</b></code>](#user-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#user-id\} 
-
+Identifier of the user who owns this session.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>expiresAt</b></code>](#expires-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#expires-at\} 
-
+Date and time when this session expires.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>ipAddress</b></code>](#ip-address)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#ip-address\} 
-
+IP address from which the session was initiated.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>userAgent</b></code>](#user-agent)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#user-agent\} 
-
+User agent string of the client that initiated the session.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>impersonatedBy</b></code>](#impersonated-by)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#impersonated-by\} 
-
+Identifier of the admin user who is impersonating this account, if any.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>UserSession.<b>createdAt</b></code>](#created-at)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>DateTime!</b></code>](/api/graphql/auth/types/scalars/date-time.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#created-at\} 
-
+Date and time when the session was created.
 
 
 

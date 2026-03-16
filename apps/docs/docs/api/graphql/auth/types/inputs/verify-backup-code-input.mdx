@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Input for verifying a backup code during account recovery.
 
 
 ```graphql
@@ -56,15 +56,15 @@ input VerifyBackupCodeInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyBackupCodeInput.<b>code</b></code>](#code)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#code\} 
-
+The backup code to verify.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyBackupCodeInput.<b>disableSession</b></code>](#disable-session)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#disable-session\} 
-
+When true, the current session will be terminated after verification.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>VerifyBackupCodeInput.<b>trustDevice</b></code>](#trust-device)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#trust-device\} 
-
+When true, the current device will be trusted and skip 2FA for future logins.
 
 
 

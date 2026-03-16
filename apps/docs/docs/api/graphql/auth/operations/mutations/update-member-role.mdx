@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Change the role of an existing organization member.
 
 
 ```graphql
@@ -56,15 +56,15 @@ updateMemberRole(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>updateMemberRole.<b>memberId</b></code>](#member-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#member-id\} 
-
+The ID of the member whose role will be updated.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>updateMemberRole.<b>role</b></code>](#role)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#role\} 
-
+The new role to assign.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>updateMemberRole.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+The ID of the organization. Defaults to the active organization.
 
 
 ### Type

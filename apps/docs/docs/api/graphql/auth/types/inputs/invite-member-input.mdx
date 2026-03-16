@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Input for inviting a user to an organization.
 
 
 ```graphql
@@ -57,19 +57,19 @@ input InviteMemberInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>InviteMemberInput.<b>email</b></code>](#email)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>EmailAddress!</b></code>](/api/graphql/auth/types/scalars/email-address.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#email\} 
-
+Email address of the person to invite.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>InviteMemberInput.<b>role</b></code>](#role)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#role\} 
-
+Role to assign the invitee upon acceptance.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>InviteMemberInput.<b>organizationId</b></code>](#organization-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#organization-id\} 
-
+Identifier of the organization to invite the user to. Defaults to the active organization.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>InviteMemberInput.<b>resend</b></code>](#resend)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#resend\} 
-
+When true, resend the invitation if one already exists.
 
 
 

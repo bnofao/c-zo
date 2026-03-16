@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Verify a backup code to complete account recovery during two-factor authentication.
 
 
 ```graphql
@@ -54,9 +54,10 @@ verifyBackupCode(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>verifyBackupCode.<b>input</b></code>](#input)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>VerifyBackupCodeInput!</b></code>](/api/graphql/auth/types/inputs/verify-backup-code-input.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="input"/> \{#input\} 
-
+Backup code verification details.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result returned after a successful two-factor verification.

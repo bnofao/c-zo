@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Install a new application from a remote manifest URL.
 
 
 ```graphql
@@ -54,9 +54,10 @@ installApp(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>installApp.<b>input</b></code>](#input)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>InstallAppInput!</b></code>](/api/graphql/auth/types/inputs/install-app-input.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="input"/> \{#input\} 
-
+Installation details including the manifest URL and optional organization.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>AppInstallResult</b></code>](/api/graphql/auth/types/objects/app-install-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>AppInstallResult</b></code>](/api/graphql/auth/types/objects/app-install-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result returned after successfully installing an application.

@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Input for creating a new API key.
 
 
 ```graphql
@@ -63,43 +63,43 @@ input CreateApiKeyInput {
 ### Fields
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>name</b></code>](#name)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#name\} 
-
+Human-readable label for the new API key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>expiresIn</b></code>](#expires-in)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#expires-in\} 
-
+Duration in seconds until the key expires. Omit for a non-expiring key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>prefix</b></code>](#prefix)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#prefix\} 
-
+Optional prefix to prepend to the generated key value.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>remaining</b></code>](#remaining)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#remaining\} 
-
+Maximum number of requests the key can make. Omit for unlimited usage.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>metadata</b></code>](#metadata)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>JSON</b></code>](/api/graphql/auth/types/scalars/json.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#metadata\} 
-
+Arbitrary metadata to associate with the API key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>refillAmount</b></code>](#refill-amount)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#refill-amount\} 
-
+Number of requests to add to the remaining count on each refill cycle.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>refillInterval</b></code>](#refill-interval)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#refill-interval\} 
-
+Interval in seconds between usage quota refills.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>rateLimitEnabled</b></code>](#rate-limit-enabled)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Boolean</b></code>](/api/graphql/auth/types/scalars/boolean.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#rate-limit-enabled\} 
-
+Whether rate limiting is enabled for this key.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>rateLimitTimeWindow</b></code>](#rate-limit-time-window)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#rate-limit-time-window\} 
-
+Duration in milliseconds of the rate limit sliding window.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>CreateApiKeyInput.<b>rateLimitMax</b></code>](#rate-limit-max)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>Int</b></code>](/api/graphql/auth/types/scalars/int.mdx) <Badge class="badge badge--secondary " text="scalar"/> \{#rate-limit-max\} 
-
+Maximum number of requests allowed within the rate limit time window.
 
 
 

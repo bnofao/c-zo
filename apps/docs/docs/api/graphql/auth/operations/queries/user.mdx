@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve a single user by their ID. Requires admin access.
 
 
 ```graphql
@@ -54,9 +54,10 @@ user(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>user.<b>userId</b></code>](#user-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#user-id\} 
-
+The ID of the user to retrieve.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>User</b></code>](/api/graphql/auth/types/objects/user.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>User</b></code>](/api/graphql/auth/types/objects/user.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A registered user on the platform.

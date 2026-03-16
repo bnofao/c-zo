@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Check whether a given organization slug is available.
 
 
 ```graphql
@@ -54,9 +54,10 @@ checkSlug(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>checkSlug.<b>slug</b></code>](#slug)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#slug\} 
-
+The slug to check for availability.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>SlugCheckResult</b></code>](/api/graphql/auth/types/objects/slug-check-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>SlugCheckResult</b></code>](/api/graphql/auth/types/objects/slug-check-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result of checking whether an organization slug is available.

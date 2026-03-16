@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Generate a fresh set of backup codes, invalidating any existing ones.
 
 
 ```graphql
@@ -54,9 +54,10 @@ generateBackupCodes(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>generateBackupCodes.<b>password</b></code>](#password)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#password\} 
-
+The current user's password for verification.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>BackupCodesResult</b></code>](/api/graphql/auth/types/objects/backup-codes-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>BackupCodesResult</b></code>](/api/graphql/auth/types/objects/backup-codes-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result returned when backup codes are generated or retrieved.

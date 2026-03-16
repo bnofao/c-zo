@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Verify a one-time password to complete a two-factor authentication challenge.
 
 
 ```graphql
@@ -54,9 +54,10 @@ verifyOtp(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>verifyOtp.<b>input</b></code>](#input)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>VerifyOtpInput!</b></code>](/api/graphql/auth/types/inputs/verify-otp-input.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="input"/> \{#input\} 
-
+OTP verification details.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>TwoFactorVerifyResult</b></code>](/api/graphql/auth/types/objects/two-factor-verify-result.mdx) <Badge class="badge badge--secondary " text="object"/> 
+Result returned after a successful two-factor verification.

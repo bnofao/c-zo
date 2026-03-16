@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Replace the manifest for an installed application.
 
 
 ```graphql
@@ -55,13 +55,14 @@ updateAppManifest(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>updateAppManifest.<b>appId</b></code>](#app-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>String!</b></code>](/api/graphql/auth/types/scalars/string.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#app-id\} 
-
+The app identifier of the application to update.
 
 
 #### [<code style={{ fontWeight: 'normal' }}>updateAppManifest.<b>manifest</b></code>](#manifest)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>JSON!</b></code>](/api/graphql/auth/types/scalars/json.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#manifest\} 
-
+The new manifest to apply.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>App</b></code>](/api/graphql/auth/types/objects/app.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A third-party application installed on the platform.

@@ -39,7 +39,7 @@ export const Details = ({ dataOpen, dataClose, children, startOpen = false }) =>
 
 
 
-No description
+Retrieve a single invitation by its ID.
 
 
 ```graphql
@@ -54,9 +54,10 @@ invitation(
 ### Arguments
 
 #### [<code style={{ fontWeight: 'normal' }}>invitation.<b>invitationId</b></code>](#invitation-id)<Bullet />[<code style={{ fontWeight: 'normal' }}><b>ID!</b></code>](/api/graphql/auth/types/scalars/id.mdx) <Badge class="badge badge--secondary badge--non_null" text="non-null"/> <Badge class="badge badge--secondary " text="scalar"/> \{#invitation-id\} 
-
+The ID of the invitation to retrieve.
 
 
 ### Type
 
-#### [<code style={{ fontWeight: 'normal' }}><b>Invitation</b></code>](/api/graphql/auth/types/objects/invitation.mdx) <Badge class="badge badge--secondary " text="object"/>
+#### [<code style={{ fontWeight: 'normal' }}><b>Invitation</b></code>](/api/graphql/auth/types/objects/invitation.mdx) <Badge class="badge badge--secondary " text="object"/> 
+A pending invitation to join an organization.
