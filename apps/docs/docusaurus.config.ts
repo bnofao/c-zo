@@ -54,7 +54,22 @@ const config: Config = {
         },
       },
     ],
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          api: {
+            specPath: './openapi/openapi.json',
+            outputDir: './docs/api/rest',
+          },
+        },
+      },
+    ],
   ],
+
+  themes: ['docusaurus-theme-openapi-docs'],
 
   themeConfig: {
     navbar: {
