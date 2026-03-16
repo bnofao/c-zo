@@ -25,10 +25,14 @@ This spec covers CSS-only changes and Docusaurus component swizzling. No new plu
 
 The auto-generated GraphQL API pages (from `@graphql-markdown/docusaurus`) use standard single-column Markdown. To achieve the two-column split:
 
-**Approach:** Swizzle the `DocItem/Layout` component to detect API reference pages (path starts with `docs/api/graphql/`) and apply a custom two-column layout. The left column contains the generated Markdown content. The right column contains code examples extracted from code blocks in the page, rendered in a sticky container.
+**Approach:** Swizzle the `DocItem/Layout` component to detect API reference pages (URL path contains `/api/graphql/`) and apply a two-column layout. The swizzled component wraps the default `DocItem` and uses a client-side effect to extract `<pre>` code blocks from the rendered content, move them into a sticky right panel, and leave the descriptions in the left column.
+
+**API page detection:** Pages under `docs/api/graphql/auth/` and `docs/api/graphql/stock-location/` (matching pattern `/api/graphql/`). The swizzled component checks `useLocation().pathname`.
+
+**Code example source:** The `@graphql-markdown/docusaurus` plugin embeds GraphQL code blocks directly in the generated `.mdx` content (as fenced code blocks). The swizzled layout component extracts these `<pre>` elements from the DOM after render and moves them to the right panel. No manual content markup needed.
 
 **CSS structure:**
-```
+```css
 .api-split-layout {
   display: flex;
   gap: 0;
@@ -36,6 +40,7 @@ The auto-generated GraphQL API pages (from `@graphql-markdown/docusaurus`) use s
 .api-split-layout__content {
   flex: 1.2;
   padding-right: 2rem;
+  overflow-y: auto;
 }
 .api-split-layout__code {
   flex: 0.8;
@@ -44,13 +49,13 @@ The auto-generated GraphQL API pages (from `@graphql-markdown/docusaurus`) use s
   height: calc(100vh - var(--ifm-navbar-height));
   overflow-y: auto;
   background: #0f172a;
-  border-radius: 0;
+  padding: 1.5rem;
 }
 ```
 
-**Simplification:** Since graphql-markdown generates `.mdx` files with a consistent structure, and the code examples are embedded in the content, the split can be achieved via CSS-only by targeting `pre` elements within API pages and repositioning them to the right column using CSS grid or flexbox. No React swizzling may be needed if we use a CSS-only approach with `display: grid` and `order` properties.
+**Responsive:** Below 996px (Docusaurus tablet breakpoint), the split layout reverts to single column — the right panel is hidden and code blocks remain inline in the content.
 
-**Recommendation:** Start with CSS-only. If insufficient, swizzle `DocItem/Layout`.
+**Prism syntax colors:** Use `dracula` theme for code blocks (built into Docusaurus Prism), which is designed for dark backgrounds and provides readable syntax highlighting on `#0f172a`.
 
 ## Element 2: Typography & Badges
 
