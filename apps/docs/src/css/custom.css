@@ -567,3 +567,60 @@ tr:nth-child(2n) {
   line-height: 1.6;
   margin-bottom: 0;
 }
+
+/* ─── API Split Layout (Stripe-style sticky code) ────────────────── */
+
+.api-split-layout {
+  display: flex;
+  gap: 0;
+  max-width: 100%;
+  margin: 0 -1rem;
+}
+
+.api-split-layout__content {
+  flex: 1.2;
+  min-width: 0;
+  padding: 0 1rem;
+  overflow-y: auto;
+}
+
+.api-split-layout__code {
+  flex: 0.8;
+  position: sticky;
+  top: var(--ifm-navbar-height);
+  height: calc(100vh - var(--ifm-navbar-height));
+  overflow-y: auto;
+  background: #0f172a;
+  padding: 1.5rem;
+  border-left: 1px solid #1e293b;
+}
+
+.api-split-layout__code pre {
+  background: transparent !important;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.api-split-layout__code pre code {
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
+/* Responsive: stack on tablet and below */
+@media (max-width: 996px) {
+  .api-split-layout {
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .api-split-layout__code {
+    display: none;
+  }
+
+  .api-split-layout__content div[class*='codeBlockContainer'],
+  .api-split-layout__content pre {
+    display: block !important;
+  }
+}
