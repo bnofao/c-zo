@@ -1,0 +1,58 @@
+---
+id: json
+title: JSON
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+No description
+
+
+```graphql
+scalar JSON
+```
+
+
+
+
+
+
+
+
+### Member Of
+
+[`AccountInfo`](/api/graphql/types/objects/account-info.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`App`](/api/graphql/types/objects/app.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`CreateApiKeyInput`](/api/graphql/types/inputs/create-api-key-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`CreateStockLocationInput`](/api/graphql/types/inputs/create-stock-location-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`FullOrganization`](/api/graphql/types/objects/full-organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`InstallAppManifestInput`](/api/graphql/types/inputs/install-app-manifest-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`StockLocation`](/api/graphql/types/objects/stock-location.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`UpdateApiKeyInput`](/api/graphql/types/inputs/update-api-key-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`updateAppManifest`](/api/graphql/operations/mutations/update-app-manifest.mdx)  <Badge class="badge badge--secondary badge--relation" text="mutation"/>

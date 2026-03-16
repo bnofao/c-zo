@@ -41,6 +41,7 @@ const config: Config = {
       '@graphql-markdown/docusaurus',
       {
         schema: [
+          '../../packages/kit/src/graphql/directives.graphql',
           '../../packages/kit/src/graphql/base-types.graphql',
           '../../packages/kit/src/graphql/filter-types.graphql',
           '../../packages/modules/*/src/graphql/schema/**/*.graphql',

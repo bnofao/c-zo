@@ -7,8 +7,9 @@
     "build": "docusaurus build",
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",
-    "generate": "pnpm generate:graphql",
-    "generate:graphql": "graphql-markdown"
+    "generate": "pnpm generate:graphql && pnpm generate:openapi",
+    "generate:graphql": "docusaurus graphql-to-doc",
+    "generate:openapi": "docusaurus gen-api-docs all"
   },
   "dependencies": {
     "@docusaurus/core": "^3.9.2",

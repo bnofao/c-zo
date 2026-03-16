@@ -1,0 +1,58 @@
+---
+id: date-time
+title: DateTime
+---
+
+
+
+
+export const Bullet = () => <><span style={{ fontWeight: 'normal', fontSize: '.5em', color: 'var(--ifm-color-secondary-darkest)' }}>&nbsp;●&nbsp;</span></>
+
+export const SpecifiedBy = (props) => <>Specification<a className="link" style={{ fontSize:'1.5em', paddingLeft:'4px' }} target="_blank" href={props.url} title={'Specified by ' + props.url}>⎘</a></>
+
+export const Badge = (props) => <><span className={props.class}>{props.text}</span></>
+
+import { useState } from 'react';
+
+export const Details = ({ dataOpen, dataClose, children, startOpen = false }) => {
+  const [open, setOpen] = useState(startOpen);
+  return (
+    <details {...(open ? { open: true } : {})} className="details" style={{ border:'none', boxShadow:'none', background:'var(--ifm-background-color)' }}>
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((open) => !open);
+        }}
+        style={{ listStyle:'none' }}
+      >
+      {open ? dataOpen : dataClose}
+      </summary>
+      {open && children}
+    </details>
+  );
+};
+
+
+
+
+
+
+
+
+No description
+
+
+```graphql
+scalar DateTime
+```
+
+
+
+
+
+
+
+
+### Member Of
+
+[`ApiKey`](/api/graphql/types/objects/api-key.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`App`](/api/graphql/types/objects/app.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`DateTimeFilterInput`](/api/graphql/types/inputs/date-time-filter-input.mdx)  <Badge class="badge badge--secondary badge--relation" text="input"/><Bullet />[`FullOrganization`](/api/graphql/types/objects/full-organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`Invitation`](/api/graphql/types/objects/invitation.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`LinkedAccount`](/api/graphql/types/objects/linked-account.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`MySession`](/api/graphql/types/objects/my-session.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`Organization`](/api/graphql/types/objects/organization.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`OrgMember`](/api/graphql/types/objects/org-member.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`StockLocation`](/api/graphql/types/objects/stock-location.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`User`](/api/graphql/types/objects/user.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`UserInvitation`](/api/graphql/types/objects/user-invitation.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/><Bullet />[`UserSession`](/api/graphql/types/objects/user-session.mdx)  <Badge class="badge badge--secondary badge--relation" text="object"/>
