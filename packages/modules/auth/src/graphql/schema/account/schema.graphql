@@ -1,67 +1,133 @@
+"""An external provider account linked to the current user."""
 type LinkedAccount {
+  """Unique identifier for the linked account record."""
   id: ID!
+  """The identifier of the authentication provider (e.g. google, github)."""
   providerId: String!
+  """The user's identifier within the external provider."""
   accountId: String!
+  """Date and time when the account was linked."""
   createdAt: DateTime!
 }
 
+"""Minimal user profile returned in account info contexts."""
 type AccountInfoUser {
+  """Unique identifier for the user."""
   id: ID!
+  """Display name of the user."""
   name: String
+  """Email address of the user."""
   email: String
+  """URL of the user's profile image."""
   image: String
+  """Whether the user's email address has been verified."""
   emailVerified: Boolean!
 }
 
+"""Account information including user profile and provider-specific data."""
 type AccountInfo {
+  """Profile of the authenticated user."""
   user: AccountInfoUser!
+  """Additional provider-specific or platform data associated with the account."""
   data: JSON
 }
 
+"""An active session belonging to the current user."""
 type MySession {
+  """Unique identifier for the session."""
   id: ID!
+  """Opaque session token used for authentication."""
   token: String!
+  """Identifier of the user who owns this session."""
   userId: ID!
+  """Date and time when this session expires."""
   expiresAt: DateTime!
+  """IP address from which the session was initiated."""
   ipAddress: String
+  """User agent string of the client that initiated the session."""
   userAgent: String
+  """Date and time when the session was created."""
   createdAt: DateTime!
 }
 
+"""Input for changing the current user's password."""
 input ChangePasswordInput {
+  """The user's current password for verification."""
   currentPassword: String!
+  """The new password to set."""
   newPassword: String!
+  """When true, all other active sessions will be revoked after the password change."""
   revokeOtherSessions: Boolean
 }
 
+"""Input for requesting an email address change."""
 input ChangeEmailInput {
+  """The new email address to change to."""
   newEmail: EmailAddress!
+  """URL to redirect the user to after confirming the email change."""
   callbackURL: String
 }
 
+"""Input for updating the current user's profile."""
 input UpdateProfileInput {
+  """New display name for the user."""
   name: String
+  """New URL for the user's profile image."""
   image: String
 }
 
+"""Input for deleting the current user's account."""
 input DeleteAccountInput {
+  """The user's current password for verification, if applicable."""
   password: String
+  """URL to redirect the user to after the account is deleted."""
   callbackURL: String
 }
 
 extend type Query {
+  """Retrieve the currently authenticated user's profile."""
   me: User! @auth
+  """Retrieve all active sessions for the currently authenticated user."""
   mySessions: [MySession!]! @auth
+  """Retrieve all external provider accounts linked to the current user."""
   myAccounts: [LinkedAccount!]! @auth
+  """Retrieve full account information for the currently authenticated user."""
   accountInfo: AccountInfo! @auth
 }
 
 extend type Mutation {
-  changePassword(input: ChangePasswordInput!): Boolean! @auth
-  changeEmail(input: ChangeEmailInput!): Boolean! @auth
-  updateProfile(input: UpdateProfileInput!): User! @auth
-  deleteAccount(input: DeleteAccountInput): Boolean! @auth
-  unlinkAccount(providerId: String!, accountId: String): Boolean! @auth
-  revokeMySession(token: String!): Boolean! @auth
+  """Change the current user's password."""
+  changePassword(
+    """Password change details."""
+    input: ChangePasswordInput!
+  ): Boolean! @auth
+  """Initiate an email address change for the current user."""
+  changeEmail(
+    """Email change details including the new email and optional redirect URL."""
+    input: ChangeEmailInput!
+  ): Boolean! @auth
+  """Update the current user's profile information."""
+  updateProfile(
+    """Updated profile fields."""
+    input: UpdateProfileInput!
+  ): User! @auth
+  """Permanently delete the current user's account."""
+  deleteAccount(
+    """Account deletion details including optional password and redirect URL."""
+    input: DeleteAccountInput
+  ): Boolean! @auth
+  """Unlink an external provider account from the current user."""
+  unlinkAccount(
+    """The identifier of the provider to unlink (e.g. google, github)."""
+    providerId: String!,
+    """The provider-specific account ID to unlink. Required when multiple accounts exist for the same provider."""
+    accountId: String
+  ): Boolean! @auth
+  """Revoke a specific session belonging to the current user."""
+  revokeMySession(
+    """The token of the session to revoke."""
+    token: String!
+  ): Boolean! @auth
+  """Revoke all sessions for the current user except the active one."""
   revokeOtherSessions: Boolean! @auth
 }

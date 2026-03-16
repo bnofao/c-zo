@@ -1,47 +1,98 @@
+"""A TOTP provisioning URI used to configure an authenticator app."""
 type TotpUri {
+  """The TOTP URI string, compatible with authenticator apps (e.g. Google Authenticator)."""
   totpURI: String!
 }
 
+"""Result returned when two-factor authentication is successfully enabled."""
 type EnableTwoFactorResult {
+  """The TOTP URI to scan with an authenticator app."""
   totpURI: String!
+  """One-time backup codes that can be used if the authenticator is unavailable."""
   backupCodes: [String!]!
 }
 
+"""Result returned when backup codes are generated or retrieved."""
 type BackupCodesResult {
+  """Whether the backup code operation was successful."""
   status: Boolean!
+  """Newly generated backup codes for account recovery."""
   backupCodes: [String!]!
 }
 
+"""Result returned after a successful two-factor verification."""
 type TwoFactorVerifyResult {
+  """Session or verification token issued after successful two-factor verification."""
   token: String!
 }
 
+"""Input for verifying a TOTP code from an authenticator app."""
 input VerifyTotpInput {
+  """The six-digit TOTP code from the authenticator app."""
   code: String!
+  """When true, the current device will be trusted and skip 2FA for future logins."""
   trustDevice: Boolean
 }
 
+"""Input for verifying a one-time password (OTP) delivered via another channel."""
 input VerifyOtpInput {
+  """The one-time password code to verify."""
   code: String!
+  """When true, the current device will be trusted and skip 2FA for future logins."""
   trustDevice: Boolean
 }
 
+"""Input for verifying a backup code during account recovery."""
 input VerifyBackupCodeInput {
+  """The backup code to verify."""
   code: String!
+  """When true, the current session will be terminated after verification."""
   disableSession: Boolean
+  """When true, the current device will be trusted and skip 2FA for future logins."""
   trustDevice: Boolean
 }
 
 extend type Query {
-  totpUri(password: String!): TotpUri! @auth
+  """Retrieve a TOTP provisioning URI for setting up an authenticator app."""
+  totpUri(
+    """The current user's password for verification before exposing the TOTP secret."""
+    password: String!
+  ): TotpUri! @auth
 }
 
 extend type Mutation {
-  enableTwoFactor(password: String!, issuer: String): EnableTwoFactorResult! @auth
-  disableTwoFactor(password: String!): Boolean! @auth
-  verifyTotp(input: VerifyTotpInput!): TwoFactorVerifyResult! @auth
+  """Enable two-factor authentication for the current user and return setup details."""
+  enableTwoFactor(
+    """The current user's password for verification."""
+    password: String!,
+    """The issuer name shown in the authenticator app."""
+    issuer: String
+  ): EnableTwoFactorResult! @auth
+  """Disable two-factor authentication for the current user."""
+  disableTwoFactor(
+    """The current user's password for verification."""
+    password: String!
+  ): Boolean! @auth
+  """Verify a TOTP code to complete a two-factor authentication challenge."""
+  verifyTotp(
+    """TOTP verification details."""
+    input: VerifyTotpInput!
+  ): TwoFactorVerifyResult! @auth
+  """Send a one-time password to the current user via an alternate channel."""
   sendOtp: Boolean! @auth
-  verifyOtp(input: VerifyOtpInput!): TwoFactorVerifyResult! @auth
-  verifyBackupCode(input: VerifyBackupCodeInput!): TwoFactorVerifyResult! @auth
-  generateBackupCodes(password: String!): BackupCodesResult! @auth
+  """Verify a one-time password to complete a two-factor authentication challenge."""
+  verifyOtp(
+    """OTP verification details."""
+    input: VerifyOtpInput!
+  ): TwoFactorVerifyResult! @auth
+  """Verify a backup code to complete account recovery during two-factor authentication."""
+  verifyBackupCode(
+    """Backup code verification details."""
+    input: VerifyBackupCodeInput!
+  ): TwoFactorVerifyResult! @auth
+  """Generate a fresh set of backup codes, invalidating any existing ones."""
+  generateBackupCodes(
+    """The current user's password for verification."""
+    password: String!
+  ): BackupCodesResult! @auth
 }
