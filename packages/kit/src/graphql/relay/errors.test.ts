@@ -5,7 +5,7 @@ import { ErrorCode, toUserErrors } from './errors'
 
 describe('toUserErrors', () => {
   it('should convert DatabaseError with fieldErrors to UNIQUE_CONSTRAINT', () => {
-    const err = new DatabaseError('duplicate', { email: ["email 'foo@bar.com' already exists"] })
+    const err = new DatabaseError('duplicate', { email: ['email \'foo@bar.com\' already exists'] })
     const errors = toUserErrors(err)
 
     expect(errors).toHaveLength(1)

@@ -1,7 +1,7 @@
-// packages/kit/src/graphql/relay/directives/connection.test.ts
-import { describe, expect, it } from 'vitest'
 import { makeExecutableSchema } from '@graphql-tools/schema'
 import { graphql } from 'graphql'
+// packages/kit/src/graphql/relay/directives/connection.test.ts
+import { describe, expect, it } from 'vitest'
 import { connectionDirective } from './connection'
 
 const typeDefs = [
@@ -27,9 +27,9 @@ describe('@connection directive', () => {
     const result = await graphql({ schema, source: '{ items(first: 2) { edges { node { id name } cursor } pageInfo { hasNextPage } totalCount } }' })
 
     expect(result.errors).toBeUndefined()
-    expect(result.data!.items.edges).toHaveLength(2)
-    expect(result.data!.items.totalCount).toBe(2)
-    expect(result.data!.items.pageInfo.hasNextPage).toBe(false)
+    expect((result.data as any).items.edges).toHaveLength(2)
+    expect((result.data as any).items.totalCount).toBe(2)
+    expect((result.data as any).items.pageInfo.hasNextPage).toBe(false)
   })
 
   it('should reject first > maxPageSize', async () => {

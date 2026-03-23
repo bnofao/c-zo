@@ -5,7 +5,7 @@ import { createNodeRegistry } from './node-registry'
 describe('createNodeRegistry', () => {
   it('should register and resolve a type', async () => {
     const registry = createNodeRegistry()
-    registry.register('User', async (id) => ({ id, name: 'Alice' }))
+    registry.register('User', async id => ({ id, name: 'Alice' }))
 
     const globalId = btoa('User:abc-123')
     const result = await registry.resolve(globalId, {} as any)

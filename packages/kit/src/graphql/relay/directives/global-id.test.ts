@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
 import { makeExecutableSchema } from '@graphql-tools/schema'
 import { graphql } from 'graphql'
+import { describe, expect, it } from 'vitest'
 import { globalIdDirective } from './global-id'
 
 function buildSchema() {
@@ -24,7 +24,7 @@ describe('@globalId directive', () => {
     const result = await graphql({ schema, source: '{ app { id name } }' })
 
     expect(result.errors).toBeUndefined()
-    const id = result.data!.app.id as string
+    const id = (result.data as any).app.id as string
     expect(atob(id)).toBe('App:local-123')
   })
 
@@ -32,6 +32,6 @@ describe('@globalId directive', () => {
     const schema = buildSchema()
     const result = await graphql({ schema, source: '{ app { name } }' })
 
-    expect(result.data!.app.name).toBe('TestApp')
+    expect((result.data as any).app.name).toBe('TestApp')
   })
 })

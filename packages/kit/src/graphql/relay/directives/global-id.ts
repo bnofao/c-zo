@@ -1,6 +1,6 @@
 import type { GraphQLSchema } from 'graphql'
-import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
 import type { DirectiveDefinition } from '../../directives'
+import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
 import { toGlobalId } from '../global-id'
 
 export const globalIdDirective: DirectiveDefinition = {
@@ -23,7 +23,8 @@ export const globalIdDirective: DirectiveDefinition = {
               ? await originalResolve(source, args, ctx, info)
               : (source as Record<string, unknown>)?.[info.fieldName]
 
-            if (result == null) return result
+            if (result == null)
+              return result
             return toGlobalId(type, String(result))
           },
         }

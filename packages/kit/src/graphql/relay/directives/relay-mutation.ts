@@ -1,6 +1,6 @@
 import type { GraphQLSchema } from 'graphql'
-import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
 import type { DirectiveDefinition } from '../../directives'
+import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
 import { toUserErrors } from '../errors'
 
 export const relayMutationDirective: DirectiveDefinition = {

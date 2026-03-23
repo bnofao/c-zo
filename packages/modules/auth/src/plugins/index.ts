@@ -21,6 +21,7 @@ import { useLogger } from '@czo/kit'
 import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
+import '@czo/kit/graphql/relay/directives'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
@@ -49,6 +50,11 @@ export default definePlugin((nitroApp) => {
 
     registerSchema(authSchema)
     registerRelations(authRelations)
+
+    container.singleton('graphql:nodeRegistry', async () => {
+      const { createNodeRegistry } = await import('@czo/kit/graphql')
+      return createNodeRegistry()
+    })
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
@@ -146,6 +152,13 @@ export default definePlugin((nitroApp) => {
     actorService.freeze()
     accessService.freeze()
     logger.info('Actor and access registries frozen')
+
+    const nodeRegistry = await container.make('graphql:nodeRegistry')
+    nodeRegistry.register('App', async (localId) => {
+      const appService = await container.make('auth:apps')
+      return appService.getAppById(localId)
+    })
+    logger.info('App type registered in node registry')
 
     // Register GraphQL schema, resolvers and context only when auth is properly configured
     await import('@czo/auth/graphql')

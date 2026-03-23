@@ -18,6 +18,7 @@ const config: CodegenConfig = {
       externalResolvers: {
         'Query._empty': './../../../../../kit/src/graphql/resolvers/Query/_empty#_empty as Query__empty',
         'Mutation._empty': './../../../../../kit/src/graphql/resolvers/Mutation/_empty#_empty as Mutation__empty',
+        'Query.node': './../schema/node/resolvers/Query/node#node as Query_node',
       },
       fixObjectTypeResolvers: 'disabled',
       scalarsOverrides: {

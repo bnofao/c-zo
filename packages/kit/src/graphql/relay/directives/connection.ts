@@ -1,8 +1,8 @@
 // packages/kit/src/graphql/relay/directives/connection.ts
 import type { GraphQLSchema } from 'graphql'
-import { GraphQLError } from 'graphql'
-import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
 import type { DirectiveDefinition } from '../../directives'
+import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
+import { GraphQLError } from 'graphql'
 import { buildConnection } from '../connection'
 import { encodeCursor } from '../cursor'
 

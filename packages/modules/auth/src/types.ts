@@ -1,4 +1,4 @@
-import type { GraphQLContextMap } from '@czo/kit/graphql'
+import type { GraphQLContextMap, NodeRegistry } from '@czo/kit/graphql'
 import type { SocialProviders } from 'better-auth'
 import type { AccessService } from './config/access'
 import type { AuthActorService } from './config/actor'
@@ -76,6 +76,7 @@ declare module '@czo/kit/ioc' {
     'auth:organizations': OrganizationService
     'auth:apikeys': ApiKeyService
     'auth:apps': AppService
+    'graphql:nodeRegistry': NodeRegistry
   }
 }
 

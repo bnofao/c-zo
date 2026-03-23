@@ -1,11 +1,13 @@
 import type { authRelations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
+import type { ConnectionArgs, PaginateResult } from '@czo/kit/graphql'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { ApiKeyService } from './apiKey.service'
 import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
+import { encodeCursor } from '@czo/kit/graphql'
 import { eq } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
@@ -208,7 +210,7 @@ export function createAppService(
     return install({ manifest, installedBy: userId, organizationId })
   }
 
-  async function uninstall(appId: string): Promise<void> {
+  async function uninstall(appId: string): Promise<AppRow> {
     const result = await repo.delete({
       where: eq(apps.appId, appId),
     })
@@ -218,6 +220,8 @@ export function createAppService(
     }
 
     publishAuthEvent(AUTH_EVENTS.APP_UNINSTALLED, { appId })
+
+    return result[0]!
   }
 
   async function getApp(appId: string): Promise<AppRow | null> {
@@ -226,15 +230,29 @@ export function createAppService(
     })
   }
 
-  async function listApps(organizationId?: string): Promise<AppRow[]> {
-    if (organizationId) {
-      return repo.findMany({
-        where: { status: 'active', organizationId },
-      })
-    }
-    return repo.findMany({
-      where: { status: 'active' },
+  async function getAppById(id: string): Promise<AppRow | null> {
+    return repo.findFirst({
+      where: { id },
     })
+  }
+
+  async function listApps(
+    connectionArgs?: ConnectionArgs,
+    orderBy?: { field: string, direction: string },
+    organizationId?: string,
+  ): Promise<PaginateResult<AppRow>> {
+    const where = organizationId
+      ? { status: 'active', organizationId }
+      : { status: 'active' }
+
+    const allRows = await repo.findMany({ where })
+
+    return {
+      nodes: allRows as AppRow[],
+      totalCount: allRows.length,
+      getCursor: (node: AppRow) =>
+        encodeCursor({ id: node.id, createdAt: node.createdAt instanceof Date ? node.createdAt.toISOString() : String(node.createdAt) }),
+    }
   }
 
   async function updateManifest(appId: string, manifest: AppManifest): Promise<AppRow> {
@@ -270,7 +288,8 @@ export function createAppService(
   }
 
   async function getActiveAppsByEvent(event: string): Promise<AppRow[]> {
-    const activeApps = await listApps()
+    const result = await listApps()
+    const activeApps = result.nodes
     return activeApps.filter((app) => {
       const manifest = app.manifest as AppManifest
       return manifest.webhooks.some(w => w.event === event)
@@ -282,6 +301,7 @@ export function createAppService(
     installFromUrl,
     uninstall,
     getApp,
+    getAppById,
     listApps,
     updateManifest,
     setStatus,

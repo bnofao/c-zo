@@ -504,13 +504,14 @@ describe('appService', () => {
   // ─── uninstall ───────────────────────────────────────────────────
 
   describe('uninstall', () => {
-    it('should delete the app by appId', async () => {
+    it('should delete the app by appId and return the deleted row', async () => {
       queryManyResult = [APP_ROW]
       deleteResult = [APP_ROW]
 
-      await service.uninstall('my-app')
+      const result = await service.uninstall('my-app')
 
       expect(db.delete).toHaveBeenCalled()
+      expect(result).toEqual(APP_ROW)
     })
 
     it('should throw when app not found', async () => {
@@ -568,24 +569,65 @@ describe('appService', () => {
     })
   })
 
+  // ─── getAppById ───────────────────────────────────────────────────
+
+  describe('getAppById', () => {
+    it('should return the app when found by primary key', async () => {
+      queryFirstResult = { id: 'uuid-123', appId: 'my-app' }
+
+      const result = await service.getAppById('uuid-123')
+
+      expect(result).toEqual({ id: 'uuid-123', appId: 'my-app' })
+    })
+
+    it('should return null when not found', async () => {
+      queryFirstResult = null
+
+      const result = await service.getAppById('nonexistent')
+
+      expect(result).toBeNull()
+    })
+
+    it('should query via the repository findFirst', async () => {
+      queryFirstResult = APP_ROW
+
+      await service.getAppById('uuid-1')
+
+      expect(db.query.apps.findFirst).toHaveBeenCalled()
+    })
+  })
+
   // ─── listApps ────────────────────────────────────────────────────
 
   describe('listApps', () => {
-    it('should return active apps', async () => {
+    it('should return a PaginateResult with active apps', async () => {
       queryManyResult = [APP_ROW]
 
       const result = await service.listApps()
 
-      expect(result).toHaveLength(1)
-      expect(result[0]!.status).toBe('active')
+      expect(result.nodes).toHaveLength(1)
+      expect(result.nodes[0]!.status).toBe('active')
+      expect(result.totalCount).toBe(1)
     })
 
-    it('should return empty array when none found', async () => {
+    it('should return empty nodes when none found', async () => {
       queryManyResult = []
 
       const result = await service.listApps()
 
-      expect(result).toEqual([])
+      expect(result.nodes).toEqual([])
+      expect(result.totalCount).toBe(0)
+    })
+
+    it('should provide a getCursor function', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.listApps()
+
+      expect(result.getCursor).toBeDefined()
+      const cursor = result.getCursor!(APP_ROW as any)
+      expect(typeof cursor).toBe('string')
+      expect(cursor.length).toBeGreaterThan(0)
     })
 
     it('should query via the repository findMany', async () => {
@@ -599,10 +641,18 @@ describe('appService', () => {
     it('should filter by organizationId when provided', async () => {
       queryManyResult = [{ ...APP_ROW, organizationId: 'org-1' }]
 
-      const result = await service.listApps('org-1')
+      const result = await service.listApps(undefined, undefined, 'org-1')
 
-      expect(result).toHaveLength(1)
+      expect(result.nodes).toHaveLength(1)
       expect(db.query.apps.findMany).toHaveBeenCalled()
+    })
+
+    it('should accept ConnectionArgs', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.listApps({ first: 10, after: 'cursor' })
+
+      expect(result.nodes).toHaveLength(1)
     })
   })
 

@@ -15,29 +15,40 @@ describe('apps query resolver', () => {
     } as any
   }
 
-  it('should use explicit organizationId over session', async () => {
-    mockListApps.mockResolvedValue([])
+  it('should pass connection args to listApps', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
 
-    await appsResolver({}, { organizationId: 'org-explicit' }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { first: 10, after: 'cursor-1' }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith('org-explicit')
+    expect(mockListApps).toHaveBeenCalledWith(
+      { first: 10, after: 'cursor-1', last: undefined, before: undefined },
+      undefined,
+      'org-session',
+    )
   })
 
-  it('should fall back to session organizationId when arg is null', async () => {
-    mockListApps.mockResolvedValue([])
+  it('should pass undefined organizationId when session has none', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
 
-    await appsResolver({}, { organizationId: null }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { first: 5 }, makeCtx(null), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith('org-session')
+    expect(mockListApps).toHaveBeenCalledWith(
+      { first: 5, after: undefined, last: undefined, before: undefined },
+      undefined,
+      undefined,
+    )
   })
 
-  it('should pass undefined when neither arg nor session has organizationId', async () => {
-    const expected = [{ id: '1', appId: 'my-app', status: 'active' }]
-    mockListApps.mockResolvedValue(expected)
+  it('should pass orderBy when provided', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
 
-    const result = await appsResolver({}, { organizationId: null }, makeCtx(null), {} as any)
+    const orderBy = { field: 'CREATED_AT', direction: 'ASC' }
+    await appsResolver({}, { first: 10, orderBy }, makeCtx(null), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(undefined)
-    expect(result).toEqual(expected)
+    expect(mockListApps).toHaveBeenCalledWith(
+      { first: 10, after: undefined, last: undefined, before: undefined },
+      orderBy,
+      undefined,
+    )
   })
 })
