@@ -5,6 +5,7 @@ const config: CodegenConfig = {
   schema: [
     '../../kit/src/graphql/base-types.graphql',
     '../../kit/src/graphql/filter-types.graphql',
+    '../../kit/src/graphql/relay/relay-types.graphql',
     'src/graphql/schema/**/*.graphql',
   ],
   generates: {

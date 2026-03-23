@@ -5,6 +5,7 @@ import    { activeMember as Query_activeMember } from './../schema/organization/
 import    { activeMemberRole as Query_activeMemberRole } from './../schema/organization/resolvers/Query/activeMemberRole';
 import    { apiKey as Query_apiKey } from './../schema/api-key/resolvers/Query/apiKey';
 import    { app as Query_app } from './../schema/app/resolvers/Query/app';
+import    { appBySlug as Query_appBySlug } from './../schema/app/resolvers/Query/appBySlug';
 import    { apps as Query_apps } from './../schema/app/resolvers/Query/apps';
 import    { checkSlug as Query_checkSlug } from './../schema/organization/resolvers/Query/checkSlug';
 import    { invitation as Query_invitation } from './../schema/organization/resolvers/Query/invitation';
@@ -15,6 +16,7 @@ import    { myAccounts as Query_myAccounts } from './../schema/account/resolvers
 import    { myApiKeys as Query_myApiKeys } from './../schema/api-key/resolvers/Query/myApiKeys';
 import    { myInvitations as Query_myInvitations } from './../schema/organization/resolvers/Query/myInvitations';
 import    { mySessions as Query_mySessions } from './../schema/account/resolvers/Query/mySessions';
+import    { node as Query_node } from './../../../../../kit/src/graphql/relay/resolvers/Query/node';
 import    { organization as Query_organization } from './../schema/organization/resolvers/Query/organization';
 import    { organizations as Query_organizations } from './../schema/organization/resolvers/Query/organizations';
 import    { totpUri as Query_totpUri } from './../schema/two-factor/resolvers/Query/totpUri';
@@ -68,10 +70,12 @@ import    { AccountInfo } from './../schema/account/resolvers/AccountInfo';
 import    { AccountInfoUser } from './../schema/account/resolvers/AccountInfoUser';
 import    { ApiKey } from './../schema/api-key/resolvers/ApiKey';
 import    { App } from './../schema/app/resolvers/App';
-import    { AppInstallResult } from './../schema/app/resolvers/AppInstallResult';
+import    { AppConnection } from './../schema/app/resolvers/AppConnection';
+import    { AppEdge } from './../schema/app/resolvers/AppEdge';
 import    { BackupCodesResult } from './../schema/two-factor/resolvers/BackupCodesResult';
 import    { EnableTwoFactorResult } from './../schema/two-factor/resolvers/EnableTwoFactorResult';
 import    { FullOrganization } from './../schema/organization/resolvers/FullOrganization';
+import    { InstallAppPayload } from './../schema/app/resolvers/InstallAppPayload';
 import    { Invitation } from './../schema/organization/resolvers/Invitation';
 import    { LinkedAccount } from './../schema/account/resolvers/LinkedAccount';
 import    { MemberRole } from './../schema/organization/resolvers/MemberRole';
@@ -79,10 +83,15 @@ import    { MemberUser } from './../schema/organization/resolvers/MemberUser';
 import    { MySession } from './../schema/account/resolvers/MySession';
 import    { OrgMember } from './../schema/organization/resolvers/OrgMember';
 import    { Organization } from './../schema/organization/resolvers/Organization';
+import    { PageInfo } from './../../../../../kit/src/graphql/relay/resolvers/PageInfo';
+import    { SetAppStatusPayload } from './../schema/app/resolvers/SetAppStatusPayload';
 import    { SlugCheckResult } from './../schema/organization/resolvers/SlugCheckResult';
 import    { TotpUri } from './../schema/two-factor/resolvers/TotpUri';
 import    { TwoFactorVerifyResult } from './../schema/two-factor/resolvers/TwoFactorVerifyResult';
+import    { UninstallAppPayload } from './../schema/app/resolvers/UninstallAppPayload';
+import    { UpdateAppManifestPayload } from './../schema/app/resolvers/UpdateAppManifestPayload';
 import    { User } from './../schema/user/resolvers/User';
+import    { UserError } from './../../../../../kit/src/graphql/relay/resolvers/UserError';
 import    { UserInvitation } from './../schema/organization/resolvers/UserInvitation';
 import    { UserList } from './../schema/user/resolvers/UserList';
 import    { UserSession } from './../schema/user/resolvers/UserSession';
@@ -90,17 +99,19 @@ import    { _empty as Query__empty } from '././../../../../../kit/src/graphql/re
 import    { _empty as Mutation__empty } from '././../../../../../kit/src/graphql/resolvers/Mutation/_empty';
 import    { DateTimeResolver,EmailAddressResolver,JSONResolver } from 'graphql-scalars';
     export const resolvers: Resolvers = {
-      Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users,_empty: Query__empty },
+      Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,appBySlug: Query_appBySlug,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,node: Query_node,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users,_empty: Query__empty },
       Mutation: { acceptInvitation: Mutation_acceptInvitation,banUser: Mutation_banUser,cancelInvitation: Mutation_cancelInvitation,changeEmail: Mutation_changeEmail,changePassword: Mutation_changePassword,createApiKey: Mutation_createApiKey,createOrganization: Mutation_createOrganization,createUser: Mutation_createUser,deleteAccount: Mutation_deleteAccount,deleteApiKey: Mutation_deleteApiKey,deleteOrganization: Mutation_deleteOrganization,disableTwoFactor: Mutation_disableTwoFactor,enableTwoFactor: Mutation_enableTwoFactor,generateBackupCodes: Mutation_generateBackupCodes,impersonateUser: Mutation_impersonateUser,installApp: Mutation_installApp,inviteMember: Mutation_inviteMember,leaveOrganization: Mutation_leaveOrganization,rejectInvitation: Mutation_rejectInvitation,removeMember: Mutation_removeMember,removeUser: Mutation_removeUser,revokeMySession: Mutation_revokeMySession,revokeOtherSessions: Mutation_revokeOtherSessions,revokeSession: Mutation_revokeSession,revokeSessions: Mutation_revokeSessions,sendOtp: Mutation_sendOtp,setActiveOrganization: Mutation_setActiveOrganization,setAppStatus: Mutation_setAppStatus,setRole: Mutation_setRole,setUserPassword: Mutation_setUserPassword,stopImpersonation: Mutation_stopImpersonation,unbanUser: Mutation_unbanUser,uninstallApp: Mutation_uninstallApp,unlinkAccount: Mutation_unlinkAccount,updateApiKey: Mutation_updateApiKey,updateAppManifest: Mutation_updateAppManifest,updateMemberRole: Mutation_updateMemberRole,updateOrganization: Mutation_updateOrganization,updateProfile: Mutation_updateProfile,updateUser: Mutation_updateUser,verifyBackupCode: Mutation_verifyBackupCode,verifyOtp: Mutation_verifyOtp,verifyTotp: Mutation_verifyTotp,_empty: Mutation__empty },
       
       AccountInfo: AccountInfo,
 AccountInfoUser: AccountInfoUser,
 ApiKey: ApiKey,
 App: App,
-AppInstallResult: AppInstallResult,
+AppConnection: AppConnection,
+AppEdge: AppEdge,
 BackupCodesResult: BackupCodesResult,
 EnableTwoFactorResult: EnableTwoFactorResult,
 FullOrganization: FullOrganization,
+InstallAppPayload: InstallAppPayload,
 Invitation: Invitation,
 LinkedAccount: LinkedAccount,
 MemberRole: MemberRole,
@@ -108,10 +119,15 @@ MemberUser: MemberUser,
 MySession: MySession,
 OrgMember: OrgMember,
 Organization: Organization,
+PageInfo: PageInfo,
+SetAppStatusPayload: SetAppStatusPayload,
 SlugCheckResult: SlugCheckResult,
 TotpUri: TotpUri,
 TwoFactorVerifyResult: TwoFactorVerifyResult,
+UninstallAppPayload: UninstallAppPayload,
+UpdateAppManifestPayload: UpdateAppManifestPayload,
 User: User,
+UserError: UserError,
 UserInvitation: UserInvitation,
 UserList: UserList,
 UserSession: UserSession,
