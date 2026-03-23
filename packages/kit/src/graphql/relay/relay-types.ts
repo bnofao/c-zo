@@ -1,0 +1,24 @@
+import { registerTypeDefs } from '../types'
+
+registerTypeDefs(`
+  interface Node {
+    id: ID!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
+  }
+
+  type UserError {
+    field: [String!]
+    message: String!
+    code: String!
+  }
+
+  extend type Query {
+    node(id: ID!): Node
+  }
+`)
