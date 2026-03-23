@@ -1,4 +1,6 @@
+import { registerResolvers } from '../resolvers'
 import { registerTypeDefs } from '../types'
+import { resolveNode } from './node-registry'
 
 registerTypeDefs(`
   interface Node {
@@ -22,3 +24,11 @@ registerTypeDefs(`
     node(id: ID!): Node
   }
 `)
+
+registerResolvers({
+  Query: {
+    node: (_parent: unknown, args: { id: string }, ctx: unknown) => {
+      return resolveNode(args.id, ctx as any)
+    },
+  },
+} as any)

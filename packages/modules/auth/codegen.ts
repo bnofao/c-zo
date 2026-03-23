@@ -18,7 +18,7 @@ const config: CodegenConfig = {
       externalResolvers: {
         'Query._empty': './../../../../../kit/src/graphql/resolvers/Query/_empty#_empty as Query__empty',
         'Mutation._empty': './../../../../../kit/src/graphql/resolvers/Mutation/_empty#_empty as Mutation__empty',
-        'Query.node': './../schema/node/resolvers/Query/node#node as Query_node',
+        'Query.node': './../../../../../kit/src/graphql/relay/resolvers/Query/node#node as Query_node',
         'PageInfo': './../schema/relay/resolvers/PageInfo#PageInfo',
         'UserError': './../schema/relay/resolvers/UserError#UserError',
       },

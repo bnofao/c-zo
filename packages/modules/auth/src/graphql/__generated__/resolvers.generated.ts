@@ -93,7 +93,7 @@ import    { UserInvitation } from './../schema/organization/resolvers/UserInvita
 import    { UserList } from './../schema/user/resolvers/UserList';
 import    { UserSession } from './../schema/user/resolvers/UserSession';
 import    { _empty as Query__empty } from '././../../../../../kit/src/graphql/resolvers/Query/_empty';
-import    { node as Query_node } from '././../schema/node/resolvers/Query/node';
+import    { node as Query_node } from '././../../../../../kit/src/graphql/relay/resolvers/Query/node';
 import    { _empty as Mutation__empty } from '././../../../../../kit/src/graphql/resolvers/Mutation/_empty';
 import    { PageInfo } from '././../schema/relay/resolvers/PageInfo';
 import    { UserError } from '././../schema/relay/resolvers/UserError';
