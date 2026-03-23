@@ -82,7 +82,6 @@ import    { MemberUser } from './../schema/organization/resolvers/MemberUser';
 import    { MySession } from './../schema/account/resolvers/MySession';
 import    { OrgMember } from './../schema/organization/resolvers/OrgMember';
 import    { Organization } from './../schema/organization/resolvers/Organization';
-import    { PageInfo } from './../../../../../kit/src/graphql/relay/resolvers/PageInfo';
 import    { SetAppStatusPayload } from './../schema/app/resolvers/SetAppStatusPayload';
 import    { SlugCheckResult } from './../schema/organization/resolvers/SlugCheckResult';
 import    { TotpUri } from './../schema/two-factor/resolvers/TotpUri';
@@ -90,13 +89,14 @@ import    { TwoFactorVerifyResult } from './../schema/two-factor/resolvers/TwoFa
 import    { UninstallAppPayload } from './../schema/app/resolvers/UninstallAppPayload';
 import    { UpdateAppManifestPayload } from './../schema/app/resolvers/UpdateAppManifestPayload';
 import    { User } from './../schema/user/resolvers/User';
-import    { UserError } from './../../../../../kit/src/graphql/relay/resolvers/UserError';
 import    { UserInvitation } from './../schema/organization/resolvers/UserInvitation';
 import    { UserList } from './../schema/user/resolvers/UserList';
 import    { UserSession } from './../schema/user/resolvers/UserSession';
 import    { _empty as Query__empty } from '././../../../../../kit/src/graphql/resolvers/Query/_empty';
 import    { node as Query_node } from '././../schema/node/resolvers/Query/node';
 import    { _empty as Mutation__empty } from '././../../../../../kit/src/graphql/resolvers/Mutation/_empty';
+import    { PageInfo } from '././../schema/relay/resolvers/PageInfo';
+import    { UserError } from '././../schema/relay/resolvers/UserError';
 import    { DateTimeResolver,EmailAddressResolver,JSONResolver } from 'graphql-scalars';
     export const resolvers: Resolvers = {
       Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,appBySlug: Query_appBySlug,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users,_empty: Query__empty,node: Query_node },
@@ -119,7 +119,6 @@ MemberUser: MemberUser,
 MySession: MySession,
 OrgMember: OrgMember,
 Organization: Organization,
-PageInfo: PageInfo,
 SetAppStatusPayload: SetAppStatusPayload,
 SlugCheckResult: SlugCheckResult,
 TotpUri: TotpUri,
@@ -127,10 +126,11 @@ TwoFactorVerifyResult: TwoFactorVerifyResult,
 UninstallAppPayload: UninstallAppPayload,
 UpdateAppManifestPayload: UpdateAppManifestPayload,
 User: User,
-UserError: UserError,
 UserInvitation: UserInvitation,
 UserList: UserList,
 UserSession: UserSession,
+PageInfo: PageInfo,
+UserError: UserError,
 DateTime: DateTimeResolver,
 EmailAddress: EmailAddressResolver,
 JSON: JSONResolver
