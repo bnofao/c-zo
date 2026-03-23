@@ -8,10 +8,10 @@ export function adminConfig(option?: AdminOptions) {
       user: {
         modelName: 'users',
         fields: {
-          role: 'role',
-          banned: 'banned',
-          banReason: 'ban_reason',
-          banExpires: 'ban_expires',
+          // role: 'role',
+          // banned: 'banned',
+          // banReason: 'ban_reason',
+          // banExpires: 'ban_expires',
         },
       },
       session: {

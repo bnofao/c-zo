@@ -17,8 +17,8 @@ export function organizationConfig(option?: OrganizationOptions) {
       organization: {
         modelName: 'organizations',
         fields: {
-          createdAt: 'created_at',
-          updatedAt: 'updated_at',
+          // createdAt: 'created_at',
+          // updatedAt: 'updated_at',
         },
         additionalFields: {
           type: { type: 'string' as const, required: false, defaultValue: null, input: true },
@@ -27,18 +27,18 @@ export function organizationConfig(option?: OrganizationOptions) {
       member: {
         modelName: 'members',
         fields: {
-          organizationId: 'organization_id',
-          userId: 'user_id',
-          createdAt: 'created_at',
+          // organizationId: 'organization_id',
+          // userId: 'user_id',
+          // createdAt: 'created_at',
         },
       },
       invitation: {
         modelName: 'invitations',
         fields: {
-          organizationId: 'organization_id',
-          expiresAt: 'expires_at',
-          inviterId: 'inviter_id',
-          createdAt: 'created_at',
+          // organizationId: 'organization_id',
+          // expiresAt: 'expires_at',
+          // inviterId: 'inviter_id',
+          // createdAt: 'created_at',
         },
       },
       session: {

@@ -1,3 +1,4 @@
+import type { authRelations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { ApiKeyService } from './apiKey.service'
@@ -5,7 +6,7 @@ import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
 
@@ -14,6 +15,7 @@ const { apps, apikeys } = schema
 // ─── Schema type for the repository ─────────────────────────────────
 
 type AppSchema = typeof schema
+type Relations = ReturnType<typeof authRelations>
 
 // ─── Zod Schema ──────────────────────────────────────────────────────
 
@@ -105,18 +107,18 @@ export type AppService = ReturnType<typeof createAppService>
 
 // ─── Repository ──────────────────────────────────────────────────────
 
-class AppRepository extends Repository<AppSchema, typeof apps, 'apps'> {}
+class AppRepository extends Repository<AppSchema, Relations, typeof apps, 'apps'> {}
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createAppService(
-  db: Database<AppSchema>,
+  db: Database,
   apiKeyService: ApiKeyService,
   authService: AuthService,
   baseSubscribableEvents: ReadonlySet<string>,
 ) {
   const manifestSchema = buildManifestSchema(baseSubscribableEvents)
-  const repo = new AppRepository(db, apps)
+  const repo = new AppRepository(db, 'apps')
 
   async function install(input: InstallAppInput): Promise<InstalledApp> {
     const manifest = manifestSchema.parse(input.manifest)
@@ -134,7 +136,7 @@ export function createAppService(
           )
         : Promise.resolve(true),
       repo.findFirst({
-        where: eq(apps.appId, manifest.id),
+        where: { appId: manifest.id },
       }),
     ])
 
@@ -220,18 +222,18 @@ export function createAppService(
 
   async function getApp(appId: string): Promise<AppRow | null> {
     return repo.findFirst({
-      where: eq(apps.appId, appId),
+      where: { appId },
     })
   }
 
   async function listApps(organizationId?: string): Promise<AppRow[]> {
     if (organizationId) {
       return repo.findMany({
-        where: and(eq(apps.status, 'active'), eq(apps.organizationId, organizationId)),
+        where: { status: 'active', organizationId },
       })
     }
     return repo.findMany({
-      where: eq(apps.status, 'active'),
+      where: { status: 'active' },
     })
   }
 

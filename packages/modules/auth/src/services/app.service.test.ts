@@ -29,11 +29,19 @@ let updateResult: unknown[] = []
 let deleteResult: unknown[] = []
 
 function createThenableChain(getResult: () => unknown[]) {
+  function makeThenable() {
+    return {
+      then: (resolve: (v: unknown[]) => void, reject?: (e: unknown) => void) => {
+        return Promise.resolve(getResult()).then(resolve, reject)
+      },
+    }
+  }
+
   const chain: Record<string, unknown> = {
     values: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockImplementation(() => makeThenable()),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     onConflictDoNothing: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -50,7 +58,10 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...queryManyResult]),
   }
 
+  const mockTable = { id: { name: 'id' }, appId: { name: 'app_id' }, status: { name: 'status' }, organizationId: { name: 'organization_id' } }
+
   return {
+    _: { schema: { apps: mockTable } },
     query: {
       apps: mockQueryBuilder,
     },

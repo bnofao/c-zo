@@ -1,4 +1,4 @@
-import type { AuthOption } from '@czo/auth/config'
+import type { ActorConfig, AuthOption } from '@czo/auth/config'
 import {
   ADMIN_HIERARCHY,
   ADMIN_STATEMENTS,
@@ -7,6 +7,7 @@ import {
   APPS_HIERARCHY,
   APPS_STATEMENTS,
   createAuth,
+  DEFAULT_ACTOR_RESTRICTIONS,
   ORGANIZATION_HIERARCHY,
   ORGANIZATION_STATEMENTS,
   useAccessService,
@@ -20,26 +21,9 @@ import { useLogger } from '@czo/kit'
 import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
-// import { useRuntimeConfig } from 'nitro/runtime-config'
-import { useStorage } from 'nitro/storage'
-import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
-  // const container = useContainer()
-  // const config = useRuntimeConfig()
-
-  // const authConfig = config.auth
-
-  // if (!authConfig?.secret) {
-  //   logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
-  //   return
-  // }
-
-  // if (authConfig.secret.length < 32) {
-  //   logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
-  //   return
-  // }
 
   nitroApp.hooks.hook('czo:init', async () => {
     const container = useContainer()
@@ -48,7 +32,7 @@ export default definePlugin((nitroApp) => {
     const authConfig = config.auth
 
     if (!authConfig?.secret) {
-      logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
+      logger.warn('Auth secret not configured — auth module will not initialize. Set AUTH_SECRET.')
       return
     }
 
@@ -75,7 +59,7 @@ export default definePlugin((nitroApp) => {
     const actorService = await container.make('auth:actor')
     const actorTypes = Object.keys(DEFAULT_ACTOR_RESTRICTIONS)
     for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
-      actorService.registerActor(actorType, config)
+      actorService.registerActor(actorType, config as ActorConfig)
     }
     logger.info(`Registered ${actorTypes.length} actor types: ${actorTypes.join(', ')}`)
 
@@ -123,9 +107,10 @@ export default definePlugin((nitroApp) => {
     const authOption: AuthOption = {
       app: config.app,
       secret: authConfig.secret,
+      actorService: await container.make('auth:actor'),
       baseUrl: config.baseUrl,
       socials: authConfig.socials,
-      storage: useStorage('auth'),
+      storage: (await container.make('useStorage'))('auth'),
       ac,
       roles,
     }

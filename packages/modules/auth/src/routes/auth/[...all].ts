@@ -1,4 +1,4 @@
-import type { Auth } from '../../config/auth'
+import { useContainer } from '@czo/kit/ioc'
 import { defineHandler } from 'nitro/h3'
 import { defineRouteMeta } from './_openapi'
 
@@ -16,6 +16,6 @@ defineRouteMeta({
 })
 
 export default defineHandler(async (event) => {
-  const auth = (event.context as Record<string, unknown>).auth as Auth
+  const auth = await useContainer().make('auth')
   return auth.handler(event.req)
 })

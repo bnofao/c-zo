@@ -1,24 +1,23 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
+import type { stockLocationRelations } from '../database/relations'
+import type * as schema from '../database/schema'
 import { Repository } from '@czo/kit/db'
 import { createId } from '@paralleldrive/cuid2'
-import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import * as schema from '../database/schema'
 import { publishStockLocationEvent } from '../events/stock-location-events'
 import { STOCK_LOCATION_EVENTS } from '../events/types'
 
-const { stockLocations, stockLocationAddresses } = schema
-
-export type StockLocationRow = InferSelectModel<typeof stockLocations>
-export type StockLocationAddressRow = InferSelectModel<typeof stockLocationAddresses>
+export type StockLocationRow = InferSelectModel<StockLocationSchema['stockLocations']>
+export type StockLocationAddressRow = InferSelectModel<StockLocationSchema['stockLocationAddresses']>
 
 type StockLocationSchema = typeof schema
+type StockLocationRelations = ReturnType<typeof stockLocationRelations>
 
 // ─── Repository ─────────────────────────────────────────────────────
 
-class StockLocationRepository extends Repository<StockLocationSchema, typeof stockLocations, 'stockLocations'> {}
-class StockLocationAddressRepository extends Repository<StockLocationSchema, typeof stockLocationAddresses, 'stockLocationAddresses'> {}
+class StockLocationRepository extends Repository<StockLocationSchema, StockLocationRelations, StockLocationSchema['stockLocations'], 'stockLocations'> {}
+class StockLocationAddressRepository extends Repository<StockLocationSchema, StockLocationRelations, StockLocationSchema['stockLocationAddresses'], 'stockLocationAddresses'> {}
 
 // ─── Validation ─────────────────────────────────────────────────────
 
@@ -307,20 +306,19 @@ function slugify(text: string): string {
 
 // ─── Factory ────────────────────────────────────────────────────────
 
-export function createStockLocationService(db: Database<StockLocationSchema>) {
-  const locationRepo = new StockLocationRepository(db, stockLocations)
-  const addressRepo = new StockLocationAddressRepository(db, stockLocationAddresses)
+export function createStockLocationService(db: Database) {
+  const locationRepo = new StockLocationRepository(db, 'stockLocations')
+  const addressRepo = new StockLocationAddressRepository(db, 'stockLocationAddresses')
 
   async function create(input: CreateStockLocationInput): Promise<StockLocationRow & { address: StockLocationAddressRow }> {
     const validated = createStockLocationSchema.parse(input)
     const handle = validated.handle ?? slugify(validated.name)
 
     const existing = await locationRepo.findFirst({
-      where: and(
-        eq(stockLocations.organizationId, validated.organizationId),
-        eq(stockLocations.handle, handle),
-        isNull(stockLocations.deletedAt),
-      ),
+      where: {
+        organizationId: validated.organizationId,
+        handle,
+      },
     })
 
     if (existing) {

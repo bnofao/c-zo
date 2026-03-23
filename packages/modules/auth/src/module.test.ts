@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockAddHandler = vi.hoisted(() => vi.fn())
 const mockAddScanDir = vi.hoisted(() => vi.fn())
 const mockAddPlugin = vi.hoisted(() => vi.fn())
 const mockResolver = vi.hoisted(() => ({
@@ -10,6 +11,7 @@ const mockDefineNitroModule = vi.hoisted(() => vi.fn((def: { setup: (...args: un
 
 vi.mock('@czo/kit/nitro', () => ({
   defineNitroModule: mockDefineNitroModule,
+  addHandler: mockAddHandler,
   addPlugin: mockAddPlugin,
   addScanDir: mockAddScanDir,
   createResolver: mockCreateResolver,
@@ -46,9 +48,13 @@ describe('auth module', () => {
       },
     }
 
-    setup(nitro)
+    await setup(nitro)
 
     expect(mockCreateResolver).toHaveBeenCalled()
+    expect(mockAddHandler).toHaveBeenCalledWith(
+      expect.objectContaining({ route: '/api/auth/**' }),
+      nitro,
+    )
     expect(mockAddPlugin).toHaveBeenCalledWith(
       expect.any(String),
       nitro,

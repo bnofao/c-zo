@@ -1,6 +1,8 @@
-import type { AnyColumn, AnyTable, DBQueryConfig, DrizzleTypeError, Equal, GetColumnData, InferSelectModel, SQL } from 'drizzle-orm'
+import type { AnyColumn, AnyRelations, AnyTable, DBQueryConfig, DrizzleTypeError, EmptyRelations, Equal, GetColumnData, InferSelectModel, KnownKeysOnly, SQL, TableRelationalConfig, TablesRelationalConfig } from 'drizzle-orm'
+import type { ExtractTablesWithRelations, TablesRelationalConfig as V1TablesRelationalConfig } from 'drizzle-orm/_relations'
 import type {
   IndexColumn,
+  PgAsyncRelationalQueryHKT,
   PgAsyncTransaction,
   PgInsertValue,
   PgQueryResultHKT,
@@ -8,14 +10,14 @@ import type {
   PgUpdateSetSource,
   SelectedFieldsFlat,
 } from 'drizzle-orm/pg-core'
+import type { RelationalQueryBuilder } from 'drizzle-orm/pg-core/query-builders/query'
 import type { Database } from './manager'
 import { camelCase } from 'change-case'
 import {
   and,
-  asc,
-  desc,
   getColumns,
   isNull,
+  isSQLWrapper,
   sql,
 } from 'drizzle-orm'
 import pg from 'pg'
@@ -32,18 +34,6 @@ import pg from 'pg'
  */
 export function objectKeys<O extends object>(obj: O): (keyof O)[] {
   return Object.keys(obj) as (keyof O)[]
-}
-
-/**
- * Access a drizzle table's Symbol(drizzle:Name) value safely.
- */
-function getTableSymbolValue(table: PgTable, symbolName: string): string | undefined {
-  for (const sym of Object.getOwnPropertySymbols(table)) {
-    if (sym.toString() === symbolName) {
-      return (table as unknown as Record<symbol, string>)[sym]
-    }
-  }
-  return undefined
 }
 
 /**
@@ -99,15 +89,12 @@ export class OptimisticLockError extends Error {
 
 // ─── Config Types ─────────────────────────────────────────────────────
 
-/** Base query config that accepts both RQBv2 object filters and raw SQL for `where`. */
-interface BaseQueryConfig {
-  where?: DBQueryConfig['where'] | SQL<unknown>
-  columns?: DBQueryConfig['columns']
-  extras?: DBQueryConfig['extras']
-  with?: DBQueryConfig['with']
-  orderBy?: DBQueryConfig['orderBy']
-  offset?: number
-  tx?: Transaction
+/** Base query config that adds tx and soft-delete control on top of Drizzle's DBQueryConfig. */
+interface BaseQueryConfig<
+  TFullSchema extends Record<string, unknown> = Record<string, never>,
+  TRelations extends AnyRelations = EmptyRelations,
+> {
+  tx?: Transaction<TFullSchema, TRelations>
   /** If true, includes soft-deleted records (where deletedAt is not null) */
   includeDeleted?: boolean
 }
@@ -115,36 +102,34 @@ interface BaseQueryConfig {
 /**
  * The find first query builder config (RQBv2).
  */
-export interface FindFirstQueryConfig extends BaseQueryConfig {}
+type FindFirstQueryConfig<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+  TFields extends TableRelationalConfig,
+  TConfig extends DBQueryConfig<'one', TSchema, TFields>,
+> = BaseQueryConfig<TFullSchema, TSchema> & KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>
 
 /**
  * The find many query builder config (RQBv2).
  */
-export interface FindManyQueryConfig extends BaseQueryConfig {
-  limit?: number
+type FindManyQueryConfig<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+  TFields extends TableRelationalConfig,
+  TConfig extends DBQueryConfig<'many', TSchema, TFields>,
+> = BaseQueryConfig<TFullSchema, TSchema> & KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>> & {
+  paginate?: boolean
 }
-
-/**
- * The paginate by offset query builder config.
- */
-export type PaginateByOffsetQueryConfig = Omit<
-  DBQueryConfig & {
-    page?: number
-    perPage?: number
-    sortBy?: string
-    sortDirection?: 'asc' | 'desc'
-    tx?: Transaction
-    /** If true, includes soft-deleted records (where deletedAt is not null) */
-    includeDeleted?: boolean
-  },
-  'limit' | 'offset'
->
 
 /**
  * The generic transaction session.
  */
-// eslint-disable-next-line ts/no-empty-object-type
-export type Transaction = PgAsyncTransaction<PgQueryResultHKT, {}, {}>
+export type Transaction<
+  TFullSchema extends Record<string, unknown> = Record<string, never>,
+  TRelations extends AnyRelations = EmptyRelations,
+  TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
+  TSchema extends V1TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+> = PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>
 
 /**
  * Conflict do-update config used by Repository.create().
@@ -192,20 +177,13 @@ type SelectResultFields<
   >;
 }>
 
-/**
- * Type for the RQBv2 query API accessed via db.query[modelName].
- * Uses structural typing to avoid depending on drizzle's internal types.
- */
-interface RelationalQueryApi<TRow> {
-  findFirst: (config: Record<string, unknown>) => Promise<TRow | undefined>
-  findMany: (config: Record<string, unknown>) => Promise<TRow[]>
-}
-
 // ─── Repository ───────────────────────────────────────────────────────
 
 export abstract class Repository<
-  T extends Record<string, unknown>,
-  U extends PgTable,
+  T extends Record<string, unknown> = Record<string, never>,
+  R extends AnyRelations = EmptyRelations,
+  U extends PgTable = PgTable,
+  M extends keyof R = string,
   // V is kept for backward compatibility with subclasses (e.g. AppRepository<AppSchema, typeof apps, 'apps'>)
   // eslint-disable-next-line unused-imports/no-unused-vars
   V extends string = string,
@@ -213,7 +191,7 @@ export abstract class Repository<
   /**
    * The DB instance.
    */
-  db: Database<T>
+  db: Database<T, R>
 
   /**
    * The DB table.
@@ -223,55 +201,29 @@ export abstract class Repository<
   /**
    * The DB model name (camelCased table name for RQBv2 `db.query[modelName]`).
    */
-  #modelName!: string
+  #modelName!: M
 
-  constructor(db: Database<T>, table: U) {
+  constructor(db: Database<T, R>, model: M, table?: U) {
     this.db = db
-    this.table = table
-
-    const tableName = getTableSymbolValue(table, 'Symbol(drizzle:Name)')
-    if (tableName) {
-      // Replace graphile-worker's table prefix.
-      this.#modelName = camelCase(tableName.replace('_private_', ''))
-    }
+    this.table = (table ?? db._.schema?.[model]) as unknown as U
+    this.#modelName = model
   }
 
   /**
    * Access the RQBv2 query API for this model.
    * `db.query[modelName]` provides findFirst/findMany.
    */
-  #queryApi(db: Database<T> | Transaction): RelationalQueryApi<InferSelectModel<U>> {
-    const queryObj = (db as unknown as { query: Record<string, RelationalQueryApi<InferSelectModel<U>>> }).query
-    return queryObj[this.#modelName]!
+  #queryApi(db: Database<T, R> | Transaction<T, R>) {
+    const queryObj = db.query as { [K in M]: RelationalQueryBuilder<R, R[K], PgAsyncRelationalQueryHKT> }
+    return queryObj[this.#modelName]
   }
 
   get columns() {
     return objectKeys(getColumns(this.table))
   }
 
-  /**
-   * Asynchronously invalidates the storage cache/object for the provided rows.
-   */
-  async #cleanUpStorage(rows: Array<InferSelectModel<U>>): Promise<void> {
-    const promises: Promise<unknown>[] = []
-
-    rows.forEach((row) => {
-      Object.values(row).forEach((value) => {
-        if (
-          value
-          && typeof value === 'object'
-          && 'key' in value
-          && 'name' in value
-          && 'url' in value
-          && value.key
-        ) {
-          // promises.push(cache.expire(CACHE_KEYS.storage(value.key)));
-          // promises.push(storage.delete(value.key));
-        }
-      })
-    })
-
-    await Promise.all(promises)
+  #hasColumn(name: string): boolean {
+    return getColumnByName(this.table, name) !== undefined
   }
 
   /**
@@ -287,16 +239,13 @@ export abstract class Repository<
           const valueMatch = err.detail?.match(valueRegex)
 
           if (keyMatch && valueMatch) {
-            const keys = keyMatch?.[1]?.split(', ').map(key => key.trim())
-            // eslint-disable-next-line unused-imports/no-unused-vars
-            const values = valueMatch?.[1]
-              ?.split(', ')
-              .map(value => value.trim())
+            const keys = keyMatch[1]?.split(', ').map(key => camelCase(key.trim())) ?? []
+            const values = valueMatch[1]?.split(', ').map(value => value.trim()) ?? []
             const fieldErrors: Record<string, string[]> = {}
-            // eslint-disable-next-line unused-imports/no-unused-vars
-            const isComposite = keys?.length && keys.length > 1
 
-            // TODO: Finish up composite key error handling.
+            for (let i = 0; i < keys.length; i++) {
+              fieldErrors[keys[i]!] = [`${keys[i]} '${values[i] ?? ''}' already exists`]
+            }
 
             return new DatabaseError(err.message, fieldErrors)
           }
@@ -319,12 +268,10 @@ export abstract class Repository<
     const deletedAtFilter = isNull(deletedAtCol)
     const originalWhere = config.where
 
-    if (originalWhere && typeof originalWhere === 'object' && 'queryChunks' in originalWhere) {
-      // SQL where — combine with AND
+    if (isSQLWrapper(originalWhere)) {
       config.where = and(originalWhere as SQL<unknown>, deletedAtFilter)
     }
     else if (originalWhere && typeof originalWhere === 'object') {
-      // RQBv2 object-style where — add RAW for deletedAt
       config.where = { ...(originalWhere as Record<string, unknown>), RAW: () => deletedAtFilter }
     }
     else {
@@ -355,7 +302,7 @@ export abstract class Repository<
       columns: TSelectedFields
       onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
       onConflictDoUpdate?: ConflictDoUpdateConfig
-      tx?: Transaction
+      tx?: Transaction<T, R>
     },
   ): Promise<SelectResultFields<TSelectedFields> | null>
   async create(
@@ -363,7 +310,7 @@ export abstract class Repository<
     opts?: {
       onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
       onConflictDoUpdate?: ConflictDoUpdateConfig
-      tx?: Transaction
+      tx?: Transaction<T, R>
     },
   ): Promise<InferSelectModel<U> | null>
   async create(
@@ -372,7 +319,7 @@ export abstract class Repository<
       columns?: SelectedFieldsFlat
       onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
       onConflictDoUpdate?: ConflictDoUpdateConfig
-      tx?: Transaction
+      tx?: Transaction<T, R>
     },
   ): Promise<unknown> {
     try {
@@ -381,15 +328,16 @@ export abstract class Repository<
       // Set initial version for new records if table has version column
       const createValue = {
         ...value,
-        ...(Object.keys(this.table).includes('version') ? { version: 1 } : {}),
+        ...(this.#hasColumn('version') ? { version: 1 } : {}),
       }
+      let rows
 
       const qb = (opts?.tx || this.db).insert(this.table).values(createValue)
 
       if (opts?.onConflictDoUpdate) {
         const conflictConfig = {
           ...opts.onConflictDoUpdate,
-          ...(Object.keys(this.table).includes('updatedAt')
+          ...(this.#hasColumn('updatedAt')
             ? {
                 set: {
                   ...opts.onConflictDoUpdate.set,
@@ -407,13 +355,11 @@ export abstract class Repository<
       }
 
       if (opts && 'columns' in opts) {
-        qb.returning(opts.columns as SelectedFieldsFlat)
+        rows = await qb.returning(opts.columns as SelectedFieldsFlat) as unknown as InferSelectModel<U>[]
       }
       else {
-        qb.returning()
+        rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
-
-      const rows = await qb as unknown as InferSelectModel<U>[]
 
       if (rows.length < 1) {
         return null
@@ -449,6 +395,7 @@ export abstract class Repository<
     },
   ) {
     try {
+      let rows
       const qb = (opts?.tx || this.db).insert(this.table).values(
         await Promise.all(
           values
@@ -463,13 +410,11 @@ export abstract class Repository<
       )
 
       if (opts?.columns) {
-        qb.returning(opts?.columns)
+        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
       }
       else {
-        qb.returning()
+        rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
-
-      const rows = await qb as unknown as InferSelectModel<U>[]
 
       if (rows.length < 1) {
         return []
@@ -489,36 +434,25 @@ export abstract class Repository<
   async delete<TSelectedFields extends SelectedFieldsFlat>(opts: {
     columns: TSelectedFields
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
     soft?: boolean
   }): Promise<SelectResultFields<TSelectedFields>[] | null>
   async delete(opts?: {
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
     soft?: boolean
   }): Promise<InferSelectModel<U>[] | null>
   async delete<TSelectedFields extends SelectedFieldsFlat>(opts?: {
     columns?: TSelectedFields
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
     soft?: boolean
   }) {
     const where = opts?.where
-
-    // SQL where is runtime-compatible with RQBv2's findMany, cast through unknown
-    const deletingRows = await this.findMany({
-      ...(where ? { where: where as unknown as FindManyQueryConfig['where'] } : {}),
-      tx: opts?.tx,
-    })
-    if (deletingRows.length > 0) {
-      await this.#cleanUpStorage(deletingRows)
-    }
-
     let rows: InferSelectModel<U>[]
 
     // Check if soft delete is requested and table has deletedAt column
-    const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
-    if (opts?.soft && hasDeletedAt) {
+    if (opts?.soft && this.#hasColumn('deletedAt')) {
       // Soft delete: set deletedAt timestamp
       const qb = (opts?.tx || this.db)
         .update(this.table)
@@ -526,23 +460,21 @@ export abstract class Repository<
         .where(where)
 
       if (opts?.columns) {
-        qb.returning(opts.columns)
+        rows = await qb.returning(opts.columns) as unknown as InferSelectModel<U>[]
       }
       else {
-        qb.returning()
+        rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
-
-      rows = await qb as unknown as InferSelectModel<U>[]
     }
     else {
       // Hard delete
       const qb = (opts?.tx || this.db).delete(this.table).where(where)
 
       if (opts?.columns) {
-        qb.returning(opts?.columns)
+        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
       }
       else {
-        qb.returning()
+        rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
 
       rows = await qb as unknown as InferSelectModel<U>[]
@@ -562,20 +494,22 @@ export abstract class Repository<
   async restore<TSelectedFields extends SelectedFieldsFlat>(opts: {
     columns: TSelectedFields
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
   }): Promise<SelectResultFields<TSelectedFields>[]>
   async restore(opts?: {
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
   }): Promise<InferSelectModel<U>[]>
   async restore<TSelectedFields extends SelectedFieldsFlat>(opts?: {
     columns?: TSelectedFields
     where?: SQL<unknown>
-    tx?: Transaction
+    tx?: Transaction<T, R>
   }) {
-    if (!Object.keys(this.table).includes('deletedAt')) {
+    if (!this.#hasColumn('deletedAt')) {
       throw new Error('Table does not support soft delete (missing deletedAt column)')
     }
+
+    let rows
 
     const where = opts?.where
 
@@ -585,13 +519,11 @@ export abstract class Repository<
       .where(where)
 
     if (opts?.columns) {
-      qb.returning(opts.columns)
+      rows = await qb.returning(opts.columns) as unknown as InferSelectModel<U>[]
     }
     else {
-      qb.returning()
+      rows = await qb.returning() as unknown as InferSelectModel<U>[]
     }
-
-    const rows = await qb as unknown as InferSelectModel<U>[]
 
     if (rows.length < 1) {
       return []
@@ -606,17 +538,17 @@ export abstract class Repository<
    * Return the 1st record based on the config.
    * Uses RQBv2 `db.query[model].findFirst(...)` with object-style where filters.
    */
-  async findFirst(opts?: FindFirstQueryConfig) {
+  async findFirst<TConfig extends DBQueryConfig<'one', R, R[M]>>(opts?: FindFirstQueryConfig<T, R, R[M], TConfig>) {
     const { tx, includeDeleted, ...config } = opts || {}
     const qb = tx || this.db
 
     // Apply soft-delete filter if table has deletedAt column and includeDeleted is not true
-    const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
+    const hasDeletedAt = this.#hasColumn('deletedAt')
     if (hasDeletedAt && !includeDeleted) {
       this.#applySoftDeleteFilter(config as Record<string, unknown>)
     }
 
-    const row = await this.#queryApi(qb).findFirst(config as Record<string, unknown>)
+    const row = await this.#queryApi(qb).findFirst(config as KnownKeysOnly<TConfig, DBQueryConfig<'one', R, R[M]>>)
 
     if (!row) {
       return null
@@ -633,17 +565,17 @@ export abstract class Repository<
    * Return all the records based on the config.
    * Uses RQBv2 `db.query[model].findMany(...)` with object-style where filters.
    */
-  async findMany(opts?: FindManyQueryConfig) {
+  async findMany(opts?: FindManyQueryConfig<T, R, R[M], DBQueryConfig<'many', R, R[M]>>) {
     const { tx, includeDeleted, ...config } = opts || {}
     const qb = tx || this.db
 
     // Apply soft-delete filter if table has deletedAt column and includeDeleted is not true
-    const hasDeletedAt = Object.keys(this.table).includes('deletedAt')
+    const hasDeletedAt = this.#hasColumn('deletedAt')
     if (hasDeletedAt && !includeDeleted) {
       this.#applySoftDeleteFilter(config as Record<string, unknown>)
     }
 
-    const rows = await this.#queryApi(qb).findMany(config as Record<string, unknown>)
+    const rows = await this.#queryApi(qb).findMany(config as KnownKeysOnly<DBQueryConfig<'many', R, R[M]>, DBQueryConfig<'many', R, R[M]>>)
 
     if (!rows || rows.length < 1) {
       return []
@@ -660,71 +592,6 @@ export abstract class Repository<
     return rows
   }
 
-  // ─── Paginate By Offset ─────────────────────────────────────────────
-
-  async paginateByOffset(opts?: PaginateByOffsetQueryConfig) {
-    const {
-      page = 1,
-      perPage = 10,
-      sortBy,
-      sortDirection = 'asc',
-      ...config
-    } = opts || {
-      columns: undefined,
-      extras: undefined,
-      orderBy: undefined,
-      tx: undefined,
-      where: undefined,
-      with: undefined,
-    }
-    const qb = config.tx || this.db
-
-    let countWhere: SQL<unknown> | undefined
-    if (config.where && typeof config.where === 'object' && 'queryChunks' in config.where) {
-      countWhere = config.where as unknown as SQL<unknown>
-    }
-
-    if (sortBy) {
-      const sortColumn = getColumnByName(this.table, sortBy)
-      if (sortColumn) {
-        // RQBv2 orderBy accepts callback or object-style, but the runtime also
-        // supports SQL[] — cast through unknown at the type boundary
-        ;(config as Record<string, unknown>).orderBy
-          = sortDirection === 'asc'
-            ? [asc(sortColumn)]
-            : [desc(sortColumn)]
-      }
-    }
-
-    const [rows, totals] = await Promise.all([
-      this.findMany({
-        ...config,
-        offset: (page - 1) * perPage,
-        limit: perPage + 1,
-      }),
-      qb
-        .select({ count: sql<number>`count(*)`.mapWith(Number) })
-        .from(this.table as PgTable)
-        .where(countWhere),
-    ])
-
-    const totalRows = totals[0]?.count ?? 0
-    const next = rows.length > perPage
-    if (next) {
-      rows.pop()
-    }
-
-    return {
-      rows,
-      next,
-      previous: page > 1,
-      page,
-      perPage,
-      totalPages: Math.ceil(totalRows / perPage),
-      totalRows,
-    }
-  }
-
   // ─── Update ─────────────────────────────────────────────────────────
 
   async update<TSelectedFields extends SelectedFieldsFlat>(
@@ -732,7 +599,7 @@ export abstract class Repository<
     opts: {
       columns: TSelectedFields
       where?: SQL<unknown>
-      tx?: Transaction
+      tx?: Transaction<T, R>
       expectedVersion?: number
     },
   ): Promise<SelectResultFields<TSelectedFields>[]>
@@ -740,7 +607,7 @@ export abstract class Repository<
     value: PgUpdateSetSource<U>,
     opts?: {
       where?: SQL<unknown>
-      tx?: Transaction
+      tx?: Transaction<T, R>
       expectedVersion?: number
     },
   ): Promise<InferSelectModel<U>[]>
@@ -749,12 +616,13 @@ export abstract class Repository<
     opts?: {
       columns?: TSelectedFields
       where?: SQL<unknown>
-      tx?: Transaction
+      tx?: Transaction<T, R>
       expectedVersion?: number
     },
   ) {
     try {
       let where: SQL<unknown> | undefined = opts?.where
+      let rows
       const originalWhere = where
 
       await this.beforeUpdate(value)
@@ -762,13 +630,13 @@ export abstract class Repository<
       // Prepare update values
       const updateValues: Record<string, unknown> = {
         ...value,
-        ...(Object.keys(this.table).includes('updatedAt')
+        ...(this.#hasColumn('updatedAt')
           ? { updatedAt: sql`NOW()` }
           : {}),
       }
 
       // Handle optimistic locking if version column exists
-      const hasVersionColumn = Object.keys(this.table).includes('version')
+      const hasVersionColumn = this.#hasColumn('version')
       if (hasVersionColumn) {
         const versionCol = getColumnByName(this.table, 'version')!
         // Always increment version on update
@@ -786,25 +654,23 @@ export abstract class Repository<
         .where(where)
 
       if (opts?.columns) {
-        qb.returning(opts?.columns)
+        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
       }
       else {
-        qb.returning()
+        rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
-
-      const rows = await qb as unknown as InferSelectModel<U>[]
 
       // Check for optimistic lock failure
       if (rows.length === 0 && opts?.expectedVersion !== undefined && hasVersionColumn) {
-        const current = await this.findFirst({
-          ...(originalWhere ? { where: originalWhere as unknown as FindFirstQueryConfig['where'] } : {}),
-          tx: opts?.tx,
-        })
-        const entityId = originalWhere?.toString() || 'unknown'
+        const [current] = originalWhere
+          ? await (opts?.tx || this.db).select().from(this.table as PgTable).where(originalWhere).limit(1)
+          : []
+        const currentRecord = current as Record<string, unknown> | undefined
+        const entityId = String(currentRecord?.id ?? currentRecord?.slug ?? 'unknown')
         throw new OptimisticLockError(
           entityId,
           opts.expectedVersion,
-          (current as Record<string, unknown> | null)?.version as number | null ?? null,
+          (currentRecord?.version as number | null) ?? null,
         )
       }
 
