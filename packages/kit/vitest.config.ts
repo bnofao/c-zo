@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     server: {
       deps: {
-        inline: ['@graphql-tools/schema', '@graphql-tools/utils', '@graphql-tools/merge'],
+        inline: ['graphql', '@graphql-tools/schema', '@graphql-tools/utils', '@graphql-tools/merge'],
       },
     },
     include: ['src/**/*.test.ts'],

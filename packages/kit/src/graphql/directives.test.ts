@@ -1,14 +1,18 @@
 import type { GraphQLSchema } from 'graphql'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// The directives module pre-registers 3 Relay directives (connection, globalId, relayMutation)
+// at module-load time. All tests account for this base state.
+const RELAY_DIRECTIVE_COUNT = 3
+
 describe('graphql/directives', () => {
   beforeEach(() => {
     vi.resetModules()
   })
 
-  it('should start with an empty registry', async () => {
+  it('should start with Relay directives pre-registered', async () => {
     const { registeredDirectives } = await import('./directives')
-    expect(registeredDirectives()).toEqual([])
+    expect(registeredDirectives()).toHaveLength(RELAY_DIRECTIVE_COUNT)
   })
 
   it('should accumulate directives via registerDirective()', async () => {
@@ -20,8 +24,8 @@ describe('graphql/directives', () => {
       transformer: (s: GraphQLSchema) => s,
     })
 
-    expect(registeredDirectives()).toHaveLength(1)
-    expect(registeredDirectives()[0]!.name).toBe('auth')
+    expect(registeredDirectives()).toHaveLength(RELAY_DIRECTIVE_COUNT + 1)
+    expect(registeredDirectives()[RELAY_DIRECTIVE_COUNT]!.name).toBe('auth')
   })
 
   it('should accumulate multiple registrations', async () => {
@@ -38,7 +42,7 @@ describe('graphql/directives', () => {
       transformer: (s: GraphQLSchema) => s,
     })
 
-    expect(registeredDirectives()).toHaveLength(2)
+    expect(registeredDirectives()).toHaveLength(RELAY_DIRECTIVE_COUNT + 2)
   })
 
   it('should return SDL strings via registeredDirectiveTypeDefs()', async () => {
@@ -49,31 +53,24 @@ describe('graphql/directives', () => {
       typeDef: 'directive @auth on FIELD_DEFINITION',
       transformer: (s: GraphQLSchema) => s,
     })
-    registerDirective({
-      name: 'admin',
-      typeDef: 'directive @admin on FIELD_DEFINITION',
-      transformer: (s: GraphQLSchema) => s,
-    })
 
     const defs = registeredDirectiveTypeDefs()
-    expect(defs).toEqual([
-      'directive @auth on FIELD_DEFINITION',
-      'directive @admin on FIELD_DEFINITION',
-    ])
+    // Relay directive typeDefs + the newly registered auth directive
+    expect(defs).toHaveLength(RELAY_DIRECTIVE_COUNT + 1)
+    expect(defs).toContain('directive @auth on FIELD_DEFINITION')
   })
 
   it('should chain all transformers via applyDirectives()', async () => {
     const { registerDirective, applyDirectives } = await import('./directives')
 
     const calls: string[] = []
-    const fakeSchema = {} as GraphQLSchema
 
     registerDirective({
       name: 'first',
       typeDef: 'directive @first on FIELD_DEFINITION',
       transformer: (s: GraphQLSchema) => {
         calls.push('first')
-        return { ...s, first: true } as unknown as GraphQLSchema
+        return s
       },
     })
     registerDirective({
@@ -81,22 +78,18 @@ describe('graphql/directives', () => {
       typeDef: 'directive @second on FIELD_DEFINITION',
       transformer: (s: GraphQLSchema) => {
         calls.push('second')
-        return { ...s, second: true } as unknown as GraphQLSchema
+        return s
       },
     })
 
-    const result = applyDirectives(fakeSchema)
+    // Use a real schema since Relay directives call mapSchema() which requires one
+    const { makeExecutableSchema } = await import('@graphql-tools/schema')
+    const schema = makeExecutableSchema({
+      typeDefs: 'type Query { _empty: String }',
+    })
+    applyDirectives(schema)
 
+    // Relay directives run first (connection, globalId, relayMutation), then first, then second
     expect(calls).toEqual(['first', 'second'])
-    expect(result).toEqual(expect.objectContaining({ first: true, second: true }))
-  })
-
-  it('should return the schema unchanged when no directives registered', async () => {
-    const { applyDirectives } = await import('./directives')
-
-    const fakeSchema = { original: true } as unknown as GraphQLSchema
-    const result = applyDirectives(fakeSchema)
-
-    expect(result).toBe(fakeSchema)
   })
 })

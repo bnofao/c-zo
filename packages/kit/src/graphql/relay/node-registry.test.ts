@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { registerNodeResolver, resolveNode } from './node-registry'
 
 // The registry is a global module-level map, so we need a way to reset it between tests.

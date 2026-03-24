@@ -9,11 +9,14 @@ describe('graphql/types', () => {
     const { registeredTypeDefs } = await import('./types')
     const defs = registeredTypeDefs()
 
-    // Base Query/Mutation + DateTime + EmailAddress scalar defs
-    expect(defs.length).toBeGreaterThanOrEqual(3)
-    expect(defs[0]).toContain('type Query')
-    expect(defs[0]).toContain('type Mutation')
-    expect(defs[0]).toContain('type Subscription')
+    // Single inline string with base types, Relay types, filters, and Query/Mutation/Subscription
+    expect(defs.length).toBeGreaterThanOrEqual(1)
+    const baseDef = defs[0] as string
+    expect(baseDef).toContain('type Query')
+    expect(baseDef).toContain('type Mutation')
+    expect(baseDef).toContain('type Subscription')
+    expect(baseDef).toContain('interface Node')
+    expect(baseDef).toContain('type PageInfo')
   })
 
   it('should append type defs via registerTypeDefs()', async () => {
