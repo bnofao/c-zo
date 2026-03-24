@@ -1,12 +1,12 @@
 import type { authRelations } from '@czo/auth/relations'
-import type { Database, GlobalIDFilterInput, StringFilterInput } from '@czo/kit/db'
-import type { ConnectionArgs, PaginateResult } from '@czo/kit/graphql'
+import type { Database } from '@czo/kit/db'
+import type { PaginateResult } from '@czo/kit/graphql'
 import type { AnyColumn, InferSelectModel, SQL } from 'drizzle-orm'
 import type { ApiKeyService } from './apiKey.service'
 import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
-import { applyGlobalIdFilter, applyStringFilter, Repository } from '@czo/kit/db'
+import { Repository } from '@czo/kit/db'
 import { decodeCursor, encodeCursor } from '@czo/kit/graphql'
 import { and, asc, count, desc, eq, gt, lt, or } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
@@ -106,11 +106,6 @@ export interface InstalledApp extends AppRow {
 }
 
 export type AppService = ReturnType<typeof createAppService>
-
-export interface AppWhereInput {
-  status?: StringFilterInput
-  organizationId?: GlobalIDFilterInput
-}
 
 // ─── Repository ──────────────────────────────────────────────────────
 
@@ -241,38 +236,28 @@ export function createAppService(
     })
   }
 
-  const ORDER_FIELD_MAP: Record<string, AnyColumn> = {
-    CREATED_AT: apps.createdAt,
-    APP_ID: apps.appId,
-    STATUS: apps.status,
-  }
+  async function listApps(opts?: {
+    where?: Record<string, unknown>
+    orderBy?: { column: AnyColumn, direction: 'ASC' | 'DESC' }
+    first?: number
+    after?: string
+    last?: number
+    before?: string
+  }): Promise<PaginateResult<AppRow>> {
+    const sortCol = opts?.orderBy?.column ?? apps.createdAt
+    const sortDir = opts?.orderBy?.direction ?? 'DESC'
+    const isBackward = opts?.last != null
 
-  async function listApps(
-    connectionArgs?: ConnectionArgs,
-    orderBy?: { field: string, direction: string },
-    where?: AppWhereInput,
-  ): Promise<PaginateResult<AppRow>> {
-    // 1. Resolve sort column and direction
-    const sortCol = ORDER_FIELD_MAP[orderBy?.field ?? 'CREATED_AT'] ?? apps.createdAt
-    const sortDir = (orderBy?.direction ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
-    const isBackward = connectionArgs?.last != null
-
-    // 2. Build base WHERE from filters
+    // Build base WHERE from filters (already RQBv2-ready, transformed by @drizzle)
     const baseConditions: (SQL | undefined)[] = []
-    if (where?.status)
-      baseConditions.push(applyStringFilter(apps.status, where.status))
-    if (where?.organizationId)
-      baseConditions.push(applyGlobalIdFilter(apps.organizationId, where.organizationId))
 
-    // 3. Decode cursor and build keyset WHERE
-    const cursor = isBackward ? connectionArgs?.before : connectionArgs?.after
+    // Decode cursor and build keyset WHERE
+    const cursor = isBackward ? opts?.before : opts?.after
     if (cursor) {
       const decoded = decodeCursor(cursor)
       const cursorSortVal = decoded.sortValue
       const cursorId = decoded.id as string
 
-      // Forward + ASC or Backward + DESC → use >
-      // Forward + DESC or Backward + ASC → use <
       const useGt = (sortDir === 'ASC') !== isBackward
       const cmp = useGt ? gt : lt
 
@@ -284,43 +269,37 @@ export function createAppService(
       )
     }
 
-    // 4. ORDER BY — backward inverts the direction
+    // ORDER BY — backward inverts the direction
     const effectiveDir = isBackward
       ? (sortDir === 'ASC' ? desc : asc)
       : (sortDir === 'ASC' ? asc : desc)
     const orderClauses = [effectiveDir(sortCol), effectiveDir(apps.id)]
 
-    // 5. LIMIT
-    const limit = (connectionArgs?.first ?? connectionArgs?.last ?? 100) + 1
+    const limit = (opts?.first ?? opts?.last ?? 100) + 1
 
-    // 6. Execute data + count in parallel
-    const whereClause = and(...baseConditions.filter(Boolean) as SQL[])
-    const baseWhereClause = and(...baseConditions.filter(Boolean).filter((_, i) => !cursor || i < baseConditions.length - 1) as SQL[])
+    // Use RQBv2 findMany for the data query with the where object
+    const allRows = await repo.findMany({
+      where: opts?.where,
+      orderBy: orderClauses,
+      limit,
+    } as any)
 
-    const [rows, countResult] = await Promise.all([
-      db.select().from(apps).where(whereClause).orderBy(...orderClauses).limit(limit),
-      db.select({ total: count() }).from(apps).where(baseWhereClause),
-    ])
+    // Count query via SQL (separate since RQBv2 doesn't support count)
+    const countResult = await db.select({ total: count() }).from(apps)
     const total = countResult[0]?.total ?? 0
 
-    // 7. Reverse if backward pagination
-    let nodes = rows as AppRow[]
+    let nodes = allRows as AppRow[]
     if (isBackward) {
       nodes = nodes.reverse()
     }
-
-    // 8. Build sort value extractor for cursor
-    const sortFieldKey = orderBy?.field ?? 'CREATED_AT'
 
     return {
       nodes,
       totalCount: total,
       getCursor: (node: AppRow) => {
-        const record = node as unknown as Record<string, unknown>
-        const sortValue = sortFieldKey === 'CREATED_AT'
-          ? (node.createdAt instanceof Date ? node.createdAt.toISOString() : String(node.createdAt))
-          : String(record[sortCol.name] ?? record.id)
-
+        const sortValue = node.createdAt instanceof Date
+          ? node.createdAt.toISOString()
+          : String(node.createdAt)
         return encodeCursor({ sortValue, id: node.id })
       },
     }
@@ -359,7 +338,7 @@ export function createAppService(
   }
 
   async function getActiveAppsByEvent(event: string): Promise<AppRow[]> {
-    const result = await listApps({ first: 100 }, undefined, { status: { eq: 'active' } })
+    const result = await listApps({ first: 100, where: { status: { eq: 'active' } } })
     const activeApps = result.nodes
     return activeApps.filter((app) => {
       const manifest = app.manifest as AppManifest

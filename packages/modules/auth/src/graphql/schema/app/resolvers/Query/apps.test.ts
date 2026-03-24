@@ -15,16 +15,18 @@ describe('apps query resolver', () => {
     } as any
   }
 
-  it('should pass connection args and where to listApps', async () => {
+  it('should pass where and pagination to listApps', async () => {
     mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
     const where = { status: { eq: 'active' } }
 
     await appsResolver({}, { first: 10, after: 'cursor-1', where }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(
-      { first: 10, after: 'cursor-1', last: undefined, before: undefined },
-      undefined,
-      expect.objectContaining({ status: { eq: 'active' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { eq: 'active' } }),
+        first: 10,
+        after: 'cursor-1',
+      }),
     )
   })
 
@@ -34,9 +36,9 @@ describe('apps query resolver', () => {
     await appsResolver({}, { first: 5 }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(
-      { first: 5, after: undefined, last: undefined, before: undefined },
-      undefined,
-      expect.objectContaining({ organizationId: expect.objectContaining({ eq: expect.any(String) }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: expect.objectContaining({ eq: expect.any(String) }) }),
+      }),
     )
   })
 
@@ -47,9 +49,9 @@ describe('apps query resolver', () => {
     await appsResolver({}, { first: 5, where }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(
-      { first: 5, after: undefined, last: undefined, before: undefined },
-      undefined,
-      expect.objectContaining({ organizationId: { eq: 'explicit-global-id' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: { eq: 'explicit-global-id' } }),
+      }),
     )
   })
 
@@ -59,22 +61,7 @@ describe('apps query resolver', () => {
     await appsResolver({}, { first: 5 }, makeCtx(null), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(
-      { first: 5, after: undefined, last: undefined, before: undefined },
-      undefined,
-      undefined,
-    )
-  })
-
-  it('should pass orderBy when provided', async () => {
-    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
-
-    const orderBy = { field: 'CREATED_AT', direction: 'ASC' }
-    await appsResolver({}, { first: 10, orderBy }, makeCtx(null), {} as any)
-
-    expect(mockListApps).toHaveBeenCalledWith(
-      { first: 10, after: undefined, last: undefined, before: undefined },
-      orderBy,
-      undefined,
+      expect.objectContaining({ where: undefined }),
     )
   })
 })

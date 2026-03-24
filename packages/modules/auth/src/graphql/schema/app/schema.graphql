@@ -61,8 +61,8 @@ input SetAppStatusInput {
 # ─── Filters ──────────────────────────────────
 
 input AppWhereInput {
-  status: StringFilterInput
-  organizationId: GlobalIDFilterInput
+  status: StringFilterInput @drizzle
+  organizationId: GlobalIDFilterInput @drizzle(column: "organizationId")
 }
 
 # ─── Queries ──────────────────────────────────

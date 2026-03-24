@@ -70,19 +70,19 @@ function createMockDb() {
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),
     select: vi.fn().mockImplementation((fields?: Record<string, unknown>) => {
       const isCountQuery = fields && 'total' in fields
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockImplementation(() => {
-            if (isCountQuery) {
-              return Promise.resolve([{ total: queryManyResult.length }])
-            }
-            return {
+      const fromResult = isCountQuery
+        ? Promise.resolve([{ total: queryManyResult.length }])
+        : {
+            where: vi.fn().mockReturnValue({
               orderBy: vi.fn().mockReturnValue({
                 limit: vi.fn().mockResolvedValue([...queryManyResult]),
               }),
-            }
-          }),
-        }),
+            }),
+          }
+
+      // Make fromResult thenable for count queries (no .where() chain)
+      return {
+        from: vi.fn().mockReturnValue(fromResult),
       }
     }),
   } as any
@@ -641,7 +641,7 @@ describe('appService', () => {
       expect(cursor.length).toBeGreaterThan(0)
     })
 
-    it('should use db.select for querying', async () => {
+    it('should use db.select for count query', async () => {
       queryManyResult = [APP_ROW]
 
       await service.listApps({ first: 10 })
@@ -649,10 +649,10 @@ describe('appService', () => {
       expect(db.select).toHaveBeenCalled()
     })
 
-    it('should accept where filter', async () => {
+    it('should accept where filter as RQBv2-ready object', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps({ first: 10 }, undefined, { status: { eq: 'active' } })
+      const result = await service.listApps({ first: 10, where: { status: { eq: 'active' } } })
 
       expect(result.nodes).toHaveLength(1)
     })

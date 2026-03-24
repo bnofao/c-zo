@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The directives module pre-registers 3 Relay directives (connection, globalId, relayMutation)
 // at module-load time. All tests account for this base state.
-const RELAY_DIRECTIVE_COUNT = 3
+const RELAY_DIRECTIVE_COUNT = 4
 
 describe('graphql/directives', () => {
   beforeEach(() => {
