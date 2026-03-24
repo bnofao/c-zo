@@ -476,8 +476,6 @@ export abstract class Repository<
       else {
         rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
-
-      rows = await qb as unknown as InferSelectModel<U>[]
     }
 
     if (rows.length < 1) {

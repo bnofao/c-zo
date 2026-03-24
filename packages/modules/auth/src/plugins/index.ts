@@ -21,7 +21,6 @@ import { useLogger } from '@czo/kit'
 import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
-import '@czo/kit/graphql/relay/directives'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
@@ -96,6 +95,10 @@ export default definePlugin((nitroApp) => {
     const config = await container.make('config')
 
     const authConfig = config.auth
+
+    if (!authConfig?.secret || authConfig.secret.length < 32) {
+      return
+    }
 
     logger.start('Booting auth module...')
 
