@@ -3,7 +3,6 @@ import { defineConfig } from '@eddeee888/gcg-typescript-resolver-files'
 
 const config: CodegenConfig = {
   schema: [
-    '../../kit/src/graphql/base-types.graphql',
     '../../kit/src/graphql/filter-types.graphql',
     '../../kit/src/graphql/relay/relay-types.graphql',
     'src/graphql/schema/**/*.graphql',
@@ -14,18 +13,11 @@ const config: CodegenConfig = {
       resolverTypesPath: './__generated__/types.generated.ts',
       typeDefsFilePath: './__generated__/typedefs.generated.ts',
       resolverMainFile: './__generated__/resolvers.generated.ts',
-      resolverGeneration: 'recommended',
+      resolverGeneration: 'minimal',
       externalResolvers: {
-        'Query._empty': './../../../../../kit/src/graphql/resolvers/Query/_empty#_empty as Query__empty',
-        'Mutation._empty': './../../../../../kit/src/graphql/resolvers/Mutation/_empty#_empty as Mutation__empty',
-        'Query.node': './../../../../../kit/src/graphql/relay/resolvers/Query/node#node as Query_node',
-        'PageInfo': './../schema/relay/resolvers/PageInfo#PageInfo',
-        'UserError': './../schema/relay/resolvers/UserError#UserError',
       },
       fixObjectTypeResolvers: 'disabled',
       scalarsOverrides: {
-        DateTime: { type: 'Date | string' },
-        EmailAddress: { type: 'string' },
         JSON: { type: 'Record<string, unknown> | null' },
       },
       typesPluginsConfig: {

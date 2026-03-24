@@ -58,6 +58,13 @@ input SetAppStatusInput {
   status: String!
 }
 
+# ─── Filters ──────────────────────────────────
+
+input AppWhereInput {
+  status: StringFilterInput
+  organizationId: GlobalIDFilterInput
+}
+
 # ─── Queries ──────────────────────────────────
 
 extend type Query {
@@ -72,6 +79,7 @@ extend type Query {
     last: Int
     before: String
     orderBy: AppOrderByInput
+    where: AppWhereInput
   ): AppConnection! @permission(resource: "apps", action: "read") @connection(maxPageSize: 100)
 }
 

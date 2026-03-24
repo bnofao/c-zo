@@ -56,4 +56,30 @@ describe('@connection directive', () => {
 
     expect(result.errors).toBeDefined()
   })
+
+  it('should reject negative first', async () => {
+    let schema = makeExecutableSchema({
+      typeDefs,
+      resolvers: { Query: { items: () => ({ nodes: [], totalCount: 0 }) } },
+    })
+    schema = connectionDirective.transformer(schema)
+
+    const result = await graphql({ schema, source: '{ items(first: -1) { edges { node { id } } } }' })
+
+    expect(result.errors).toBeDefined()
+    expect(result.errors![0]!.message).toContain('non-negative')
+  })
+
+  it('should reject negative last', async () => {
+    let schema = makeExecutableSchema({
+      typeDefs,
+      resolvers: { Query: { items: () => ({ nodes: [], totalCount: 0 }) } },
+    })
+    schema = connectionDirective.transformer(schema)
+
+    const result = await graphql({ schema, source: '{ items(last: -3) { edges { node { id } } } }' })
+
+    expect(result.errors).toBeDefined()
+    expect(result.errors![0]!.message).toContain('non-negative')
+  })
 })

@@ -15,19 +15,45 @@ describe('apps query resolver', () => {
     } as any
   }
 
-  it('should pass connection args to listApps', async () => {
+  it('should pass connection args and where to listApps', async () => {
     mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+    const where = { status: { eq: 'active' } }
 
-    await appsResolver({}, { first: 10, after: 'cursor-1' }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { first: 10, after: 'cursor-1', where }, makeCtx('org-session'), {} as any)
 
     expect(mockListApps).toHaveBeenCalledWith(
       { first: 10, after: 'cursor-1', last: undefined, before: undefined },
       undefined,
-      'org-session',
+      expect.objectContaining({ status: { eq: 'active' } }),
     )
   })
 
-  it('should pass undefined organizationId when session has none', async () => {
+  it('should auto-scope to session organizationId when not explicitly filtered', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+
+    await appsResolver({}, { first: 5 }, makeCtx('org-session'), {} as any)
+
+    expect(mockListApps).toHaveBeenCalledWith(
+      { first: 5, after: undefined, last: undefined, before: undefined },
+      undefined,
+      expect.objectContaining({ organizationId: expect.objectContaining({ eq: expect.any(String) }) }),
+    )
+  })
+
+  it('should not override explicit organizationId filter', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+    const where = { organizationId: { eq: 'explicit-global-id' } }
+
+    await appsResolver({}, { first: 5, where }, makeCtx('org-session'), {} as any)
+
+    expect(mockListApps).toHaveBeenCalledWith(
+      { first: 5, after: undefined, last: undefined, before: undefined },
+      undefined,
+      expect.objectContaining({ organizationId: { eq: 'explicit-global-id' } }),
+    )
+  })
+
+  it('should pass undefined where when no session org and no filter', async () => {
     mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
 
     await appsResolver({}, { first: 5 }, makeCtx(null), {} as any)

@@ -20,6 +20,11 @@ input DateTimeFilterInput {
   lte: DateTime
 }
 
+input GlobalIDFilterInput {
+  eq: ID
+  in: [ID!]
+}
+
 enum OrderDirection {
   ASC
   DESC

@@ -68,10 +68,22 @@ function createMockDb() {
     insert: vi.fn().mockImplementation(() => createThenableChain(() => insertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => updateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ count: 0 }]),
-      }),
+    select: vi.fn().mockImplementation((fields?: Record<string, unknown>) => {
+      const isCountQuery = fields && 'total' in fields
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            if (isCountQuery) {
+              return Promise.resolve([{ total: queryManyResult.length }])
+            }
+            return {
+              orderBy: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue([...queryManyResult]),
+              }),
+            }
+          }),
+        }),
+      }
     }),
   } as any
 }
@@ -600,20 +612,19 @@ describe('appService', () => {
   // ─── listApps ────────────────────────────────────────────────────
 
   describe('listApps', () => {
-    it('should return a PaginateResult with active apps', async () => {
+    it('should return a PaginateResult', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
       expect(result.nodes).toHaveLength(1)
-      expect(result.nodes[0]!.status).toBe('active')
       expect(result.totalCount).toBe(1)
     })
 
     it('should return empty nodes when none found', async () => {
       queryManyResult = []
 
-      const result = await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
       expect(result.nodes).toEqual([])
       expect(result.totalCount).toBe(0)
@@ -622,7 +633,7 @@ describe('appService', () => {
     it('should provide a getCursor function', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
       expect(result.getCursor).toBeDefined()
       const cursor = result.getCursor!(APP_ROW as any)
@@ -630,29 +641,29 @@ describe('appService', () => {
       expect(cursor.length).toBeGreaterThan(0)
     })
 
-    it('should query via the repository findMany', async () => {
+    it('should use db.select for querying', async () => {
       queryManyResult = [APP_ROW]
 
-      await service.listApps()
+      await service.listApps({ first: 10 })
 
-      expect(db.query.apps.findMany).toHaveBeenCalled()
+      expect(db.select).toHaveBeenCalled()
     })
 
-    it('should filter by organizationId when provided', async () => {
-      queryManyResult = [{ ...APP_ROW, organizationId: 'org-1' }]
-
-      const result = await service.listApps(undefined, undefined, 'org-1')
-
-      expect(result.nodes).toHaveLength(1)
-      expect(db.query.apps.findMany).toHaveBeenCalled()
-    })
-
-    it('should accept ConnectionArgs', async () => {
+    it('should accept where filter', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps({ first: 10, after: 'cursor' })
+      const result = await service.listApps({ first: 10 }, undefined, { status: { eq: 'active' } })
 
       expect(result.nodes).toHaveLength(1)
+    })
+
+    it('should accept ConnectionArgs with pagination', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.listApps({ first: 10 })
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.totalCount).toBeDefined()
     })
   })
 

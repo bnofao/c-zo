@@ -34,6 +34,14 @@ export const connectionDirective: DirectiveDefinition = {
               throw new GraphQLError('Cannot use both "first" and "last" simultaneously')
             }
 
+            if (first != null && first < 0) {
+              throw new GraphQLError('"first" must be a non-negative integer')
+            }
+
+            if (last != null && last < 0) {
+              throw new GraphQLError('"last" must be a non-negative integer')
+            }
+
             if (first != null && first > maxPageSize) {
               throw new GraphQLError(`"first" must not exceed ${maxPageSize}`)
             }

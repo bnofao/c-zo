@@ -86,6 +86,11 @@ export type AppOrderField =
   | 'CREATED_AT'
   | 'STATUS';
 
+export type AppWhereInput = {
+  organizationId?: InputMaybe<GlobalIDFilterInput>;
+  status?: InputMaybe<StringFilterInput>;
+};
+
 export type BackupCodesResult = {
   __typename?: 'BackupCodesResult';
   backupCodes: Array<Scalars['String']['output']>;
@@ -168,6 +173,11 @@ export type FullOrganization = {
   type?: Maybe<Scalars['String']['output']>;
 };
 
+export type GlobalIDFilterInput = {
+  eq?: InputMaybe<Scalars['ID']['input']>;
+  in?: InputMaybe<Array<Scalars['ID']['input']>>;
+};
+
 export type InstallAppInput = {
   manifestUrl: Scalars['String']['input'];
   organizationId?: InputMaybe<Scalars['ID']['input']>;
@@ -227,7 +237,6 @@ export type MemberUser = {
 
 export type Mutation = {
   __typename?: 'Mutation';
-  _empty?: Maybe<Scalars['String']['output']>;
   acceptInvitation: OrgMember;
   banUser: Scalars['Boolean']['output'];
   cancelInvitation: Scalars['Boolean']['output'];
@@ -535,7 +544,6 @@ export type PageInfo = {
 
 export type Query = {
   __typename?: 'Query';
-  _empty?: Maybe<Scalars['String']['output']>;
   accountInfo: AccountInfo;
   activeMember?: Maybe<OrgMember>;
   activeMemberRole?: Maybe<MemberRole>;
@@ -555,7 +563,6 @@ export type Query = {
   myApiKeys: Array<ApiKey>;
   myInvitations: Array<UserInvitation>;
   mySessions: Array<MySession>;
-  node?: Maybe<Node>;
   organization?: Maybe<FullOrganization>;
   organizations: Array<Organization>;
   totpUri: TotpUri;
@@ -593,6 +600,7 @@ export type QueryappsArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<AppOrderByInput>;
+  where?: InputMaybe<AppWhereInput>;
 };
 
 
@@ -614,11 +622,6 @@ export type QueryinvitationsArgs = {
 export type QuerymembersArgs = {
   organizationId?: InputMaybe<Scalars['ID']['input']>;
   organizationSlug?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type QuerynodeArgs = {
-  id: Scalars['ID']['input'];
 };
 
 
@@ -906,6 +909,7 @@ export type ResolversTypes = ResolversObject<{
   AppEdge: ResolverTypeWrapper<Omit<AppEdge, 'node'> & { node: ResolversTypes['App'] }>;
   AppOrderByInput: AppOrderByInput;
   AppOrderField: ResolverTypeWrapper<'CREATED_AT' | 'APP_ID' | 'STATUS'>;
+  AppWhereInput: AppWhereInput;
   BackupCodesResult: ResolverTypeWrapper<BackupCodesResult>;
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
@@ -919,6 +923,7 @@ export type ResolversTypes = ResolversObject<{
   EmailAddress: ResolverTypeWrapper<Scalars['EmailAddress']['output']>;
   EnableTwoFactorResult: ResolverTypeWrapper<EnableTwoFactorResult>;
   FullOrganization: ResolverTypeWrapper<FullOrganization>;
+  GlobalIDFilterInput: GlobalIDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: ResolverTypeWrapper<Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
@@ -975,6 +980,7 @@ export type ResolversParentTypes = ResolversObject<{
   Int: Scalars['Int']['output'];
   AppEdge: Omit<AppEdge, 'node'> & { node: ResolversParentTypes['App'] };
   AppOrderByInput: AppOrderByInput;
+  AppWhereInput: AppWhereInput;
   BackupCodesResult: BackupCodesResult;
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
@@ -988,6 +994,7 @@ export type ResolversParentTypes = ResolversObject<{
   EmailAddress: Scalars['EmailAddress']['output'];
   EnableTwoFactorResult: EnableTwoFactorResult;
   FullOrganization: FullOrganization;
+  GlobalIDFilterInput: GlobalIDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
@@ -1147,7 +1154,6 @@ export type MemberUserResolvers<ContextType = GraphQLContext, ParentType extends
 }>;
 
 export type MutationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
-  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptInvitation?: Resolver<ResolversTypes['OrgMember'], ParentType, ContextType, RequireFields<MutationacceptInvitationArgs, 'invitationId'>>;
   banUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationbanUserArgs, 'userId'>>;
   cancelInvitation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationcancelInvitationArgs, 'invitationId'>>;
@@ -1235,7 +1241,6 @@ export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends R
 }>;
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
-  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   accountInfo?: Resolver<ResolversTypes['AccountInfo'], ParentType, ContextType>;
   activeMember?: Resolver<Maybe<ResolversTypes['OrgMember']>, ParentType, ContextType>;
   activeMemberRole?: Resolver<Maybe<ResolversTypes['MemberRole']>, ParentType, ContextType, Partial<QueryactiveMemberRoleArgs>>;
@@ -1252,7 +1257,6 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   myApiKeys?: Resolver<Array<ResolversTypes['ApiKey']>, ParentType, ContextType>;
   myInvitations?: Resolver<Array<ResolversTypes['UserInvitation']>, ParentType, ContextType>;
   mySessions?: Resolver<Array<ResolversTypes['MySession']>, ParentType, ContextType>;
-  node?: Resolver<Maybe<ResolversTypes['Node']>, ParentType, ContextType, RequireFields<QuerynodeArgs, 'id'>>;
   organization?: Resolver<Maybe<ResolversTypes['FullOrganization']>, ParentType, ContextType, Partial<QueryorganizationArgs>>;
   organizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   totpUri?: Resolver<ResolversTypes['TotpUri'], ParentType, ContextType, RequireFields<QuerytotpUriArgs, 'password'>>;

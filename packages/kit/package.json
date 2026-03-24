@@ -26,10 +26,6 @@
       "types": "./src/graphql/index.ts",
       "default": "./dist/graphql/index.mjs"
     },
-    "./graphql/relay/directives": {
-      "types": "./src/graphql/relay/directives/index.ts",
-      "default": "./dist/graphql/relay/directives/index.mjs"
-    },
     "./db": {
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"

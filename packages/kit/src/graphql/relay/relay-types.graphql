@@ -14,7 +14,3 @@ type UserError {
   message: String!
   code: String!
 }
-
-extend type Query {
-  node(id: ID!): Node
-}

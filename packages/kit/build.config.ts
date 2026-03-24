@@ -24,7 +24,6 @@ export default defineBuildConfig({
     'src/queue/index',
     'src/nitro/index',
     'src/plugins/index',
-    'src/graphql/relay/directives/index',
   ],
   externals: [
     'nitropack',

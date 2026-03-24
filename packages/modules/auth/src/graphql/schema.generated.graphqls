@@ -55,6 +55,11 @@ enum AppOrderField {
   STATUS
 }
 
+input AppWhereInput {
+  organizationId: GlobalIDFilterInput
+  status: StringFilterInput
+}
+
 type BackupCodesResult {
   backupCodes: [String!]!
   status: Boolean!
@@ -138,6 +143,11 @@ type FullOrganization {
   type: String
 }
 
+input GlobalIDFilterInput {
+  eq: ID
+  in: [ID!]
+}
+
 input InstallAppInput {
   manifestUrl: String!
   organizationId: ID
@@ -193,7 +203,6 @@ type MemberUser {
 }
 
 type Mutation {
-  _empty: String
   acceptInvitation(invitationId: ID!): OrgMember!
   banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
   cancelInvitation(invitationId: ID!): Boolean!
@@ -284,7 +293,6 @@ type PageInfo {
 }
 
 type Query {
-  _empty: String
   accountInfo: AccountInfo!
   activeMember: OrgMember
   activeMemberRole(organizationId: ID, organizationSlug: String, userId: ID): MemberRole
@@ -297,7 +305,7 @@ type Query {
   appBySlug(appId: String!): App
 
   """List apps with cursor-based pagination."""
-  apps(after: String, before: String, first: Int, last: Int, orderBy: AppOrderByInput): AppConnection!
+  apps(after: String, before: String, first: Int, last: Int, orderBy: AppOrderByInput, where: AppWhereInput): AppConnection!
   checkSlug(slug: String!): SlugCheckResult!
   invitation(invitationId: ID!): Invitation
   invitations(organizationId: ID): [Invitation!]!
@@ -307,7 +315,6 @@ type Query {
   myApiKeys: [ApiKey!]!
   myInvitations: [UserInvitation!]!
   mySessions: [MySession!]!
-  node(id: ID!): Node
   organization(organizationId: ID, organizationSlug: String): FullOrganization
   organizations: [Organization!]!
   totpUri(password: String!): TotpUri!

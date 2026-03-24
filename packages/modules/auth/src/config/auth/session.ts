@@ -36,7 +36,7 @@ export function sessionHooks(actorService: AuthActorService) {
   const before: SessionCreateBefore = async (session, authCtx) => {
     const actorType = authCtx?.getHeader(ACTOR_TYPE_HEADER) as string | undefined
 
-    if (actorType && !actorService.hasActorType(session.userId, actorType)) {
+    if (actorType && !(await actorService.hasActorType(session.userId, actorType))) {
       const reason = `User ${session.userId} does not have actor type "${actorType}"`
       void publishAuthEvent(AUTH_EVENTS.RESTRICTION_DENIED, { actorType, userId: session.userId, reason })
       return false
