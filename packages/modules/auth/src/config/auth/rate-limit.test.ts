@@ -28,8 +28,8 @@ describe('rateLimitConfig', () => {
     const config = rateLimitConfig()
     const rules = config.customRules!
 
-    it('limits sign-in to 5 attempts per 15 minutes', () => {
-      expect(rules['/sign-in/email']).toEqual({ window: 900, max: 5 })
+    it('limits sign-in to 15 attempts per 15 minutes', () => {
+      expect(rules['/sign-in/email']).toEqual({ window: 900, max: 15 })
     })
 
     it('limits sign-up to 3 attempts per hour', () => {

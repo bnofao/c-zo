@@ -29,11 +29,19 @@ let updateResult: unknown[] = []
 let deleteResult: unknown[] = []
 
 function createThenableChain(getResult: () => unknown[]) {
+  function makeThenable() {
+    return {
+      then: (resolve: (v: unknown[]) => void, reject?: (e: unknown) => void) => {
+        return Promise.resolve(getResult()).then(resolve, reject)
+      },
+    }
+  }
+
   const chain: Record<string, unknown> = {
     values: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockImplementation(() => makeThenable()),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     onConflictDoNothing: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -50,17 +58,32 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...queryManyResult]),
   }
 
+  const mockTable = { id: { name: 'id' }, appId: { name: 'app_id' }, status: { name: 'status' }, organizationId: { name: 'organization_id' } }
+
   return {
+    _: { schema: { apps: mockTable } },
     query: {
       apps: mockQueryBuilder,
     },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => insertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => updateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ count: 0 }]),
-      }),
+    select: vi.fn().mockImplementation((fields?: Record<string, unknown>) => {
+      const isCountQuery = fields && 'total' in fields
+      const fromResult = isCountQuery
+        ? Promise.resolve([{ total: queryManyResult.length }])
+        : {
+            where: vi.fn().mockReturnValue({
+              orderBy: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue([...queryManyResult]),
+              }),
+            }),
+          }
+
+      // Make fromResult thenable for count queries (no .where() chain)
+      return {
+        from: vi.fn().mockReturnValue(fromResult),
+      }
     }),
   } as any
 }
@@ -493,13 +516,14 @@ describe('appService', () => {
   // ─── uninstall ───────────────────────────────────────────────────
 
   describe('uninstall', () => {
-    it('should delete the app by appId', async () => {
+    it('should delete the app by appId and return the deleted row', async () => {
       queryManyResult = [APP_ROW]
       deleteResult = [APP_ROW]
 
-      await service.uninstall('my-app')
+      const result = await service.uninstall('my-app')
 
       expect(db.delete).toHaveBeenCalled()
+      expect(result).toEqual(APP_ROW)
     })
 
     it('should throw when app not found', async () => {
@@ -557,41 +581,89 @@ describe('appService', () => {
     })
   })
 
+  // ─── getAppById ───────────────────────────────────────────────────
+
+  describe('getAppById', () => {
+    it('should return the app when found by primary key', async () => {
+      queryFirstResult = { id: 'uuid-123', appId: 'my-app' }
+
+      const result = await service.getAppById('uuid-123')
+
+      expect(result).toEqual({ id: 'uuid-123', appId: 'my-app' })
+    })
+
+    it('should return null when not found', async () => {
+      queryFirstResult = null
+
+      const result = await service.getAppById('nonexistent')
+
+      expect(result).toBeNull()
+    })
+
+    it('should query via the repository findFirst', async () => {
+      queryFirstResult = APP_ROW
+
+      await service.getAppById('uuid-1')
+
+      expect(db.query.apps.findFirst).toHaveBeenCalled()
+    })
+  })
+
   // ─── listApps ────────────────────────────────────────────────────
 
   describe('listApps', () => {
-    it('should return active apps', async () => {
+    it('should return a PaginateResult', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
-      expect(result).toHaveLength(1)
-      expect(result[0]!.status).toBe('active')
+      expect(result.nodes).toHaveLength(1)
+      expect(result.totalCount).toBe(1)
     })
 
-    it('should return empty array when none found', async () => {
+    it('should return empty nodes when none found', async () => {
       queryManyResult = []
 
-      const result = await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
-      expect(result).toEqual([])
+      expect(result.nodes).toEqual([])
+      expect(result.totalCount).toBe(0)
     })
 
-    it('should query via the repository findMany', async () => {
+    it('should provide a getCursor function', async () => {
       queryManyResult = [APP_ROW]
 
-      await service.listApps()
+      const result = await service.listApps({ first: 10 })
 
-      expect(db.query.apps.findMany).toHaveBeenCalled()
+      expect(result.getCursor).toBeDefined()
+      const cursor = result.getCursor!(APP_ROW as any)
+      expect(typeof cursor).toBe('string')
+      expect(cursor.length).toBeGreaterThan(0)
     })
 
-    it('should filter by organizationId when provided', async () => {
-      queryManyResult = [{ ...APP_ROW, organizationId: 'org-1' }]
+    it('should use db.select for count query', async () => {
+      queryManyResult = [APP_ROW]
 
-      const result = await service.listApps('org-1')
+      await service.listApps({ first: 10 })
 
-      expect(result).toHaveLength(1)
-      expect(db.query.apps.findMany).toHaveBeenCalled()
+      expect(db.select).toHaveBeenCalled()
+    })
+
+    it('should accept where filter as RQBv2-ready object', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.listApps({ first: 10, where: { status: { eq: 'active' } } })
+
+      expect(result.nodes).toHaveLength(1)
+    })
+
+    it('should accept ConnectionArgs with pagination', async () => {
+      queryManyResult = [APP_ROW]
+
+      const result = await service.listApps({ first: 10 })
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.totalCount).toBeDefined()
     })
   })
 

@@ -5,14 +5,16 @@ describe('graphql/resolvers', () => {
     vi.resetModules()
   })
 
-  it('should include scalar resolvers by default', async () => {
+  it('should include base resolvers with Query.node by default', async () => {
     const { registeredResolvers } = await import('./resolvers')
     const resolvers = registeredResolvers()
 
     expect(resolvers.length).toBeGreaterThanOrEqual(1)
-    const scalars = resolvers[0] as Record<string, unknown>
-    expect(scalars.DateTime).toBeDefined()
-    expect(scalars.EmailAddress).toBeDefined()
+    const base = resolvers[0] as Record<string, Record<string, unknown>>
+    expect(base.Query).toBeDefined()
+    expect(base.Query!.node).toBeDefined()
+    expect(base.Query!._empty).toBeDefined()
+    expect(base.Mutation!._empty).toBeDefined()
   })
 
   it('should accumulate resolvers via registerResolvers()', async () => {

@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    server: {
+      deps: {
+        inline: ['graphql', '@graphql-tools/schema', '@graphql-tools/utils', '@graphql-tools/merge'],
+      },
+    },
     include: ['src/**/*.test.ts'],
     coverage: {
       provider: 'v8',

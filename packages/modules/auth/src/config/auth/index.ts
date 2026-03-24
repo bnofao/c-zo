@@ -1,12 +1,12 @@
-import type { SocialProviders } from 'better-auth'
+import type { Awaitable, BetterAuthOptions, SocialProviders } from 'better-auth'
 import type { AccessControl } from 'better-auth/plugins'
 import type { AccessRole } from '../access'
+import type { AuthActorService } from '../actor'
 import type { Storage } from './others'
 import { betterAuth } from 'better-auth'
-import { openAPI } from 'better-auth/plugins'
-import { ACTOR_TYPE_OPTIONS } from '../../plugins/actor-config'
-import { actorType } from '../../plugins/actor-type'
+import { bearer, openAPI } from 'better-auth/plugins'
 import { accountConfig } from './account'
+import { actorType } from './actor'
 import { adminConfig } from './admin'
 import { apiKeyConfig, apiKeyHooks } from './apikey'
 import { databaseConfig } from './database'
@@ -21,12 +21,14 @@ import { verificationConfig } from './verification'
 export interface AuthOption {
   app: string
   secret: string
+  actorService: AuthActorService
   baseUrl?: string
   storage?: Storage
   socials?: SocialProviders
   adminRoles?: readonly string[]
   ac?: AccessControl
   roles?: Record<string, AccessRole>
+  trustedOrigins?: (string[] | ((request?: Request | undefined) => Awaitable<(string | undefined | null)[]>)) | undefined
 }
 
 export type Auth = ReturnType<typeof createAuth>
@@ -39,13 +41,14 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     secret: option.secret,
     baseURL: option.baseUrl,
     basePath: '/api/auth',
+    trustedOrigins: option.trustedOrigins,
     database: databaseConfig(db),
     user: userConfig(),
     account: accountConfig(/* todo: add social providers list */),
     socialProviders: socialConfig(option.socials, option.baseUrl),
     databaseHooks: {
       user: userHooks(),
-      session: sessionHooks(),
+      session: sessionHooks(option.actorService),
       apikey: apiKeyHooks(),
     },
     session: sessionConfig(),
@@ -54,12 +57,13 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     emailAndPassword: emailAndPasswordConfig(),
     emailVerification: emailVerificationConfig(),
     rateLimit: rateLimitConfig(undefined, option.storage),
-    advanced: advancedConfig({ cookiePrefix }),
+    advanced: advancedConfig({ cookiePrefix, disableOriginCheck: true }),
     plugins: [
+      bearer(),
       adminConfig({ ac: option.ac, roles: option.roles }),
       twoFactorConfig({ issuer: option.app }),
       openAPI({ disableDefaultReference: true }),
-      actorType(ACTOR_TYPE_OPTIONS),
+      actorType({ actorService: option.actorService }),
       apiKeyConfig({ defaultPrefix: apiKeyPrefix }),
       organizationConfig({ ac: option.ac, roles: option.roles, /*  {
         //   viewer: viewerRole,
@@ -133,7 +137,7 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/two-factor/verify-backup-code',
       '/two-factor/generate-backup-codes',
     ],
-  }
+  } satisfies BetterAuthOptions & { databaseHooks?: Record<string, unknown> }
 }
 
 export function createAuth(db: unknown, options: AuthOption)/* : Auth */ {

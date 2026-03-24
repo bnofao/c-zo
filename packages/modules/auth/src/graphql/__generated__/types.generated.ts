@@ -10,8 +10,8 @@ export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Mayb
 export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-export type RequireFields<T, K extends keyof T> = Omit<T, K> & { [P in K]-?: NonNullable<T[P]> };
 export type EnumResolverSignature<T, AllowedValues = any> = { [key in keyof T]?: AllowedValues };
+export type RequireFields<T, K extends keyof T> = Omit<T, K> & { [P in K]-?: NonNullable<T[P]> };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
   ID: { input: string; output: string | number; }
@@ -51,7 +51,7 @@ export type ApiKey = {
   start?: Maybe<Scalars['String']['output']>;
 };
 
-export type App = {
+export type App = Node & {
   __typename?: 'App';
   appId: Scalars['String']['output'];
   createdAt: Scalars['DateTime']['output'];
@@ -63,10 +63,32 @@ export type App = {
   updatedAt: Scalars['DateTime']['output'];
 };
 
-export type AppInstallResult = {
-  __typename?: 'AppInstallResult';
-  apiKeyId: Scalars['String']['output'];
-  app: App;
+export type AppConnection = {
+  __typename?: 'AppConnection';
+  edges: Array<AppEdge>;
+  pageInfo: PageInfo;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type AppEdge = {
+  __typename?: 'AppEdge';
+  cursor: Scalars['String']['output'];
+  node: App;
+};
+
+export type AppOrderByInput = {
+  direction: OrderDirection;
+  field: AppOrderField;
+};
+
+export type AppOrderField =
+  | 'APP_ID'
+  | 'CREATED_AT'
+  | 'STATUS';
+
+export type AppWhereInput = {
+  organizationId?: InputMaybe<GlobalIDFilterInput>;
+  status?: InputMaybe<StringFilterInput>;
 };
 
 export type BackupCodesResult = {
@@ -151,6 +173,11 @@ export type FullOrganization = {
   type?: Maybe<Scalars['String']['output']>;
 };
 
+export type GlobalIDFilterInput = {
+  eq?: InputMaybe<Scalars['ID']['input']>;
+  in?: InputMaybe<Array<Scalars['ID']['input']>>;
+};
+
 export type InstallAppInput = {
   manifestUrl: Scalars['String']['input'];
   organizationId?: InputMaybe<Scalars['ID']['input']>;
@@ -160,6 +187,12 @@ export type InstallAppManifestInput = {
   installedBy: Scalars['String']['input'];
   manifest: Scalars['JSON']['input'];
   organizationId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type InstallAppPayload = {
+  __typename?: 'InstallAppPayload';
+  app?: Maybe<App>;
+  userErrors: Array<UserError>;
 };
 
 export type Invitation = {
@@ -204,7 +237,6 @@ export type MemberUser = {
 
 export type Mutation = {
   __typename?: 'Mutation';
-  _empty?: Maybe<Scalars['String']['output']>;
   acceptInvitation: OrgMember;
   banUser: Scalars['Boolean']['output'];
   cancelInvitation: Scalars['Boolean']['output'];
@@ -220,7 +252,7 @@ export type Mutation = {
   enableTwoFactor: EnableTwoFactorResult;
   generateBackupCodes: BackupCodesResult;
   impersonateUser: Scalars['Boolean']['output'];
-  installApp: AppInstallResult;
+  installApp: InstallAppPayload;
   inviteMember: Invitation;
   leaveOrganization: Scalars['Boolean']['output'];
   rejectInvitation: Scalars['Boolean']['output'];
@@ -232,15 +264,15 @@ export type Mutation = {
   revokeSessions: Scalars['Boolean']['output'];
   sendOtp: Scalars['Boolean']['output'];
   setActiveOrganization?: Maybe<Organization>;
-  setAppStatus: App;
+  setAppStatus: SetAppStatusPayload;
   setRole: Scalars['Boolean']['output'];
   setUserPassword: Scalars['Boolean']['output'];
   stopImpersonation: Scalars['Boolean']['output'];
   unbanUser: Scalars['Boolean']['output'];
-  uninstallApp: Scalars['Boolean']['output'];
+  uninstallApp: UninstallAppPayload;
   unlinkAccount: Scalars['Boolean']['output'];
   updateApiKey: ApiKey;
-  updateAppManifest: App;
+  updateAppManifest: UpdateAppManifestPayload;
   updateMemberRole: Scalars['Boolean']['output'];
   updateOrganization: Organization;
   updateProfile: User;
@@ -382,8 +414,7 @@ export type MutationsetActiveOrganizationArgs = {
 
 
 export type MutationsetAppStatusArgs = {
-  appId: Scalars['String']['input'];
-  status: Scalars['String']['input'];
+  input: SetAppStatusInput;
 };
 
 
@@ -422,8 +453,7 @@ export type MutationupdateApiKeyArgs = {
 
 
 export type MutationupdateAppManifestArgs = {
-  appId: Scalars['String']['input'];
-  manifest: Scalars['JSON']['input'];
+  input: UpdateAppManifestInput;
 };
 
 
@@ -476,6 +506,10 @@ export type MySession = {
   userId: Scalars['ID']['output'];
 };
 
+export type Node = {
+  id: Scalars['ID']['output'];
+};
+
 export type OrderDirection =
   | 'ASC'
   | 'DESC';
@@ -500,15 +534,26 @@ export type Organization = {
   type?: Maybe<Scalars['String']['output']>;
 };
 
+export type PageInfo = {
+  __typename?: 'PageInfo';
+  endCursor?: Maybe<Scalars['String']['output']>;
+  hasNextPage: Scalars['Boolean']['output'];
+  hasPreviousPage: Scalars['Boolean']['output'];
+  startCursor?: Maybe<Scalars['String']['output']>;
+};
+
 export type Query = {
   __typename?: 'Query';
-  _empty?: Maybe<Scalars['String']['output']>;
   accountInfo: AccountInfo;
   activeMember?: Maybe<OrgMember>;
   activeMemberRole?: Maybe<MemberRole>;
   apiKey?: Maybe<ApiKey>;
+  /** Fetch an app by its Relay global ID (primary key). */
   app?: Maybe<App>;
-  apps: Array<App>;
+  /** Fetch an app by its manifest slug (e.g. "my-cool-app"). */
+  appBySlug?: Maybe<App>;
+  /** List apps with cursor-based pagination. */
+  apps: AppConnection;
   checkSlug: SlugCheckResult;
   invitation?: Maybe<Invitation>;
   invitations: Array<Invitation>;
@@ -540,12 +585,22 @@ export type QueryapiKeyArgs = {
 
 
 export type QueryappArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryappBySlugArgs = {
   appId: Scalars['String']['input'];
 };
 
 
 export type QueryappsArgs = {
-  organizationId?: InputMaybe<Scalars['ID']['input']>;
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<AppOrderByInput>;
+  where?: InputMaybe<AppWhereInput>;
 };
 
 
@@ -599,6 +654,17 @@ export type QueryusersArgs = {
   where?: InputMaybe<UserWhereInput>;
 };
 
+export type SetAppStatusInput = {
+  appId: Scalars['String']['input'];
+  status: Scalars['String']['input'];
+};
+
+export type SetAppStatusPayload = {
+  __typename?: 'SetAppStatusPayload';
+  app?: Maybe<App>;
+  userErrors: Array<UserError>;
+};
+
 export type SlugCheckResult = {
   __typename?: 'SlugCheckResult';
   available: Scalars['Boolean']['output'];
@@ -623,6 +689,12 @@ export type TwoFactorVerifyResult = {
   token: Scalars['String']['output'];
 };
 
+export type UninstallAppPayload = {
+  __typename?: 'UninstallAppPayload';
+  app?: Maybe<App>;
+  userErrors: Array<UserError>;
+};
+
 export type UpdateApiKeyInput = {
   enabled?: InputMaybe<Scalars['Boolean']['input']>;
   expiresIn?: InputMaybe<Scalars['Int']['input']>;
@@ -634,6 +706,17 @@ export type UpdateApiKeyInput = {
   refillAmount?: InputMaybe<Scalars['Int']['input']>;
   refillInterval?: InputMaybe<Scalars['Int']['input']>;
   remaining?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type UpdateAppManifestInput = {
+  appId: Scalars['String']['input'];
+  manifest: Scalars['JSON']['input'];
+};
+
+export type UpdateAppManifestPayload = {
+  __typename?: 'UpdateAppManifestPayload';
+  app?: Maybe<App>;
+  userErrors: Array<UserError>;
 };
 
 export type UpdateOrganizationInput = {
@@ -663,6 +746,13 @@ export type User = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   role: Scalars['String']['output'];
+};
+
+export type UserError = {
+  __typename?: 'UserError';
+  code: Scalars['String']['output'];
+  field?: Maybe<Array<Scalars['String']['output']>>;
+  message: Scalars['String']['output'];
 };
 
 export type UserInvitation = {
@@ -800,6 +890,10 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 
 
 
+/** Mapping of interface types */
+export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = ResolversObject<{
+  Node: ( AppRow & { __typename: 'App' } );
+}>;
 
 /** Mapping between all available schema types and the resolvers types */
 export type ResolversTypes = ResolversObject<{
@@ -810,13 +904,17 @@ export type ResolversTypes = ResolversObject<{
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
   ApiKey: ResolverTypeWrapper<ApiKey>;
   App: ResolverTypeWrapper<AppRow>;
-  AppInstallResult: ResolverTypeWrapper<Omit<AppInstallResult, 'app'> & { app: ResolversTypes['App'] }>;
+  AppConnection: ResolverTypeWrapper<Omit<AppConnection, 'edges'> & { edges: Array<ResolversTypes['AppEdge']> }>;
+  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
+  AppEdge: ResolverTypeWrapper<Omit<AppEdge, 'node'> & { node: ResolversTypes['App'] }>;
+  AppOrderByInput: AppOrderByInput;
+  AppOrderField: ResolverTypeWrapper<'CREATED_AT' | 'APP_ID' | 'STATUS'>;
+  AppWhereInput: AppWhereInput;
   BackupCodesResult: ResolverTypeWrapper<BackupCodesResult>;
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
   ChangePasswordInput: ChangePasswordInput;
   CreateApiKeyInput: CreateApiKeyInput;
-  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
@@ -825,8 +923,10 @@ export type ResolversTypes = ResolversObject<{
   EmailAddress: ResolverTypeWrapper<Scalars['EmailAddress']['output']>;
   EnableTwoFactorResult: ResolverTypeWrapper<EnableTwoFactorResult>;
   FullOrganization: ResolverTypeWrapper<FullOrganization>;
+  GlobalIDFilterInput: GlobalIDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
+  InstallAppPayload: ResolverTypeWrapper<Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   Invitation: ResolverTypeWrapper<Invitation>;
   InviteMemberInput: InviteMemberInput;
   JSON: ResolverTypeWrapper<Scalars['JSON']['output']>;
@@ -835,19 +935,27 @@ export type ResolversTypes = ResolversObject<{
   MemberUser: ResolverTypeWrapper<MemberUser>;
   Mutation: ResolverTypeWrapper<Record<PropertyKey, never>>;
   MySession: ResolverTypeWrapper<MySession>;
+  Node: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['Node']>;
   OrderDirection: ResolverTypeWrapper<'ASC' | 'DESC'>;
   OrgMember: ResolverTypeWrapper<OrgMember>;
   Organization: ResolverTypeWrapper<Organization>;
+  PageInfo: ResolverTypeWrapper<PageInfo>;
   Query: ResolverTypeWrapper<Record<PropertyKey, never>>;
+  SetAppStatusInput: SetAppStatusInput;
+  SetAppStatusPayload: ResolverTypeWrapper<Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   SlugCheckResult: ResolverTypeWrapper<SlugCheckResult>;
   StringFilterInput: StringFilterInput;
   TotpUri: ResolverTypeWrapper<TotpUri>;
   TwoFactorVerifyResult: ResolverTypeWrapper<TwoFactorVerifyResult>;
+  UninstallAppPayload: ResolverTypeWrapper<Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   UpdateApiKeyInput: UpdateApiKeyInput;
+  UpdateAppManifestInput: UpdateAppManifestInput;
+  UpdateAppManifestPayload: ResolverTypeWrapper<Omit<UpdateAppManifestPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   UpdateOrganizationInput: UpdateOrganizationInput;
   UpdateProfileInput: UpdateProfileInput;
   UpdateUserInput: UpdateUserInput;
   User: ResolverTypeWrapper<UserWithRole>;
+  UserError: ResolverTypeWrapper<UserError>;
   UserInvitation: ResolverTypeWrapper<UserInvitation>;
   UserList: ResolverTypeWrapper<Omit<UserList, 'users'> & { users: Array<ResolversTypes['User']> }>;
   UserOrderByInput: UserOrderByInput;
@@ -868,13 +976,16 @@ export type ResolversParentTypes = ResolversObject<{
   ID: Scalars['ID']['output'];
   ApiKey: ApiKey;
   App: AppRow;
-  AppInstallResult: Omit<AppInstallResult, 'app'> & { app: ResolversParentTypes['App'] };
+  AppConnection: Omit<AppConnection, 'edges'> & { edges: Array<ResolversParentTypes['AppEdge']> };
+  Int: Scalars['Int']['output'];
+  AppEdge: Omit<AppEdge, 'node'> & { node: ResolversParentTypes['App'] };
+  AppOrderByInput: AppOrderByInput;
+  AppWhereInput: AppWhereInput;
   BackupCodesResult: BackupCodesResult;
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
   ChangePasswordInput: ChangePasswordInput;
   CreateApiKeyInput: CreateApiKeyInput;
-  Int: Scalars['Int']['output'];
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
   DateTime: Scalars['DateTime']['output'];
@@ -883,8 +994,10 @@ export type ResolversParentTypes = ResolversObject<{
   EmailAddress: Scalars['EmailAddress']['output'];
   EnableTwoFactorResult: EnableTwoFactorResult;
   FullOrganization: FullOrganization;
+  GlobalIDFilterInput: GlobalIDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
+  InstallAppPayload: Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   Invitation: Invitation;
   InviteMemberInput: InviteMemberInput;
   JSON: Scalars['JSON']['output'];
@@ -893,18 +1006,26 @@ export type ResolversParentTypes = ResolversObject<{
   MemberUser: MemberUser;
   Mutation: Record<PropertyKey, never>;
   MySession: MySession;
+  Node: ResolversInterfaceTypes<ResolversParentTypes>['Node'];
   OrgMember: OrgMember;
   Organization: Organization;
+  PageInfo: PageInfo;
   Query: Record<PropertyKey, never>;
+  SetAppStatusInput: SetAppStatusInput;
+  SetAppStatusPayload: Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   SlugCheckResult: SlugCheckResult;
   StringFilterInput: StringFilterInput;
   TotpUri: TotpUri;
   TwoFactorVerifyResult: TwoFactorVerifyResult;
+  UninstallAppPayload: Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   UpdateApiKeyInput: UpdateApiKeyInput;
+  UpdateAppManifestInput: UpdateAppManifestInput;
+  UpdateAppManifestPayload: Omit<UpdateAppManifestPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   UpdateOrganizationInput: UpdateOrganizationInput;
   UpdateProfileInput: UpdateProfileInput;
   UpdateUserInput: UpdateUserInput;
   User: UserWithRole;
+  UserError: UserError;
   UserInvitation: UserInvitation;
   UserList: Omit<UserList, 'users'> & { users: Array<ResolversParentTypes['User']> };
   UserOrderByInput: UserOrderByInput;
@@ -948,12 +1069,21 @@ export type AppResolvers<ContextType = GraphQLContext, ParentType extends Resolv
   organizationId?: Resolver<Maybe<ResolversTypes['ID']>, ParentType, ContextType>;
   status?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
-export type AppInstallResultResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AppInstallResult'] = ResolversParentTypes['AppInstallResult']> = ResolversObject<{
-  apiKeyId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  app?: Resolver<ResolversTypes['App'], ParentType, ContextType>;
+export type AppConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AppConnection'] = ResolversParentTypes['AppConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['AppEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 }>;
+
+export type AppEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AppEdge'] = ResolversParentTypes['AppEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['App'], ParentType, ContextType>;
+}>;
+
+export type AppOrderFieldResolvers = EnumResolverSignature<{ APP_ID?: any, CREATED_AT?: any, STATUS?: any }, ResolversTypes['AppOrderField']>;
 
 export type BackupCodesResultResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BackupCodesResult'] = ResolversParentTypes['BackupCodesResult']> = ResolversObject<{
   backupCodes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
@@ -983,6 +1113,11 @@ export type FullOrganizationResolvers<ContextType = GraphQLContext, ParentType e
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   type?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
+export type InstallAppPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['InstallAppPayload'] = ResolversParentTypes['InstallAppPayload']> = ResolversObject<{
+  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
 export type InvitationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Invitation'] = ResolversParentTypes['Invitation']> = ResolversObject<{
@@ -1019,7 +1154,6 @@ export type MemberUserResolvers<ContextType = GraphQLContext, ParentType extends
 }>;
 
 export type MutationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
-  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   acceptInvitation?: Resolver<ResolversTypes['OrgMember'], ParentType, ContextType, RequireFields<MutationacceptInvitationArgs, 'invitationId'>>;
   banUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationbanUserArgs, 'userId'>>;
   cancelInvitation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationcancelInvitationArgs, 'invitationId'>>;
@@ -1035,7 +1169,7 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   enableTwoFactor?: Resolver<ResolversTypes['EnableTwoFactorResult'], ParentType, ContextType, RequireFields<MutationenableTwoFactorArgs, 'password'>>;
   generateBackupCodes?: Resolver<ResolversTypes['BackupCodesResult'], ParentType, ContextType, RequireFields<MutationgenerateBackupCodesArgs, 'password'>>;
   impersonateUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationimpersonateUserArgs, 'userId'>>;
-  installApp?: Resolver<ResolversTypes['AppInstallResult'], ParentType, ContextType, RequireFields<MutationinstallAppArgs, 'input'>>;
+  installApp?: Resolver<ResolversTypes['InstallAppPayload'], ParentType, ContextType, RequireFields<MutationinstallAppArgs, 'input'>>;
   inviteMember?: Resolver<ResolversTypes['Invitation'], ParentType, ContextType, RequireFields<MutationinviteMemberArgs, 'input'>>;
   leaveOrganization?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationleaveOrganizationArgs, 'organizationId'>>;
   rejectInvitation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrejectInvitationArgs, 'invitationId'>>;
@@ -1047,15 +1181,15 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   revokeSessions?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrevokeSessionsArgs, 'userId'>>;
   sendOtp?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   setActiveOrganization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, Partial<MutationsetActiveOrganizationArgs>>;
-  setAppStatus?: Resolver<ResolversTypes['App'], ParentType, ContextType, RequireFields<MutationsetAppStatusArgs, 'appId' | 'status'>>;
+  setAppStatus?: Resolver<ResolversTypes['SetAppStatusPayload'], ParentType, ContextType, RequireFields<MutationsetAppStatusArgs, 'input'>>;
   setRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationsetRoleArgs, 'role' | 'userId'>>;
   setUserPassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationsetUserPasswordArgs, 'newPassword' | 'userId'>>;
   stopImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   unbanUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationunbanUserArgs, 'userId'>>;
-  uninstallApp?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationuninstallAppArgs, 'appId'>>;
+  uninstallApp?: Resolver<ResolversTypes['UninstallAppPayload'], ParentType, ContextType, RequireFields<MutationuninstallAppArgs, 'appId'>>;
   unlinkAccount?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationunlinkAccountArgs, 'providerId'>>;
   updateApiKey?: Resolver<ResolversTypes['ApiKey'], ParentType, ContextType, RequireFields<MutationupdateApiKeyArgs, 'input' | 'keyId'>>;
-  updateAppManifest?: Resolver<ResolversTypes['App'], ParentType, ContextType, RequireFields<MutationupdateAppManifestArgs, 'appId' | 'manifest'>>;
+  updateAppManifest?: Resolver<ResolversTypes['UpdateAppManifestPayload'], ParentType, ContextType, RequireFields<MutationupdateAppManifestArgs, 'input'>>;
   updateMemberRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationupdateMemberRoleArgs, 'memberId' | 'role'>>;
   updateOrganization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType, RequireFields<MutationupdateOrganizationArgs, 'input' | 'organizationId'>>;
   updateProfile?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationupdateProfileArgs, 'input'>>;
@@ -1073,6 +1207,10 @@ export type MySessionResolvers<ContextType = GraphQLContext, ParentType extends 
   token?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   userAgent?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+}>;
+
+export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = ResolversObject<{
+  __resolveType?: TypeResolveFn<'App', ParentType, ContextType>;
 }>;
 
 export type OrderDirectionResolvers = EnumResolverSignature<{ ASC?: any, DESC?: any }, ResolversTypes['OrderDirection']>;
@@ -1095,14 +1233,21 @@ export type OrganizationResolvers<ContextType = GraphQLContext, ParentType exten
   type?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
 }>;
 
+export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = ResolversObject<{
+  endCursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  hasNextPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  hasPreviousPage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  startCursor?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = ResolversObject<{
-  _empty?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   accountInfo?: Resolver<ResolversTypes['AccountInfo'], ParentType, ContextType>;
   activeMember?: Resolver<Maybe<ResolversTypes['OrgMember']>, ParentType, ContextType>;
   activeMemberRole?: Resolver<Maybe<ResolversTypes['MemberRole']>, ParentType, ContextType, Partial<QueryactiveMemberRoleArgs>>;
   apiKey?: Resolver<Maybe<ResolversTypes['ApiKey']>, ParentType, ContextType, RequireFields<QueryapiKeyArgs, 'keyId'>>;
-  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType, RequireFields<QueryappArgs, 'appId'>>;
-  apps?: Resolver<Array<ResolversTypes['App']>, ParentType, ContextType, Partial<QueryappsArgs>>;
+  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType, RequireFields<QueryappArgs, 'id'>>;
+  appBySlug?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType, RequireFields<QueryappBySlugArgs, 'appId'>>;
+  apps?: Resolver<ResolversTypes['AppConnection'], ParentType, ContextType, Partial<QueryappsArgs>>;
   checkSlug?: Resolver<ResolversTypes['SlugCheckResult'], ParentType, ContextType, RequireFields<QuerycheckSlugArgs, 'slug'>>;
   invitation?: Resolver<Maybe<ResolversTypes['Invitation']>, ParentType, ContextType, RequireFields<QueryinvitationArgs, 'invitationId'>>;
   invitations?: Resolver<Array<ResolversTypes['Invitation']>, ParentType, ContextType, Partial<QueryinvitationsArgs>>;
@@ -1120,6 +1265,11 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   users?: Resolver<ResolversTypes['UserList'], ParentType, ContextType, Partial<QueryusersArgs>>;
 }>;
 
+export type SetAppStatusPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SetAppStatusPayload'] = ResolversParentTypes['SetAppStatusPayload']> = ResolversObject<{
+  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
 export type SlugCheckResultResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SlugCheckResult'] = ResolversParentTypes['SlugCheckResult']> = ResolversObject<{
   available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
@@ -1132,6 +1282,16 @@ export type TwoFactorVerifyResultResolvers<ContextType = GraphQLContext, ParentT
   token?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
+export type UninstallAppPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UninstallAppPayload'] = ResolversParentTypes['UninstallAppPayload']> = ResolversObject<{
+  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type UpdateAppManifestPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateAppManifestPayload'] = ResolversParentTypes['UpdateAppManifestPayload']> = ResolversObject<{
+  app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
 export type UserResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = ResolversObject<{
   banExpires?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   banReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -1141,6 +1301,12 @@ export type UserResolvers<ContextType = GraphQLContext, ParentType extends Resol
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+}>;
+
+export type UserErrorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserError'] = ResolversParentTypes['UserError']> = ResolversObject<{
+  code?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  field?: Resolver<Maybe<Array<ResolversTypes['String']>>, ParentType, ContextType>;
+  message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
 export type UserInvitationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserInvitation'] = ResolversParentTypes['UserInvitation']> = ResolversObject<{
@@ -1177,12 +1343,15 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   AccountInfoUser?: AccountInfoUserResolvers<ContextType>;
   ApiKey?: ApiKeyResolvers<ContextType>;
   App?: AppResolvers<ContextType>;
-  AppInstallResult?: AppInstallResultResolvers<ContextType>;
+  AppConnection?: AppConnectionResolvers<ContextType>;
+  AppEdge?: AppEdgeResolvers<ContextType>;
+  AppOrderField?: AppOrderFieldResolvers;
   BackupCodesResult?: BackupCodesResultResolvers<ContextType>;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   EnableTwoFactorResult?: EnableTwoFactorResultResolvers<ContextType>;
   FullOrganization?: FullOrganizationResolvers<ContextType>;
+  InstallAppPayload?: InstallAppPayloadResolvers<ContextType>;
   Invitation?: InvitationResolvers<ContextType>;
   JSON?: GraphQLScalarType;
   LinkedAccount?: LinkedAccountResolvers<ContextType>;
@@ -1190,14 +1359,20 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   MemberUser?: MemberUserResolvers<ContextType>;
   Mutation?: MutationResolvers<ContextType>;
   MySession?: MySessionResolvers<ContextType>;
+  Node?: NodeResolvers<ContextType>;
   OrderDirection?: OrderDirectionResolvers;
   OrgMember?: OrgMemberResolvers<ContextType>;
   Organization?: OrganizationResolvers<ContextType>;
+  PageInfo?: PageInfoResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
+  SetAppStatusPayload?: SetAppStatusPayloadResolvers<ContextType>;
   SlugCheckResult?: SlugCheckResultResolvers<ContextType>;
   TotpUri?: TotpUriResolvers<ContextType>;
   TwoFactorVerifyResult?: TwoFactorVerifyResultResolvers<ContextType>;
+  UninstallAppPayload?: UninstallAppPayloadResolvers<ContextType>;
+  UpdateAppManifestPayload?: UpdateAppManifestPayloadResolvers<ContextType>;
   User?: UserResolvers<ContextType>;
+  UserError?: UserErrorResolvers<ContextType>;
   UserInvitation?: UserInvitationResolvers<ContextType>;
   UserList?: UserListResolvers<ContextType>;
   UserOrderField?: UserOrderFieldResolvers;

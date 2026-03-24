@@ -1,11 +1,14 @@
+import type { authRelations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
-import type { InferSelectModel } from 'drizzle-orm'
+import type { PaginateResult } from '@czo/kit/graphql'
+import type { AnyColumn, InferSelectModel, SQL } from 'drizzle-orm'
 import type { ApiKeyService } from './apiKey.service'
 import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
-import { and, eq } from 'drizzle-orm'
+import { decodeCursor, encodeCursor } from '@czo/kit/graphql'
+import { and, asc, count, desc, eq, gt, lt, or } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
 
@@ -14,6 +17,7 @@ const { apps, apikeys } = schema
 // ─── Schema type for the repository ─────────────────────────────────
 
 type AppSchema = typeof schema
+type Relations = ReturnType<typeof authRelations>
 
 // ─── Zod Schema ──────────────────────────────────────────────────────
 
@@ -105,18 +109,18 @@ export type AppService = ReturnType<typeof createAppService>
 
 // ─── Repository ──────────────────────────────────────────────────────
 
-class AppRepository extends Repository<AppSchema, typeof apps, 'apps'> {}
+class AppRepository extends Repository<AppSchema, Relations, typeof apps, 'apps'> {}
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createAppService(
-  db: Database<AppSchema>,
+  db: Database,
   apiKeyService: ApiKeyService,
   authService: AuthService,
   baseSubscribableEvents: ReadonlySet<string>,
 ) {
   const manifestSchema = buildManifestSchema(baseSubscribableEvents)
-  const repo = new AppRepository(db, apps)
+  const repo = new AppRepository(db, 'apps')
 
   async function install(input: InstallAppInput): Promise<InstalledApp> {
     const manifest = manifestSchema.parse(input.manifest)
@@ -134,7 +138,7 @@ export function createAppService(
           )
         : Promise.resolve(true),
       repo.findFirst({
-        where: eq(apps.appId, manifest.id),
+        where: { appId: manifest.id },
       }),
     ])
 
@@ -206,7 +210,7 @@ export function createAppService(
     return install({ manifest, installedBy: userId, organizationId })
   }
 
-  async function uninstall(appId: string): Promise<void> {
+  async function uninstall(appId: string): Promise<AppRow> {
     const result = await repo.delete({
       where: eq(apps.appId, appId),
     })
@@ -216,23 +220,89 @@ export function createAppService(
     }
 
     publishAuthEvent(AUTH_EVENTS.APP_UNINSTALLED, { appId })
+
+    return result[0]!
   }
 
   async function getApp(appId: string): Promise<AppRow | null> {
     return repo.findFirst({
-      where: eq(apps.appId, appId),
+      where: { appId },
     })
   }
 
-  async function listApps(organizationId?: string): Promise<AppRow[]> {
-    if (organizationId) {
-      return repo.findMany({
-        where: and(eq(apps.status, 'active'), eq(apps.organizationId, organizationId)),
-      })
-    }
-    return repo.findMany({
-      where: eq(apps.status, 'active'),
+  async function getAppById(id: string): Promise<AppRow | null> {
+    return repo.findFirst({
+      where: { id },
     })
+  }
+
+  async function listApps(opts?: {
+    where?: Record<string, unknown>
+    orderBy?: { column: AnyColumn, direction: 'ASC' | 'DESC' }
+    first?: number
+    after?: string
+    last?: number
+    before?: string
+  }): Promise<PaginateResult<AppRow>> {
+    const sortCol = opts?.orderBy?.column ?? apps.createdAt
+    const sortDir = opts?.orderBy?.direction ?? 'DESC'
+    const isBackward = opts?.last != null
+
+    // Build base WHERE from filters (already RQBv2-ready, transformed by @drizzle)
+    const baseConditions: (SQL | undefined)[] = []
+
+    // Decode cursor and build keyset WHERE
+    const cursor = isBackward ? opts?.before : opts?.after
+    if (cursor) {
+      const decoded = decodeCursor(cursor)
+      const cursorSortVal = decoded.sortValue
+      const cursorId = decoded.id as string
+
+      const useGt = (sortDir === 'ASC') !== isBackward
+      const cmp = useGt ? gt : lt
+
+      baseConditions.push(
+        or(
+          cmp(sortCol, cursorSortVal),
+          and(eq(sortCol, cursorSortVal), cmp(apps.id, cursorId)),
+        ),
+      )
+    }
+
+    // ORDER BY — backward inverts the direction
+    const effectiveDir = isBackward
+      ? (sortDir === 'ASC' ? desc : asc)
+      : (sortDir === 'ASC' ? asc : desc)
+    const orderClauses = [effectiveDir(sortCol), effectiveDir(apps.id)]
+
+    const limit = (opts?.first ?? opts?.last ?? 100) + 1
+
+    // Use RQBv2 findMany for the data query with the where object
+    const allRows = await repo.findMany({
+      where: opts?.where,
+      orderBy: orderClauses,
+      limit,
+    } as any)
+
+    // Count query via SQL (separate since RQBv2 doesn't support count)
+    const countResult = await db.select({ total: count() }).from(apps)
+    const total = countResult[0]?.total ?? 0
+
+    let nodes = allRows as AppRow[]
+    if (isBackward) {
+      nodes = nodes.reverse()
+    }
+
+    return {
+      nodes,
+      totalCount: total,
+      getCursor: (node: AppRow) => {
+        const sortValue = node.createdAt instanceof Date
+          ? node.createdAt.toISOString()
+          : String(node.createdAt)
+        return encodeCursor({ sortValue, id: node.id })
+      },
+    }
   }
 
   async function updateManifest(appId: string, manifest: AppManifest): Promise<AppRow> {
@@ -268,7 +338,8 @@ export function createAppService(
   }
 
   async function getActiveAppsByEvent(event: string): Promise<AppRow[]> {
-    const activeApps = await listApps()
+    const result = await listApps({ first: 100, where: { status: { eq: 'active' } } })
+    const activeApps = result.nodes
     return activeApps.filter((app) => {
       const manifest = app.manifest as AppManifest
       return manifest.webhooks.some(w => w.event === event)
@@ -280,6 +351,7 @@ export function createAppService(
     installFromUrl,
     uninstall,
     getApp,
+    getAppById,
     listApps,
     updateManifest,
     setStatus,

@@ -15,29 +15,53 @@ describe('apps query resolver', () => {
     } as any
   }
 
-  it('should use explicit organizationId over session', async () => {
-    mockListApps.mockResolvedValue([])
+  it('should pass where and pagination to listApps', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+    const where = { status: { eq: 'active' } }
 
-    await appsResolver({}, { organizationId: 'org-explicit' }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { first: 10, after: 'cursor-1', where }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith('org-explicit')
+    expect(mockListApps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { eq: 'active' } }),
+        first: 10,
+        after: 'cursor-1',
+      }),
+    )
   })
 
-  it('should fall back to session organizationId when arg is null', async () => {
-    mockListApps.mockResolvedValue([])
+  it('should auto-scope to session organizationId when not explicitly filtered', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
 
-    await appsResolver({}, { organizationId: null }, makeCtx('org-session'), {} as any)
+    await appsResolver({}, { first: 5 }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith('org-session')
+    expect(mockListApps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: expect.objectContaining({ eq: expect.any(String) }) }),
+      }),
+    )
   })
 
-  it('should pass undefined when neither arg nor session has organizationId', async () => {
-    const expected = [{ id: '1', appId: 'my-app', status: 'active' }]
-    mockListApps.mockResolvedValue(expected)
+  it('should not override explicit organizationId filter', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+    const where = { organizationId: { eq: 'explicit-global-id' } }
 
-    const result = await appsResolver({}, { organizationId: null }, makeCtx(null), {} as any)
+    await appsResolver({}, { first: 5, where }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(undefined)
-    expect(result).toEqual(expected)
+    expect(mockListApps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: { eq: 'explicit-global-id' } }),
+      }),
+    )
+  })
+
+  it('should pass undefined where when no session org and no filter', async () => {
+    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+
+    await appsResolver({}, { first: 5 }, makeCtx(null), {} as any)
+
+    expect(mockListApps).toHaveBeenCalledWith(
+      expect.objectContaining({ where: undefined }),
+    )
   })
 })

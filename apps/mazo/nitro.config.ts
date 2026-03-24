@@ -27,7 +27,7 @@ export default defineNitroConfig({
     app: 'mazo',
     baseUrl: 'http://localhost:4000',
     auth: {
-      secret: 'hvAcEau3mQZfLC48zhO9WUy4r4A3JuHW2Dkx8SdMb8QDR3XupjSOAyXBmrOKd5qJ',        // ← mapped from NITRO_CZO_AUTH_SECRET
+      secret: process.env.AUTH_SECRET,        // ← mapped from NITRO_CZO_AUTH_SECRET
     },
     database: {
       url: process.env.DATABASE_URL
@@ -41,6 +41,7 @@ export default defineNitroConfig({
   modules: [
     '@czo/auth',
     '@czo/stock-location',
+    // @ts-ignore 
     kitModule,
   ],
   imports: {

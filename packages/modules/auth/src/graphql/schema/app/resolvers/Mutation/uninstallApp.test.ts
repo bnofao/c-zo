@@ -12,12 +12,13 @@ describe('uninstallApp mutation resolver', () => {
     },
   } as any
 
-  it('should delegate to appService.uninstall and return true', async () => {
-    mockUninstall.mockResolvedValue(undefined)
+  it('should delegate to appService.uninstall and return the deleted app', async () => {
+    const deletedApp = { id: 'uuid-1', appId: 'my-app', status: 'active' }
+    mockUninstall.mockResolvedValue(deletedApp)
 
     const result = await resolver({}, { appId: 'my-app' }, ctx, {})
 
     expect(mockUninstall).toHaveBeenCalledWith('my-app')
-    expect(result).toBe(true)
+    expect(result).toEqual(deletedApp)
   })
 })

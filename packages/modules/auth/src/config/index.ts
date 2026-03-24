@@ -4,6 +4,15 @@ export * from './access'
 export * from './actor'
 export * from './auth'
 
+export const DEFAULT_ACTOR_RESTRICTIONS = {
+  admin: {
+    allowedMethods: ['email', 'oauth:github'] as const,
+    sessionDuration: 28800,
+    enableRegistration: true,
+    allowImpersonation: false,
+  },
+}
+
 export const ORGANIZATION_STATEMENTS = {
   organization: ['read', 'update', 'delete'],
   member: ['read', 'create', 'update', 'delete'],
@@ -11,8 +20,8 @@ export const ORGANIZATION_STATEMENTS = {
 } as const
 
 export const ADMIN_STATEMENTS = {
-  user: ['create', 'read', 'update', 'delete', 'ban', 'impersonate', 'set-role'],
-  session: ['read', 'revoke'],
+  user: ['create', 'read', 'list', 'update', 'delete', 'ban', 'impersonate', 'set-role', 'impersonate-admins'],
+  session: ['read', 'list', 'revoke', 'delete'],
 } as const
 
 export const API_KEY_STATEMENTS = {
@@ -52,21 +61,21 @@ export const ADMIN_HIERARCHY: HierarchyLevel<typeof ADMIN_STATEMENTS>[] = [
   {
     name: 'admin:viewer',
     permissions: {
-      user: ['read'],
-      session: ['read'],
+      user: ['read', 'list'],
+      session: ['read', 'list'],
     },
   },
   {
     name: 'admin:manager',
     permissions: {
-      user: ['create', 'update'],
-      session: ['revoke'],
+      user: ['create', 'update', 'set-role'],
+      session: ['revoke', 'delete'],
     },
   },
   {
     name: 'admin',
     permissions: {
-      user: ['delete', 'ban', 'impersonate'],
+      user: ['delete', 'ban', 'impersonate', 'impersonate-admins'],
     },
   },
 ]

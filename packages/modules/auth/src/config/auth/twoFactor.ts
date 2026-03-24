@@ -8,13 +8,13 @@ export function twoFactorConfig(option?: TwoFactorOptions) {
       twoFactor: {
         modelName: 'two_factors',
         fields: {
-          backupCodes: 'backup_codes',
-          userId: 'user_id',
+          // backupCodes: 'backup_codes',
+          // userId: 'user_id',
         },
       },
       user: {
         fields: {
-          twoFactorEnabled: 'two_factor_enabled',
+          // twoFactorEnabled: 'two_factor_enabled',
         },
       },
     },

@@ -132,6 +132,7 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
+    "@graphql-tools/schema": "catalog:",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",

@@ -11,7 +11,7 @@ catalog:
   '@dnd-kit/sortable': ^8.0.0
   '@dnd-kit/utilities': ^3.2.2
   '@eddeee888/gcg-typescript-resolver-files': ^0.14.0
-  '@graphql-tools/schema': ^10.0.25
+  '@graphql-tools/schema': 10.0.30
   '@hookform/error-message': ^2.0.1
   '@hookform/resolvers': 3.4.2
   '@medusajs/admin-sdk': 2.10.3

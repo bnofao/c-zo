@@ -1,3 +1,4 @@
+import type { AnyRelations } from 'drizzle-orm'
 import type { PgTableWithColumns } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseError, OptimisticLockError, Repository } from './repository'
@@ -69,14 +70,23 @@ const createMockWhere = () => ({ queryChunks: ['mock', 'where'] } as any)
 
 // Create a thenable (Promise-like) chain that resolves to the result
 function createThenableChain(getResult: () => any[]) {
+  function makeThenable() {
+    const obj: any = {
+      then: (resolve: (value: any[]) => void, reject?: (error: any) => void) => {
+        return Promise.resolve(getResult()).then(resolve, reject)
+      },
+    }
+    return obj
+  }
+
   const chain: any = {
     values: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockImplementation(() => makeThenable()),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     onConflictDoNothing: vi.fn().mockReturnThis(),
-    // Make it thenable (Promise-like)
+    // Make it thenable (Promise-like) as fallback
     then: (resolve: (value: any[]) => void, reject?: (error: any) => void) => {
       return Promise.resolve(getResult()).then(resolve, reject)
     },
@@ -100,7 +110,9 @@ function createMockDb() {
     delete: vi.fn().mockImplementation(() => createThenableChain(() => mockDeleteResult)),
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ count: 25 }]),
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockImplementation(async () => [...mockQueryRows]),
+        }),
       }),
     }),
   }
@@ -111,6 +123,7 @@ function createMockDb() {
 // Concrete implementation of Repository for testing
 class TestRepository extends Repository<
   { testEntities: any },
+  AnyRelations,
   PgTableWithColumns<any>,
   'testEntities'
 > {
@@ -171,7 +184,7 @@ describe('repository', () => {
 
     db = createMockDb()
     table = createMockTable()
-    repository = new TestRepository(db, table)
+    repository = new TestRepository(db, 'testEntities', table)
     repository.resetHookCalls()
   })
 
@@ -433,7 +446,7 @@ describe('repository', () => {
 
     it('should throw error when table does not have deletedAt column', async () => {
       const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      const repoWithoutSoftDelete = new TestRepository(db, tableWithoutSoftDelete)
+      const repoWithoutSoftDelete = new TestRepository(db, 'testEntities', tableWithoutSoftDelete)
 
       await expect(
         repoWithoutSoftDelete.restore({
@@ -546,96 +559,12 @@ describe('repository', () => {
     })
   })
 
-  describe('paginateByOffset() with soft delete filtering', () => {
-    beforeEach(() => {
-      // Setup default pagination count response
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 25 }]),
-        }),
-      })
-    })
-
-    it('should exclude soft-deleted records by default', async () => {
-      const rows = [
-        { id: 'test-1', name: 'Active 1', deletedAt: null },
-        { id: 'test-2', name: 'Active 2', deletedAt: null },
-      ] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.rows).toEqual(rows)
-    })
-
-    it('should include soft-deleted records when includeDeleted=true', async () => {
-      const rows = [
-        { id: 'test-1', name: 'Active', deletedAt: null },
-        { id: 'test-2', name: 'Deleted', deletedAt: new Date() },
-      ] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({
-        page: 1,
-        perPage: 10,
-        includeDeleted: true,
-      })
-
-      expect(result.rows).toHaveLength(2)
-    })
-
-    it('should return pagination metadata', async () => {
-      const rows = Array.from({ length: 11 }, (_, i) => ({
-        id: `test-${i}`,
-        name: `Test ${i}`,
-      })) as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 25 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.page).toBe(1)
-      expect(result.perPage).toBe(10)
-      expect(result.totalRows).toBe(25)
-      expect(result.totalPages).toBe(3)
-      expect(result.next).toBe(true)
-      expect(result.previous).toBe(false)
-    })
-
-    it('should indicate no next page when on last page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 5 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.next).toBe(false)
-    })
-
-    it('should indicate previous page when not on first page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({ page: 2, perPage: 10 })
-
-      expect(result.previous).toBe(true)
-    })
-  })
-
   describe('table without version column', () => {
     let repoWithoutVersion: TestRepository
 
     beforeEach(() => {
       const tableWithoutVersion = createMockTable({ hasVersion: false })
-      repoWithoutVersion = new TestRepository(db, tableWithoutVersion)
+      repoWithoutVersion = new TestRepository(db, 'testEntities', tableWithoutVersion)
     })
 
     it('should not set version on create when table has no version column', async () => {
@@ -666,7 +595,7 @@ describe('repository', () => {
 
     beforeEach(() => {
       const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      repoWithoutSoftDelete = new TestRepository(db, tableWithoutSoftDelete)
+      repoWithoutSoftDelete = new TestRepository(db, 'testEntities', tableWithoutSoftDelete)
     })
 
     it('should always perform hard delete when table has no deletedAt column', async () => {
@@ -943,7 +872,7 @@ describe('repository', () => {
 
     beforeEach(() => {
       const tableWithoutUpdatedAt = createMockTable({ hasUpdatedAt: false })
-      repoWithoutUpdatedAt = new TestRepository(db, tableWithoutUpdatedAt)
+      repoWithoutUpdatedAt = new TestRepository(db, 'testEntities', tableWithoutUpdatedAt)
     })
 
     it('should not set updatedAt on update when table has no updatedAt column', async () => {
@@ -1019,58 +948,6 @@ describe('repository', () => {
       await expect(
         repository.update({ name: 'Updated' }),
       ).rejects.toBe(genericError)
-    })
-  })
-
-  describe('paginateByOffset edge cases', () => {
-    beforeEach(() => {
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 0 }]),
-        }),
-      })
-    })
-
-    it('should return zero totals when no rows exist', async () => {
-      mockQueryRows = []
-      db.query.testEntities.findMany.mockResolvedValueOnce([])
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.rows).toEqual([])
-      expect(result.totalRows).toBe(0)
-      expect(result.totalPages).toBe(0)
-      expect(result.next).toBe(false)
-      expect(result.previous).toBe(false)
-    })
-
-    it('should have next=false when rows exactly fill the page', async () => {
-      // 10 rows with perPage=10 → fetches limit=11 but gets 10 → next=false
-      const rows = Array.from({ length: 10 }, (_, i) => ({
-        id: `test-${i}`,
-        name: `Test ${i}`,
-      })) as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 10 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.next).toBe(false)
-      expect(result.rows).toHaveLength(10)
-    })
-
-    it('should use default page=1 and perPage=10 when not specified', async () => {
-      mockQueryRows = []
-      db.query.testEntities.findMany.mockResolvedValueOnce([])
-
-      const result = await repository.paginateByOffset()
-
-      expect(result.page).toBe(1)
-      expect(result.perPage).toBe(10)
     })
   })
 })

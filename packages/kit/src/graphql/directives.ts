@@ -1,4 +1,8 @@
 import type { GraphQLSchema } from 'graphql'
+import { connectionDirective } from './relay/directives/connection'
+import { drizzleDirective } from './relay/directives/drizzle'
+import { globalIdDirective } from './relay/directives/global-id'
+import { relayMutationDirective } from './relay/directives/relay-mutation'
 
 export interface DirectiveDefinition {
   name: string
@@ -6,7 +10,12 @@ export interface DirectiveDefinition {
   transformer: (schema: GraphQLSchema) => GraphQLSchema
 }
 
-const directives: DirectiveDefinition[] = []
+const directives: DirectiveDefinition[] = [
+  connectionDirective,
+  drizzleDirective,
+  globalIdDirective,
+  relayMutationDirective,
+]
 
 export function registerDirective(def: DirectiveDefinition) {
   directives.push(def)
