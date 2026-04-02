@@ -211,7 +211,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
 
   bus.subscribe('#', async (domainEvent) => {
     const appService = await container.make('auth:apps') as AppService
-    const matchedApps = await appService.getActiveAppsByEvent(domainEvent.type)
+    const matchedApps = await appService.findManyByEvent(domainEvent.type)
 
     if (matchedApps.length === 0)
       return
@@ -255,7 +255,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
 
   bus.onPublish(async (domainEvent) => {
     const appService = await container.make('auth:apps') as AppService
-    const matchedApps = await appService.getActiveAppsByEvent(domainEvent.type)
+    const matchedApps = await appService.findManyByEvent(domainEvent.type)
 
     const results: SyncWebhookResponse[] = []
 

@@ -6,7 +6,7 @@ describe('graphql/resolvers', () => {
   })
 
   it('should include base resolvers with Query.node by default', async () => {
-    const { registeredResolvers } = await import('./resolvers')
+    const { registeredResolvers } = await import('.')
     const resolvers = registeredResolvers()
 
     expect(resolvers.length).toBeGreaterThanOrEqual(1)
@@ -18,7 +18,7 @@ describe('graphql/resolvers', () => {
   })
 
   it('should accumulate resolvers via registerResolvers()', async () => {
-    const { registerResolvers, registeredResolvers } = await import('./resolvers')
+    const { registerResolvers, registeredResolvers } = await import('.')
     const before = registeredResolvers().length
 
     const resolver1 = { Query: { hello: () => 'world' } }
@@ -29,7 +29,7 @@ describe('graphql/resolvers', () => {
   })
 
   it('should accumulate multiple registrations', async () => {
-    const { registerResolvers, registeredResolvers } = await import('./resolvers')
+    const { registerResolvers, registeredResolvers } = await import('.')
     const before = registeredResolvers().length
 
     registerResolvers({ Query: { a: () => 1 } })

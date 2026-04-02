@@ -6,7 +6,7 @@ describe('graphql/pubsub', () => {
   })
 
   it('should return a singleton instance', async () => {
-    const { usePubSub } = await import('./pubsub')
+    const { usePubSub } = await import('.')
 
     const a = usePubSub()
     const b = usePubSub()
@@ -15,7 +15,7 @@ describe('graphql/pubsub', () => {
   })
 
   it('should deliver published payloads to subscribers', async () => {
-    const { usePubSub } = await import('./pubsub')
+    const { usePubSub } = await import('.')
     const pubSub = usePubSub()
 
     const received: unknown[] = []
@@ -41,7 +41,7 @@ describe('graphql/pubsub', () => {
   })
 
   it('should isolate channels', async () => {
-    const { usePubSub } = await import('./pubsub')
+    const { usePubSub } = await import('.')
     const pubSub = usePubSub()
 
     const received: unknown[] = []
@@ -66,7 +66,7 @@ describe('graphql/pubsub', () => {
   })
 
   it('should expose publish and subscribe methods', async () => {
-    const { usePubSub } = await import('./pubsub')
+    const { usePubSub } = await import('.')
     const pubSub = usePubSub()
 
     expect(typeof pubSub.publish).toBe('function')

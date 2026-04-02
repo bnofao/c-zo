@@ -8,6 +8,7 @@ registerContextFactory('stockLocation', async () => {
   return {
     stockLocation: {
       service: await container.make('stockLocation:service'),
+      addressService: await container.make('stockLocationAddress:service'),
     },
   }
 })

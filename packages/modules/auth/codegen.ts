@@ -3,8 +3,8 @@ import { defineConfig } from '@eddeee888/gcg-typescript-resolver-files'
 
 const config: CodegenConfig = {
   schema: [
-    '../../kit/src/graphql/filter-types.graphql',
-    '../../kit/src/graphql/relay/relay-types.graphql',
+    '../../kit/src/graphql/schema/filter.graphql',
+    '../../kit/src/graphql/schema/relay.graphql',
     'src/graphql/schema/**/*.graphql',
   ],
   generates: {

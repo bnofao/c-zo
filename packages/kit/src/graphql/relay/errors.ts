@@ -49,3 +49,24 @@ export function toUserErrors(error: unknown): UserError[] {
   const message = error instanceof Error ? error.message : 'An unexpected error occurred'
   return [{ field: null, message, code: ErrorCode.INTERNAL_ERROR }]
 }
+
+export async function withPaylaod<T>(opts: {
+  key: string
+  func: () => T
+}) {
+  const { key, func } = opts
+  try {
+    const result = await func()
+
+    return {
+      [key]: result,
+      userErrors: [],
+    }
+  }
+  catch (error) {
+    return {
+      [key]: null,
+      userErrors: toUserErrors(error),
+    }
+  }
+}

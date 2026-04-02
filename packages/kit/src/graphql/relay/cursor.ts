@@ -1,8 +1,8 @@
-export function encodeCursor(values: Record<string, unknown>): string {
+export function encodeCursor(values: unknown[]): string {
   return btoa(JSON.stringify(values))
 }
 
-export function decodeCursor(cursor: string): Record<string, unknown> {
+export function decodeCursor(cursor: string): unknown[] {
   if (!cursor) {
     throw new Error('Invalid cursor: empty string')
   }
@@ -15,10 +15,17 @@ export function decodeCursor(cursor: string): Record<string, unknown> {
     throw new Error('Invalid cursor: not valid base64')
   }
 
+  let parsed: unknown
   try {
-    return JSON.parse(json) as Record<string, unknown>
+    parsed = JSON.parse(json)
   }
   catch {
     throw new Error('Invalid cursor: not valid JSON')
   }
+
+  if (!Array.isArray(parsed)) {
+    throw new TypeError('Invalid cursor: expected array')
+  }
+
+  return parsed
 }

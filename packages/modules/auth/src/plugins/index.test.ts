@@ -154,6 +154,7 @@ describe('auth plugin', () => {
       Repository: class MockRepository {},
       registerSchema: vi.fn(),
       registerRelations: vi.fn(),
+      registerSeeder: vi.fn(),
     }))
 
     vi.doMock('@czo/kit/ioc', () => ({
@@ -346,7 +347,7 @@ describe('auth plugin', () => {
 
     await boot()
 
-    expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, mockApiKeyService, mockAuthService, expect.any(Set))
+    expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, expect.any(Set))
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apps', expect.any(Function))
   })
 

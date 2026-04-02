@@ -1,7 +1,7 @@
 import type { GraphQLSchema } from 'graphql'
-import type { DirectiveDefinition } from '../../directives'
+import type { DirectiveDefinition } from '..'
 import { getDirective, MapperKind, mapSchema } from '@graphql-tools/utils'
-import { toGlobalId } from '../global-id'
+import { toGlobalId } from '../../relay/global-id'
 
 export const globalIdDirective: DirectiveDefinition = {
   name: 'globalId',

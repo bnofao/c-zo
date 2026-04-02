@@ -28,7 +28,7 @@ import { AUTH_EVENTS } from './types'
 describe('auth event types', () => {
   describe('auth events constants', () => {
     it('should define all 20 routing keys', () => {
-      expect(Object.keys(AUTH_EVENTS)).toHaveLength(28)
+      expect(Object.keys(AUTH_EVENTS)).toHaveLength(27)
     })
 
     it('should use auth.* dot-delimited prefix', () => {
@@ -88,8 +88,7 @@ describe('auth event types', () => {
     it('should have correct routing keys for app events', () => {
       expect(AUTH_EVENTS.APP_INSTALLED).toBe('auth.app.installed')
       expect(AUTH_EVENTS.APP_UNINSTALLED).toBe('auth.app.uninstalled')
-      expect(AUTH_EVENTS.APP_MANIFEST_UPDATED).toBe('auth.app.manifest-updated')
-      expect(AUTH_EVENTS.APP_STATUS_CHANGED).toBe('auth.app.status-changed')
+      expect(AUTH_EVENTS.APP_UPDATED).toBe('auth.app.updated')
     })
   })
 
@@ -393,10 +392,9 @@ describe('auth event types', () => {
         'auth.security.account-deleted',
         'auth.app.installed',
         'auth.app.uninstalled',
-        'auth.app.manifest-updated',
-        'auth.app.status-changed',
+        'auth.app.updated',
       ]
-      expect(types).toHaveLength(28)
+      expect(types).toHaveLength(27)
     })
   })
 })

@@ -4,10 +4,14 @@ import type {
   IndexColumn,
   PgAsyncRelationalQueryHKT,
   PgAsyncTransaction,
+  PgInsertBase,
+  PgInsertHKTBase,
+  PgInsertOnConflictDoUpdateConfig,
   PgInsertValue,
   PgQueryResultHKT,
   PgTable,
   PgUpdateSetSource,
+  SelectedFields,
   SelectedFieldsFlat,
 } from 'drizzle-orm/pg-core'
 import type { RelationalQueryBuilder } from 'drizzle-orm/pg-core/query-builders/query'
@@ -15,11 +19,16 @@ import type { Database } from './manager'
 import { camelCase } from 'change-case'
 import {
   and,
+  exists,
   getColumns,
   isNull,
   isSQLWrapper,
   sql,
+  // relationsFieldFilterToSQL
 } from 'drizzle-orm'
+import {
+  relationsFilterToSQL,
+} from 'drizzle-orm/relations'
 import pg from 'pg'
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -99,10 +108,26 @@ interface BaseQueryConfig<
   includeDeleted?: boolean
 }
 
+export type CreateConfig<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+  TTable extends PgTable,
+  THKT extends PgInsertHKTBase,
+  TQueryResult extends PgQueryResultHKT,
+  TSelectedFields extends SelectedFieldsFlat | undefined,
+> = BaseQueryConfig<TFullSchema, TSchema> & {
+  columns?: TSelectedFields
+  onConflictDoUpdate?: PgInsertOnConflictDoUpdateConfig<PgInsertBase<THKT, TTable, TQueryResult, TSelectedFields>>
+  onConflictDoNothing?: {
+    target?: IndexColumn | IndexColumn[]
+    where?: SQL | ((table: TTable) => SQL)
+  }
+}
+
 /**
  * The find first query builder config (RQBv2).
  */
-type FindFirstQueryConfig<
+export type FindFirstQueryConfig<
   TFullSchema extends Record<string, unknown>,
   TSchema extends TablesRelationalConfig,
   TFields extends TableRelationalConfig,
@@ -112,13 +137,25 @@ type FindFirstQueryConfig<
 /**
  * The find many query builder config (RQBv2).
  */
-type FindManyQueryConfig<
+export type FindManyQueryConfig<
   TFullSchema extends Record<string, unknown>,
   TSchema extends TablesRelationalConfig,
   TFields extends TableRelationalConfig,
   TConfig extends DBQueryConfig<'many', TSchema, TFields>,
 > = BaseQueryConfig<TFullSchema, TSchema> & KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>> & {
   paginate?: boolean
+}
+
+export type UpdateConfig<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+  TFields extends TableRelationalConfig,
+  TConfig extends DBQueryConfig<'many', TSchema, TFields>,
+  TSelectedFields extends SelectedFields,
+> = BaseQueryConfig<TFullSchema, TSchema> & Omit<KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>, 'where' | 'columns'> & {
+  where?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>['where'] | SQL
+  columns?: TSelectedFields | ((table: TFields['table']) => TSelectedFields)
+  expectedVersion?: number
 }
 
 /**
@@ -136,12 +173,33 @@ export type Transaction<
  * Decoupled from drizzle's internal PgInsertOnConflictDoUpdateConfig
  * which now requires the full insert builder type — not just the table.
  */
-interface ConflictDoUpdateConfig {
+export interface ConflictDoUpdateConfig {
   target: IndexColumn | IndexColumn[]
   set: Record<string, unknown>
   where?: SQL
   targetWhere?: SQL
   setWhere?: SQL
+}
+
+export type MethodKeys<T> = {
+  [K in keyof T]: K extends `#${string}` | `before${string}` | `after${string}`
+    ? never
+    : T[K] extends (...args: any[]) => any ? K : never
+}[keyof T]
+
+type RepoArgs<C extends Repository<any, any, any, any>>
+  = C extends Repository<infer T, infer R, any, any>
+    ? [db: Database<T, R>, ...args: any[]]
+    : any[]
+
+export type ServiceOf<
+  C extends Repository<any, any, any, any>,
+  E extends MethodKeys<C> = never,
+  _M extends Partial<Record<MethodKeys<C>, string>> = object,
+> = {
+  [K in Exclude<MethodKeys<C>, E> as K extends keyof _M
+    ? (_M[K] extends string ? _M[K] : K)
+    : K]: C[K]
 }
 
 // ─── Internal utility types ───────────────────────────────────────────
@@ -183,10 +241,7 @@ export abstract class Repository<
   T extends Record<string, unknown> = Record<string, never>,
   R extends AnyRelations = EmptyRelations,
   U extends PgTable = PgTable,
-  M extends keyof R = string,
-  // V is kept for backward compatibility with subclasses (e.g. AppRepository<AppSchema, typeof apps, 'apps'>)
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  V extends string = string,
+  M extends keyof R = any,
 > {
   /**
    * The DB instance.
@@ -196,17 +251,27 @@ export abstract class Repository<
   /**
    * The DB table.
    */
-  table: U
+  // table: U
 
   /**
    * The DB model name (camelCased table name for RQBv2 `db.query[modelName]`).
    */
-  #modelName!: M
+  // #modelName!: M
 
-  constructor(db: Database<T, R>, model: M, table?: U) {
+  constructor(db: Database<T, R>) {
     this.db = db
-    this.table = (table ?? db._.schema?.[model]) as unknown as U
-    this.#modelName = model
+    // this.table = (table ?? (db._.relations as R)[model]?.table) as unknown as U
+    // this.#modelName = model
+  }
+
+  abstract get model(): M
+
+  get table(): U {
+    const table = (this.db._.relations as R)[this.model]?.table
+    if (!table) {
+      throw new Error(`Table for model "${String(this.model)}" not found in database relations`)
+    }
+    return table as unknown as U
   }
 
   /**
@@ -215,7 +280,7 @@ export abstract class Repository<
    */
   #queryApi(db: Database<T, R> | Transaction<T, R>) {
     const queryObj = db.query as { [K in M]: RelationalQueryBuilder<R, R[K], PgAsyncRelationalQueryHKT> }
-    return queryObj[this.#modelName]
+    return queryObj[this.model]
   }
 
   get columns() {
@@ -296,43 +361,51 @@ export abstract class Repository<
 
   // ─── Create ─────────────────────────────────────────────────────────
 
-  async create<TSelectedFields extends SelectedFieldsFlat>(
-    value: PgInsertValue<U>,
-    opts: {
-      columns: TSelectedFields
-      onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
-      onConflictDoUpdate?: ConflictDoUpdateConfig
-      tx?: Transaction<T, R>
-    },
-  ): Promise<SelectResultFields<TSelectedFields> | null>
-  async create(
-    value: PgInsertValue<U>,
-    opts?: {
-      onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
-      onConflictDoUpdate?: ConflictDoUpdateConfig
-      tx?: Transaction<T, R>
-    },
-  ): Promise<InferSelectModel<U> | null>
-  async create(
-    value: PgInsertValue<U>,
-    opts?: {
+  // async create<TSelectedFields extends SelectedFieldsFlat>(
+  //   value: PgInsertValue<U>,
+  //   opts: {
+  //     columns: TSelectedFields
+  //     onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
+  //     onConflictDoUpdate?: ConflictDoUpdateConfig
+  //     tx?: Transaction<T, R>
+  //   },
+  // ): Promise<SelectResultFields<TSelectedFields> | null>
+  // async create(
+  //   value: PgInsertValue<U>,
+  //   opts?: {
+  //     onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
+  //     onConflictDoUpdate?: ConflictDoUpdateConfig
+  //     tx?: Transaction<T, R>
+  //   },
+  // ): Promise<InferSelectModel<U> | null>
+  async create<TSelectedFields extends SelectedFieldsFlat | undefined>(
+    value: PgInsertValue<U> | PgInsertValue<U>[],
+    opts?: /* {
       columns?: SelectedFieldsFlat
       onConflictDoNothing?: { target?: IndexColumn | IndexColumn[] }
       onConflictDoUpdate?: ConflictDoUpdateConfig
       tx?: Transaction<T, R>
-    },
-  ): Promise<unknown> {
+    }, */ CreateConfig<T, R, U, PgInsertHKTBase, PgQueryResultHKT, TSelectedFields>,
+  ): Promise<TSelectedFields extends undefined ? InferSelectModel<U>[] : SelectResultFields<TSelectedFields>[]> {
+    const values = Array.isArray(value) ? value : [value]
     try {
-      await this.beforeCreate(value)
-
-      // Set initial version for new records if table has version column
-      const createValue = {
-        ...value,
-        ...(this.#hasColumn('version') ? { version: 1 } : {}),
-      }
       let rows
 
-      const qb = (opts?.tx || this.db).insert(this.table).values(createValue)
+      const qb = (opts?.tx || this.db).insert(this.table).values(
+        await Promise.all(
+          values
+            .map((value) => {
+              return async () => {
+                await this.beforeCreate(value)
+                return {
+                  ...value,
+                  ...(this.#hasColumn('version') ? { version: 1 } : {}),
+                }
+              }
+            })
+            .map(v => v()),
+        ),
+      ).$dynamic()
 
       if (opts?.onConflictDoUpdate) {
         const conflictConfig = {
@@ -351,23 +424,23 @@ export abstract class Repository<
         ;(qb as unknown as { onConflictDoUpdate: (c: ConflictDoUpdateConfig) => void }).onConflictDoUpdate(conflictConfig)
       }
       else if (opts?.onConflictDoNothing) {
-        qb.onConflictDoNothing(opts.onConflictDoNothing)
+        // TODO: qb.onConflictDoNothing() returns a new builder — assign result back to qb
+        qb.onConflictDoNothing({
+          ...opts.onConflictDoNothing,
+          where: typeof opts.onConflictDoNothing.where === 'function' ? opts.onConflictDoNothing.where(this.table) : opts.onConflictDoNothing.where,
+        })
       }
 
-      if (opts && 'columns' in opts) {
+      if (opts?.columns) {
         rows = await qb.returning(opts.columns as SelectedFieldsFlat) as unknown as InferSelectModel<U>[]
       }
       else {
         rows = await qb.returning() as unknown as InferSelectModel<U>[]
       }
 
-      if (rows.length < 1) {
-        return null
-      }
+      await Promise.all(rows.map(async row => this.afterCreate(row)))
 
-      await this.afterCreate(rows[0]!)
-
-      return rows[0]
+      return rows as any
     }
     catch (err) {
       throw this.#toDatabaseError(err)
@@ -376,58 +449,58 @@ export abstract class Repository<
 
   // ─── Create Many ────────────────────────────────────────────────────
 
-  async createMany<TSelectedFields extends SelectedFieldsFlat>(
-    value: PgInsertValue<U>[],
-    opts: {
-      columns: TSelectedFields
-      tx?: Transaction
-    },
-  ): Promise<SelectResultFields<TSelectedFields>[]>
-  async createMany(
-    value: PgInsertValue<U>[],
-    opts?: { tx?: Transaction },
-  ): Promise<InferSelectModel<U>[]>
-  async createMany<TSelectedFields extends SelectedFieldsFlat>(
-    values: PgInsertValue<U>[],
-    opts?: {
-      columns?: TSelectedFields
-      tx?: Transaction
-    },
-  ) {
-    try {
-      let rows
-      const qb = (opts?.tx || this.db).insert(this.table).values(
-        await Promise.all(
-          values
-            .map((value) => {
-              return async () => {
-                await this.beforeCreate(value)
-                return value
-              }
-            })
-            .map(v => v()),
-        ),
-      )
+  // async createMany<TSelectedFields extends SelectedFieldsFlat>(
+  //   value: PgInsertValue<U>[],
+  //   opts: {
+  //     columns: TSelectedFields
+  //     tx?: Transaction
+  //   },
+  // ): Promise<SelectResultFields<TSelectedFields>[]>
+  // async createMany(
+  //   value: PgInsertValue<U>[],
+  //   opts?: { tx?: Transaction },
+  // ): Promise<InferSelectModel<U>[]>
+  // async createMany<TSelectedFields extends SelectedFieldsFlat>(
+  //   values: PgInsertValue<U>[],
+  //   opts?: {
+  //     columns?: TSelectedFields
+  //     tx?: Transaction
+  //   },
+  // ) {
+  //   try {
+  //     let rows
+  //     const qb = (opts?.tx || this.db).insert(this.table).values(
+  //       await Promise.all(
+  //         values
+  //           .map((value) => {
+  //             return async () => {
+  //               await this.beforeCreate(value)
+  //               return value
+  //             }
+  //           })
+  //           .map(v => v()),
+  //       ),
+  //     )
 
-      if (opts?.columns) {
-        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
-      }
-      else {
-        rows = await qb.returning() as unknown as InferSelectModel<U>[]
-      }
+  //     if (opts?.columns) {
+  //       rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
+  //     }
+  //     else {
+  //       rows = await qb.returning() as unknown as InferSelectModel<U>[]
+  //     }
 
-      if (rows.length < 1) {
-        return []
-      }
+  //     if (rows.length < 1) {
+  //       return []
+  //     }
 
-      await Promise.all(rows.map(async row => this.afterCreate(row)))
+  //     await Promise.all(rows.map(async row => this.afterCreate(row)))
 
-      return rows
-    }
-    catch (err) {
-      throw this.#toDatabaseError(err)
-    }
-  }
+  //     return rows
+  //   }
+  //   catch (err) {
+  //     throw this.#toDatabaseError(err)
+  //   }
+  // }
 
   // ─── Delete ─────────────────────────────────────────────────────────
 
@@ -590,36 +663,137 @@ export abstract class Repository<
     return rows
   }
 
+  // ─── Count ──────────────────────────────────────────────────────────
+
+  /**
+   * Return the count of records matching the optional where clause.
+   * Uses a raw `SELECT COUNT(*)` query for performance.
+   */
+  async count(opts?: {
+    where?: SQL<unknown> | Record<string, unknown>
+    tx?: Transaction<T, R>
+    includeDeleted?: boolean
+  }): Promise<number> {
+    const qb = opts?.tx || this.db
+
+    const conditions: (SQL<unknown> | undefined)[] = []
+
+    if (opts?.where) {
+      if (isSQLWrapper(opts.where)) {
+        conditions.push(opts.where as SQL<unknown>)
+      }
+      else {
+        // RQBv2 object-style where → convert to SQL via relationsFilterToSQL
+        const filterSql = relationsFilterToSQL(this.table, opts.where as any)
+        if (filterSql) {
+          conditions.push(filterSql)
+        }
+      }
+    }
+
+    const hasDeletedAt = this.#hasColumn('deletedAt')
+    if (hasDeletedAt && !opts?.includeDeleted) {
+      const deletedAtCol = getColumnByName(this.table, 'deletedAt')
+      if (deletedAtCol) {
+        conditions.push(isNull(deletedAtCol))
+      }
+    }
+
+    const whereClause = conditions.length > 0
+      ? and(...conditions.filter(Boolean) as SQL<unknown>[])
+      : undefined
+
+    return await qb.$count(this.table, whereClause)
+  }
+
+  // ─── Exists ──────────────────────────────────────────────────────────
+
+  /**
+   * Return the count of records matching the optional where clause.
+   * Uses a raw `SELECT COUNT(*)` query for performance.
+   */
+  async exists(opts?: {
+    where?: SQL<unknown> | Record<string, unknown>
+    tx?: Transaction<T, R>
+    includeDeleted?: boolean
+  }): Promise<boolean> {
+    const qb = opts?.tx || this.db
+
+    const conditions: (SQL<unknown> | undefined)[] = []
+
+    if (opts?.where) {
+      if (isSQLWrapper(opts.where)) {
+        conditions.push(opts.where as SQL<unknown>)
+      }
+      else {
+        // RQBv2 object-style where → convert to SQL via relationsFilterToSQL
+        const filterSql = relationsFilterToSQL(this.table, opts.where as any)
+        if (filterSql) {
+          conditions.push(filterSql)
+        }
+      }
+    }
+
+    const hasDeletedAt = this.#hasColumn('deletedAt')
+    if (hasDeletedAt && !opts?.includeDeleted) {
+      const deletedAtCol = getColumnByName(this.table, 'deletedAt')
+      if (deletedAtCol) {
+        conditions.push(isNull(deletedAtCol))
+      }
+    }
+
+    const whereClause = conditions.length > 0
+      ? and(...conditions.filter(Boolean) as SQL<unknown>[])
+      : undefined
+
+    const result = await qb
+      .select({
+        exists: exists(
+          qb.select().from(this.table as PgTable).where(whereClause),
+        ),
+      })
+      .from(this.table as PgTable)
+      .limit(1)
+
+    return !!result[0]?.exists
+  }
+
   // ─── Update ─────────────────────────────────────────────────────────
 
-  async update<TSelectedFields extends SelectedFieldsFlat>(
+  // async update<TSelectedFields extends SelectedFieldsFlat>(
+  //   value: PgUpdateSetSource<U>,
+  //   opts: {
+  //     columns: TSelectedFields
+  //     where?: SQL<unknown>
+  //     tx?: Transaction<T, R>
+  //     expectedVersion?: number
+  //   },
+  // ): Promise<SelectResultFields<TSelectedFields>[]>
+  // async update(
+  //   value: PgUpdateSetSource<U>,
+  //   opts?: {
+  //     where?: SQL<unknown>
+  //     tx?: Transaction<T, R>
+  //     expectedVersion?: number
+  //   },
+  // ): Promise<InferSelectModel<U>[]>
+  async update<TSelectedFields extends SelectedFields>(
     value: PgUpdateSetSource<U>,
-    opts: {
-      columns: TSelectedFields
-      where?: SQL<unknown>
-      tx?: Transaction<T, R>
-      expectedVersion?: number
-    },
-  ): Promise<SelectResultFields<TSelectedFields>[]>
-  async update(
-    value: PgUpdateSetSource<U>,
-    opts?: {
-      where?: SQL<unknown>
-      tx?: Transaction<T, R>
-      expectedVersion?: number
-    },
-  ): Promise<InferSelectModel<U>[]>
-  async update<TSelectedFields extends SelectedFieldsFlat>(
-    value: PgUpdateSetSource<U>,
-    opts?: {
+    opts?: /* {
       columns?: TSelectedFields
       where?: SQL<unknown>
       tx?: Transaction<T, R>
       expectedVersion?: number
-    },
+    } */ UpdateConfig<T, R, R[M], DBQueryConfig<'many', R, R[M]>, TSelectedFields>,
   ) {
     try {
-      let where: SQL<unknown> | undefined = opts?.where
+      let where: SQL<unknown> | undefined
+
+      if (isSQLWrapper(opts?.where))
+        where = opts.where as any
+      else if (opts?.where)
+        where = relationsFilterToSQL(this.table, opts.where as any)
+
       let rows
       const originalWhere = where
 
@@ -651,8 +825,10 @@ export abstract class Repository<
         .set(updateValues as PgUpdateSetSource<U>)
         .where(where)
 
-      if (opts?.columns) {
-        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
+      const columns = typeof opts?.columns === 'function' ? opts.columns(this.table) : opts?.columns
+
+      if (columns) {
+        rows = await qb.returning(columns) as unknown as InferSelectModel<U>[]
       }
       else {
         rows = await qb.returning() as unknown as InferSelectModel<U>[]
@@ -686,5 +862,52 @@ export abstract class Repository<
       }
       throw this.#toDatabaseError(err)
     }
+  }
+
+  static buildService<
+    C extends Repository<any, any, any, any> = Repository<any, any, any, any>,
+    E extends MethodKeys<C> = never,
+    _M extends Partial<Record<MethodKeys<C>, string>> = object,
+  >(
+    this: new (...args: any[]) => C,
+    args: RepoArgs<C>,
+    config: {
+      mapping?: _M
+      exclude?: E[]
+    } = {},
+  ): ServiceOf<C, E, _M> {
+    const instance = (new this(...args)) as any
+    const { mapping, exclude = [] } = config
+    const result = {} as ServiceOf<C, E, _M>
+
+    // Walk the prototype chain to collect methods from both the subclass and Repository
+    const methodNames: string[] = []
+    const seen = new Set<string>()
+    let proto = Object.getPrototypeOf(instance)
+    while (proto && proto !== Object.prototype) {
+      for (const name of Object.getOwnPropertyNames(proto)) {
+        if (seen.has(name))
+          continue
+        seen.add(name)
+
+        const isFunction = typeof instance[name] === 'function'
+        const isConstructor = name === 'constructor'
+        const isHook = name.startsWith('before') || name.startsWith('after')
+        const isPrivate = name.startsWith('_') || name.startsWith('#')
+        const isExplicitlyExcluded = exclude.includes(name as any)
+
+        if (isFunction && !isConstructor && !isHook && !isPrivate && !isExplicitlyExcluded) {
+          methodNames.push(name)
+        }
+      }
+      proto = Object.getPrototypeOf(proto)
+    }
+
+    methodNames.forEach((name) => {
+      const finalKey = (mapping as any)?.[name] || name
+      ;(result as any)[finalKey] = (instance)[name].bind(instance)
+    })
+
+    return result
   }
 }

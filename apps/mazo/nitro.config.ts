@@ -7,7 +7,9 @@ export default defineNitroConfig({
 
   experimental: {
     openAPI: true,
+    tasks: true,
   },
+
   openAPI: {
     meta: {
       title: 'c-zo API',

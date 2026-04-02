@@ -1,42 +1,51 @@
-type StockLocation {
+type StockLocation implements Node {
   id: ID!
   organizationId: ID!
   handle: String!
   name: String!
   isDefault: Boolean!
   isActive: Boolean!
-  metadata: JSON
+  metadata: JSONObject
   address: StockLocationAddress
   createdAt: DateTime!
   updatedAt: DateTime!
 }
 
-type StockLocationAddress {
+type StockLocationAddress implements Node {
   id: ID!
   addressLine1: String!
   addressLine2: String
   city: String!
   province: String
   postalCode: String
-  countryCode: String!
-  phone: String
+  countryCode: CountryCode!
+  phone: PhoneNumber
 }
 
-input CreateStockLocationInput {
-  name: String!
-  handle: String
-  organizationId: ID!
+input CreateStockLocationAddressInput {
   addressLine1: String!
   addressLine2: String
   city: String!
   province: String
   postalCode: String
-  countryCode: String!
-  phone: String
-  metadata: JSON
+  countryCode: CountryCode!
+  phone: PhoneNumber
+}
+
+input CreateStockLocationInput {
+  name: String!
+  handle: String
+  organization: ID!
+  address: CreateStockLocationAddressInput
+  metadata: JSONObject
+}
+
+type CreateStockLocationPayload {
+  app: StockLocation
+  userErrors: [UserError!]!
 }
 
 extend type Mutation {
-  createStockLocation(input: CreateStockLocationInput!): StockLocation!
+  createStockLocation(input: CreateStockLocationInput!): CreateStockLocationPayload!
     @permission(resource: "stock-location", action: "create")
 }

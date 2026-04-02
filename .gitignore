@@ -24,6 +24,7 @@ coverage
 
 # Build Outputs
 .next/
+.docusaurus/
 out/
 build
 dist
@@ -38,6 +39,9 @@ logs
 .DS_Store
 *.pem
 .cache
+.claude
+!.claude/rules/
+!.claude/manager.local.md
 .idea
 .superpowers
 *.tgz

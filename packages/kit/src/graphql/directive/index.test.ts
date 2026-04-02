@@ -1,9 +1,9 @@
 import type { GraphQLSchema } from 'graphql'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The directives module pre-registers 3 Relay directives (connection, globalId, relayMutation)
+// The directives module pre-registers Relay directives (drizzle, globalId, relayMutation)
 // at module-load time. All tests account for this base state.
-const RELAY_DIRECTIVE_COUNT = 4
+const RELAY_DIRECTIVE_COUNT = 3
 
 describe('graphql/directives', () => {
   beforeEach(() => {
@@ -11,12 +11,12 @@ describe('graphql/directives', () => {
   })
 
   it('should start with Relay directives pre-registered', async () => {
-    const { registeredDirectives } = await import('./directives')
+    const { registeredDirectives } = await import('.')
     expect(registeredDirectives()).toHaveLength(RELAY_DIRECTIVE_COUNT)
   })
 
   it('should accumulate directives via registerDirective()', async () => {
-    const { registerDirective, registeredDirectives } = await import('./directives')
+    const { registerDirective, registeredDirectives } = await import('.')
 
     registerDirective({
       name: 'auth',
@@ -29,7 +29,7 @@ describe('graphql/directives', () => {
   })
 
   it('should accumulate multiple registrations', async () => {
-    const { registerDirective, registeredDirectives } = await import('./directives')
+    const { registerDirective, registeredDirectives } = await import('.')
 
     registerDirective({
       name: 'auth',
@@ -46,7 +46,7 @@ describe('graphql/directives', () => {
   })
 
   it('should return SDL strings via registeredDirectiveTypeDefs()', async () => {
-    const { registerDirective, registeredDirectiveTypeDefs } = await import('./directives')
+    const { registerDirective, registeredDirectiveTypeDefs } = await import('.')
 
     registerDirective({
       name: 'auth',
@@ -61,7 +61,7 @@ describe('graphql/directives', () => {
   })
 
   it('should chain all transformers via applyDirectives()', async () => {
-    const { registerDirective, applyDirectives } = await import('./directives')
+    const { registerDirective, applyDirectives } = await import('.')
 
     const calls: string[] = []
 

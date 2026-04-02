@@ -3,7 +3,8 @@ import { createYoga } from 'graphql-yoga'
 import { fromNodeHandler } from 'nitro/h3'
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
 import { makeExecutableSchema } from '@graphql-tools/schema'
-import { registeredTypeDefs, registeredResolvers, registeredDirectiveTypeDefs, applyDirectives, buildGraphQLContext } from '@czo/kit/graphql'
+import { useGraphQLMiddleware } from '@envelop/graphql-middleware'
+import { registeredTypeDefs, registeredResolvers, registeredDirectiveTypeDefs, applyDirectives, registeredMiddlewares, buildGraphQLContext } from '@czo/kit/graphql'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -15,6 +16,9 @@ schema = applyDirectives(schema)
 
 const yoga = createYoga({
   schema,
+  plugins: [
+    useGraphQLMiddleware(registeredMiddlewares()),
+  ],
   ...(!isDev && {
     validationRules: [NoSchemaIntrospectionCustomRule],
   }),

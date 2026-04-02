@@ -65,12 +65,20 @@ import    { updateUser as Mutation_updateUser } from './../schema/user/resolvers
 import    { verifyBackupCode as Mutation_verifyBackupCode } from './../schema/two-factor/resolvers/Mutation/verifyBackupCode';
 import    { verifyOtp as Mutation_verifyOtp } from './../schema/two-factor/resolvers/Mutation/verifyOtp';
 import    { verifyTotp as Mutation_verifyTotp } from './../schema/two-factor/resolvers/Mutation/verifyTotp';
-import    { DateTimeResolver,EmailAddressResolver,JSONResolver } from 'graphql-scalars';
+import    { App } from './../schema/app/resolvers/App';
+import    { AppConnection } from './../schema/app/resolvers/AppConnection';
+import    { AppOrderField } from './../schema/app/resolvers/AppOrderField';
+import    { DateResolver,DateTimeResolver,EmailAddressResolver,JSONResolver,TimeResolver } from 'graphql-scalars';
     export const resolvers: Resolvers = {
       Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,appBySlug: Query_appBySlug,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users },
       Mutation: { acceptInvitation: Mutation_acceptInvitation,banUser: Mutation_banUser,cancelInvitation: Mutation_cancelInvitation,changeEmail: Mutation_changeEmail,changePassword: Mutation_changePassword,createApiKey: Mutation_createApiKey,createOrganization: Mutation_createOrganization,createUser: Mutation_createUser,deleteAccount: Mutation_deleteAccount,deleteApiKey: Mutation_deleteApiKey,deleteOrganization: Mutation_deleteOrganization,disableTwoFactor: Mutation_disableTwoFactor,enableTwoFactor: Mutation_enableTwoFactor,generateBackupCodes: Mutation_generateBackupCodes,impersonateUser: Mutation_impersonateUser,installApp: Mutation_installApp,inviteMember: Mutation_inviteMember,leaveOrganization: Mutation_leaveOrganization,rejectInvitation: Mutation_rejectInvitation,removeMember: Mutation_removeMember,removeUser: Mutation_removeUser,revokeMySession: Mutation_revokeMySession,revokeOtherSessions: Mutation_revokeOtherSessions,revokeSession: Mutation_revokeSession,revokeSessions: Mutation_revokeSessions,sendOtp: Mutation_sendOtp,setActiveOrganization: Mutation_setActiveOrganization,setAppStatus: Mutation_setAppStatus,setRole: Mutation_setRole,setUserPassword: Mutation_setUserPassword,stopImpersonation: Mutation_stopImpersonation,unbanUser: Mutation_unbanUser,uninstallApp: Mutation_uninstallApp,unlinkAccount: Mutation_unlinkAccount,updateApiKey: Mutation_updateApiKey,updateAppManifest: Mutation_updateAppManifest,updateMemberRole: Mutation_updateMemberRole,updateOrganization: Mutation_updateOrganization,updateProfile: Mutation_updateProfile,updateUser: Mutation_updateUser,verifyBackupCode: Mutation_verifyBackupCode,verifyOtp: Mutation_verifyOtp,verifyTotp: Mutation_verifyTotp },
       
-      DateTime: DateTimeResolver,
+      App: App,
+AppConnection: AppConnection,
+AppOrderField: AppOrderField,
+Date: DateResolver,
+DateTime: DateTimeResolver,
 EmailAddress: EmailAddressResolver,
-JSON: JSONResolver
+JSON: JSONResolver,
+Time: TimeResolver
     }

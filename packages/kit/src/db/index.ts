@@ -23,3 +23,7 @@ export * from './repository'
 // Schema registry for dynamic module schema registration
 export { registeredRelations, registeredSchemas, registerRelations, registerSchema } from './schema-registry'
 export type { RelationsEntry, RelationsFactory, SchemaRegistry } from './schema-registry'
+
+// Seeder registry for module-level database seeding
+export { registeredSeeders, registerSeeder, runSeeder } from './seeder'
+export type { RunSeederOptions, SeederConfig } from './seeder'

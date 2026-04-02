@@ -3,16 +3,16 @@ import { decodeCursor, encodeCursor } from './cursor'
 
 describe('encodeCursor', () => {
   it('should encode values as base64 JSON', () => {
-    const cursor = encodeCursor({ createdAt: '2026-01-01', id: 'abc' })
+    const cursor = encodeCursor(['2026-01-01', 'abc'])
     const decoded = JSON.parse(atob(cursor))
-    expect(decoded).toEqual({ createdAt: '2026-01-01', id: 'abc' })
+    expect(decoded).toEqual(['2026-01-01', 'abc'])
   })
 })
 
 describe('decodeCursor', () => {
   it('should decode a valid cursor', () => {
-    const cursor = btoa(JSON.stringify({ createdAt: '2026-01-01', id: 'abc' }))
-    expect(decodeCursor(cursor)).toEqual({ createdAt: '2026-01-01', id: 'abc' })
+    const cursor = btoa(JSON.stringify(['2026-01-01', 'abc']))
+    expect(decodeCursor(cursor)).toEqual(['2026-01-01', 'abc'])
   })
 
   it('should throw on invalid base64', () => {
@@ -28,7 +28,11 @@ describe('decodeCursor', () => {
   })
 
   it('should handle numeric values', () => {
-    const cursor = btoa(JSON.stringify({ price: 19.99, id: 'x' }))
-    expect(decodeCursor(cursor)).toEqual({ price: 19.99, id: 'x' })
+    const cursor = btoa(JSON.stringify([19.99, 'x']))
+    expect(decodeCursor(cursor)).toEqual([19.99, 'x'])
+  })
+
+  it('should throw on non-array input', () => {
+    expect(() => decodeCursor(btoa(JSON.stringify({ id: 'x' })))).toThrow()
   })
 })

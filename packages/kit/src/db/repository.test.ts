@@ -66,7 +66,8 @@ let mockUpdateResult: any[] = []
 let mockDeleteResult: any[] = []
 
 // Create a mock SQL where clause object (simulates drizzle SQL object)
-const createMockWhere = () => ({ queryChunks: ['mock', 'where'] } as any)
+// isSQLWrapper checks for a `getSQL` method, so we must provide it.
+const createMockWhere = () => ({ queryChunks: ['mock', 'where'], getSQL: () => ({ queryChunks: ['mock', 'where'] }) } as any)
 
 // Create a thenable (Promise-like) chain that resolves to the result
 function createThenableChain(getResult: () => any[]) {
@@ -81,6 +82,7 @@ function createThenableChain(getResult: () => any[]) {
 
   const chain: any = {
     values: vi.fn().mockReturnThis(),
+    $dynamic: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     returning: vi.fn().mockImplementation(() => makeThenable()),
@@ -101,7 +103,14 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...mockQueryRows]),
   }
 
+  const table = createMockTable()
+
   const db = {
+    _: {
+      relations: {
+        testEntities: { table },
+      },
+    },
     query: {
       testEntities: mockQueryBuilder,
     },
@@ -134,6 +143,10 @@ class TestRepository extends Repository<
   public afterUpdateCalls: any[] = []
   public afterDeleteCalls: any[] = []
   public afterFindCalls: any[] = []
+
+  get model() {
+    return 'testEntities' as const
+  }
 
   async beforeCreate(row: any) {
     this.beforeCreateCalls.push(row)
@@ -172,7 +185,6 @@ class TestRepository extends Repository<
 
 describe('repository', () => {
   let db: ReturnType<typeof createMockDb>
-  let table: PgTableWithColumns<any>
   let repository: TestRepository
 
   beforeEach(() => {
@@ -183,8 +195,7 @@ describe('repository', () => {
     mockDeleteResult = []
 
     db = createMockDb()
-    table = createMockTable()
-    repository = new TestRepository(db, 'testEntities', table)
+    repository = new TestRepository(db)
     repository.resetHookCalls()
   })
 
@@ -237,8 +248,8 @@ describe('repository', () => {
 
       const result = await repository.create(inputValue)
 
-      expect(result).toEqual(expectedRow)
-      expect(db.insert).toHaveBeenCalledWith(table)
+      expect(result).toEqual([expectedRow])
+      expect(db.insert).toHaveBeenCalledWith(repository.table)
     })
 
     it('should call beforeCreate hook before inserting', async () => {
@@ -262,12 +273,12 @@ describe('repository', () => {
       expect(repository.afterCreateCalls[0]).toEqual(insertedRow)
     })
 
-    it('should return null when no row is inserted', async () => {
+    it('should return empty array when no row is inserted', async () => {
       mockInsertResult = []
 
       const result = await repository.create({ id: 'test-1', name: 'Test' })
 
-      expect(result).toBeNull()
+      expect(result).toEqual([])
     })
   })
 
@@ -445,8 +456,9 @@ describe('repository', () => {
     })
 
     it('should throw error when table does not have deletedAt column', async () => {
-      const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      const repoWithoutSoftDelete = new TestRepository(db, 'testEntities', tableWithoutSoftDelete)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasDeletedAt: false })
+      const repoWithoutSoftDelete = new TestRepository(customDb)
 
       await expect(
         repoWithoutSoftDelete.restore({
@@ -563,8 +575,9 @@ describe('repository', () => {
     let repoWithoutVersion: TestRepository
 
     beforeEach(() => {
-      const tableWithoutVersion = createMockTable({ hasVersion: false })
-      repoWithoutVersion = new TestRepository(db, 'testEntities', tableWithoutVersion)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasVersion: false })
+      repoWithoutVersion = new TestRepository(customDb)
     })
 
     it('should not set version on create when table has no version column', async () => {
@@ -574,7 +587,7 @@ describe('repository', () => {
       const result = await repoWithoutVersion.create(inputValue)
 
       expect(result).toBeDefined()
-      expect((result as any).version).toBeUndefined()
+      expect((result as any)[0]?.version).toBeUndefined()
     })
 
     it('should not throw OptimisticLockError when table has no version column', async () => {
@@ -592,10 +605,12 @@ describe('repository', () => {
 
   describe('table without soft delete', () => {
     let repoWithoutSoftDelete: TestRepository
+    let dbWithoutSoftDelete: ReturnType<typeof createMockDb>
 
     beforeEach(() => {
-      const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      repoWithoutSoftDelete = new TestRepository(db, 'testEntities', tableWithoutSoftDelete)
+      dbWithoutSoftDelete = createMockDb()
+      dbWithoutSoftDelete._.relations.testEntities.table = createMockTable({ hasDeletedAt: false })
+      repoWithoutSoftDelete = new TestRepository(dbWithoutSoftDelete)
     })
 
     it('should always perform hard delete when table has no deletedAt column', async () => {
@@ -609,7 +624,7 @@ describe('repository', () => {
         soft: true, // This should be ignored
       })
 
-      expect(db.delete).toHaveBeenCalled()
+      expect(dbWithoutSoftDelete.delete).toHaveBeenCalled()
     })
 
     it('should not filter by deletedAt in findMany when table has no deletedAt column', async () => {
@@ -625,46 +640,8 @@ describe('repository', () => {
     })
   })
 
-  describe('createMany()', () => {
-    it('should call beforeCreate for each row', async () => {
-      const values = [
-        { id: 'test-1', name: 'Test 1' },
-        { id: 'test-2', name: 'Test 2' },
-      ]
-      mockInsertResult = [
-        { id: 'test-1', name: 'Test 1', version: 1 },
-        { id: 'test-2', name: 'Test 2', version: 1 },
-      ]
-
-      await repository.createMany(values)
-
-      expect(repository.beforeCreateCalls).toHaveLength(2)
-    })
-
-    it('should call afterCreate for each inserted row', async () => {
-      const insertedRows = [
-        { id: 'test-1', name: 'Test 1', version: 1 },
-        { id: 'test-2', name: 'Test 2', version: 1 },
-      ]
-      mockInsertResult = insertedRows
-
-      await repository.createMany([
-        { id: 'test-1', name: 'Test 1' },
-        { id: 'test-2', name: 'Test 2' },
-      ])
-
-      expect(repository.afterCreateCalls).toHaveLength(2)
-      expect(repository.afterCreateCalls).toEqual(insertedRows)
-    })
-
-    it('should return empty array when no rows are inserted', async () => {
-      mockInsertResult = []
-
-      const result = await repository.createMany([{ id: 'test-1', name: 'Test' }])
-
-      expect(result).toEqual([])
-    })
-  })
+  // TODO: createMany() no longer exists on the Repository class
+  // describe('createMany()', () => { ... })
 
   describe('hooks lifecycle', () => {
     it('should call hooks in correct order for create', async () => {
@@ -798,12 +775,12 @@ describe('repository', () => {
 
       const result = await repository.create(inputValue, {
         onConflictDoUpdate: {
-          target: table.id,
+          target: repository.table.id,
           set: { name: 'Updated' },
         },
       })
 
-      expect(result).toEqual(expectedRow)
+      expect(result).toEqual([expectedRow])
     })
 
     it('should handle onConflictDoNothing option in create', async () => {
@@ -814,7 +791,7 @@ describe('repository', () => {
         onConflictDoNothing: {},
       })
 
-      expect(result).toBeNull()
+      expect(result).toEqual([])
     })
 
     it('should handle columns option in update', async () => {
@@ -871,8 +848,9 @@ describe('repository', () => {
     let repoWithoutUpdatedAt: TestRepository
 
     beforeEach(() => {
-      const tableWithoutUpdatedAt = createMockTable({ hasUpdatedAt: false })
-      repoWithoutUpdatedAt = new TestRepository(db, 'testEntities', tableWithoutUpdatedAt)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasUpdatedAt: false })
+      repoWithoutUpdatedAt = new TestRepository(customDb)
     })
 
     it('should not set updatedAt on update when table has no updatedAt column', async () => {

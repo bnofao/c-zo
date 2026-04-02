@@ -1,4 +1,4 @@
-import { resolveNode } from './relay'
+import { resolveNode } from '../relay'
 
 type Resolver<T> = {
   [K in keyof T]: Resolver<T[K]>

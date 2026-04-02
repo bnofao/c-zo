@@ -175,14 +175,10 @@ export interface AuthAppUninstalledPayload {
   appId: string
 }
 
-export interface AuthAppManifestUpdatedPayload {
+export interface AuthAppUpdatedPayload {
   appId: string
   /** New manifest version string */
   version: string
-}
-
-export interface AuthAppStatusChangedPayload {
-  appId: string
   status: string
 }
 
@@ -215,8 +211,7 @@ export const AUTH_EVENTS = {
   ACCOUNT_DELETED: 'auth.security.account-deleted',
   APP_INSTALLED: 'auth.app.installed',
   APP_UNINSTALLED: 'auth.app.uninstalled',
-  APP_MANIFEST_UPDATED: 'auth.app.manifest-updated',
-  APP_STATUS_CHANGED: 'auth.app.status-changed',
+  APP_UPDATED: 'auth.app.updated',
 } as const
 
 export type AuthEventType = (typeof AUTH_EVENTS)[keyof typeof AUTH_EVENTS]
@@ -251,7 +246,6 @@ declare module '@czo/kit/event-bus' {
     'auth.security.account-deleted': AuthAccountDeletedPayload
     'auth.app.installed': AuthAppInstalledPayload
     'auth.app.uninstalled': AuthAppUninstalledPayload
-    'auth.app.manifest-updated': AuthAppManifestUpdatedPayload
-    'auth.app.status-changed': AuthAppStatusChangedPayload
+    'auth.app.updated': AuthAppUpdatedPayload
   }
 }

@@ -19,9 +19,11 @@ export type Scalars = {
   Boolean: { input: boolean; output: boolean; }
   Int: { input: number; output: number; }
   Float: { input: number; output: number; }
+  Date: { input: Date | string; output: Date | string; }
   DateTime: { input: Date | string; output: Date | string; }
   EmailAddress: { input: string; output: string; }
   JSON: { input: Record<string, unknown> | null; output: Record<string, unknown> | null; }
+  Time: { input: Date | string; output: Date | string; }
 };
 
 export type AccountInfo = {
@@ -67,7 +69,7 @@ export type AppConnection = {
   __typename?: 'AppConnection';
   edges: Array<AppEdge>;
   pageInfo: PageInfo;
-  totalCount: Scalars['Int']['output'];
+  totalCount?: Maybe<Scalars['Int']['output']>;
 };
 
 export type AppEdge = {
@@ -77,7 +79,7 @@ export type AppEdge = {
 };
 
 export type AppOrderByInput = {
-  direction: OrderDirection;
+  dir: OrderDirection;
   field: AppOrderField;
 };
 
@@ -87,7 +89,7 @@ export type AppOrderField =
   | 'STATUS';
 
 export type AppWhereInput = {
-  organizationId?: InputMaybe<GlobalIDFilterInput>;
+  organization?: InputMaybe<IDFilterInput>;
   status?: InputMaybe<StringFilterInput>;
 };
 
@@ -98,6 +100,9 @@ export type BackupCodesResult = {
 };
 
 export type BooleanFilterInput = {
+  AND?: InputMaybe<Array<BooleanFilterInput>>;
+  NOT?: InputMaybe<BooleanFilterInput>;
+  OR?: InputMaybe<Array<BooleanFilterInput>>;
   eq?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
@@ -140,13 +145,32 @@ export type CreateUserInput = {
   role?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type DateFilterInput = {
+  AND?: InputMaybe<Array<DateFilterInput>>;
+  NOT?: InputMaybe<DateFilterInput>;
+  OR?: InputMaybe<Array<DateFilterInput>>;
+  eq?: InputMaybe<Scalars['Date']['input']>;
+  gt?: InputMaybe<Scalars['Date']['input']>;
+  gte?: InputMaybe<Scalars['Date']['input']>;
+  in?: InputMaybe<Array<Scalars['Date']['input']>>;
+  lt?: InputMaybe<Scalars['Date']['input']>;
+  lte?: InputMaybe<Scalars['Date']['input']>;
+  ne?: InputMaybe<Scalars['Date']['input']>;
+  notIn?: InputMaybe<Array<Scalars['Date']['input']>>;
+};
+
 export type DateTimeFilterInput = {
+  AND?: InputMaybe<Array<DateTimeFilterInput>>;
+  NOT?: InputMaybe<DateTimeFilterInput>;
+  OR?: InputMaybe<Array<DateTimeFilterInput>>;
   eq?: InputMaybe<Scalars['DateTime']['input']>;
   gt?: InputMaybe<Scalars['DateTime']['input']>;
   gte?: InputMaybe<Scalars['DateTime']['input']>;
+  in?: InputMaybe<Array<Scalars['DateTime']['input']>>;
   lt?: InputMaybe<Scalars['DateTime']['input']>;
   lte?: InputMaybe<Scalars['DateTime']['input']>;
   ne?: InputMaybe<Scalars['DateTime']['input']>;
+  notIn?: InputMaybe<Array<Scalars['DateTime']['input']>>;
 };
 
 export type DeleteAccountInput = {
@@ -158,6 +182,20 @@ export type EnableTwoFactorResult = {
   __typename?: 'EnableTwoFactorResult';
   backupCodes: Array<Scalars['String']['output']>;
   totpURI: Scalars['String']['output'];
+};
+
+export type FloatFilterInput = {
+  AND?: InputMaybe<Array<FloatFilterInput>>;
+  NOT?: InputMaybe<FloatFilterInput>;
+  OR?: InputMaybe<Array<FloatFilterInput>>;
+  eq?: InputMaybe<Scalars['Float']['input']>;
+  gt?: InputMaybe<Scalars['Float']['input']>;
+  gte?: InputMaybe<Scalars['Float']['input']>;
+  in?: InputMaybe<Array<Scalars['Float']['input']>>;
+  lt?: InputMaybe<Scalars['Float']['input']>;
+  lte?: InputMaybe<Scalars['Float']['input']>;
+  ne?: InputMaybe<Scalars['Float']['input']>;
+  notIn?: InputMaybe<Array<Scalars['Float']['input']>>;
 };
 
 export type FullOrganization = {
@@ -173,9 +211,13 @@ export type FullOrganization = {
   type?: Maybe<Scalars['String']['output']>;
 };
 
-export type GlobalIDFilterInput = {
+export type IDFilterInput = {
+  AND?: InputMaybe<Array<IDFilterInput>>;
+  NOT?: InputMaybe<IDFilterInput>;
+  OR?: InputMaybe<Array<IDFilterInput>>;
   eq?: InputMaybe<Scalars['ID']['input']>;
   in?: InputMaybe<Array<Scalars['ID']['input']>>;
+  notIn?: InputMaybe<Array<Scalars['ID']['input']>>;
 };
 
 export type InstallAppInput = {
@@ -193,6 +235,20 @@ export type InstallAppPayload = {
   __typename?: 'InstallAppPayload';
   app?: Maybe<App>;
   userErrors: Array<UserError>;
+};
+
+export type IntFilterInput = {
+  AND?: InputMaybe<Array<IntFilterInput>>;
+  NOT?: InputMaybe<IntFilterInput>;
+  OR?: InputMaybe<Array<IntFilterInput>>;
+  eq?: InputMaybe<Scalars['Int']['input']>;
+  gt?: InputMaybe<Scalars['Int']['input']>;
+  gte?: InputMaybe<Scalars['Int']['input']>;
+  in?: InputMaybe<Array<Scalars['Int']['input']>>;
+  lt?: InputMaybe<Scalars['Int']['input']>;
+  lte?: InputMaybe<Scalars['Int']['input']>;
+  ne?: InputMaybe<Scalars['Int']['input']>;
+  notIn?: InputMaybe<Array<Scalars['Int']['input']>>;
 };
 
 export type Invitation = {
@@ -599,7 +655,7 @@ export type QueryappsArgs = {
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
-  orderBy?: InputMaybe<AppOrderByInput>;
+  orderBy?: InputMaybe<Array<AppOrderByInput>>;
   where?: InputMaybe<AppWhereInput>;
 };
 
@@ -671,12 +727,31 @@ export type SlugCheckResult = {
 };
 
 export type StringFilterInput = {
-  contains?: InputMaybe<Scalars['String']['input']>;
-  endsWith?: InputMaybe<Scalars['String']['input']>;
+  AND?: InputMaybe<Array<StringFilterInput>>;
+  NOT?: InputMaybe<StringFilterInput>;
+  OR?: InputMaybe<Array<StringFilterInput>>;
   eq?: InputMaybe<Scalars['String']['input']>;
+  ilike?: InputMaybe<Scalars['String']['input']>;
   in?: InputMaybe<Array<Scalars['String']['input']>>;
+  like?: InputMaybe<Scalars['String']['input']>;
   ne?: InputMaybe<Scalars['String']['input']>;
-  startsWith?: InputMaybe<Scalars['String']['input']>;
+  notIlike?: InputMaybe<Scalars['String']['input']>;
+  notIn?: InputMaybe<Array<Scalars['String']['input']>>;
+  notLike?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type TimeFilterInput = {
+  AND?: InputMaybe<Array<TimeFilterInput>>;
+  NOT?: InputMaybe<TimeFilterInput>;
+  OR?: InputMaybe<Array<TimeFilterInput>>;
+  eq?: InputMaybe<Scalars['Time']['input']>;
+  gt?: InputMaybe<Scalars['Time']['input']>;
+  gte?: InputMaybe<Scalars['Time']['input']>;
+  in?: InputMaybe<Array<Scalars['Time']['input']>>;
+  lt?: InputMaybe<Scalars['Time']['input']>;
+  lte?: InputMaybe<Scalars['Time']['input']>;
+  ne?: InputMaybe<Scalars['Time']['input']>;
+  notIn?: InputMaybe<Array<Scalars['Time']['input']>>;
 };
 
 export type TotpUri = {
@@ -917,16 +992,21 @@ export type ResolversTypes = ResolversObject<{
   CreateApiKeyInput: CreateApiKeyInput;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
+  Date: ResolverTypeWrapper<Scalars['Date']['output']>;
+  DateFilterInput: DateFilterInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
   DateTimeFilterInput: DateTimeFilterInput;
   DeleteAccountInput: DeleteAccountInput;
   EmailAddress: ResolverTypeWrapper<Scalars['EmailAddress']['output']>;
   EnableTwoFactorResult: ResolverTypeWrapper<EnableTwoFactorResult>;
+  FloatFilterInput: FloatFilterInput;
+  Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   FullOrganization: ResolverTypeWrapper<FullOrganization>;
-  GlobalIDFilterInput: GlobalIDFilterInput;
+  IDFilterInput: IDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: ResolverTypeWrapper<Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
+  IntFilterInput: IntFilterInput;
   Invitation: ResolverTypeWrapper<Invitation>;
   InviteMemberInput: InviteMemberInput;
   JSON: ResolverTypeWrapper<Scalars['JSON']['output']>;
@@ -945,6 +1025,8 @@ export type ResolversTypes = ResolversObject<{
   SetAppStatusPayload: ResolverTypeWrapper<Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   SlugCheckResult: ResolverTypeWrapper<SlugCheckResult>;
   StringFilterInput: StringFilterInput;
+  Time: ResolverTypeWrapper<Scalars['Time']['output']>;
+  TimeFilterInput: TimeFilterInput;
   TotpUri: ResolverTypeWrapper<TotpUri>;
   TwoFactorVerifyResult: ResolverTypeWrapper<TwoFactorVerifyResult>;
   UninstallAppPayload: ResolverTypeWrapper<Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
@@ -988,16 +1070,21 @@ export type ResolversParentTypes = ResolversObject<{
   CreateApiKeyInput: CreateApiKeyInput;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
+  Date: Scalars['Date']['output'];
+  DateFilterInput: DateFilterInput;
   DateTime: Scalars['DateTime']['output'];
   DateTimeFilterInput: DateTimeFilterInput;
   DeleteAccountInput: DeleteAccountInput;
   EmailAddress: Scalars['EmailAddress']['output'];
   EnableTwoFactorResult: EnableTwoFactorResult;
+  FloatFilterInput: FloatFilterInput;
+  Float: Scalars['Float']['output'];
   FullOrganization: FullOrganization;
-  GlobalIDFilterInput: GlobalIDFilterInput;
+  IDFilterInput: IDFilterInput;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
+  IntFilterInput: IntFilterInput;
   Invitation: Invitation;
   InviteMemberInput: InviteMemberInput;
   JSON: Scalars['JSON']['output'];
@@ -1015,6 +1102,8 @@ export type ResolversParentTypes = ResolversObject<{
   SetAppStatusPayload: Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   SlugCheckResult: SlugCheckResult;
   StringFilterInput: StringFilterInput;
+  Time: Scalars['Time']['output'];
+  TimeFilterInput: TimeFilterInput;
   TotpUri: TotpUri;
   TwoFactorVerifyResult: TwoFactorVerifyResult;
   UninstallAppPayload: Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
@@ -1075,7 +1164,7 @@ export type AppResolvers<ContextType = GraphQLContext, ParentType extends Resolv
 export type AppConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AppConnection'] = ResolversParentTypes['AppConnection']> = ResolversObject<{
   edges?: Resolver<Array<ResolversTypes['AppEdge']>, ParentType, ContextType>;
   pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  totalCount?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
 }>;
 
 export type AppEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AppEdge'] = ResolversParentTypes['AppEdge']> = ResolversObject<{
@@ -1089,6 +1178,10 @@ export type BackupCodesResultResolvers<ContextType = GraphQLContext, ParentType 
   backupCodes?: Resolver<Array<ResolversTypes['String']>, ParentType, ContextType>;
   status?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
+
+export interface DateScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Date'], any> {
+  name: 'Date';
+}
 
 export interface DateTimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['DateTime'], any> {
   name: 'DateTime';
@@ -1274,6 +1367,10 @@ export type SlugCheckResultResolvers<ContextType = GraphQLContext, ParentType ex
   available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export interface TimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Time'], any> {
+  name: 'Time';
+}
+
 export type TotpUriResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TotpUri'] = ResolversParentTypes['TotpUri']> = ResolversObject<{
   totpURI?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
@@ -1347,6 +1444,7 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   AppEdge?: AppEdgeResolvers<ContextType>;
   AppOrderField?: AppOrderFieldResolvers;
   BackupCodesResult?: BackupCodesResultResolvers<ContextType>;
+  Date?: GraphQLScalarType;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   EnableTwoFactorResult?: EnableTwoFactorResultResolvers<ContextType>;
@@ -1367,6 +1465,7 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   Query?: QueryResolvers<ContextType>;
   SetAppStatusPayload?: SetAppStatusPayloadResolvers<ContextType>;
   SlugCheckResult?: SlugCheckResultResolvers<ContextType>;
+  Time?: GraphQLScalarType;
   TotpUri?: TotpUriResolvers<ContextType>;
   TwoFactorVerifyResult?: TwoFactorVerifyResultResolvers<ContextType>;
   UninstallAppPayload?: UninstallAppPayloadResolvers<ContextType>;

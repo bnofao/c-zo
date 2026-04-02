@@ -1,4 +1,5 @@
 import './context-factory'
 import './directives'
 import './typedefs'
+import './middleware'
 import './resolvers'

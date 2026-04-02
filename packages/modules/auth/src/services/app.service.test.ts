@@ -1,12 +1,12 @@
 import type { AppService } from './app.service'
+import { apps } from '@czo/auth/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAppService } from './app.service'
 
 const TEST_SUBSCRIBABLE_EVENTS: ReadonlySet<string> = new Set([
   'auth.app.installed',
   'auth.app.uninstalled',
-  'auth.app.manifest-updated',
-  'auth.app.status-changed',
+  'auth.app.updated',
 ])
 
 const mockPublishAuthEvent = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
@@ -15,9 +15,31 @@ vi.mock('@czo/auth/events', () => ({
   AUTH_EVENTS: {
     APP_INSTALLED: 'auth.app.installed',
     APP_UNINSTALLED: 'auth.app.uninstalled',
-    APP_MANIFEST_UPDATED: 'auth.app.manifest-updated',
-    APP_STATUS_CHANGED: 'auth.app.status-changed',
+    APP_UPDATED: 'auth.app.updated',
   },
+}))
+
+const mockApiKeyServiceForIoc = vi.hoisted(() => ({
+  create: vi.fn().mockResolvedValue({ id: 'key-1', key: 'app_x' }),
+  get: vi.fn(),
+  update: vi.fn(),
+  remove: vi.fn(),
+  list: vi.fn(),
+}))
+const mockAuthServiceForIoc = vi.hoisted(() => ({
+  hasPermission: vi.fn().mockResolvedValue(true),
+  getSession: vi.fn(),
+}))
+vi.mock('@czo/kit/ioc', () => ({
+  useContainer: () => ({
+    make: vi.fn().mockImplementation(async (key: string) => {
+      if (key === 'auth:apikeys')
+        return mockApiKeyServiceForIoc
+      if (key === 'auth:service')
+        return mockAuthServiceForIoc
+      throw new Error(`Unknown container key: ${key}`)
+    }),
+  }),
 }))
 
 // ─── Mock Drizzle DB (Repository-compatible) ─────────────────────────
@@ -45,6 +67,7 @@ function createThenableChain(getResult: () => unknown[]) {
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     onConflictDoNothing: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
+    $dynamic: vi.fn().mockReturnThis(),
     then: (resolve: (v: unknown[]) => void, reject?: (e: unknown) => void) => {
       return Promise.resolve(getResult()).then(resolve, reject)
     },
@@ -58,55 +81,26 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...queryManyResult]),
   }
 
-  const mockTable = { id: { name: 'id' }, appId: { name: 'app_id' }, status: { name: 'status' }, organizationId: { name: 'organization_id' } }
-
   return {
-    _: { schema: { apps: mockTable } },
+    _: { schema: { apps }, relations: { apps: { table: apps } } },
     query: {
       apps: mockQueryBuilder,
     },
     insert: vi.fn().mockImplementation(() => createThenableChain(() => insertResult)),
     update: vi.fn().mockImplementation(() => createThenableChain(() => updateResult)),
     delete: vi.fn().mockImplementation(() => createThenableChain(() => deleteResult)),
-    select: vi.fn().mockImplementation((fields?: Record<string, unknown>) => {
-      const isCountQuery = fields && 'total' in fields
-      const fromResult = isCountQuery
-        ? Promise.resolve([{ total: queryManyResult.length }])
-        : {
-            where: vi.fn().mockReturnValue({
-              orderBy: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([...queryManyResult]),
-              }),
-            }),
-          }
-
-      // Make fromResult thenable for count queries (no .where() chain)
+    $count: vi.fn().mockImplementation(async () => queryManyResult.length),
+    select: vi.fn().mockImplementation(() => {
       return {
-        from: vi.fn().mockReturnValue(fromResult),
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue(
+            Promise.resolve([]),
+          ),
+          limit: vi.fn().mockResolvedValue([]),
+        }),
       }
     }),
   } as any
-}
-
-// ─── Mock ApiKeyService ──────────────────────────────────────────────
-
-function createMockApiKeyService() {
-  return {
-    create: vi.fn(),
-    get: vi.fn(),
-    update: vi.fn(),
-    remove: vi.fn(),
-    list: vi.fn(),
-  }
-}
-
-// ─── Mock AuthService ────────────────────────────────────────────────
-
-function createMockAuthService() {
-  return {
-    hasPermission: vi.fn().mockResolvedValue(true),
-    getSession: vi.fn(),
-  }
 }
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -140,8 +134,8 @@ const MOCK_UUID = '00000000-0000-0000-0000-000000000001'
 
 describe('appService', () => {
   let db: ReturnType<typeof createMockDb>
-  let apiKeyService: ReturnType<typeof createMockApiKeyService>
-  let authService: ReturnType<typeof createMockAuthService>
+  let apiKeyService: typeof mockApiKeyServiceForIoc
+  let authService: typeof mockAuthServiceForIoc
   let service: AppService
 
   beforeEach(() => {
@@ -152,9 +146,16 @@ describe('appService', () => {
     deleteResult = []
 
     db = createMockDb()
-    apiKeyService = createMockApiKeyService()
-    authService = createMockAuthService()
-    service = createAppService(db, apiKeyService as any, authService as any, TEST_SUBSCRIBABLE_EVENTS)
+    // Point local variables to IoC mocks so test assertions work
+    apiKeyService = mockApiKeyServiceForIoc as any
+    authService = mockAuthServiceForIoc as any
+    service = createAppService(db, TEST_SUBSCRIBABLE_EVENTS)
+
+    // Reset IoC mock state between tests
+    vi.clearAllMocks()
+    mockPublishAuthEvent.mockResolvedValue(undefined)
+    mockApiKeyServiceForIoc.create.mockResolvedValue({ id: 'key-1', key: 'app_x' })
+    mockAuthServiceForIoc.hasPermission.mockResolvedValue(true)
 
     vi.stubGlobal('crypto', { randomUUID: () => MOCK_UUID })
   })
@@ -251,7 +252,7 @@ describe('appService', () => {
       insertResult = [{ ...APP_ROW, id: MOCK_UUID }]
       apiKeyService.create.mockResolvedValue({ id: 'key-1', key: 'app_x' })
 
-      const manifest = { ...VALID_MANIFEST, webhooks: [{ event: 'auth.app.status-changed', targetUrl: 'https://example.com/hook' }] }
+      const manifest = { ...VALID_MANIFEST, webhooks: [{ event: 'auth.app.updated', targetUrl: 'https://example.com/hook' }] }
 
       await expect(
         service.install({ manifest, installedBy: 'user-1', organizationId: 'org-1' }),
@@ -259,7 +260,7 @@ describe('appService', () => {
     })
 
     it('should allow custom base events injected via createAppService parameter', async () => {
-      const customService = createAppService(db, apiKeyService as any, authService as any, new Set(['custom.event']))
+      const customService = createAppService(db, new Set(['custom.event']))
       const manifest = { ...VALID_MANIFEST, webhooks: [{ event: 'custom.event', targetUrl: 'https://example.com/hook' }] }
       queryFirstResult = null
       insertResult = [{ ...APP_ROW, id: MOCK_UUID, manifest }]
@@ -420,7 +421,7 @@ describe('appService', () => {
 
       const insertChain = db.insert.mock.results[0]!.value
       expect(insertChain.values).toHaveBeenCalledWith(
-        expect.objectContaining({ webhookSecret: MOCK_UUID }),
+        expect.arrayContaining([expect.objectContaining({ webhookSecret: MOCK_UUID })]),
       )
     })
 
@@ -446,7 +447,7 @@ describe('appService', () => {
 
       const insertChain = db.insert.mock.results[0]!.value
       expect(insertChain.values).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: 'org-1' }),
+        expect.arrayContaining([expect.objectContaining({ organizationId: 'org-1' })]),
       )
     })
 
@@ -553,13 +554,13 @@ describe('appService', () => {
     })
   })
 
-  // ─── getApp ──────────────────────────────────────────────────────
+  // ─── findFirst (getApp) ───────────────────────────────────────────
 
-  describe('getApp', () => {
+  describe('findFirst (by appId)', () => {
     it('should return the app when found', async () => {
       queryFirstResult = APP_ROW
 
-      const result = await service.getApp('my-app')
+      const result = await service.findFirst({ where: { appId: 'my-app' } })
 
       expect(result).toEqual(APP_ROW)
     })
@@ -567,7 +568,7 @@ describe('appService', () => {
     it('should return null when not found', async () => {
       queryFirstResult = null
 
-      const result = await service.getApp('unknown')
+      const result = await service.findFirst({ where: { appId: 'unknown' } })
 
       expect(result).toBeNull()
     })
@@ -575,19 +576,19 @@ describe('appService', () => {
     it('should query via the repository findFirst', async () => {
       queryFirstResult = APP_ROW
 
-      await service.getApp('my-app')
+      await service.findFirst({ where: { appId: 'my-app' } })
 
       expect(db.query.apps.findFirst).toHaveBeenCalled()
     })
   })
 
-  // ─── getAppById ───────────────────────────────────────────────────
+  // ─── findFirst (getAppById) ───────────────────────────────────────
 
-  describe('getAppById', () => {
+  describe('findFirst (by id)', () => {
     it('should return the app when found by primary key', async () => {
       queryFirstResult = { id: 'uuid-123', appId: 'my-app' }
 
-      const result = await service.getAppById('uuid-123')
+      const result = await service.findFirst({ where: { id: 'uuid-123' } })
 
       expect(result).toEqual({ id: 'uuid-123', appId: 'my-app' })
     })
@@ -595,7 +596,7 @@ describe('appService', () => {
     it('should return null when not found', async () => {
       queryFirstResult = null
 
-      const result = await service.getAppById('nonexistent')
+      const result = await service.findFirst({ where: { id: 'nonexistent' } })
 
       expect(result).toBeNull()
     })
@@ -603,103 +604,84 @@ describe('appService', () => {
     it('should query via the repository findFirst', async () => {
       queryFirstResult = APP_ROW
 
-      await service.getAppById('uuid-1')
+      await service.findFirst({ where: { id: 'uuid-1' } })
 
       expect(db.query.apps.findFirst).toHaveBeenCalled()
     })
   })
 
-  // ─── listApps ────────────────────────────────────────────────────
+  // ─── findMany (listApps) ─────────────────────────────────────────
 
-  describe('listApps', () => {
-    it('should return a PaginateResult', async () => {
+  describe('findMany', () => {
+    it('should return an array of AppRow', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps({ first: 10 })
+      const result = await service.findMany({ limit: 10 })
 
-      expect(result.nodes).toHaveLength(1)
-      expect(result.totalCount).toBe(1)
+      expect(result).toHaveLength(1)
     })
 
-    it('should return empty nodes when none found', async () => {
+    it('should return empty array when none found', async () => {
       queryManyResult = []
 
-      const result = await service.listApps({ first: 10 })
+      const result = await service.findMany({ limit: 10 })
 
-      expect(result.nodes).toEqual([])
-      expect(result.totalCount).toBe(0)
+      expect(result).toEqual([])
     })
 
-    it('should provide a getCursor function', async () => {
+    it('should accept where filter', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.listApps({ first: 10 })
+      const result = await service.findMany({ where: { status: { eq: 'active' } }, limit: 10 })
 
-      expect(result.getCursor).toBeDefined()
-      const cursor = result.getCursor!(APP_ROW as any)
-      expect(typeof cursor).toBe('string')
-      expect(cursor.length).toBeGreaterThan(0)
-    })
-
-    it('should use db.select for count query', async () => {
-      queryManyResult = [APP_ROW]
-
-      await service.listApps({ first: 10 })
-
-      expect(db.select).toHaveBeenCalled()
-    })
-
-    it('should accept where filter as RQBv2-ready object', async () => {
-      queryManyResult = [APP_ROW]
-
-      const result = await service.listApps({ first: 10, where: { status: { eq: 'active' } } })
-
-      expect(result.nodes).toHaveLength(1)
-    })
-
-    it('should accept ConnectionArgs with pagination', async () => {
-      queryManyResult = [APP_ROW]
-
-      const result = await service.listApps({ first: 10 })
-
-      expect(result.nodes).toHaveLength(1)
-      expect(result.totalCount).toBeDefined()
+      expect(result).toHaveLength(1)
     })
   })
 
-  // ─── updateManifest ──────────────────────────────────────────────
+  describe('count', () => {
+    it('should return the total count', async () => {
+      queryManyResult = [APP_ROW]
 
-  describe('updateManifest', () => {
+      const total = await service.count()
+
+      expect(db.$count).toHaveBeenCalled()
+      expect(typeof total).toBe('number')
+    })
+  })
+
+  // ─── update (manifest) ───────────────────────────────────────────
+
+  describe('update (manifest)', () => {
     it('should update the manifest and return updated row', async () => {
       const updatedManifest = { ...VALID_MANIFEST, version: '2.0.0' }
       updateResult = [{ ...APP_ROW, manifest: updatedManifest }]
 
-      const result = await service.updateManifest('my-app', updatedManifest)
+      const result = await service.update({ manifest: updatedManifest }, { where: { appId: 'my-app' } })
 
-      expect(result.manifest).toEqual(updatedManifest)
+      expect(result[0]!.manifest).toEqual(updatedManifest)
     })
 
     it('should call db.update with new manifest', async () => {
       updateResult = [{ ...APP_ROW, updatedAt: new Date() }]
 
-      await service.updateManifest('my-app', VALID_MANIFEST)
+      await service.update({ manifest: VALID_MANIFEST }, { where: { appId: 'my-app' } })
 
       expect(db.update).toHaveBeenCalled()
     })
 
-    it('should throw when app not found', async () => {
+    it('should return empty array when app not found', async () => {
       updateResult = []
 
-      await expect(
-        service.updateManifest('unknown', VALID_MANIFEST),
-      ).rejects.toThrow('not found')
+      const result = await service.update({ manifest: VALID_MANIFEST }, { where: { appId: 'unknown' } })
+
+      expect(result).toHaveLength(0)
     })
 
-    it('should throw on invalid manifest', async () => {
+    it('should throw on invalid manifest (beforeUpdate hook)', async () => {
       const invalid = { id: 'bad' } as any
 
       await expect(
-        service.updateManifest('my-app', invalid),
+        service.update({ manifest: invalid }, { where: { appId: 'my-app' } }),
       ).rejects.toThrow()
     })
 
@@ -710,78 +692,80 @@ describe('appService', () => {
       }
 
       await expect(
-        service.updateManifest('my-app', manifest),
+        service.update({ manifest }, { where: { appId: 'my-app' } }),
       ).rejects.toThrow('not allowed')
     })
 
-    it('should publish auth.app.manifest-updated event after update', async () => {
+    it('should publish auth.app.updated event after update', async () => {
       const updatedManifest = { ...VALID_MANIFEST, version: '2.0.0' }
       updateResult = [{ ...APP_ROW, manifest: updatedManifest }]
 
-      await service.updateManifest('my-app', updatedManifest)
+      await service.update({ manifest: updatedManifest }, { where: { appId: 'my-app' } })
 
-      expect(mockPublishAuthEvent).toHaveBeenCalledWith('auth.app.manifest-updated', {
+      expect(mockPublishAuthEvent).toHaveBeenCalledWith('auth.app.updated', expect.objectContaining({
         appId: 'my-app',
         version: '2.0.0',
-      })
+      }))
     })
   })
 
-  // ─── setStatus ───────────────────────────────────────────────────
+  // ─── update (status) ─────────────────────────────────────────────
 
-  describe('setStatus', () => {
+  describe('update (status)', () => {
     it('should set status to disabled', async () => {
       updateResult = [{ ...APP_ROW, status: 'disabled' }]
 
-      const result = await service.setStatus('my-app', 'disabled')
+      const result = await service.update({ status: 'disabled' }, { where: { appId: 'my-app' } })
 
-      expect(result.status).toBe('disabled')
+      expect(result[0]!.status).toBe('disabled')
     })
 
     it('should set status to error', async () => {
       updateResult = [{ ...APP_ROW, status: 'error' }]
 
-      const result = await service.setStatus('my-app', 'error')
+      const result = await service.update({ status: 'error' }, { where: { appId: 'my-app' } })
 
-      expect(result.status).toBe('error')
+      expect(result[0]!.status).toBe('error')
     })
 
-    it('should throw when app not found', async () => {
+    it('should return empty array when app not found', async () => {
       updateResult = []
 
-      await expect(
-        service.setStatus('unknown', 'disabled'),
-      ).rejects.toThrow('not found')
+      const result = await service.update({ status: 'disabled' }, { where: { appId: 'unknown' } })
+
+      expect(result).toHaveLength(0)
     })
 
-    it('should publish auth.app.status-changed event after status update', async () => {
+    it('should publish auth.app.updated event after status update', async () => {
       updateResult = [{ ...APP_ROW, status: 'disabled' }]
 
-      await service.setStatus('my-app', 'disabled')
+      await service.update({ status: 'disabled' }, { where: { appId: 'my-app' } })
 
-      expect(mockPublishAuthEvent).toHaveBeenCalledWith('auth.app.status-changed', {
+      expect(mockPublishAuthEvent).toHaveBeenCalledWith('auth.app.updated', expect.objectContaining({
         appId: 'my-app',
         status: 'disabled',
-      })
+      }))
     })
   })
 
-  // ─── getActiveAppsByEvent ─────────────────────────────────────────
+  // ─── findManyByEvent (getActiveAppsByEvent) ───────────────────────
 
-  describe('getActiveAppsByEvent', () => {
+  describe('findManyByEvent', () => {
     it('should return apps whose manifest webhooks contain the matching event', async () => {
       queryManyResult = [APP_ROW]
 
-      const result = await service.getActiveAppsByEvent('products.created')
+      const result = await service.findManyByEvent('products.created')
 
       expect(result).toHaveLength(1)
       expect(result[0]!.appId).toBe('my-app')
     })
 
     it('should return empty array when no apps match the event', async () => {
-      queryManyResult = [APP_ROW]
+      // The DB-level JSONB filter means if no apps subscribe to this event,
+      // the query returns empty — mock reflects that with empty queryManyResult
+      queryManyResult = []
 
-      const result = await service.getActiveAppsByEvent('orders.created')
+      const result = await service.findManyByEvent('orders.created')
 
       expect(result).toEqual([])
     })
@@ -789,7 +773,7 @@ describe('appService', () => {
     it('should return empty array when there are no active apps', async () => {
       queryManyResult = []
 
-      const result = await service.getActiveAppsByEvent('products.created')
+      const result = await service.findManyByEvent('products.created')
 
       expect(result).toEqual([])
     })
@@ -807,7 +791,7 @@ describe('appService', () => {
       }
       queryManyResult = [APP_ROW, app2]
 
-      const result = await service.getActiveAppsByEvent('products.created')
+      const result = await service.findManyByEvent('products.created')
 
       expect(result).toHaveLength(2)
     })

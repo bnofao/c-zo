@@ -121,15 +121,18 @@ catalogs:
     dotenv: ^16.4.5
     dotenv-expand: ^11.0.6
     drizzle-orm: ^1.0.0-beta.15
+    drizzle-seed: ^1.0.0-beta.9
     errx: ^0.1.0
     execa: ^8.0.1
     express: ^4.21.0
     exsolve: ^1.0.7
     fs-exists-cached: ^1.0.0
     fs-extra: ^11.2.0
+    '@envelop/graphql-middleware': ^9.1.1
     graphql: ^16.11.0
+    graphql-middleware: ^6.1.35
     graphql-scalars: ^1.24.0
-    graphql-yoga: ^5.16.0
+    graphql-yoga: ^5.18.1
     ioredis: ^5.0.0
     is-valid-path: ^0.1.1
     jiti: ^2.6.1

@@ -1,5 +1,5 @@
 type App implements Node {
-  id: ID! @globalId(type: "App")
+  id: ID!
   appId: String!
   manifest: JSON!
   status: String!
@@ -14,7 +14,7 @@ type App implements Node {
 type AppConnection {
   edges: [AppEdge!]!
   pageInfo: PageInfo!
-  totalCount: Int!
+  totalCount: Int
 }
 
 type AppEdge {
@@ -32,7 +32,7 @@ enum AppOrderField {
 
 input AppOrderByInput {
   field: AppOrderField!
-  direction: OrderDirection!
+  dir: OrderDirection!
 }
 
 # ─── Inputs ───────────────────────────────────
@@ -61,8 +61,8 @@ input SetAppStatusInput {
 # ─── Filters ──────────────────────────────────
 
 input AppWhereInput {
-  status: StringFilterInput @drizzle
-  organizationId: GlobalIDFilterInput @drizzle(column: "organizationId")
+  status: StringFilterInput
+  organization: IDFilterInput
 }
 
 # ─── Queries ──────────────────────────────────
@@ -78,9 +78,9 @@ extend type Query {
     after: String
     last: Int
     before: String
-    orderBy: AppOrderByInput
+    orderBy: [AppOrderByInput!]
     where: AppWhereInput
-  ): AppConnection! @permission(resource: "apps", action: "read") @connection(maxPageSize: 100)
+  ): AppConnection! @admin
 }
 
 # ─── Mutation payloads ────────────────────────

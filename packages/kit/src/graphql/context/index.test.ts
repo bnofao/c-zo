@@ -10,12 +10,12 @@ describe('graphql/context', () => {
   })
 
   it('should start with no factories', async () => {
-    const { registeredContextFactories } = await import('./context')
+    const { registeredContextFactories } = await import('.')
     expect(registeredContextFactories()).toHaveLength(0)
   })
 
   it('should accumulate factories via registerContextFactory()', async () => {
-    const { registerContextFactory, registeredContextFactories } = await import('./context')
+    const { registerContextFactory, registeredContextFactories } = await import('.')
 
     registerContextFactory('auth', () => ({ user: 'alice' }) as any)
     registerContextFactory('product', () => ({ catalog: 'main' }) as any)
@@ -27,7 +27,7 @@ describe('graphql/context', () => {
   })
 
   it('should build context from all registered factories', async () => {
-    const { registerContextFactory, buildGraphQLContext } = await import('./context')
+    const { registerContextFactory, buildGraphQLContext } = await import('.')
 
     registerContextFactory('auth', ctx => ({
       authUser: ctx.rawAuth,
@@ -45,7 +45,7 @@ describe('graphql/context', () => {
   })
 
   it('should support async factories', async () => {
-    const { registerContextFactory, buildGraphQLContext } = await import('./context')
+    const { registerContextFactory, buildGraphQLContext } = await import('.')
 
     registerContextFactory('async-module', (async () => {
       await new Promise(r => setTimeout(r, 1))
@@ -57,7 +57,7 @@ describe('graphql/context', () => {
   })
 
   it('should merge all factory results into a single context', async () => {
-    const { registerContextFactory, buildGraphQLContext } = await import('./context')
+    const { registerContextFactory, buildGraphQLContext } = await import('.')
 
     registerContextFactory('a', () => ({ x: 1 }) as any)
     registerContextFactory('b', () => ({ y: 2 }) as any)
@@ -68,7 +68,7 @@ describe('graphql/context', () => {
   })
 
   it('should let later factories override earlier ones for same key', async () => {
-    const { registerContextFactory, buildGraphQLContext } = await import('./context')
+    const { registerContextFactory, buildGraphQLContext } = await import('.')
 
     registerContextFactory('base', () => ({ value: 'original' }) as any)
     registerContextFactory('override', () => ({ value: 'overridden' }) as any)
@@ -78,7 +78,7 @@ describe('graphql/context', () => {
   })
 
   it('should include request from requestFactory in context', async () => {
-    const { buildGraphQLContext } = await import('./context')
+    const { buildGraphQLContext } = await import('.')
 
     const result = await buildGraphQLContext({}, mockRequestFactory)
     expect(result.request).toBeInstanceOf(Request)

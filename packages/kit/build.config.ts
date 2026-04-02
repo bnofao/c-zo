@@ -33,6 +33,7 @@ export default defineBuildConfig({
     'nitro/runtime-config',
     'unimport',
     'graphql',
+    'graphql-middleware',
     '@graphql-tools/utils',
     '@opentelemetry/api',
     '@opentelemetry/sdk-trace-node',

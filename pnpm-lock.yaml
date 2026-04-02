@@ -73,18 +73,24 @@ catalogs:
     drizzle-orm:
       specifier: ^1.0.0-beta.15
       version: 1.0.0-beta.9-e89174b
+    drizzle-seed:
+      specifier: ^1.0.0-beta.9
+      version: 1.0.0-beta.9-e89174b
     exsolve:
       specifier: ^1.0.7
       version: 1.0.8
     graphql:
       specifier: ^16.11.0
       version: 16.12.0
+    graphql-middleware:
+      specifier: ^6.1.35
+      version: 6.1.35
     graphql-scalars:
       specifier: ^1.24.0
       version: 1.25.0
     graphql-yoga:
-      specifier: ^5.16.0
-      version: 5.18.0
+      specifier: ^5.18.1
+      version: 5.18.1
     jiti:
       specifier: ^2.6.1
       version: 2.6.1
@@ -302,6 +308,9 @@ importers:
 
   apps/mazo:
     dependencies:
+      '@envelop/graphql-middleware':
+        specifier: ^9.1.1
+        version: 9.1.1(@envelop/core@5.5.1)(graphql-middleware@6.1.35(graphql@16.12.0))(graphql@16.12.0)
       '@graphql-tools/merge':
         specifier: catalog:common
         version: 9.1.6(graphql@16.12.0)
@@ -311,12 +320,15 @@ importers:
       graphql:
         specifier: catalog:common
         version: 16.12.0
+      graphql-middleware:
+        specifier: catalog:common
+        version: 6.1.35(graphql@16.12.0)
       graphql-scalars:
         specifier: catalog:common
         version: 1.25.0(graphql@16.12.0)
       graphql-yoga:
         specifier: catalog:common
-        version: 5.18.0(graphql@16.12.0)
+        version: 5.18.1(graphql@16.12.0)
       kysely:
         specifier: catalog:common
         version: 0.28.9
@@ -454,6 +466,9 @@ importers:
       drizzle-orm:
         specifier: catalog:common
         version: 1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)
+      drizzle-seed:
+        specifier: catalog:common
+        version: 1.0.0-beta.9-e89174b(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))
       exsolve:
         specifier: catalog:common
         version: 1.0.8
@@ -506,9 +521,12 @@ importers:
       graphql:
         specifier: catalog:common
         version: 16.12.0
+      graphql-middleware:
+        specifier: catalog:common
+        version: 6.1.35(graphql@16.12.0)
       nitro:
         specifier: catalog:dev
-        version: 3.0.260311-beta(@azure/identity@4.13.0)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(giget@2.0.0)(jiti@2.6.1)(rollup@4.54.0)(vite@7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
+        version: 3.0.260311-beta(@azure/identity@4.13.0)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(giget@2.0.0)(ioredis@5.9.2)(jiti@2.6.1)(rollup@4.54.0)(vite@7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       unimport:
         specifier: catalog:dev
         version: 5.6.0
@@ -974,6 +992,18 @@ packages:
   '@envelop/core@5.4.0':
     resolution: {integrity: sha512-/1fat63pySE8rw/dZZArEVytLD90JApY85deDJ0/34gm+yhQ3k70CloSUevxoOE4YCGveG3s9SJJfQeeB4NAtQ==}
     engines: {node: '>=18.0.0'}
+
+  '@envelop/core@5.5.1':
+    resolution: {integrity: sha512-3DQg8sFskDo386TkL5j12jyRAdip/8yzK3x7YGbZBgobZ4aKXrvDU0GppU0SnmrpQnNaiTUsxBs9LKkwQ/eyvw==}
+    engines: {node: '>=18.0.0'}
+
+  '@envelop/graphql-middleware@9.1.1':
+    resolution: {integrity: sha512-yDGCfIyPd/zbw+KUsDX9JZrE0taUUSuDcpPCYwGFGcj0TecqARUTfZhmClt6d179nJPNKLtkgBnFp7U6ZQMq5g==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@envelop/core': ^5.5.1
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
+      graphql-middleware: ^6.0.0
 
   '@envelop/instrumentation@1.0.0':
     resolution: {integrity: sha512-cxgkB66RQB95H3X27jlnxCRNTmPuSTgmBAq6/4n2Dtv4hsk4yz8FadA1ggmd0uZzvKqWD6CR+WFgTjhDqg7eyw==}
@@ -1514,6 +1544,11 @@ packages:
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
+  '@graphql-tools/batch-execute@8.5.1':
+    resolution: {integrity: sha512-hRVDduX0UDEneVyEWtc2nu5H2PxpfSfM/riUlgZvo/a/nG475uyehxR5cFGvTEPEQUKY3vGIlqvtRigzqTfCew==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@graphql-tools/batch-execute@9.0.19':
     resolution: {integrity: sha512-VGamgY4PLzSx48IHPoblRw0oTaBa7S26RpZXt0Y4NN90ytoE0LutlpB2484RbkfcTjv9wa64QD474+YP1kEgGA==}
     engines: {node: '>=18.0.0'}
@@ -1535,6 +1570,11 @@ packages:
   '@graphql-tools/delegate@12.0.2':
     resolution: {integrity: sha512-1X93onxNgOzRvnZ8Xulwi6gNuBeuDxvGYOjUHEZyesPCsaWsyiVj1Wk6Pw/DTPGLy70sOFUKQGcaZbWnDORM2w==}
     engines: {node: '>=20.0.0'}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
+  '@graphql-tools/delegate@8.8.1':
+    resolution: {integrity: sha512-NDcg3GEQmdEHlnF7QS8b4lM1PSF+DKeFcIlLEfZFBvVq84791UtJcDj8734sIHLukmyuAxXMfA1qLd2l4lZqzA==}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
@@ -1640,6 +1680,11 @@ packages:
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
+  '@graphql-tools/merge@8.3.1':
+    resolution: {integrity: sha512-BMm99mqdNZbEYeTPK3it9r9S6rsZsQKtlqJsSBknAclXq2pGEfOxjcIZi+kBSkHZKPKCRrYDd5vY0+rUmIHVLg==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@graphql-tools/merge@9.1.6':
     resolution: {integrity: sha512-bTnP+4oom4nDjmkS3Ykbe+ljAp/RIiWP3R35COMmuucS24iQxGLa9Hn8VMkLIoaoPxgz6xk+dbC43jtkNsFoBw==}
     engines: {node: '>=16.0.0'}
@@ -1664,6 +1709,11 @@ packages:
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
+  '@graphql-tools/schema@8.5.1':
+    resolution: {integrity: sha512-0Esilsh0P/qYcB5DKQpiKeQs/jevzIadNTaT0jeWklPMwNbT7yMX4EqZany7mbeRRlSRwMzNzL5olyFdffHBZg==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@graphql-tools/url-loader@8.0.33':
     resolution: {integrity: sha512-Fu626qcNHcqAj8uYd7QRarcJn5XZ863kmxsg1sm0fyjyfBJnsvC7ddFt6Hayz5kxVKfsnjxiDfPMXanvsQVBKw==}
     engines: {node: '>=16.0.0'}
@@ -1679,6 +1729,11 @@ packages:
   '@graphql-tools/utils@10.11.0':
     resolution: {integrity: sha512-iBFR9GXIs0gCD+yc3hoNswViL1O5josI33dUqiNStFI/MHLCEPduasceAcazRH77YONKNiviHBV8f7OgcT4o2Q==}
     engines: {node: '>=16.0.0'}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
+  '@graphql-tools/utils@8.9.0':
+    resolution: {integrity: sha512-pjJIWH0XOVnYGXCqej8g/u/tsfV4LvLlj0eATKQu5zwnxd/TiTHq7Cg313qUPTFFHZ3PP5wJ15chYVtLDwaymg==}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
@@ -3697,6 +3752,9 @@ packages:
     resolution: {integrity: sha512-7hvf7/GW8e86rW0ptuwS3OcBGDjIi6SZva7hCyWC0yYry2cOPmLIjXAUHI6DK2HsnwJd9ifmt57i8eV2n4YNpw==}
     engines: {node: '>= 14'}
 
+  dataloader@2.1.0:
+    resolution: {integrity: sha512-qTcEYLen3r7ojZNgVUaRggOI+KM7jrKxXeSHhogh/TWxYMeONEMqY+hmkobiYQozsGIyg9OYVzO4ZIfoB4I0pQ==}
+
   dataloader@2.2.3:
     resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
 
@@ -4050,6 +4108,11 @@ packages:
         optional: true
       sqlite3:
         optional: true
+
+  drizzle-seed@1.0.0-beta.9-e89174b:
+    resolution: {integrity: sha512-E6zVvB2G9Ne1owpQ+0Sa4Ttix+FSHXePvoceWwLXqT8SfQLYHbxI2LGvJZCa357+Mh5ptc8DxJvnfrN2uWQTJA==}
+    peerDependencies:
+      drizzle-orm: '>=1.0.0-beta.2'
 
   dset@3.1.4:
     resolution: {integrity: sha512-2QF/g9/zTaPDc3BjNcVTGoBbXBgYfMTTceLaYcFJ/W9kggFUkhxD/hMEeuLKbugyef9SqAx8cpgwlIP/jinUTA==}
@@ -4689,6 +4752,11 @@ packages:
       cosmiconfig-toml-loader:
         optional: true
 
+  graphql-middleware@6.1.35:
+    resolution: {integrity: sha512-azawK7ApUYtcuPGRGBR9vDZu795pRuaFhO5fgomdJppdfKRt7jwncuh0b7+D3i574/4B+16CNWgVpnGVlg3ZCg==}
+    peerDependencies:
+      graphql: ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
+
   graphql-scalars@1.25.0:
     resolution: {integrity: sha512-b0xyXZeRFkne4Eq7NAnL400gStGqG/Sx9VqX0A05nHyEbv57UJnWKsjNnrpVqv5e/8N1MUxkt0wwcRXbiyKcFg==}
     engines: {node: '>=10'}
@@ -4720,8 +4788,8 @@ packages:
       ws:
         optional: true
 
-  graphql-yoga@5.18.0:
-    resolution: {integrity: sha512-xFt1DVXS1BZ3AvjnawAGc5OYieSe56WuQuyk3iEpBwJ3QDZJWQGLmU9z/L5NUZ+pUcyprsz/bOwkYIV96fXt/g==}
+  graphql-yoga@5.18.1:
+    resolution: {integrity: sha512-GiDSlvibfY/vyurbkBOKMO+adF6bTCzKr80FYWta59s1Lx87oVo8T6Nu/0hrxrGv0SrAUkqUpcpr4Ee7XlYmBw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       graphql: ^15.2.0 || ^16.0.0
@@ -6180,6 +6248,9 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
+  pure-rand@6.1.0:
+    resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
   quansync@0.2.11:
     resolution: {integrity: sha512-AifT7QEbW9Nri4tAwR5M/uzpBuqfZf+zwaEM/QkzEjj7NBuFD2rBuy0K3dE+8wltbezDV7JMA0WfnCPYRSYbXA==}
 
@@ -6784,6 +6855,9 @@ packages:
   tslib@1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
+  tslib@2.4.1:
+    resolution: {integrity: sha512-tGyy4dAjRIEwI7BzsB0lynWgOpfqjUdq91XXAlIWD2OwKBH7oCl/GZG/HT4BOHrTlPMOASlMQ7veyTqpmRcrNA==}
+
   tslib@2.6.3:
     resolution: {integrity: sha512-xNvxJEOUiWPGhUuUdQgAJPKOOJfGnIyKySOc09XkKsgdUV/3E2zvwZYdejjmRgPCgcym1juLH3226yA7sEFJKQ==}
 
@@ -7043,6 +7117,10 @@ packages:
   validate-npm-package-name@5.0.0:
     resolution: {integrity: sha512-YuKoXDAhBYxY7SfOKxHBDoSyENFeW5VvIIQp2TGQuit8gpK6MnWaQelBKxso72DoxTZfZdcP3W90LqpSkgPzLQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  value-or-promise@1.0.11:
+    resolution: {integrity: sha512-41BrgH+dIbCFXClcSapVs5M6GkENd3gQOJpEfPDNa71LsUGMXDL0jMWpI/Rh7WhX+Aalfz2TTS3Zt5pUsbnhLg==}
+    engines: {node: '>=12'}
 
   vite-node@3.2.4:
     resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
@@ -7705,6 +7783,20 @@ snapshots:
       '@whatwg-node/promise-helpers': 1.3.2
       tslib: 2.8.1
 
+  '@envelop/core@5.5.1':
+    dependencies:
+      '@envelop/instrumentation': 1.0.0
+      '@envelop/types': 5.2.1
+      '@whatwg-node/promise-helpers': 1.3.2
+      tslib: 2.8.1
+
+  '@envelop/graphql-middleware@9.1.1(@envelop/core@5.5.1)(graphql-middleware@6.1.35(graphql@16.12.0))(graphql@16.12.0)':
+    dependencies:
+      '@envelop/core': 5.5.1
+      graphql: 16.12.0
+      graphql-middleware: 6.1.35(graphql@16.12.0)
+      tslib: 2.8.1
+
   '@envelop/instrumentation@1.0.0':
     dependencies:
       '@whatwg-node/promise-helpers': 1.3.2
@@ -8254,6 +8346,14 @@ snapshots:
       graphql: 16.12.0
       tslib: 2.8.1
 
+  '@graphql-tools/batch-execute@8.5.1(graphql@16.12.0)':
+    dependencies:
+      '@graphql-tools/utils': 8.9.0(graphql@16.12.0)
+      dataloader: 2.1.0
+      graphql: 16.12.0
+      tslib: 2.8.1
+      value-or-promise: 1.0.11
+
   '@graphql-tools/batch-execute@9.0.19(graphql@16.12.0)':
     dependencies:
       '@graphql-tools/utils': 10.11.0(graphql@16.12.0)
@@ -8297,6 +8397,16 @@ snapshots:
       dataloader: 2.2.3
       graphql: 16.12.0
       tslib: 2.8.1
+
+  '@graphql-tools/delegate@8.8.1(graphql@16.12.0)':
+    dependencies:
+      '@graphql-tools/batch-execute': 8.5.1(graphql@16.12.0)
+      '@graphql-tools/schema': 8.5.1(graphql@16.12.0)
+      '@graphql-tools/utils': 8.9.0(graphql@16.12.0)
+      dataloader: 2.1.0
+      graphql: 16.12.0
+      tslib: 2.4.1
+      value-or-promise: 1.0.11
 
   '@graphql-tools/documents@1.0.1(graphql@16.12.0)':
     dependencies:
@@ -8484,6 +8594,12 @@ snapshots:
       p-limit: 3.1.0
       tslib: 2.8.1
 
+  '@graphql-tools/merge@8.3.1(graphql@16.12.0)':
+    dependencies:
+      '@graphql-tools/utils': 8.9.0(graphql@16.12.0)
+      graphql: 16.12.0
+      tslib: 2.8.1
+
   '@graphql-tools/merge@9.1.6(graphql@16.12.0)':
     dependencies:
       '@graphql-tools/utils': 10.11.0(graphql@16.12.0)
@@ -8510,6 +8626,14 @@ snapshots:
       '@graphql-tools/utils': 10.11.0(graphql@16.12.0)
       graphql: 16.12.0
       tslib: 2.8.1
+
+  '@graphql-tools/schema@8.5.1(graphql@16.12.0)':
+    dependencies:
+      '@graphql-tools/merge': 8.3.1(graphql@16.12.0)
+      '@graphql-tools/utils': 8.9.0(graphql@16.12.0)
+      graphql: 16.12.0
+      tslib: 2.8.1
+      value-or-promise: 1.0.11
 
   '@graphql-tools/url-loader@8.0.33(@types/node@24.10.4)(graphql@16.12.0)':
     dependencies:
@@ -8562,6 +8686,11 @@ snapshots:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.12.0)
       '@whatwg-node/promise-helpers': 1.3.2
       cross-inspect: 1.0.1
+      graphql: 16.12.0
+      tslib: 2.8.1
+
+  '@graphql-tools/utils@8.9.0(graphql@16.12.0)':
+    dependencies:
       graphql: 16.12.0
       tslib: 2.8.1
 
@@ -10478,6 +10607,8 @@ snapshots:
 
   data-uri-to-buffer@6.0.2: {}
 
+  dataloader@2.1.0: {}
+
   dataloader@2.2.3: {}
 
   db0@0.3.4(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@types/pg@8.16.0)(kysely@0.28.9)(pg@8.16.3)):
@@ -10618,6 +10749,11 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@types/pg': 8.16.0
       pg: 8.16.3
+
+  drizzle-seed@1.0.0-beta.9-e89174b(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)):
+    dependencies:
+      drizzle-orm: 1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)
+      pure-rand: 6.1.0
 
   dset@3.1.4: {}
 
@@ -11452,6 +11588,12 @@ snapshots:
       - uWebSockets.js
       - utf-8-validate
 
+  graphql-middleware@6.1.35(graphql@16.12.0):
+    dependencies:
+      '@graphql-tools/delegate': 8.8.1(graphql@16.12.0)
+      '@graphql-tools/schema': 8.5.1(graphql@16.12.0)
+      graphql: 16.12.0
+
   graphql-scalars@1.25.0(graphql@16.12.0):
     dependencies:
       graphql: 16.12.0
@@ -11468,9 +11610,9 @@ snapshots:
     optionalDependencies:
       ws: 8.18.3
 
-  graphql-yoga@5.18.0(graphql@16.12.0):
+  graphql-yoga@5.18.1(graphql@16.12.0):
     dependencies:
-      '@envelop/core': 5.4.0
+      '@envelop/core': 5.5.1
       '@envelop/instrumentation': 1.0.0
       '@graphql-tools/executor': 1.5.0(graphql@16.12.0)
       '@graphql-tools/schema': 10.0.30(graphql@16.12.0)
@@ -12570,6 +12712,58 @@ snapshots:
       - sqlite3
       - uploadthing
 
+  nitro@3.0.260311-beta(@azure/identity@4.13.0)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(giget@2.0.0)(ioredis@5.9.2)(jiti@2.6.1)(rollup@4.54.0)(vite@7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)):
+    dependencies:
+      consola: 3.4.2
+      crossws: 0.4.4(srvx@0.11.9)
+      db0: 0.3.4(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))
+      env-runner: 0.1.6
+      h3: 2.0.1-rc.16(crossws@0.4.4(srvx@0.11.9))
+      hookable: 6.1.0
+      nf3: 0.3.11
+      ocache: 0.1.2
+      ofetch: 2.0.0-alpha.3
+      ohash: 2.0.11
+      rolldown: 1.0.0-rc.9
+      srvx: 0.11.9
+      unenv: 2.0.0-rc.24
+      unstorage: 2.0.0-alpha.6(@azure/identity@4.13.0)(chokidar@5.0.0)(db0@0.3.4(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)))(ioredis@5.9.2)(ofetch@2.0.0-alpha.3)
+    optionalDependencies:
+      dotenv: 17.2.3
+      giget: 2.0.0
+      jiti: 2.6.1
+      rollup: 4.54.0
+      vite: 7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/functions'
+      - '@vercel/kv'
+      - aws4fetch
+      - better-sqlite3
+      - chokidar
+      - drizzle-orm
+      - idb-keyval
+      - ioredis
+      - lru-cache
+      - miniflare
+      - mongodb
+      - mysql2
+      - sqlite3
+      - uploadthing
+
   nitro@3.0.260311-beta(@azure/identity@4.13.0)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(giget@2.0.0)(jiti@2.6.1)(rollup@4.54.0)(vite@7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       consola: 3.4.2
@@ -13175,6 +13369,8 @@ snapshots:
   proxy-from-env@1.1.0: {}
 
   punycode@2.3.1: {}
+
+  pure-rand@6.1.0: {}
 
   quansync@0.2.11: {}
 
@@ -13833,6 +14029,8 @@ snapshots:
 
   tslib@1.14.1: {}
 
+  tslib@2.4.1: {}
+
   tslib@2.6.3: {}
 
   tslib@2.8.1: {}
@@ -14006,6 +14204,14 @@ snapshots:
       db0: 0.3.4(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(@types/pg@8.16.0)(kysely@0.28.9)(pg@8.16.3))
       ofetch: 2.0.0-alpha.3
 
+  unstorage@2.0.0-alpha.6(@azure/identity@4.13.0)(chokidar@5.0.0)(db0@0.3.4(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)))(ioredis@5.9.2)(ofetch@2.0.0-alpha.3):
+    optionalDependencies:
+      '@azure/identity': 4.13.0
+      chokidar: 5.0.0
+      db0: 0.3.4(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))
+      ioredis: 5.9.2
+      ofetch: 2.0.0-alpha.3
+
   unstorage@2.0.0-alpha.6(@azure/identity@4.13.0)(chokidar@5.0.0)(db0@0.3.4(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)))(ofetch@2.0.0-alpha.3):
     optionalDependencies:
       '@azure/identity': 4.13.0
@@ -14068,6 +14274,8 @@ snapshots:
   validate-npm-package-name@5.0.0:
     dependencies:
       builtins: 5.1.0
+
+  value-or-promise@1.0.11: {}
 
   vite-node@3.2.4(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:

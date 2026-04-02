@@ -6,7 +6,7 @@ describe('graphql/types', () => {
   })
 
   it('should include default Query/Mutation type defs and scalar type defs', async () => {
-    const { registeredTypeDefs } = await import('./types')
+    const { registeredTypeDefs } = await import('.')
     const defs = registeredTypeDefs()
 
     // Single inline string with base types, Relay types, filters, and Query/Mutation/Subscription
@@ -20,7 +20,7 @@ describe('graphql/types', () => {
   })
 
   it('should append type defs via registerTypeDefs()', async () => {
-    const { registerTypeDefs, registeredTypeDefs } = await import('./types')
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
     const before = registeredTypeDefs().length
 
     const customTypeDef = { kind: 'Document' } as any
@@ -32,7 +32,7 @@ describe('graphql/types', () => {
   })
 
   it('should accumulate multiple type def registrations', async () => {
-    const { registerTypeDefs, registeredTypeDefs } = await import('./types')
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
     const before = registeredTypeDefs().length
 
     registerTypeDefs({ kind: 'Doc1' } as any)
@@ -42,7 +42,7 @@ describe('graphql/types', () => {
   })
 
   it('should accept a raw SDL string', async () => {
-    const { registerTypeDefs, registeredTypeDefs } = await import('./types')
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
 
     const sdl = 'type Foo { bar: String }'
     registerTypeDefs(sdl)

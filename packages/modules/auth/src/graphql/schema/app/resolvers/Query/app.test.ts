@@ -12,26 +12,26 @@ vi.mock('@czo/kit/graphql', () => ({
 const resolver = app as (...args: any[]) => Promise<any>
 
 describe('app query resolver', () => {
-  const mockGetAppById = vi.fn()
+  const mockFindFirst = vi.fn()
   const ctx = {
     auth: {
-      appService: { getAppById: mockGetAppById },
+      appService: { findFirst: mockFindFirst },
       session: { userId: 'user-1' },
     },
   } as any
 
-  it('should decode the global ID and delegate to appService.getAppById', async () => {
+  it('should decode the global ID and delegate to appService.findFirst', async () => {
     const expected = { id: 'uuid-123', appId: 'my-app', status: 'active' }
-    mockGetAppById.mockResolvedValue(expected)
+    mockFindFirst.mockResolvedValue(expected)
 
     const result = await resolver({}, { id: 'App:uuid-123' }, ctx, {})
 
-    expect(mockGetAppById).toHaveBeenCalledWith('uuid-123')
+    expect(mockFindFirst).toHaveBeenCalledWith({ where: { id: 'uuid-123' } })
     expect(result).toEqual(expected)
   })
 
   it('should return null when app is not found', async () => {
-    mockGetAppById.mockResolvedValue(null)
+    mockFindFirst.mockResolvedValue(null)
 
     const result = await resolver({}, { id: 'App:unknown' }, ctx, {})
 

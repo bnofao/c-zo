@@ -1,67 +1,81 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apps } from './apps'
 
+vi.mock('@czo/kit/graphql', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@czo/kit/graphql')>()
+  return {
+    ...actual,
+    fromWhereGlobalId: vi.fn((_field: string, val: unknown) => ({ organizationId: val })),
+  }
+})
+
 const appsResolver = apps as (...args: any[]) => Promise<any>
 
 describe('apps query resolver', () => {
-  const mockListApps = vi.fn()
+  const mockFindMany = vi.fn()
+  const mockCount = vi.fn()
 
   function makeCtx(sessionOrg: string | null = null) {
     return {
       auth: {
-        appService: { listApps: mockListApps },
+        appService: { findMany: mockFindMany, count: mockCount },
         session: { userId: 'user-1', organizationId: sessionOrg },
       },
     } as any
   }
 
-  it('should pass where and pagination to listApps', async () => {
-    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
-    const where = { status: { eq: 'active' } }
+  it('should return connection edges for @connection directive', async () => {
+    const appRow = { id: '1', createdAt: new Date() }
+    mockFindMany.mockResolvedValue([appRow])
+    mockCount.mockResolvedValue(1)
 
-    await appsResolver({}, { first: 10, after: 'cursor-1', where }, makeCtx('org-session'), {} as any)
+    const result = await appsResolver({}, { first: 10 }, makeCtx(null), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: { eq: 'active' } }),
-        first: 10,
-        after: 'cursor-1',
-      }),
+    expect(result.edges).toHaveLength(1)
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 11 }),
     )
   })
 
-  it('should auto-scope to session organizationId when not explicitly filtered', async () => {
-    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+  it('should auto-scope to session organizationId', async () => {
+    mockFindMany.mockResolvedValue([])
+    mockCount.mockResolvedValue(0)
 
     await appsResolver({}, { first: 5 }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(
+    expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ organizationId: expect.objectContaining({ eq: expect.any(String) }) }),
+        where: expect.objectContaining({
+          organizationId: { eq: 'org-session' },
+        }),
       }),
     )
   })
 
-  it('should not override explicit organizationId filter', async () => {
-    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
-    const where = { organizationId: { eq: 'explicit-global-id' } }
+  it('should use explicit organization filter over session organizationId', async () => {
+    mockFindMany.mockResolvedValue([])
+    mockCount.mockResolvedValue(0)
+    const where = { organization: 'explicit-global-id' }
 
     await appsResolver({}, { first: 5, where }, makeCtx('org-session'), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(
+    expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ organizationId: { eq: 'explicit-global-id' } }),
+        where: expect.objectContaining({
+          organizationId: 'explicit-global-id',
+        }),
       }),
     )
   })
 
-  it('should pass undefined where when no session org and no filter', async () => {
-    mockListApps.mockResolvedValue({ nodes: [], totalCount: 0, getCursor: () => '' })
+  it('should pass empty where when no filter and no session org', async () => {
+    mockFindMany.mockResolvedValue([])
+    mockCount.mockResolvedValue(0)
 
     await appsResolver({}, { first: 5 }, makeCtx(null), {} as any)
 
-    expect(mockListApps).toHaveBeenCalledWith(
-      expect.objectContaining({ where: undefined }),
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
     )
   })
 })
