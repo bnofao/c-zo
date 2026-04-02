@@ -1,7 +1,10 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 
 export const stockLocations = pgTable('stock_locations', {
-  id: text('id').primaryKey(),
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity({
+    startWith: 1, // Optional: customize sequence start
+    increment: 1, // Optional: customize increment amount
+  }),
   organizationId: text('organization_id').notNull(),
   handle: text('handle').notNull(),
   name: text('name').notNull(),
@@ -18,8 +21,11 @@ export const stockLocations = pgTable('stock_locations', {
 ])
 
 export const stockLocationAddresses = pgTable('stock_location_addresses', {
-  id: text('id').primaryKey(),
-  stockLocationId: text('stock_location_id').notNull().references(() => stockLocations.id, { onDelete: 'cascade' }).unique(),
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity({
+    startWith: 1, // Optional: customize sequence start
+    increment: 1, // Optional: customize increment amount
+  }),
+  stockLocationId: integer('stock_location_id').notNull().references(() => stockLocations.id, { onDelete: 'cascade' }).unique(),
   addressLine1: text('address_line_1').notNull(),
   addressLine2: text('address_line_2'),
   city: text('city').notNull(),

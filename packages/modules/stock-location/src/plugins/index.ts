@@ -3,7 +3,7 @@ import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { stockLocationRelations } from '@czo/stock-location/relations'
 import * as stockLocationSchema from '@czo/stock-location/schema'
-import { createStockLocationService } from '@czo/stock-location/services'
+import { createStockLocationAddressService, createStockLocationService } from '@czo/stock-location/services'
 import { definePlugin } from 'nitro'
 
 export default definePlugin((nitroApp) => {
@@ -47,8 +47,10 @@ export default definePlugin((nitroApp) => {
     const container = useContainer()
     const db = await useDatabase()
 
-    const service = createStockLocationService(db)
-    container.singleton('stockLocation:service', () => service)
+    const stockLocationService = createStockLocationService(db)
+    const stockLocationAddressService = createStockLocationAddressService(db)
+    container.singleton('stockLocation:service', () => stockLocationService)
+    container.singleton('stockLocationAddress:service', () => stockLocationAddressService)
     logger.info('Service bound to container')
 
     await import('@czo/stock-location/graphql')

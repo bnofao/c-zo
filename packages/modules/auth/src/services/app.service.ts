@@ -1,11 +1,11 @@
+import type { authRelations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
-import type { ApiKeyService } from './apiKey.service'
-import type { AuthService } from './auth.service'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import * as schema from '@czo/auth/schema'
 import { Repository } from '@czo/kit/db'
-import { and, eq } from 'drizzle-orm'
+import { useContainer } from '@czo/kit/ioc'
+import { eq, sql } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
 
@@ -14,6 +14,7 @@ const { apps, apikeys } = schema
 // ─── Schema type for the repository ─────────────────────────────────
 
 type AppSchema = typeof schema
+type Relations = ReturnType<typeof authRelations>
 
 // ─── Zod Schema ──────────────────────────────────────────────────────
 
@@ -103,23 +104,97 @@ export interface InstalledApp extends AppRow {
 
 export type AppService = ReturnType<typeof createAppService>
 
+// ─── SSRF Protection ─────────────────────────────────────────────────
+
+const PRIVATE_IP_RANGES = [
+  /^127\./, // loopback
+  /^10\./, // class A
+  /^172\.(1[6-9]|2\d|3[01])\./, // class B
+  /^192\.168\./, // class C
+  /^169\.254\./, // link-local / cloud metadata
+  /^0\./, // current network
+  /^fc00:/i, // IPv6 unique local
+  /^fe80:/i, // IPv6 link-local
+  /^::1$/, // IPv6 loopback
+]
+
+function isPrivateIp(ip: string): boolean {
+  return PRIVATE_IP_RANGES.some(r => r.test(ip))
+}
+
+async function resolveAndValidateUrl(url: string): Promise<{ ip: string, hostname: string, parsed: URL }> {
+  const parsed = new URL(url)
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Only HTTPS URLs are allowed')
+  }
+
+  const dns = await import('node:dns/promises')
+  const [ipv4, ipv6] = await Promise.allSettled([
+    dns.resolve(parsed.hostname),
+    dns.resolve6(parsed.hostname),
+  ])
+
+  const addresses = [
+    ...(ipv4.status === 'fulfilled' ? ipv4.value : []),
+    ...(ipv6.status === 'fulfilled' ? ipv6.value : []),
+  ]
+
+  if (addresses.length === 0) {
+    throw new Error('URL hostname could not be resolved')
+  }
+
+  for (const ip of addresses) {
+    if (isPrivateIp(ip)) {
+      throw new Error('URL resolves to a private address')
+    }
+  }
+
+  return { ip: addresses[0]!, hostname: parsed.hostname, parsed }
+}
+
+async function safeFetch(url: string): Promise<Response> {
+  const { ip, hostname, parsed } = await resolveAndValidateUrl(url)
+
+  // Rewrite URL to use the resolved IP, set Host header to original hostname.
+  // This prevents DNS rebinding: the fetch connects to the verified IP,
+  // not a potentially different re-resolution of the hostname.
+  const ipUrl = new URL(parsed.href)
+  ipUrl.hostname = ip
+
+  return fetch(ipUrl.href, {
+    headers: { Host: hostname },
+  })
+}
+
 // ─── Repository ──────────────────────────────────────────────────────
 
-class AppRepository extends Repository<AppSchema, typeof apps, 'apps'> {}
+class AppRepository extends Repository<AppSchema, Relations, typeof apps, 'apps'> {
+  #manifestSchema: ReturnType<typeof buildManifestSchema>
 
-// ─── Factory ─────────────────────────────────────────────────────────
+  constructor(db: Database, events: ReadonlySet<string>) {
+    super(db)
+    this.#manifestSchema = buildManifestSchema(events)
+  }
 
-export function createAppService(
-  db: Database<AppSchema>,
-  apiKeyService: ApiKeyService,
-  authService: AuthService,
-  baseSubscribableEvents: ReadonlySet<string>,
-) {
-  const manifestSchema = buildManifestSchema(baseSubscribableEvents)
-  const repo = new AppRepository(db, apps)
+  get model() {
+    return 'apps' as const
+  }
 
-  async function install(input: InstallAppInput): Promise<InstalledApp> {
-    const manifest = manifestSchema.parse(input.manifest)
+  async beforeUpdate(value: any) {
+    if ('manifest' in value) {
+      value.manifest = this.#manifestSchema.parse(value.manifest)
+    }
+  }
+
+  async afterUpdate(value: any) {
+    publishAuthEvent(AUTH_EVENTS.APP_UPDATED, { appId: value.appId, version: value.manifest.version, status: value.status })
+  }
+
+  async install(input: InstallAppInput): Promise<InstalledApp> {
+    const manifest = this.#manifestSchema.parse(input.manifest)
+    const authService = await useContainer().make('auth:service')
+    const apiKeyService = await useContainer().make('auth:apikeys')
 
     if (manifest.scope === 'organization' && !input.organizationId) {
       throw new Error(`App "${manifest.id}" requires an organization context but no organizationId was provided`)
@@ -133,8 +208,8 @@ export function createAppService(
             input.installerRole,
           )
         : Promise.resolve(true),
-      repo.findFirst({
-        where: eq(apps.appId, manifest.id),
+      this.findFirst({
+        where: { appId: manifest.id },
       }),
     ])
 
@@ -153,7 +228,7 @@ export function createAppService(
     const webhookSecret = crypto.randomUUID()
     const now = new Date()
 
-    const row = await repo.create({
+    const row = await this.create({
       id,
       appId: manifest.id,
       manifest,
@@ -165,7 +240,7 @@ export function createAppService(
       updatedAt: now,
     })
 
-    if (!row) {
+    if (!row || row.length === 0) {
       throw new Error('Failed to insert app')
     }
 
@@ -176,7 +251,8 @@ export function createAppService(
       permissions: manifest.permissions,
     })
 
-    await db
+    // TODO: Use apiKeyService to update
+    await this.db
       .update(apikeys)
       .set({ installedAppId: id })
       .where(eq(apikeys.id, apiKey.id))
@@ -190,24 +266,24 @@ export function createAppService(
       webhookSecret,
     })
 
-    return { ...row, apiKey: { id: apiKey.id } }
+    return { ...row[0], apiKey: { id: apiKey.id } } as InstalledApp
   }
 
-  async function installFromUrl(url: string, userId: string, organizationId?: string): Promise<InstalledApp> {
-    const response = await fetch(url)
+  async installFromUrl(url: string, userId: string, organizationId?: string): Promise<InstalledApp> {
+    const response = await safeFetch(url)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch manifest from ${url}: ${response.status}`)
     }
 
     const json = await response.json()
-    const manifest = manifestSchema.parse(json)
+    const manifest = this.#manifestSchema.parse(json)
 
-    return install({ manifest, installedBy: userId, organizationId })
+    return this.install({ manifest, installedBy: userId, organizationId })
   }
 
-  async function uninstall(appId: string): Promise<void> {
-    const result = await repo.delete({
+  async uninstall(appId: string): Promise<AppRow> {
+    const result = await this.delete({
       where: eq(apps.appId, appId),
     })
 
@@ -216,73 +292,21 @@ export function createAppService(
     }
 
     publishAuthEvent(AUTH_EVENTS.APP_UNINSTALLED, { appId })
-  }
-
-  async function getApp(appId: string): Promise<AppRow | null> {
-    return repo.findFirst({
-      where: eq(apps.appId, appId),
-    })
-  }
-
-  async function listApps(organizationId?: string): Promise<AppRow[]> {
-    if (organizationId) {
-      return repo.findMany({
-        where: and(eq(apps.status, 'active'), eq(apps.organizationId, organizationId)),
-      })
-    }
-    return repo.findMany({
-      where: eq(apps.status, 'active'),
-    })
-  }
-
-  async function updateManifest(appId: string, manifest: AppManifest): Promise<AppRow> {
-    const parsed = manifestSchema.parse(manifest)
-
-    const result = await repo.update(
-      { manifest: parsed },
-      { where: eq(apps.appId, appId) },
-    )
-
-    if (result.length === 0) {
-      throw new Error(`App "${appId}" not found`)
-    }
-
-    publishAuthEvent(AUTH_EVENTS.APP_MANIFEST_UPDATED, { appId, version: parsed.version })
 
     return result[0]!
   }
 
-  async function setStatus(appId: string, status: AppStatus): Promise<AppRow> {
-    const result = await repo.update(
-      { status },
-      { where: eq(apps.appId, appId) },
-    )
-
-    if (result.length === 0) {
-      throw new Error(`App "${appId}" not found`)
-    }
-
-    publishAuthEvent(AUTH_EVENTS.APP_STATUS_CHANGED, { appId, status })
-
-    return result[0]!
-  }
-
-  async function getActiveAppsByEvent(event: string): Promise<AppRow[]> {
-    const activeApps = await listApps()
-    return activeApps.filter((app) => {
-      const manifest = app.manifest as AppManifest
-      return manifest.webhooks.some(w => w.event === event)
+  async findManyByEvent(event: string) {
+    return await this.findMany({
+      where: {
+        status: 'active',
+        RAW: table => sql`${table.manifest}->'webhooks' @> ${JSON.stringify([{ event }])}::jsonb`,
+      },
+      limit: 100,
     })
-  }
-
-  return {
-    install,
-    installFromUrl,
-    uninstall,
-    getApp,
-    listApps,
-    updateManifest,
-    setStatus,
-    getActiveAppsByEvent,
   }
 }
+
+// ─── Factory ─────────────────────────────────────────────────────────
+
+export const createAppService = (db: Database, events: ReadonlySet<string>) => AppRepository.buildService([db, events])

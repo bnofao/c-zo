@@ -1,0 +1,53 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+describe('graphql/types', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  it('should include default Query/Mutation type defs and scalar type defs', async () => {
+    const { registeredTypeDefs } = await import('.')
+    const defs = registeredTypeDefs()
+
+    // Single inline string with base types, Relay types, filters, and Query/Mutation/Subscription
+    expect(defs.length).toBeGreaterThanOrEqual(1)
+    const baseDef = defs[0] as string
+    expect(baseDef).toContain('type Query')
+    expect(baseDef).toContain('type Mutation')
+    expect(baseDef).toContain('type Subscription')
+    expect(baseDef).toContain('interface Node')
+    expect(baseDef).toContain('type PageInfo')
+  })
+
+  it('should append type defs via registerTypeDefs()', async () => {
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
+    const before = registeredTypeDefs().length
+
+    const customTypeDef = { kind: 'Document' } as any
+    registerTypeDefs(customTypeDef)
+
+    const defs = registeredTypeDefs()
+    expect(defs).toHaveLength(before + 1)
+    expect(defs[defs.length - 1]).toBe(customTypeDef)
+  })
+
+  it('should accumulate multiple type def registrations', async () => {
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
+    const before = registeredTypeDefs().length
+
+    registerTypeDefs({ kind: 'Doc1' } as any)
+    registerTypeDefs({ kind: 'Doc2' } as any)
+
+    expect(registeredTypeDefs()).toHaveLength(before + 2)
+  })
+
+  it('should accept a raw SDL string', async () => {
+    const { registerTypeDefs, registeredTypeDefs } = await import('.')
+
+    const sdl = 'type Foo { bar: String }'
+    registerTypeDefs(sdl)
+
+    const defs = registeredTypeDefs()
+    expect(defs[defs.length - 1]).toBe(sdl)
+  })
+})

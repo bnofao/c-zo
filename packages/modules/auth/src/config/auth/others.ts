@@ -1,7 +1,7 @@
 import type { BetterAuthAdvancedOptions, BetterAuthOptions, BetterAuthRateLimitOptions } from 'better-auth'
 import type { useStorage } from 'nitro/storage'
 import { AUTH_EVENTS, publishAuthEvent } from '../../events'
-import { validatePasswordStrength } from '../utils'
+// import { validatePasswordStrength } from '../utils'
 
 export type Storage = ReturnType<typeof useStorage>
 
@@ -15,10 +15,10 @@ export function emailAndPasswordConfig(option?: EmailAndPasswordOption) {
     maxPasswordLength: 128,
     password: {
       hash: async (password: string) => {
-        const result = validatePasswordStrength(password)
-        if (!result.valid) {
-          throw new Error(`Password too weak: ${result.errors.join(', ')}`)
-        }
+        // const result = validatePasswordStrength(password)
+        // if (!result.valid) {
+        //   throw new Error(`Password too weak: ${result.errors.join(', ')}`)
+        // }
         const { hashPassword } = await import('better-auth/crypto')
         return hashPassword(password)
       },
@@ -66,7 +66,7 @@ export function rateLimitConfig(option?: BetterAuthRateLimitOptions, storage?: S
     max: 30,
     storage: storage ? 'secondary-storage' : 'memory',
     customRules: {
-      '/sign-in/email': { window: 900, max: 5 },
+      '/sign-in/email': { window: 900, max: 15 },
       '/sign-up/email': { window: 3600, max: 3 },
       '/forget-password': { window: 3600, max: 3 },
       '/reset-password': { window: 3600, max: 3 },

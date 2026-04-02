@@ -1,8 +1,7 @@
-import './filter-types'
-
 export * from './context'
-export * from './directives'
-export * from './pubsub'
+export * from './directive'
+export * from './middleware'
+export * from './relay'
 export * from './resolvers'
-export * from './scalars'
+export * from './subscription'
 export * from './types'

@@ -3,8 +3,8 @@ import { defineConfig } from '@eddeee888/gcg-typescript-resolver-files'
 
 const config: CodegenConfig = {
   schema: [
-    '../../kit/src/graphql/base-types.graphql',
-    '../../kit/src/graphql/filter-types.graphql',
+    '../../kit/src/graphql/schema/filter.graphql',
+    '../../kit/src/graphql/schema/relay.graphql',
     'src/graphql/schema/**/*.graphql',
   ],
   generates: {
@@ -13,15 +13,11 @@ const config: CodegenConfig = {
       resolverTypesPath: './__generated__/types.generated.ts',
       typeDefsFilePath: './__generated__/typedefs.generated.ts',
       resolverMainFile: './__generated__/resolvers.generated.ts',
-      resolverGeneration: 'recommended',
+      resolverGeneration: 'minimal',
       externalResolvers: {
-        'Query._empty': './../../../../../kit/src/graphql/resolvers/Query/_empty#_empty as Query__empty',
-        'Mutation._empty': './../../../../../kit/src/graphql/resolvers/Mutation/_empty#_empty as Mutation__empty',
       },
       fixObjectTypeResolvers: 'disabled',
       scalarsOverrides: {
-        DateTime: { type: 'Date | string' },
-        EmailAddress: { type: 'string' },
         JSON: { type: 'Record<string, unknown> | null' },
       },
       typesPluginsConfig: {

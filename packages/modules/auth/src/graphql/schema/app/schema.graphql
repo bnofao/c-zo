@@ -1,4 +1,4 @@
-type App {
+type App implements Node {
   id: ID!
   appId: String!
   manifest: JSON!
@@ -9,10 +9,33 @@ type App {
   updatedAt: DateTime!
 }
 
-type AppInstallResult {
-  app: App!
-  apiKeyId: String!
+# ─── Connection types ─────────────────────────
+
+type AppConnection {
+  edges: [AppEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int
 }
+
+type AppEdge {
+  node: App!
+  cursor: String!
+}
+
+# ─── Ordering ─────────────────────────────────
+
+enum AppOrderField {
+  CREATED_AT
+  APP_ID
+  STATUS
+}
+
+input AppOrderByInput {
+  field: AppOrderField!
+  dir: OrderDirection!
+}
+
+# ─── Inputs ───────────────────────────────────
 
 input InstallAppInput {
   manifestUrl: String!
@@ -25,14 +48,66 @@ input InstallAppManifestInput {
   installedBy: String!
 }
 
+input UpdateAppManifestInput {
+  appId: String!
+  manifest: JSON!
+}
+
+input SetAppStatusInput {
+  appId: String!
+  status: String!
+}
+
+# ─── Filters ──────────────────────────────────
+
+input AppWhereInput {
+  status: StringFilterInput
+  organization: IDFilterInput
+}
+
+# ─── Queries ──────────────────────────────────
+
 extend type Query {
-  app(appId: String!): App @permission(resource: "apps", action: "read")
-  apps(organizationId: ID): [App!]! @permission(resource: "apps", action: "read")
+  """Fetch an app by its Relay global ID (primary key)."""
+  app(id: ID!): App @permission(resource: "apps", action: "read")
+  """Fetch an app by its manifest slug (e.g. "my-cool-app")."""
+  appBySlug(appId: String!): App @permission(resource: "apps", action: "read")
+  """List apps with cursor-based pagination."""
+  apps(
+    first: Int
+    after: String
+    last: Int
+    before: String
+    orderBy: [AppOrderByInput!]
+    where: AppWhereInput
+  ): AppConnection! @admin
+}
+
+# ─── Mutation payloads ────────────────────────
+
+type InstallAppPayload {
+  app: App
+  userErrors: [UserError!]!
+}
+
+type UninstallAppPayload {
+  app: App
+  userErrors: [UserError!]!
+}
+
+type UpdateAppManifestPayload {
+  app: App
+  userErrors: [UserError!]!
+}
+
+type SetAppStatusPayload {
+  app: App
+  userErrors: [UserError!]!
 }
 
 extend type Mutation {
-  installApp(input: InstallAppInput!): AppInstallResult! @permission(resource: "apps", action: "write")
-  uninstallApp(appId: String!): Boolean! @permission(resource: "apps", action: "delete")
-  updateAppManifest(appId: String!, manifest: JSON!): App! @permission(resource: "apps", action: "write")
-  setAppStatus(appId: String!, status: String!): App! @permission(resource: "apps", action: "write")
+  installApp(input: InstallAppInput!): InstallAppPayload! @permission(resource: "apps", action: "write") @relayMutation(payloadField: "app")
+  uninstallApp(appId: String!): UninstallAppPayload! @permission(resource: "apps", action: "delete") @relayMutation(payloadField: "app")
+  updateAppManifest(input: UpdateAppManifestInput!): UpdateAppManifestPayload! @permission(resource: "apps", action: "write") @relayMutation(payloadField: "app")
+  setAppStatus(input: SetAppStatusInput!): SetAppStatusPayload! @permission(resource: "apps", action: "write") @relayMutation(payloadField: "app")
 }

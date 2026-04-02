@@ -78,6 +78,7 @@
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
+    "graphql-middleware": "^6.0.0",
     "ioredis": "^5.0.0",
     "nitro": "^2.0.0 || ^3.0.0"
   },
@@ -106,6 +107,9 @@
     "bullmq": {
       "optional": true
     },
+    "graphql-middleware": {
+      "optional": true
+    },
     "ioredis": {
       "optional": true
     },
@@ -121,6 +125,7 @@
     "citty": "catalog:common",
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
+    "drizzle-seed": "catalog:common",
     "exsolve": "catalog:common",
     "graphql-scalars": "catalog:common",
     "hookable": "catalog:dev",
@@ -132,12 +137,14 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
+    "@graphql-tools/schema": "catalog:",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
+    "graphql-middleware": "catalog:common",
     "nitro": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"

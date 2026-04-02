@@ -50,7 +50,7 @@ vi.mock('@czo/kit/event-bus', () => ({
 // ─── Mock @czo/kit/ioc ───────────────────────────────────────────────
 
 const mockAppService = vi.hoisted(() => ({
-  setStatus: vi.fn().mockResolvedValue({}),
+  update: vi.fn().mockResolvedValue({}),
 }))
 
 vi.mock('@czo/kit/ioc', () => ({
@@ -145,7 +145,10 @@ describe('registerAppConsumer', () => {
 
     await workerProcessor!(makeJob())
 
-    expect(mockAppService.setStatus).toHaveBeenCalledWith('my-app', 'active')
+    expect(mockAppService.update).toHaveBeenCalledWith(
+      { status: 'active' },
+      { where: { appId: 'my-app' } },
+    )
   })
 
   it('should throw when register endpoint returns HTTP error (triggers BullMQ retry)', async () => {
@@ -165,7 +168,10 @@ describe('registerAppConsumer', () => {
   it('should set status to error when all retries are exhausted', async () => {
     await workerFailedHandler!(makeJob(), new Error('ECONNREFUSED'))
 
-    expect(mockAppService.setStatus).toHaveBeenCalledWith('my-app', 'error')
+    expect(mockAppService.update).toHaveBeenCalledWith(
+      { status: 'error' },
+      { where: { appId: 'my-app' } },
+    )
   })
 
   it('should not throw when job is undefined in failed handler', async () => {

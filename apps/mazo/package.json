@@ -8,7 +8,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:status": "drizzle-kit check",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "nitro task run db:seed"
   },
   "devDependencies": {
     "@czo/auth": "workspace:*",
@@ -18,9 +19,11 @@
     "nitro": "catalog:dev"
   },
   "dependencies": {
+    "@envelop/graphql-middleware": "catalog:common",
     "@graphql-tools/merge": "catalog:common",
     "@graphql-tools/schema": "catalog:",
     "graphql": "catalog:common",
+    "graphql-middleware": "catalog:common",
     "graphql-scalars": "catalog:common",
     "graphql-yoga": "catalog:common",
     "kysely": "catalog:common"

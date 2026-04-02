@@ -91,6 +91,14 @@ vi.mock('@czo/auth/config', () => ({
   createAuth: mockCreateAuth,
   useAccessService: vi.fn(() => mockAccessService),
   useAuthActorService: vi.fn(() => mockActorService),
+  DEFAULT_ACTOR_RESTRICTIONS: {
+    admin: {
+      allowedMethods: ['email', 'oauth:github', 'two-factor'],
+      sessionDuration: 28800,
+      enableRegistration: true,
+      allowImpersonation: false,
+    },
+  },
   ORGANIZATION_STATEMENTS: [],
   ORGANIZATION_HIERARCHY: {},
   ADMIN_STATEMENTS: [],
@@ -122,6 +130,8 @@ vi.mock('nitro/storage', () => ({
   useStorage: () => mockStorageInstance,
 }))
 
+const mockUseStorage = vi.hoisted(() => vi.fn(() => mockStorageInstance))
+
 // Mock GraphQL module import (called inside czo:boot)
 vi.mock('@czo/auth/graphql', () => ({}))
 
@@ -144,6 +154,7 @@ describe('auth plugin', () => {
       Repository: class MockRepository {},
       registerSchema: vi.fn(),
       registerRelations: vi.fn(),
+      registerSeeder: vi.fn(),
     }))
 
     vi.doMock('@czo/kit/ioc', () => ({
@@ -206,6 +217,7 @@ describe('auth plugin', () => {
       baseUrl: 'http://localhost:4000',
       auth: runtimeAuth,
     }))
+    mockSingletons.set('useStorage', () => mockUseStorage)
 
     const { default: plugin } = await import('./index')
     const app = createNitroApp()
@@ -265,7 +277,6 @@ describe('auth plugin', () => {
     expect(mockActorService.registerActor).toHaveBeenCalledWith(
       'admin',
       expect.objectContaining({
-        require2FA: true,
         sessionDuration: 28800,
       }),
     )
@@ -336,7 +347,7 @@ describe('auth plugin', () => {
 
     await boot()
 
-    expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, mockApiKeyService, mockAuthService, expect.any(Set))
+    expect(mockCreateAppService).toHaveBeenCalledWith(mockDb, expect.any(Set))
     expect(mockContainer.singleton).toHaveBeenCalledWith('auth:apps', expect.any(Function))
   })
 

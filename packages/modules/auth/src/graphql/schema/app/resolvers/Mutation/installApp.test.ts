@@ -13,12 +13,13 @@ describe('installApp mutation resolver', () => {
   } as any
 
   it('should call installFromUrl with url, userId, and organizationId', async () => {
-    mockInstallFromUrl.mockResolvedValue({
+    const appRow = {
       id: '1',
       appId: 'my-app',
       status: 'pending',
       apiKey: { id: 'key-1' },
-    })
+    }
+    mockInstallFromUrl.mockResolvedValue(appRow)
 
     const result = await resolver(
       {},
@@ -32,7 +33,7 @@ describe('installApp mutation resolver', () => {
       'user-1',
       'org-1',
     )
-    expect(result.apiKeyId).toBe('key-1')
+    expect(result).toEqual(appRow)
   })
 
   it('should pass undefined organizationId when not provided', async () => {
@@ -54,21 +55,5 @@ describe('installApp mutation resolver', () => {
       'user-1',
       undefined,
     )
-  })
-
-  it('should return empty apiKeyId when no apiKey in result', async () => {
-    mockInstallFromUrl.mockResolvedValue({
-      id: '1',
-      appId: 'my-app',
-    })
-
-    const result = await resolver(
-      {},
-      { input: { manifestUrl: 'https://example.com/manifest.json', organizationId: null } },
-      ctx,
-      {},
-    )
-
-    expect(result.apiKeyId).toBe('')
   })
 })

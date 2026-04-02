@@ -55,7 +55,6 @@ describe('auth database schema', () => {
       expect(columnNames).toContain('user_agent')
       expect(columnNames).toContain('user_id')
       expect(columnNames).toContain('actor_type')
-      expect(columnNames).toContain('auth_method')
       expect(columnNames).toContain('organization_id')
     })
 
@@ -65,14 +64,6 @@ describe('auth database schema', () => {
       expect(col).toBeDefined()
       expect(col!.notNull).toBe(true)
       expect(col!.default).toBe('customer')
-    })
-
-    it('should have auth_method with default "email"', () => {
-      const config = getTableConfig(schema.sessions)
-      const col = config.columns.find(c => c.name === 'auth_method')
-      expect(col).toBeDefined()
-      expect(col!.notNull).toBe(true)
-      expect(col!.default).toBe('email')
     })
 
     it('should have organization_id as nullable', () => {

@@ -29,7 +29,10 @@ export async function registerAppConsumer(): Promise<void> {
       throw new Error(`Register endpoint responded with ${res.status}`)
     }
 
-    await appService.setStatus(appId, 'active')
+    await appService.update(
+      { status: 'active' },
+      { where: { appId } },
+    )
     logger.info(`App "${appId}" registered successfully`)
   })
 
@@ -39,8 +42,11 @@ export async function registerAppConsumer(): Promise<void> {
     if (!job)
       return
     const { appId } = job.data as AuthAppInstalledPayload
-    const appService = await container.make('auth:apps') as AppService
-    await appService.setStatus(appId, 'error')
+    const appService = await container.make('auth:apps')
+    await appService.update(
+      { status: 'error' },
+      { where: { appId } },
+    )
     logger.error(`App "${appId}" registration failed after ${job.attemptsMade} attempt(s): ${err.message}`)
   })
 

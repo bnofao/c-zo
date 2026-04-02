@@ -22,7 +22,7 @@ type ApiKey {
   start: String
 }
 
-type App {
+type App implements Node {
   appId: String!
   createdAt: DateTime!
   id: ID!
@@ -33,9 +33,31 @@ type App {
   updatedAt: DateTime!
 }
 
-type AppInstallResult {
-  apiKeyId: String!
-  app: App!
+type AppConnection {
+  edges: [AppEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int
+}
+
+type AppEdge {
+  cursor: String!
+  node: App!
+}
+
+input AppOrderByInput {
+  dir: OrderDirection!
+  field: AppOrderField!
+}
+
+enum AppOrderField {
+  APP_ID
+  CREATED_AT
+  STATUS
+}
+
+input AppWhereInput {
+  organization: IDFilterInput
+  status: StringFilterInput
 }
 
 type BackupCodesResult {
@@ -44,6 +66,9 @@ type BackupCodesResult {
 }
 
 input BooleanFilterInput {
+  AND: [BooleanFilterInput!]
+  NOT: BooleanFilterInput
+  OR: [BooleanFilterInput!]
   eq: Boolean
 }
 
@@ -86,15 +111,36 @@ input CreateUserInput {
   role: String
 }
 
+scalar Date
+
+input DateFilterInput {
+  AND: [DateFilterInput!]
+  NOT: DateFilterInput
+  OR: [DateFilterInput!]
+  eq: Date
+  gt: Date
+  gte: Date
+  in: [Date!]
+  lt: Date
+  lte: Date
+  ne: Date
+  notIn: [Date!]
+}
+
 scalar DateTime
 
 input DateTimeFilterInput {
+  AND: [DateTimeFilterInput!]
+  NOT: DateTimeFilterInput
+  OR: [DateTimeFilterInput!]
   eq: DateTime
   gt: DateTime
   gte: DateTime
+  in: [DateTime!]
   lt: DateTime
   lte: DateTime
   ne: DateTime
+  notIn: [DateTime!]
 }
 
 input DeleteAccountInput {
@@ -109,6 +155,20 @@ type EnableTwoFactorResult {
   totpURI: String!
 }
 
+input FloatFilterInput {
+  AND: [FloatFilterInput!]
+  NOT: FloatFilterInput
+  OR: [FloatFilterInput!]
+  eq: Float
+  gt: Float
+  gte: Float
+  in: [Float!]
+  lt: Float
+  lte: Float
+  ne: Float
+  notIn: [Float!]
+}
+
 type FullOrganization {
   createdAt: DateTime!
   id: ID!
@@ -121,6 +181,15 @@ type FullOrganization {
   type: String
 }
 
+input IDFilterInput {
+  AND: [IDFilterInput!]
+  NOT: IDFilterInput
+  OR: [IDFilterInput!]
+  eq: ID
+  in: [ID!]
+  notIn: [ID!]
+}
+
 input InstallAppInput {
   manifestUrl: String!
   organizationId: ID
@@ -130,6 +199,25 @@ input InstallAppManifestInput {
   installedBy: String!
   manifest: JSON!
   organizationId: ID
+}
+
+type InstallAppPayload {
+  app: App
+  userErrors: [UserError!]!
+}
+
+input IntFilterInput {
+  AND: [IntFilterInput!]
+  NOT: IntFilterInput
+  OR: [IntFilterInput!]
+  eq: Int
+  gt: Int
+  gte: Int
+  in: [Int!]
+  lt: Int
+  lte: Int
+  ne: Int
+  notIn: [Int!]
 }
 
 type Invitation {
@@ -171,7 +259,6 @@ type MemberUser {
 }
 
 type Mutation {
-  _empty: String
   acceptInvitation(invitationId: ID!): OrgMember!
   banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
   cancelInvitation(invitationId: ID!): Boolean!
@@ -187,7 +274,7 @@ type Mutation {
   enableTwoFactor(issuer: String, password: String!): EnableTwoFactorResult!
   generateBackupCodes(password: String!): BackupCodesResult!
   impersonateUser(userId: ID!): Boolean!
-  installApp(input: InstallAppInput!): AppInstallResult!
+  installApp(input: InstallAppInput!): InstallAppPayload!
   inviteMember(input: InviteMemberInput!): Invitation!
   leaveOrganization(organizationId: ID!): Boolean!
   rejectInvitation(invitationId: ID!): Boolean!
@@ -199,15 +286,15 @@ type Mutation {
   revokeSessions(userId: ID!): Boolean!
   sendOtp: Boolean!
   setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
-  setAppStatus(appId: String!, status: String!): App!
+  setAppStatus(input: SetAppStatusInput!): SetAppStatusPayload!
   setRole(role: String!, userId: ID!): Boolean!
   setUserPassword(newPassword: String!, userId: ID!): Boolean!
   stopImpersonation: Boolean!
   unbanUser(userId: ID!): Boolean!
-  uninstallApp(appId: String!): Boolean!
+  uninstallApp(appId: String!): UninstallAppPayload!
   unlinkAccount(accountId: String, providerId: String!): Boolean!
   updateApiKey(input: UpdateApiKeyInput!, keyId: ID!): ApiKey!
-  updateAppManifest(appId: String!, manifest: JSON!): App!
+  updateAppManifest(input: UpdateAppManifestInput!): UpdateAppManifestPayload!
   updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
   updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
   updateProfile(input: UpdateProfileInput!): User!
@@ -225,6 +312,10 @@ type MySession {
   token: String!
   userAgent: String
   userId: ID!
+}
+
+interface Node {
+  id: ID!
 }
 
 enum OrderDirection {
@@ -250,14 +341,27 @@ type Organization {
   type: String
 }
 
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
 type Query {
-  _empty: String
   accountInfo: AccountInfo!
   activeMember: OrgMember
   activeMemberRole(organizationId: ID, organizationSlug: String, userId: ID): MemberRole
   apiKey(keyId: ID!): ApiKey
-  app(appId: String!): App
-  apps(organizationId: ID): [App!]!
+
+  """Fetch an app by its Relay global ID (primary key)."""
+  app(id: ID!): App
+
+  """Fetch an app by its manifest slug (e.g. "my-cool-app")."""
+  appBySlug(appId: String!): App
+
+  """List apps with cursor-based pagination."""
+  apps(after: String, before: String, first: Int, last: Int, orderBy: [AppOrderByInput!], where: AppWhereInput): AppConnection!
   checkSlug(slug: String!): SlugCheckResult!
   invitation(invitationId: ID!): Invitation
   invitations(organizationId: ID): [Invitation!]!
@@ -275,17 +379,48 @@ type Query {
   users(limit: Int, offset: Int, orderBy: UserOrderByInput, search: String, where: UserWhereInput): UserList!
 }
 
+input SetAppStatusInput {
+  appId: String!
+  status: String!
+}
+
+type SetAppStatusPayload {
+  app: App
+  userErrors: [UserError!]!
+}
+
 type SlugCheckResult {
   available: Boolean!
 }
 
 input StringFilterInput {
-  contains: String
-  endsWith: String
+  AND: [StringFilterInput!]
+  NOT: StringFilterInput
+  OR: [StringFilterInput!]
   eq: String
+  ilike: String
   in: [String!]
+  like: String
   ne: String
-  startsWith: String
+  notIlike: String
+  notIn: [String!]
+  notLike: String
+}
+
+scalar Time
+
+input TimeFilterInput {
+  AND: [TimeFilterInput!]
+  NOT: TimeFilterInput
+  OR: [TimeFilterInput!]
+  eq: Time
+  gt: Time
+  gte: Time
+  in: [Time!]
+  lt: Time
+  lte: Time
+  ne: Time
+  notIn: [Time!]
 }
 
 type TotpUri {
@@ -294,6 +429,11 @@ type TotpUri {
 
 type TwoFactorVerifyResult {
   token: String!
+}
+
+type UninstallAppPayload {
+  app: App
+  userErrors: [UserError!]!
 }
 
 input UpdateApiKeyInput {
@@ -307,6 +447,16 @@ input UpdateApiKeyInput {
   refillAmount: Int
   refillInterval: Int
   remaining: Int
+}
+
+input UpdateAppManifestInput {
+  appId: String!
+  manifest: JSON!
+}
+
+type UpdateAppManifestPayload {
+  app: App
+  userErrors: [UserError!]!
 }
 
 input UpdateOrganizationInput {
@@ -335,6 +485,12 @@ type User {
   id: ID!
   name: String!
   role: String!
+}
+
+type UserError {
+  code: String!
+  field: [String!]
+  message: String!
 }
 
 type UserInvitation {

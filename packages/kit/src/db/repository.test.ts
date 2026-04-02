@@ -1,3 +1,4 @@
+import type { AnyRelations } from 'drizzle-orm'
 import type { PgTableWithColumns } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseError, OptimisticLockError, Repository } from './repository'
@@ -65,18 +66,29 @@ let mockUpdateResult: any[] = []
 let mockDeleteResult: any[] = []
 
 // Create a mock SQL where clause object (simulates drizzle SQL object)
-const createMockWhere = () => ({ queryChunks: ['mock', 'where'] } as any)
+// isSQLWrapper checks for a `getSQL` method, so we must provide it.
+const createMockWhere = () => ({ queryChunks: ['mock', 'where'], getSQL: () => ({ queryChunks: ['mock', 'where'] }) } as any)
 
 // Create a thenable (Promise-like) chain that resolves to the result
 function createThenableChain(getResult: () => any[]) {
+  function makeThenable() {
+    const obj: any = {
+      then: (resolve: (value: any[]) => void, reject?: (error: any) => void) => {
+        return Promise.resolve(getResult()).then(resolve, reject)
+      },
+    }
+    return obj
+  }
+
   const chain: any = {
     values: vi.fn().mockReturnThis(),
+    $dynamic: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    returning: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockImplementation(() => makeThenable()),
     onConflictDoUpdate: vi.fn().mockReturnThis(),
     onConflictDoNothing: vi.fn().mockReturnThis(),
-    // Make it thenable (Promise-like)
+    // Make it thenable (Promise-like) as fallback
     then: (resolve: (value: any[]) => void, reject?: (error: any) => void) => {
       return Promise.resolve(getResult()).then(resolve, reject)
     },
@@ -91,7 +103,14 @@ function createMockDb() {
     findMany: vi.fn().mockImplementation(async () => [...mockQueryRows]),
   }
 
+  const table = createMockTable()
+
   const db = {
+    _: {
+      relations: {
+        testEntities: { table },
+      },
+    },
     query: {
       testEntities: mockQueryBuilder,
     },
@@ -100,7 +119,9 @@ function createMockDb() {
     delete: vi.fn().mockImplementation(() => createThenableChain(() => mockDeleteResult)),
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ count: 25 }]),
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockImplementation(async () => [...mockQueryRows]),
+        }),
       }),
     }),
   }
@@ -111,6 +132,7 @@ function createMockDb() {
 // Concrete implementation of Repository for testing
 class TestRepository extends Repository<
   { testEntities: any },
+  AnyRelations,
   PgTableWithColumns<any>,
   'testEntities'
 > {
@@ -121,6 +143,10 @@ class TestRepository extends Repository<
   public afterUpdateCalls: any[] = []
   public afterDeleteCalls: any[] = []
   public afterFindCalls: any[] = []
+
+  get model() {
+    return 'testEntities' as const
+  }
 
   async beforeCreate(row: any) {
     this.beforeCreateCalls.push(row)
@@ -159,7 +185,6 @@ class TestRepository extends Repository<
 
 describe('repository', () => {
   let db: ReturnType<typeof createMockDb>
-  let table: PgTableWithColumns<any>
   let repository: TestRepository
 
   beforeEach(() => {
@@ -170,8 +195,7 @@ describe('repository', () => {
     mockDeleteResult = []
 
     db = createMockDb()
-    table = createMockTable()
-    repository = new TestRepository(db, table)
+    repository = new TestRepository(db)
     repository.resetHookCalls()
   })
 
@@ -224,8 +248,8 @@ describe('repository', () => {
 
       const result = await repository.create(inputValue)
 
-      expect(result).toEqual(expectedRow)
-      expect(db.insert).toHaveBeenCalledWith(table)
+      expect(result).toEqual([expectedRow])
+      expect(db.insert).toHaveBeenCalledWith(repository.table)
     })
 
     it('should call beforeCreate hook before inserting', async () => {
@@ -249,12 +273,12 @@ describe('repository', () => {
       expect(repository.afterCreateCalls[0]).toEqual(insertedRow)
     })
 
-    it('should return null when no row is inserted', async () => {
+    it('should return empty array when no row is inserted', async () => {
       mockInsertResult = []
 
       const result = await repository.create({ id: 'test-1', name: 'Test' })
 
-      expect(result).toBeNull()
+      expect(result).toEqual([])
     })
   })
 
@@ -432,8 +456,9 @@ describe('repository', () => {
     })
 
     it('should throw error when table does not have deletedAt column', async () => {
-      const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      const repoWithoutSoftDelete = new TestRepository(db, tableWithoutSoftDelete)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasDeletedAt: false })
+      const repoWithoutSoftDelete = new TestRepository(customDb)
 
       await expect(
         repoWithoutSoftDelete.restore({
@@ -546,96 +571,13 @@ describe('repository', () => {
     })
   })
 
-  describe('paginateByOffset() with soft delete filtering', () => {
-    beforeEach(() => {
-      // Setup default pagination count response
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 25 }]),
-        }),
-      })
-    })
-
-    it('should exclude soft-deleted records by default', async () => {
-      const rows = [
-        { id: 'test-1', name: 'Active 1', deletedAt: null },
-        { id: 'test-2', name: 'Active 2', deletedAt: null },
-      ] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.rows).toEqual(rows)
-    })
-
-    it('should include soft-deleted records when includeDeleted=true', async () => {
-      const rows = [
-        { id: 'test-1', name: 'Active', deletedAt: null },
-        { id: 'test-2', name: 'Deleted', deletedAt: new Date() },
-      ] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({
-        page: 1,
-        perPage: 10,
-        includeDeleted: true,
-      })
-
-      expect(result.rows).toHaveLength(2)
-    })
-
-    it('should return pagination metadata', async () => {
-      const rows = Array.from({ length: 11 }, (_, i) => ({
-        id: `test-${i}`,
-        name: `Test ${i}`,
-      })) as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 25 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.page).toBe(1)
-      expect(result.perPage).toBe(10)
-      expect(result.totalRows).toBe(25)
-      expect(result.totalPages).toBe(3)
-      expect(result.next).toBe(true)
-      expect(result.previous).toBe(false)
-    })
-
-    it('should indicate no next page when on last page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 5 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.next).toBe(false)
-    })
-
-    it('should indicate previous page when not on first page', async () => {
-      const rows = [{ id: 'test-1', name: 'Test 1' }] as TestEntity[]
-      mockQueryRows = rows
-
-      const result = await repository.paginateByOffset({ page: 2, perPage: 10 })
-
-      expect(result.previous).toBe(true)
-    })
-  })
-
   describe('table without version column', () => {
     let repoWithoutVersion: TestRepository
 
     beforeEach(() => {
-      const tableWithoutVersion = createMockTable({ hasVersion: false })
-      repoWithoutVersion = new TestRepository(db, tableWithoutVersion)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasVersion: false })
+      repoWithoutVersion = new TestRepository(customDb)
     })
 
     it('should not set version on create when table has no version column', async () => {
@@ -645,7 +587,7 @@ describe('repository', () => {
       const result = await repoWithoutVersion.create(inputValue)
 
       expect(result).toBeDefined()
-      expect((result as any).version).toBeUndefined()
+      expect((result as any)[0]?.version).toBeUndefined()
     })
 
     it('should not throw OptimisticLockError when table has no version column', async () => {
@@ -663,10 +605,12 @@ describe('repository', () => {
 
   describe('table without soft delete', () => {
     let repoWithoutSoftDelete: TestRepository
+    let dbWithoutSoftDelete: ReturnType<typeof createMockDb>
 
     beforeEach(() => {
-      const tableWithoutSoftDelete = createMockTable({ hasDeletedAt: false })
-      repoWithoutSoftDelete = new TestRepository(db, tableWithoutSoftDelete)
+      dbWithoutSoftDelete = createMockDb()
+      dbWithoutSoftDelete._.relations.testEntities.table = createMockTable({ hasDeletedAt: false })
+      repoWithoutSoftDelete = new TestRepository(dbWithoutSoftDelete)
     })
 
     it('should always perform hard delete when table has no deletedAt column', async () => {
@@ -680,7 +624,7 @@ describe('repository', () => {
         soft: true, // This should be ignored
       })
 
-      expect(db.delete).toHaveBeenCalled()
+      expect(dbWithoutSoftDelete.delete).toHaveBeenCalled()
     })
 
     it('should not filter by deletedAt in findMany when table has no deletedAt column', async () => {
@@ -696,46 +640,8 @@ describe('repository', () => {
     })
   })
 
-  describe('createMany()', () => {
-    it('should call beforeCreate for each row', async () => {
-      const values = [
-        { id: 'test-1', name: 'Test 1' },
-        { id: 'test-2', name: 'Test 2' },
-      ]
-      mockInsertResult = [
-        { id: 'test-1', name: 'Test 1', version: 1 },
-        { id: 'test-2', name: 'Test 2', version: 1 },
-      ]
-
-      await repository.createMany(values)
-
-      expect(repository.beforeCreateCalls).toHaveLength(2)
-    })
-
-    it('should call afterCreate for each inserted row', async () => {
-      const insertedRows = [
-        { id: 'test-1', name: 'Test 1', version: 1 },
-        { id: 'test-2', name: 'Test 2', version: 1 },
-      ]
-      mockInsertResult = insertedRows
-
-      await repository.createMany([
-        { id: 'test-1', name: 'Test 1' },
-        { id: 'test-2', name: 'Test 2' },
-      ])
-
-      expect(repository.afterCreateCalls).toHaveLength(2)
-      expect(repository.afterCreateCalls).toEqual(insertedRows)
-    })
-
-    it('should return empty array when no rows are inserted', async () => {
-      mockInsertResult = []
-
-      const result = await repository.createMany([{ id: 'test-1', name: 'Test' }])
-
-      expect(result).toEqual([])
-    })
-  })
+  // TODO: createMany() no longer exists on the Repository class
+  // describe('createMany()', () => { ... })
 
   describe('hooks lifecycle', () => {
     it('should call hooks in correct order for create', async () => {
@@ -869,12 +775,12 @@ describe('repository', () => {
 
       const result = await repository.create(inputValue, {
         onConflictDoUpdate: {
-          target: table.id,
+          target: repository.table.id,
           set: { name: 'Updated' },
         },
       })
 
-      expect(result).toEqual(expectedRow)
+      expect(result).toEqual([expectedRow])
     })
 
     it('should handle onConflictDoNothing option in create', async () => {
@@ -885,7 +791,7 @@ describe('repository', () => {
         onConflictDoNothing: {},
       })
 
-      expect(result).toBeNull()
+      expect(result).toEqual([])
     })
 
     it('should handle columns option in update', async () => {
@@ -942,8 +848,9 @@ describe('repository', () => {
     let repoWithoutUpdatedAt: TestRepository
 
     beforeEach(() => {
-      const tableWithoutUpdatedAt = createMockTable({ hasUpdatedAt: false })
-      repoWithoutUpdatedAt = new TestRepository(db, tableWithoutUpdatedAt)
+      const customDb = createMockDb()
+      customDb._.relations.testEntities.table = createMockTable({ hasUpdatedAt: false })
+      repoWithoutUpdatedAt = new TestRepository(customDb)
     })
 
     it('should not set updatedAt on update when table has no updatedAt column', async () => {
@@ -1019,58 +926,6 @@ describe('repository', () => {
       await expect(
         repository.update({ name: 'Updated' }),
       ).rejects.toBe(genericError)
-    })
-  })
-
-  describe('paginateByOffset edge cases', () => {
-    beforeEach(() => {
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 0 }]),
-        }),
-      })
-    })
-
-    it('should return zero totals when no rows exist', async () => {
-      mockQueryRows = []
-      db.query.testEntities.findMany.mockResolvedValueOnce([])
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.rows).toEqual([])
-      expect(result.totalRows).toBe(0)
-      expect(result.totalPages).toBe(0)
-      expect(result.next).toBe(false)
-      expect(result.previous).toBe(false)
-    })
-
-    it('should have next=false when rows exactly fill the page', async () => {
-      // 10 rows with perPage=10 → fetches limit=11 but gets 10 → next=false
-      const rows = Array.from({ length: 10 }, (_, i) => ({
-        id: `test-${i}`,
-        name: `Test ${i}`,
-      })) as TestEntity[]
-      mockQueryRows = rows
-      db.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count: 10 }]),
-        }),
-      })
-
-      const result = await repository.paginateByOffset({ page: 1, perPage: 10 })
-
-      expect(result.next).toBe(false)
-      expect(result.rows).toHaveLength(10)
-    })
-
-    it('should use default page=1 and perPage=10 when not specified', async () => {
-      mockQueryRows = []
-      db.query.testEntities.findMany.mockResolvedValueOnce([])
-
-      const result = await repository.paginateByOffset()
-
-      expect(result.page).toBe(1)
-      expect(result.perPage).toBe(10)
     })
   })
 })

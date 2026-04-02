@@ -86,8 +86,7 @@ describe('authRestrictionRegistry', () => {
   describe('getActorConfig', () => {
     it('should return the registered config for known actor types', () => {
       const config: ActorConfig = {
-        allowedMethods: ['email', 'two-factor'],
-        require2FA: true,
+        allowedMethods: ['email', 'oauth:github'],
       }
 
       registry.registerActor('admin', config)
@@ -116,7 +115,7 @@ describe('authRestrictionRegistry', () => {
       })
 
       expect(registry.isMethodAllowedForActor('customer', 'oauth:github')).toBe(false)
-      expect(registry.isMethodAllowedForActor('customer', 'two-factor')).toBe(false)
+      expect(registry.isMethodAllowedForActor('customer', 'oauth:github')).toBe(false)
     })
 
     it('should use default config for unknown actor types', () => {

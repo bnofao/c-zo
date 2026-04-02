@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockHandler = vi.hoisted(() => vi.fn())
+
+const mockContainer = vi.hoisted(() => ({
+  make: vi.fn(async () => ({ handler: mockHandler })),
+}))
+
+vi.mock('@czo/kit/ioc', () => ({
+  useContainer: () => mockContainer,
+}))
+
 vi.mock('nitro/h3', () => ({
   defineHandler: (input: unknown) => {
     if (typeof input === 'function')
@@ -9,20 +19,20 @@ vi.mock('nitro/h3', () => ({
   },
 }))
 
+vi.mock('./_openapi', () => ({
+  defineRouteMeta: vi.fn(),
+}))
+
 // eslint-disable-next-line import/first
 import handler from './[...all]'
 
 describe('auth catch-all route', () => {
-  const mockHandler = vi.fn()
-
   function createEvent(path = '/sign-in/email') {
     return {
       req: new Request(`http://localhost/api/auth${path}`, {
         method: 'POST',
       }),
-      context: {
-        auth: { handler: mockHandler },
-      } as Record<string, unknown>,
+      context: {} as Record<string, unknown>,
     }
   }
 

@@ -1,4 +1,4 @@
-import type { AuthOption } from '@czo/auth/config'
+import type { ActorConfig, AuthOption } from '@czo/auth/config'
 import {
   ADMIN_HIERARCHY,
   ADMIN_STATEMENTS,
@@ -7,6 +7,7 @@ import {
   APPS_HIERARCHY,
   APPS_STATEMENTS,
   createAuth,
+  DEFAULT_ACTOR_RESTRICTIONS,
   ORGANIZATION_HIERARCHY,
   ORGANIZATION_STATEMENTS,
   useAccessService,
@@ -17,29 +18,12 @@ import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { createApiKeyService, createAppService, createAuthService, createOrganizationService, createUserService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
-import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
+import { registerRelations, registerSchema, registerSeeder, useDatabase } from '@czo/kit/db'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
-// import { useRuntimeConfig } from 'nitro/runtime-config'
-import { useStorage } from 'nitro/storage'
-import { DEFAULT_ACTOR_RESTRICTIONS } from './actor-config'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
-  // const container = useContainer()
-  // const config = useRuntimeConfig()
-
-  // const authConfig = config.auth
-
-  // if (!authConfig?.secret) {
-  //   logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
-  //   return
-  // }
-
-  // if (authConfig.secret.length < 32) {
-  //   logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
-  //   return
-  // }
 
   nitroApp.hooks.hook('czo:init', async () => {
     const container = useContainer()
@@ -48,7 +32,7 @@ export default definePlugin((nitroApp) => {
     const authConfig = config.auth
 
     if (!authConfig?.secret) {
-      logger.warn('Auth secret not configured — auth module will not initialize. Set NITRO_CZO_AUTH_SECRET.')
+      logger.warn('Auth secret not configured — auth module will not initialize. Set AUTH_SECRET.')
       return
     }
 
@@ -65,6 +49,51 @@ export default definePlugin((nitroApp) => {
 
     registerSchema(authSchema)
     registerRelations(authRelations)
+
+    registerSeeder('users', {
+      refine: f => ({
+        count: 5,
+        columns: {
+          name: f.fullName(),
+          email: f.email(),
+          role: f.valuesFromArray({ values: ['admin', 'user'] }),
+        },
+      }),
+    })
+
+    registerSeeder('organizations', {
+      refine: f => ({
+        count: 3,
+        columns: {
+          name: f.companyName(),
+          slug: f.string({ isUnique: true }),
+        },
+      }),
+    })
+
+    registerSeeder('apps', {
+      dependsOn: ['users', 'organizations'],
+      refine: f => ({
+        count: 10,
+        columns: {
+          appId: f.string({ isUnique: true }),
+          status: f.valuesFromArray({ values: ['active', 'disabled'] }),
+          manifest: f.default({
+            defaultValue: {
+              id: 'seed-app',
+              name: 'Seed App',
+              version: '1.0.0',
+              appUrl: 'https://seed.example.com',
+              register: 'https://seed.example.com/register',
+              scope: 'organization',
+              permissions: { products: ['read'] },
+              webhooks: [],
+            },
+          }),
+          webhookSecret: f.default({ defaultValue: '' }),
+        },
+      }),
+    })
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
@@ -75,7 +104,7 @@ export default definePlugin((nitroApp) => {
     const actorService = await container.make('auth:actor')
     const actorTypes = Object.keys(DEFAULT_ACTOR_RESTRICTIONS)
     for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
-      actorService.registerActor(actorType, config)
+      actorService.registerActor(actorType, config as ActorConfig)
     }
     logger.info(`Registered ${actorTypes.length} actor types: ${actorTypes.join(', ')}`)
 
@@ -112,6 +141,10 @@ export default definePlugin((nitroApp) => {
 
     const authConfig = config.auth
 
+    if (!authConfig?.secret || authConfig.secret.length < 32) {
+      return
+    }
+
     logger.start('Booting auth module...')
 
     const db = await useDatabase()
@@ -123,9 +156,10 @@ export default definePlugin((nitroApp) => {
     const authOption: AuthOption = {
       app: config.app,
       secret: authConfig.secret,
+      actorService: await container.make('auth:actor'),
       baseUrl: config.baseUrl,
       socials: authConfig.socials,
-      storage: useStorage('auth'),
+      storage: (await container.make('useStorage'))('auth'),
       ac,
       roles,
     }
@@ -150,7 +184,7 @@ export default definePlugin((nitroApp) => {
       ? new Set(authConfig.app.subscribableEvents)
       : new Set([])
 
-    const appService = createAppService(db as any, apiKeyService, authService, subscribableEvents)
+    const appService = createAppService(db, subscribableEvents)
     container.singleton('auth:apps', () => appService)
     logger.info('Services bound: users, auth, organizations, apiKeys, apps')
 
@@ -161,6 +195,13 @@ export default definePlugin((nitroApp) => {
     actorService.freeze()
     accessService.freeze()
     logger.info('Actor and access registries frozen')
+
+    const { registerNodeResolver } = await import('@czo/kit/graphql')
+    registerNodeResolver('App', async (localId: string) => {
+      const appService = await container.make('auth:apps')
+      return appService.findFirst({ where: { id: localId } })
+    })
+    logger.info('App type registered in node registry')
 
     // Register GraphQL schema, resolvers and context only when auth is properly configured
     await import('@czo/auth/graphql')

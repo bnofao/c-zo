@@ -1,9 +1,10 @@
 import { NoSchemaIntrospectionCustomRule } from 'graphql'
 import { createYoga } from 'graphql-yoga'
-import { defineHandler } from 'nitro/h3'
+import { fromNodeHandler } from 'nitro/h3'
 import { mergeTypeDefs, mergeResolvers } from '@graphql-tools/merge'
 import { makeExecutableSchema } from '@graphql-tools/schema'
-import { registeredTypeDefs, registeredResolvers, registeredDirectiveTypeDefs, applyDirectives, buildGraphQLContext } from '@czo/kit/graphql'
+import { useGraphQLMiddleware } from '@envelop/graphql-middleware'
+import { registeredTypeDefs, registeredResolvers, registeredDirectiveTypeDefs, applyDirectives, registeredMiddlewares, buildGraphQLContext } from '@czo/kit/graphql'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -15,6 +16,9 @@ schema = applyDirectives(schema)
 
 const yoga = createYoga({
   schema,
+  plugins: [
+    useGraphQLMiddleware(registeredMiddlewares()),
+  ],
   ...(!isDev && {
     validationRules: [NoSchemaIntrospectionCustomRule],
   }),
@@ -22,9 +26,4 @@ const yoga = createYoga({
     buildGraphQLContext(initialContext as unknown as Record<string, unknown>, (initial) => initial.request as Request),
 })
 
-export default defineHandler(async (event) => {
-  return yoga.fetch(event.req, {
-    // ...event.context,
-    request: event.req,
-  })
-})
+export default fromNodeHandler(yoga)

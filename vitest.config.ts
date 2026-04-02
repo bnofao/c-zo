@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     server: {
       deps: {
-        inline: ['vitest-package-exports'],
+        inline: ['vitest-package-exports', 'graphql', '@graphql-tools/schema', '@graphql-tools/utils', '@graphql-tools/merge'],
       },
     },
   },

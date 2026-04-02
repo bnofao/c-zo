@@ -5,6 +5,7 @@ import    { activeMember as Query_activeMember } from './../schema/organization/
 import    { activeMemberRole as Query_activeMemberRole } from './../schema/organization/resolvers/Query/activeMemberRole';
 import    { apiKey as Query_apiKey } from './../schema/api-key/resolvers/Query/apiKey';
 import    { app as Query_app } from './../schema/app/resolvers/Query/app';
+import    { appBySlug as Query_appBySlug } from './../schema/app/resolvers/Query/appBySlug';
 import    { apps as Query_apps } from './../schema/app/resolvers/Query/apps';
 import    { checkSlug as Query_checkSlug } from './../schema/organization/resolvers/Query/checkSlug';
 import    { invitation as Query_invitation } from './../schema/organization/resolvers/Query/invitation';
@@ -64,58 +65,20 @@ import    { updateUser as Mutation_updateUser } from './../schema/user/resolvers
 import    { verifyBackupCode as Mutation_verifyBackupCode } from './../schema/two-factor/resolvers/Mutation/verifyBackupCode';
 import    { verifyOtp as Mutation_verifyOtp } from './../schema/two-factor/resolvers/Mutation/verifyOtp';
 import    { verifyTotp as Mutation_verifyTotp } from './../schema/two-factor/resolvers/Mutation/verifyTotp';
-import    { AccountInfo } from './../schema/account/resolvers/AccountInfo';
-import    { AccountInfoUser } from './../schema/account/resolvers/AccountInfoUser';
-import    { ApiKey } from './../schema/api-key/resolvers/ApiKey';
 import    { App } from './../schema/app/resolvers/App';
-import    { AppInstallResult } from './../schema/app/resolvers/AppInstallResult';
-import    { BackupCodesResult } from './../schema/two-factor/resolvers/BackupCodesResult';
-import    { EnableTwoFactorResult } from './../schema/two-factor/resolvers/EnableTwoFactorResult';
-import    { FullOrganization } from './../schema/organization/resolvers/FullOrganization';
-import    { Invitation } from './../schema/organization/resolvers/Invitation';
-import    { LinkedAccount } from './../schema/account/resolvers/LinkedAccount';
-import    { MemberRole } from './../schema/organization/resolvers/MemberRole';
-import    { MemberUser } from './../schema/organization/resolvers/MemberUser';
-import    { MySession } from './../schema/account/resolvers/MySession';
-import    { OrgMember } from './../schema/organization/resolvers/OrgMember';
-import    { Organization } from './../schema/organization/resolvers/Organization';
-import    { SlugCheckResult } from './../schema/organization/resolvers/SlugCheckResult';
-import    { TotpUri } from './../schema/two-factor/resolvers/TotpUri';
-import    { TwoFactorVerifyResult } from './../schema/two-factor/resolvers/TwoFactorVerifyResult';
-import    { User } from './../schema/user/resolvers/User';
-import    { UserInvitation } from './../schema/organization/resolvers/UserInvitation';
-import    { UserList } from './../schema/user/resolvers/UserList';
-import    { UserSession } from './../schema/user/resolvers/UserSession';
-import    { _empty as Query__empty } from '././../../../../../kit/src/graphql/resolvers/Query/_empty';
-import    { _empty as Mutation__empty } from '././../../../../../kit/src/graphql/resolvers/Mutation/_empty';
-import    { DateTimeResolver,EmailAddressResolver,JSONResolver } from 'graphql-scalars';
+import    { AppConnection } from './../schema/app/resolvers/AppConnection';
+import    { AppOrderField } from './../schema/app/resolvers/AppOrderField';
+import    { DateResolver,DateTimeResolver,EmailAddressResolver,JSONResolver,TimeResolver } from 'graphql-scalars';
     export const resolvers: Resolvers = {
-      Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users,_empty: Query__empty },
-      Mutation: { acceptInvitation: Mutation_acceptInvitation,banUser: Mutation_banUser,cancelInvitation: Mutation_cancelInvitation,changeEmail: Mutation_changeEmail,changePassword: Mutation_changePassword,createApiKey: Mutation_createApiKey,createOrganization: Mutation_createOrganization,createUser: Mutation_createUser,deleteAccount: Mutation_deleteAccount,deleteApiKey: Mutation_deleteApiKey,deleteOrganization: Mutation_deleteOrganization,disableTwoFactor: Mutation_disableTwoFactor,enableTwoFactor: Mutation_enableTwoFactor,generateBackupCodes: Mutation_generateBackupCodes,impersonateUser: Mutation_impersonateUser,installApp: Mutation_installApp,inviteMember: Mutation_inviteMember,leaveOrganization: Mutation_leaveOrganization,rejectInvitation: Mutation_rejectInvitation,removeMember: Mutation_removeMember,removeUser: Mutation_removeUser,revokeMySession: Mutation_revokeMySession,revokeOtherSessions: Mutation_revokeOtherSessions,revokeSession: Mutation_revokeSession,revokeSessions: Mutation_revokeSessions,sendOtp: Mutation_sendOtp,setActiveOrganization: Mutation_setActiveOrganization,setAppStatus: Mutation_setAppStatus,setRole: Mutation_setRole,setUserPassword: Mutation_setUserPassword,stopImpersonation: Mutation_stopImpersonation,unbanUser: Mutation_unbanUser,uninstallApp: Mutation_uninstallApp,unlinkAccount: Mutation_unlinkAccount,updateApiKey: Mutation_updateApiKey,updateAppManifest: Mutation_updateAppManifest,updateMemberRole: Mutation_updateMemberRole,updateOrganization: Mutation_updateOrganization,updateProfile: Mutation_updateProfile,updateUser: Mutation_updateUser,verifyBackupCode: Mutation_verifyBackupCode,verifyOtp: Mutation_verifyOtp,verifyTotp: Mutation_verifyTotp,_empty: Mutation__empty },
+      Query: { accountInfo: Query_accountInfo,activeMember: Query_activeMember,activeMemberRole: Query_activeMemberRole,apiKey: Query_apiKey,app: Query_app,appBySlug: Query_appBySlug,apps: Query_apps,checkSlug: Query_checkSlug,invitation: Query_invitation,invitations: Query_invitations,me: Query_me,members: Query_members,myAccounts: Query_myAccounts,myApiKeys: Query_myApiKeys,myInvitations: Query_myInvitations,mySessions: Query_mySessions,organization: Query_organization,organizations: Query_organizations,totpUri: Query_totpUri,user: Query_user,userSessions: Query_userSessions,users: Query_users },
+      Mutation: { acceptInvitation: Mutation_acceptInvitation,banUser: Mutation_banUser,cancelInvitation: Mutation_cancelInvitation,changeEmail: Mutation_changeEmail,changePassword: Mutation_changePassword,createApiKey: Mutation_createApiKey,createOrganization: Mutation_createOrganization,createUser: Mutation_createUser,deleteAccount: Mutation_deleteAccount,deleteApiKey: Mutation_deleteApiKey,deleteOrganization: Mutation_deleteOrganization,disableTwoFactor: Mutation_disableTwoFactor,enableTwoFactor: Mutation_enableTwoFactor,generateBackupCodes: Mutation_generateBackupCodes,impersonateUser: Mutation_impersonateUser,installApp: Mutation_installApp,inviteMember: Mutation_inviteMember,leaveOrganization: Mutation_leaveOrganization,rejectInvitation: Mutation_rejectInvitation,removeMember: Mutation_removeMember,removeUser: Mutation_removeUser,revokeMySession: Mutation_revokeMySession,revokeOtherSessions: Mutation_revokeOtherSessions,revokeSession: Mutation_revokeSession,revokeSessions: Mutation_revokeSessions,sendOtp: Mutation_sendOtp,setActiveOrganization: Mutation_setActiveOrganization,setAppStatus: Mutation_setAppStatus,setRole: Mutation_setRole,setUserPassword: Mutation_setUserPassword,stopImpersonation: Mutation_stopImpersonation,unbanUser: Mutation_unbanUser,uninstallApp: Mutation_uninstallApp,unlinkAccount: Mutation_unlinkAccount,updateApiKey: Mutation_updateApiKey,updateAppManifest: Mutation_updateAppManifest,updateMemberRole: Mutation_updateMemberRole,updateOrganization: Mutation_updateOrganization,updateProfile: Mutation_updateProfile,updateUser: Mutation_updateUser,verifyBackupCode: Mutation_verifyBackupCode,verifyOtp: Mutation_verifyOtp,verifyTotp: Mutation_verifyTotp },
       
-      AccountInfo: AccountInfo,
-AccountInfoUser: AccountInfoUser,
-ApiKey: ApiKey,
-App: App,
-AppInstallResult: AppInstallResult,
-BackupCodesResult: BackupCodesResult,
-EnableTwoFactorResult: EnableTwoFactorResult,
-FullOrganization: FullOrganization,
-Invitation: Invitation,
-LinkedAccount: LinkedAccount,
-MemberRole: MemberRole,
-MemberUser: MemberUser,
-MySession: MySession,
-OrgMember: OrgMember,
-Organization: Organization,
-SlugCheckResult: SlugCheckResult,
-TotpUri: TotpUri,
-TwoFactorVerifyResult: TwoFactorVerifyResult,
-User: User,
-UserInvitation: UserInvitation,
-UserList: UserList,
-UserSession: UserSession,
+      App: App,
+AppConnection: AppConnection,
+AppOrderField: AppOrderField,
+Date: DateResolver,
 DateTime: DateTimeResolver,
 EmailAddress: EmailAddressResolver,
-JSON: JSONResolver
+JSON: JSONResolver,
+Time: TimeResolver
     }

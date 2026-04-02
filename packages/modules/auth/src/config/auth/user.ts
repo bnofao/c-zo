@@ -1,13 +1,14 @@
 import type { BetterAuthOptions } from 'better-auth'
 import { AUTH_EVENTS, publishAuthEvent } from '../../events'
+import { ACTOR_TYPE_HEADER } from './actor'
 
 export function userConfig(): BetterAuthOptions['user'] {
   return {
     modelName: 'users',
     fields: {
-      emailVerified: 'email_verified',
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
+      // emailVerified: 'email_verified',
+      // createdAt: 'created_at',
+      // updatedAt: 'updated_at',
     },
     changeEmail: {
       enabled: true,
@@ -40,7 +41,7 @@ export function userHooks(): Exclude<BetterAuthOptions['databaseHooks'], undefin
         void publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
           userId: user.id,
           email: user.email,
-          actorType: authCtx?.context?.actorType as string | undefined,
+          actorType: authCtx?.getHeader(ACTOR_TYPE_HEADER) as string | undefined,
         })
       },
     },
@@ -50,7 +51,7 @@ export function userHooks(): Exclude<BetterAuthOptions['databaseHooks'], undefin
         void publishAuthEvent(AUTH_EVENTS.USER_UPDATED, { userId, changes })
 
         if ('twoFactorEnabled' in changes) {
-          const actorType = authCtx?.context?.actorType as string | undefined
+          const actorType = authCtx?.getHeader(ACTOR_TYPE_HEADER) as string | undefined
           if (changes.twoFactorEnabled === true) {
             void publishAuthEvent(AUTH_EVENTS.TWO_FA_ENABLED, {
               userId,

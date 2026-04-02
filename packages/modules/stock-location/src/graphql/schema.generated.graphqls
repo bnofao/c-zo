@@ -1,79 +1,75 @@
-input BooleanFilterInput {
-  eq: Boolean
-}
+scalar CountryCode
 
-input CreateStockLocationInput {
+input CreateStockLocationAddressInput {
   addressLine1: String!
   addressLine2: String
   city: String!
-  countryCode: String!
-  handle: String
-  metadata: JSON
-  name: String!
-  organizationId: ID!
-  phone: String
+  countryCode: CountryCode!
+  phone: PhoneNumber
   postalCode: String
   province: String
 }
 
+input CreateStockLocationInput {
+  address: CreateStockLocationAddressInput
+  handle: String
+  metadata: JSONObject
+  name: String!
+  organization: ID!
+}
+
+type CreateStockLocationPayload {
+  app: StockLocation
+  userErrors: [UserError!]!
+}
+
 scalar DateTime
 
-input DateTimeFilterInput {
-  eq: DateTime
-  gt: DateTime
-  gte: DateTime
-  lt: DateTime
-  lte: DateTime
-  ne: DateTime
-}
-
-scalar EmailAddress
-
-scalar JSON
+scalar JSONObject
 
 type Mutation {
-  _empty: String
-  createStockLocation(input: CreateStockLocationInput!): StockLocation!
+  createStockLocation(input: CreateStockLocationInput!): CreateStockLocationPayload!
 }
 
-enum OrderDirection {
-  ASC
-  DESC
+interface Node {
+  id: ID!
 }
 
-type Query {
-  _empty: String
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
 }
 
-type StockLocation {
+scalar PhoneNumber
+
+type StockLocation implements Node {
   address: StockLocationAddress
   createdAt: DateTime!
   handle: String!
   id: ID!
   isActive: Boolean!
   isDefault: Boolean!
-  metadata: JSON
+  metadata: JSONObject
   name: String!
   organizationId: ID!
   updatedAt: DateTime!
 }
 
-type StockLocationAddress {
+type StockLocationAddress implements Node {
   addressLine1: String!
   addressLine2: String
   city: String!
-  countryCode: String!
+  countryCode: CountryCode!
   id: ID!
-  phone: String
+  phone: PhoneNumber
   postalCode: String
   province: String
 }
 
-input StringFilterInput {
-  contains: String
-  endsWith: String
-  eq: String
-  in: [String!]
-  ne: String
-  startsWith: String
+type UserError {
+  code: String!
+  field: [String!]
+  message: String!
 }

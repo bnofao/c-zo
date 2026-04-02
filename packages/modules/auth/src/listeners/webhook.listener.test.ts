@@ -55,7 +55,7 @@ vi.mock('@czo/kit/event-bus', () => ({
 // ─── Mock @czo/kit/ioc ───────────────────────────────────────────────
 
 const mockAppService = vi.hoisted(() => ({
-  getActiveAppsByEvent: vi.fn().mockResolvedValue([]),
+  findManyByEvent: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@czo/kit/ioc', () => ({
@@ -166,7 +166,7 @@ describe('registerWebhookDispatcher', () => {
     onPublishCallback = undefined
     workerProcessor = undefined
     workerFailedHandler = undefined
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([])
+    mockAppService.findManyByEvent.mockResolvedValue([])
     vi.stubGlobal('crypto', { randomUUID: () => MOCK_UUID })
 
     const { registerWebhookDispatcher } = await import('./webhook.listener')
@@ -191,7 +191,7 @@ describe('registerWebhookDispatcher', () => {
   // ─── Subscriber (async only) ──────────────────────────────────────
 
   it('should enqueue delivery jobs for async apps', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW])
+    mockAppService.findManyByEvent.mockResolvedValue([APP_ROW])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -213,7 +213,7 @@ describe('registerWebhookDispatcher', () => {
   })
 
   it('should insert a webhook_deliveries record before enqueuing', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW])
+    mockAppService.findManyByEvent.mockResolvedValue([APP_ROW])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -230,7 +230,7 @@ describe('registerWebhookDispatcher', () => {
   })
 
   it('should skip when no apps match the event', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([])
+    mockAppService.findManyByEvent.mockResolvedValue([])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -250,7 +250,7 @@ describe('registerWebhookDispatcher', () => {
         webhooks: [{ event: 'products.created', targetUrl: 'https://other.com/hook' }],
       },
     }
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW, app2])
+    mockAppService.findManyByEvent.mockResolvedValue([APP_ROW, app2])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -258,7 +258,7 @@ describe('registerWebhookDispatcher', () => {
   })
 
   it('should skip sync webhooks in the event bus subscriber', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+    mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -278,7 +278,7 @@ describe('registerWebhookDispatcher', () => {
         }],
       },
     }
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([appWithQuery])
+    mockAppService.findManyByEvent.mockResolvedValue([appWithQuery])
 
     await subscriberCallback!(makeDomainEvent('products.created', { id: 'prod-1', secret: 'hidden', price: 99 }))
 
@@ -292,7 +292,7 @@ describe('registerWebhookDispatcher', () => {
   })
 
   it('should send full payload when webhook has no query', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW])
+    mockAppService.findManyByEvent.mockResolvedValue([APP_ROW])
 
     const fullPayload = { id: 'prod-1', secret: 'visible', price: 99 }
     await subscriberCallback!(makeDomainEvent('products.created', fullPayload))
@@ -307,7 +307,7 @@ describe('registerWebhookDispatcher', () => {
   })
 
   it('should default to async when asyncEvents is undefined', async () => {
-    mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW])
+    mockAppService.findManyByEvent.mockResolvedValue([APP_ROW])
 
     await subscriberCallback!(makeDomainEvent())
 
@@ -318,7 +318,7 @@ describe('registerWebhookDispatcher', () => {
 
   describe('onPublish hook', () => {
     it('should POST to sync webhook and return parsed response', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -337,7 +337,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should insert a webhook_deliveries record', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -357,7 +357,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should update delivery record on success', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -372,7 +372,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should return failed response on HTTP error', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: false,
         status: 422,
@@ -389,7 +389,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should mark delivery as failed on HTTP error', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
@@ -404,7 +404,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should return failed response on network error', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')))
 
       const results = await onPublishCallback!(makeDomainEvent()) as any[]
@@ -418,7 +418,7 @@ describe('registerWebhookDispatcher', () => {
 
     it('should return empty array when no sync webhooks match', async () => {
       // APP_ROW has no asyncEvents: false, so no sync webhooks
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([APP_ROW])
 
       const results = await onPublishCallback!(makeDomainEvent()) as any[]
 
@@ -437,7 +437,7 @@ describe('registerWebhookDispatcher', () => {
           webhooks: [{ event: 'products.created', targetUrl: 'https://other.com/sync', asyncEvents: false }],
         },
       }
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW, syncApp2])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW, syncApp2])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -452,7 +452,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should sign the request with HMAC-SHA256', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -478,7 +478,7 @@ describe('registerWebhookDispatcher', () => {
     })
 
     it('should handle non-JSON response bodies gracefully', async () => {
-      mockAppService.getActiveAppsByEvent.mockResolvedValue([SYNC_APP_ROW])
+      mockAppService.findManyByEvent.mockResolvedValue([SYNC_APP_ROW])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         status: 200,

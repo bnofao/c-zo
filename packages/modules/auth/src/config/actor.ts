@@ -1,10 +1,10 @@
 // ─── Types ────────────────────────────────────────────────────────────
 
-export type AuthMethod = 'email' | 'two-factor' | `oauth:${string}`
+export type AuthMethod = 'email' | `oauth:${string}`
 
 export interface ActorConfig {
   allowedMethods: readonly AuthMethod[]
-  require2FA?: boolean
+  enableRegistration?: boolean
   sessionDuration?: number
   allowImpersonation?: boolean
 }
@@ -20,7 +20,7 @@ const DEFAULT_SESSION_DURATION = 604800 // 7 days
 
 export const DEFAULT_RESTRICTION_CONFIG: ActorConfig = {
   allowedMethods: ['email'],
-  require2FA: false,
+  enableRegistration: true,
   sessionDuration: DEFAULT_SESSION_DURATION,
   allowImpersonation: false,
 }

@@ -25,7 +25,6 @@ export const sessions = pgTable('sessions', {
   userAgent: text('user_agent'),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   actorType: text('actor_type').notNull().default('customer'),
-  authMethod: text('auth_method').notNull().default('email'),
   organizationId: text('organization_id'),
   activeOrganizationId: text('active_organization_id'),
   impersonatedBy: text('impersonated_by'),
