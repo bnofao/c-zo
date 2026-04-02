@@ -40,6 +40,9 @@ catalogs:
     '@adonisjs/fold':
       specifier: ^10.2.0
       version: 10.2.1
+    '@envelop/graphql-middleware':
+      specifier: ^9.1.1
+      version: 9.1.1
     '@graphql-tools/merge':
       specifier: ^9.1.3
       version: 9.1.6
@@ -309,7 +312,7 @@ importers:
   apps/mazo:
     dependencies:
       '@envelop/graphql-middleware':
-        specifier: ^9.1.1
+        specifier: catalog:common
         version: 9.1.1(@envelop/core@5.5.1)(graphql-middleware@6.1.35(graphql@16.12.0))(graphql@16.12.0)
       '@graphql-tools/merge':
         specifier: catalog:common
