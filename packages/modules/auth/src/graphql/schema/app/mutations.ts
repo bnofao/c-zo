@@ -1,7 +1,10 @@
+import type { AuthContext } from '@czo/auth/types'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { AppHandleTakenError, AppManifestInvalidError, AppNotInstalledError } from './errors'
 import { setAppStatusSchema } from './inputs'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── App Mutations ────────────────────────────────────────────────────────────
 
@@ -15,24 +18,30 @@ export function registerAppMutations(builder: any): void {
         input: t.arg({ type: 'InstallAppInput', required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['install'] } },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const appService = await container.make('auth:apps')
-        const apiKeyService = await container.make('auth:apikeys')
-
         try {
-          const result = await (appService as any).installFromUrl(
+          const result = await ctx.auth.appService.installFromUrl(
             args.input.manifestUrl,
             authUser.id,
-            apiKeyService,
+            ctx.auth.apiKeyService,
             args.input.organizationId ? String(args.input.organizationId) : undefined,
           )
           if (!result)
             throw new NotFoundError('App', 'installed')
+
+          await publishAuthEvent(AUTH_EVENTS.APP_INSTALLED, {
+            appId: (result as any).appId,
+            registerUrl: (result as any).manifest?.register ?? '',
+            apiKey: '',
+            installedBy: authUser.id,
+            organizationId: args.input.organizationId ? String(args.input.organizationId) : undefined,
+            webhookSecret: (result as any).webhookSecret ?? '',
+          })
+
           return result
         }
         catch (err: any) {
@@ -56,11 +65,12 @@ export function registerAppMutations(builder: any): void {
         appId: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['uninstall'] } },
-      resolve: async (_root: any, args: any) => {
-        const container = useContainer()
-        const appService = await container.make('auth:apps')
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         try {
-          await (appService as any).uninstall(args.appId)
+          await ctx.auth.appService.uninstall(args.appId)
+
+          await publishAuthEvent(AUTH_EVENTS.APP_UNINSTALLED, { appId: args.appId })
+
           return true
         }
         catch (err: any) {
@@ -82,7 +92,7 @@ export function registerAppMutations(builder: any): void {
         manifest: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         let parsedManifest: unknown
         try {
           parsedManifest = JSON.parse(args.manifest)
@@ -91,12 +101,17 @@ export function registerAppMutations(builder: any): void {
           throw new AppManifestInvalidError('Manifest must be valid JSON')
         }
 
-        const container = useContainer()
-        const appService = await container.make('auth:apps')
         try {
-          const result = await (appService as any).updateManifest(args.input.appId, parsedManifest)
+          const result = await ctx.auth.appService.updateManifest(args.input.appId, parsedManifest)
           if (!result)
             throw new NotFoundError('App', args.input.appId)
+
+          await publishAuthEvent(AUTH_EVENTS.APP_UPDATED, {
+            appId: result.appId,
+            version: (result.manifest as any)?.version ?? '',
+            status: result.status,
+          })
+
           return result
         }
         catch (err: any) {
@@ -122,20 +137,25 @@ export function registerAppMutations(builder: any): void {
         input: t.arg({ type: 'SetAppStatusInput', required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = setAppStatusSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const appService = await container.make('auth:apps')
         try {
-          const result = await (appService as any).setStatus(
+          const result = await ctx.auth.appService.setStatus(
             parsed.data.appId,
             parsed.data.status as any,
           )
           if (!result)
             throw new NotFoundError('App', parsed.data.appId)
+
+          await publishAuthEvent(AUTH_EVENTS.APP_UPDATED, {
+            appId: result.appId,
+            version: (result.manifest as any)?.version ?? '',
+            status: parsed.data.status,
+          })
+
           return result
         }
         catch (err: any) {

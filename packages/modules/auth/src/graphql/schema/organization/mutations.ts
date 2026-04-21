@@ -1,7 +1,10 @@
+import type { AuthContext } from '@czo/auth/types'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { CannotLeaveAsLastOwnerError, InvitationExpiredError, MembershipAlreadyExistsError, SlugAlreadyTakenError } from './errors'
 import { createOrganizationSchema, inviteMemberSchema, updateOrganizationSchema } from './inputs'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
@@ -15,8 +18,8 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'CreateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
@@ -24,14 +27,19 @@ export function registerOrganizationMutations(builder: any): void {
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).create(
+        const result = await ctx.auth.organizationService.create(
           { ...parsed.data, userId: authUser.id },
-          ctx.request?.headers,
         )
         if (!result)
           throw new NotFoundError('Organization', 'created')
+
+        await publishAuthEvent(AUTH_EVENTS.ORG_CREATED, {
+          orgId: result.id,
+          ownerId: authUser.id,
+          name: result.name,
+          type: result.type ?? null,
+        })
+
         return result
       },
     }))
@@ -46,19 +54,16 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'UpdateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = updateOrganizationSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).update(
+        const result = await ctx.auth.organizationService.update(
           {
             organizationId: args.id ? String(args.id) : undefined,
             data: parsed.data,
           },
-          ctx.request?.headers,
         )
         if (!result)
           throw new NotFoundError('Organization', String(args.id ?? 'active'))
@@ -75,10 +80,8 @@ export function registerOrganizationMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['delete'] } },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).remove(String(args.id), ctx.request?.headers)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        await ctx.auth.organizationService.remove(String(args.id))
         return true
       },
     }))
@@ -92,14 +95,12 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'InviteMemberInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = inviteMemberSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).inviteMember(parsed.data, ctx.request?.headers)
+        const result = await ctx.auth.organizationService.inviteMember(parsed.data, ctx.request?.headers ?? new Headers())
         if (!result)
           throw new NotFoundError('Invitation', 'created')
         return result
@@ -115,10 +116,8 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).acceptInvitation(String(args.invitationId), ctx.request?.headers)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        await ctx.auth.organizationService.acceptInvitation(String(args.invitationId), ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -132,10 +131,8 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).rejectInvitation(String(args.invitationId), ctx.request?.headers)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        await ctx.auth.organizationService.rejectInvitation(String(args.invitationId))
         return true
       },
     }))
@@ -149,10 +146,8 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).cancelInvitation(String(args.invitationId), ctx.request?.headers)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        await ctx.auth.organizationService.cancelInvitation(String(args.invitationId))
         return true
       },
     }))
@@ -167,16 +162,19 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).removeMember(
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        await ctx.auth.organizationService.removeMember(
           {
             memberIdOrEmail: args.memberIdOrEmail,
             organizationId: args.organizationId ? String(args.organizationId) : undefined,
           },
-          ctx.request?.headers,
         )
+
+        await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_REMOVED, {
+          orgId: args.organizationId ? String(args.organizationId) : '',
+          userId: args.memberIdOrEmail,
+        })
+
         return true
       },
     }))
@@ -192,20 +190,17 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).updateMemberRole(
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const result = await ctx.auth.organizationService.updateMemberRole(
           {
             memberId: String(args.memberId),
             role: args.role,
             organizationId: args.organizationId ? String(args.organizationId) : undefined,
           },
-          ctx.request?.headers,
         )
         if (!result)
           throw new NotFoundError('Member', String(args.memberId))
-        return result.member ?? result
+        return result
       },
     }))
 
@@ -219,18 +214,16 @@ export function registerOrganizationMutations(builder: any): void {
         organizationSlug: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).setActive(
+        await ctx.auth.organizationService.setActive(
           {
             organizationId: args.organizationId ? String(args.organizationId) : undefined,
             organizationSlug: args.organizationSlug ?? undefined,
           },
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
         return true
       },
@@ -245,13 +238,11 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        await (orgService as any).leave(String(args.organizationId), ctx.request?.headers)
+        await ctx.auth.organizationService.leave(String(args.organizationId), ctx.request?.headers ?? new Headers())
         return true
       },
     }))

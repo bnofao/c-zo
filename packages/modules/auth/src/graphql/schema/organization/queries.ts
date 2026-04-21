@@ -1,5 +1,7 @@
+import type { AuthContext } from '@czo/auth/types'
 import { UnauthenticatedError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Queries ─────────────────────────────────────────────────────
 
@@ -13,7 +15,7 @@ export function registerOrganizationQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query: any, _root: unknown, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
         const db = await useDatabase() as any
         return db.query.organizations.findFirst(
@@ -30,7 +32,7 @@ export function registerOrganizationQueries(builder: any): void {
         search: t.arg.string({ required: false }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query: any, _root: unknown, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
         const db = await useDatabase() as any
         return db.query.organizations.findMany(
@@ -52,11 +54,10 @@ export function registerOrganizationQueries(builder: any): void {
         slug: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).checkSlug(args.slug, ctx.request?.headers)
-        return result?.status === 'available' || result?.available === true || false
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const result = await ctx.auth.organizationService.checkSlug(args.slug)
+        // result.status is a boolean: true means slug is available (not taken)
+        return result?.status ?? false
       },
     }))
 
@@ -69,14 +70,11 @@ export function registerOrganizationQueries(builder: any): void {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).listMembers(
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const result = await ctx.auth.organizationService.listMembers(
           { organizationId: String(args.organizationId) },
-          ctx.request?.headers,
         )
-        return result?.members ?? result ?? []
+        return result ?? []
       },
     }))
 
@@ -89,10 +87,8 @@ export function registerOrganizationQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        return (orgService as any).getInvitation(String(args.id), ctx.request?.headers)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        return ctx.auth.organizationService.getInvitation(String(args.id))
       },
     }))
 
@@ -104,12 +100,9 @@ export function registerOrganizationQueries(builder: any): void {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).listInvitations(
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const result = await ctx.auth.organizationService.listInvitations(
           args.organizationId ? String(args.organizationId) : undefined,
-          ctx.request?.headers,
         )
         return result ?? []
       },
@@ -120,17 +113,12 @@ export function registerOrganizationQueries(builder: any): void {
     t.field({
       type: ['Invitation'],
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).listUserInvitations(
-          authUser.email,
-          ctx.request?.headers,
-        )
+        const result = await ctx.auth.organizationService.listUserInvitations(authUser.email)
         return result ?? []
       },
     }))
@@ -141,13 +129,11 @@ export function registerOrganizationQueries(builder: any): void {
       type: 'Member',
       nullable: true,
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        return (orgService as any).getActiveMember(ctx.request?.headers)
+        return ctx.auth.organizationService.getActiveMember(ctx.request?.headers ?? new Headers())
       },
     }))
 
@@ -157,13 +143,11 @@ export function registerOrganizationQueries(builder: any): void {
       type: 'String',
       nullable: true,
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const orgService = await container.make('auth:organizations')
-        const result = await (orgService as any).getActiveMemberRole({}, ctx.request?.headers)
+        const result = await ctx.auth.organizationService.getActiveMemberRole({}, ctx.request?.headers ?? new Headers())
         return result?.role ?? null
       },
     }))

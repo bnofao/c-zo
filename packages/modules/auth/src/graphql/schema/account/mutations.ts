@@ -1,7 +1,9 @@
+import type { AuthContext } from '@czo/auth/types'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { CannotUnlinkLastAccountError, PasswordMismatchError } from './errors'
 import { changeEmailSchema, changePasswordSchema, deleteAccountSchema, updateProfileSchema } from './inputs'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Account Mutations ────────────────────────────────────────────────────────
 
@@ -15,17 +17,15 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'ChangeEmailInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const parsed = changeEmailSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        await (accountService as any).changeEmail(parsed.data, ctx.request?.headers)
+        await ctx.auth.accountService.changeEmail(parsed.data, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -39,17 +39,15 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'ChangePasswordInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const parsed = changePasswordSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        await (accountService as any).changePassword(parsed.data, ctx.request?.headers)
+        await ctx.auth.accountService.changePassword(parsed.data, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -63,13 +61,11 @@ export function registerAccountMutations(builder: any): void {
         token: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const sessionService = await container.make('auth:sessions')
-        await (sessionService as any).revoke(args.token, ctx.request?.headers)
+        await ctx.auth.sessionService.revoke(args.token, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -80,13 +76,11 @@ export function registerAccountMutations(builder: any): void {
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const sessionService = await container.make('auth:sessions')
-        await (sessionService as any).revokeOtherSessions(ctx.request?.headers)
+        await ctx.auth.sessionService.revokeOtherSessions(ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -101,15 +95,13 @@ export function registerAccountMutations(builder: any): void {
         accountId: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        await (accountService as any).unlinkAccount(
+        await ctx.auth.accountService.unlinkAccount(
           { providerId: args.providerId, accountId: args.accountId ?? undefined },
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
         return true
       },
@@ -124,20 +116,18 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'UpdateProfileInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const parsed = updateProfileSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        const result = await (accountService as any).updateProfile(parsed.data, ctx.request?.headers)
+        const result = await ctx.auth.accountService.updateProfile(parsed.data, ctx.request?.headers ?? new Headers())
         if (!result)
-          throw new NotFoundError('User', (ctx as any).auth.user.id)
-        return result.user ?? result
+          throw new NotFoundError('User', ctx.auth.user.id)
+        return (result as any).user ?? result
       },
     }))
 
@@ -150,17 +140,15 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'DeleteAccountInput', required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const parsed = deleteAccountSchema.safeParse(args.input ?? {})
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        await (accountService as any).deleteAccount(parsed.data, ctx.request?.headers)
+        await ctx.auth.accountService.deleteAccount(ctx.auth.user.id)
         return true
       },
     }))

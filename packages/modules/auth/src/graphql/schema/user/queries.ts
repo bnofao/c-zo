@@ -1,4 +1,6 @@
-import { useContainer } from '@czo/kit/ioc'
+import type { AuthContext } from '@czo/auth/types'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
@@ -12,7 +14,7 @@ export function registerUserQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query: any, _root: unknown, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
         const db = await useDatabase() as any
         return db.query.users.findFirst(
@@ -31,7 +33,7 @@ export function registerUserQueries(builder: any): void {
         orderBy: t.arg({ type: 'UserOrderByInput', required: false }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query: any, _root: unknown, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
         const db = await useDatabase() as any
         return db.query.users.findMany(
@@ -54,10 +56,8 @@ export function registerUserQueries(builder: any): void {
         userId: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (_root: any, args: any) => {
-        const container = useContainer()
-        const userService = await container.make('auth:users')
-        const sessions = await (userService as any).listSessions(String(args.userId))
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const sessions = await ctx.auth.userService.listSessions(String(args.userId))
         return sessions ?? []
       },
     }))

@@ -1,5 +1,7 @@
+import type { AuthContext } from '@czo/auth/types'
 import { UnauthenticatedError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Account Queries ──────────────────────────────────────────────────────────
 
@@ -9,8 +11,8 @@ export function registerAccountQueries(builder: any): void {
     t.drizzleField({
       type: 'users',
       nullable: true,
-      resolve: async (query: any, _root: any, _args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (query: any, _root: unknown, _args: unknown, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           return null
 
@@ -27,13 +29,11 @@ export function registerAccountQueries(builder: any): void {
     t.field({
       type: ['LinkedAccount'],
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        const result = await (accountService as any).listAccounts(ctx.request?.headers)
+        const result = await ctx.auth.accountService.listAccounts(ctx.request?.headers ?? new Headers())
         return result ?? []
       },
     }))
@@ -44,13 +44,11 @@ export function registerAccountQueries(builder: any): void {
     t.field({
       type: ['MySession'],
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const sessionService = await container.make('auth:sessions')
-        const result = await (sessionService as any).listSessions(ctx.request?.headers)
+        const result = await ctx.auth.sessionService.listSessions(ctx.request?.headers ?? new Headers())
         return result ?? []
       },
     }))
@@ -61,13 +59,11 @@ export function registerAccountQueries(builder: any): void {
       type: 'LinkedAccount',
       nullable: true,
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const accountService = await container.make('auth:accounts')
-        return (accountService as any).accountInfo(ctx.request?.headers)
+        return ctx.auth.accountService.accountInfo(ctx.request?.headers ?? new Headers())
       },
     }))
 }

@@ -1,4 +1,7 @@
+import type { AuthContext } from '@czo/auth/types'
 import { UnauthenticatedError } from '@czo/kit/graphql'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── API Key Queries ──────────────────────────────────────────────────────────
 
@@ -12,8 +15,8 @@ export function registerApiKeyQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (query: any, _root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (query: any, _root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const { useDatabase } = await import('@czo/kit/db')
@@ -29,8 +32,8 @@ export function registerApiKeyQueries(builder: any): void {
     t.drizzleField({
       type: ['apikeys'],
       authScopes: { loggedIn: true },
-      resolve: async (query: any, _root: any, _args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (query: any, _root: unknown, _args: unknown, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 

@@ -1,7 +1,10 @@
+import type { AuthContext } from '@czo/auth/types'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { BackupCodeInvalidError, TotpVerificationFailedError, TwoFactorNotEnabledError } from './errors'
 import { verifyBackupCodeSchema, verifyOtpSchema, verifyTotpSchema } from './inputs'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Two-Factor Mutations ─────────────────────────────────────────────────────
 
@@ -17,16 +20,17 @@ export function registerTwoFactorMutations(builder: any): void {
         issuer: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        const result = await (twoFactorService as any).enable(
+        const result = await ctx.auth.twoFactorService.enable(
           { password: args.password, issuer: args.issuer ?? undefined },
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
+
+        await publishAuthEvent(AUTH_EVENTS.TWO_FA_ENABLED, { userId: ctx.auth.user.id })
+
         // Return the TOTP URI (for QR scanning) if present
         return (result as any)?.totpURI ?? (result as any)?.uri ?? null
       },
@@ -41,13 +45,14 @@ export function registerTwoFactorMutations(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        await (twoFactorService as any).disable(args.password, ctx.request?.headers)
+        await ctx.auth.twoFactorService.disable(args.password, ctx.request?.headers ?? new Headers())
+
+        await publishAuthEvent(AUTH_EVENTS.TWO_FA_DISABLED, { userId: ctx.auth.user.id })
+
         return true
       },
     }))
@@ -61,14 +66,12 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyTotpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = verifyTotpSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        await (twoFactorService as any).verifyTotp(parsed.data, ctx.request?.headers)
+        await ctx.auth.twoFactorService.verifyTotp(parsed.data, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -82,14 +85,12 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyOtpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = verifyOtpSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        await (twoFactorService as any).verifyOtp(parsed.data, ctx.request?.headers)
+        await ctx.auth.twoFactorService.verifyOtp(parsed.data, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -100,13 +101,11 @@ export function registerTwoFactorMutations(builder: any): void {
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        await (twoFactorService as any).sendOtp(ctx.request?.headers)
+        await ctx.auth.twoFactorService.sendOtp(ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -120,14 +119,12 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyBackupCodeInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
         const parsed = verifyBackupCodeSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        await (twoFactorService as any).verifyBackupCode(parsed.data, ctx.request?.headers)
+        await ctx.auth.twoFactorService.verifyBackupCode(parsed.data, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -141,15 +138,13 @@ export function registerTwoFactorMutations(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        const result = await (twoFactorService as any).generateBackupCodes(
+        const result = await ctx.auth.twoFactorService.generateBackupCodes(
           args.password,
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
         return (result as any)?.backupCodes ?? result ?? []
       },

@@ -1,5 +1,7 @@
+import type { AuthContext } from '@czo/auth/types'
 import { UnauthenticatedError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Two-Factor Queries ───────────────────────────────────────────────────────
 
@@ -13,14 +15,12 @@ export function registerTwoFactorQueries(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const twoFactorService = await container.make('auth:twoFactor')
-        const result = await (twoFactorService as any).getTotpUri(args.password, ctx.request?.headers)
-        return result?.totpURI ?? result?.uri ?? null
+        const result = await ctx.auth.twoFactorService.getTotpUri(args.password, ctx.request?.headers ?? new Headers())
+        return (result as any)?.totpURI ?? (result as any)?.uri ?? null
       },
     }))
 }

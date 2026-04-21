@@ -1,6 +1,9 @@
+import type { AuthContext } from '@czo/auth/types'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { createApiKeySchema, updateApiKeySchema } from './inputs'
+
+interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── API Key Mutations ────────────────────────────────────────────────────────
 
@@ -15,8 +18,8 @@ export function registerApiKeyMutations(builder: any): void {
         input: t.arg({ type: 'CreateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        const authUser = (ctx as any).auth?.user
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
@@ -24,14 +27,20 @@ export function registerApiKeyMutations(builder: any): void {
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const apiKeyService = await container.make('auth:apikeys')
-        const result = await (apiKeyService as any).create(
+        const result = await ctx.auth.apiKeyService.create(
           { ...parsed.data, userId: authUser.id },
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
         if (!result)
           throw new NotFoundError('ApiKey', 'created')
+
+        await publishAuthEvent(AUTH_EVENTS.API_KEY_CREATED, {
+          apiKeyId: result.id,
+          userId: authUser.id,
+          name: (result as any).name ?? null,
+          prefix: (result as any).prefix ?? null,
+        })
+
         // Return the full key string (only available at creation time)
         return (result as any).key ?? result.id
       },
@@ -46,13 +55,11 @@ export function registerApiKeyMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const container = useContainer()
-        const apiKeyService = await container.make('auth:apikeys')
-        await (apiKeyService as any).remove(String(args.id), ctx.request?.headers)
+        await ctx.auth.apiKeyService.remove(String(args.id), ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -67,19 +74,17 @@ export function registerApiKeyMutations(builder: any): void {
         input: t.arg({ type: 'UpdateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user)
+      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+        if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
         const parsed = updateApiKeySchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
-        const container = useContainer()
-        const apiKeyService = await container.make('auth:apikeys')
-        const result = await (apiKeyService as any).update(
+        const result = await ctx.auth.apiKeyService.update(
           { keyId: String(args.id), ...parsed.data },
-          ctx.request?.headers,
+          ctx.request?.headers ?? new Headers(),
         )
         if (!result)
           throw new NotFoundError('ApiKey', String(args.id))
