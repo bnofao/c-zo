@@ -49,6 +49,10 @@
     "./telemetry": {
       "types": "./src/telemetry/index.ts",
       "default": "./dist/telemetry/index.mjs"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./dist/testing/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -121,6 +125,13 @@
     "@adonisjs/fold": "catalog:common",
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
+    "@pothos/core": "catalog:",
+    "@pothos/plugin-drizzle": "catalog:",
+    "@pothos/plugin-errors": "catalog:",
+    "@pothos/plugin-relay": "catalog:",
+    "@pothos/plugin-scope-auth": "catalog:",
+    "@pothos/plugin-tracing": "catalog:",
+    "@pothos/plugin-validation": "catalog:",
     "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
@@ -137,14 +148,12 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
-    "@graphql-tools/schema": "catalog:",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
-    "graphql-middleware": "catalog:common",
     "nitro": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"

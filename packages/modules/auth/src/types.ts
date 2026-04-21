@@ -3,50 +3,33 @@ import type { SocialProviders } from 'better-auth'
 import type { AccessService } from './config/access'
 import type { AuthActorService } from './config/actor'
 import type { Auth } from './config/auth'
+import type { AccountService } from './services/account.service'
 import type { ApiKeyService } from './services/apiKey.service'
 import type { AppService } from './services/app.service'
 import type { AuthService } from './services/auth.service'
 import type { OrganizationService } from './services/organization.service'
+import type { SessionService } from './services/session.service'
+import type { TwoFactorService } from './services/twoFactor.service'
 import type { UserService } from './services/user.service'
 
 export interface AuthContext {
-  session: {
-    id: string
-    userId: string
-    expiresAt: Date
-    actorType: string
-    authMethod: string
-    organizationId: string | null
-    impersonatedBy: string | null
-  }
-  user: {
-    id: string
-    email: string
-    name: string
-    twoFactorEnabled: boolean
-    role: string
-    banned: boolean
-    banReason: string | null
-  }
-  actorType: string
-  organization: string | null
-  authSource: 'bearer' | 'cookie' | 'api-key'
+  userService: UserService
+  organizationService: OrganizationService
+  accountService: AccountService
+  sessionService: SessionService
+  twoFactorService: TwoFactorService
+  apiKeyService: ApiKeyService
+  appService: AppService
+  authService: AuthService
+  /** better-auth session — narrowed when needed */
+  session: any
+  /** better-auth user — narrowed when needed */
+  user: any
 }
-
-type AuthSession = Awaited<ReturnType<AuthService['getSession']>>
 
 declare module '@czo/kit/graphql' {
   interface GraphQLContextMap {
-    auth: {
-      instance: Auth
-      userService: UserService
-      organizationService: OrganizationService
-      authService: AuthService
-      apiKeyService: ApiKeyService
-      appService: AppService
-      session: NonNullable<AuthSession>['session'] | null
-      user: NonNullable<AuthSession>['user'] | null
-    }
+    auth: AuthContext
   }
 }
 
@@ -74,6 +57,9 @@ declare module '@czo/kit/ioc' {
     'auth:users': UserService
     'auth:service': AuthService
     'auth:organizations': OrganizationService
+    'auth:accounts': AccountService
+    'auth:sessions': SessionService
+    'auth:twoFactor': TwoFactorService
     'auth:apikeys': ApiKeyService
     'auth:apps': AppService
   }
