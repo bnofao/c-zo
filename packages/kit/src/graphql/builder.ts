@@ -18,19 +18,19 @@ export interface SchemaBuilderOptions<DB, Relations> {
 }
 
 // Re-export Pothos's SchemaBuilder type under the same name as the value import.
-// Consumers use `SchemaBuilder` as the parameter type for `registerSchema` callbacks.
-// We keep the generic as `<any>` for now — tightening requires concrete SchemaTypes from
-// each consumer module, which is deferred to follow-up PRs.
-export type SchemaBuilder = PothosSchemaTypes.SchemaBuilder<any>
+// The `<DB, Relations, Ctx>` phantom parameters are preserved for forward-compatibility —
+// they're not yet threaded into Pothos's SchemaTypes (cascading constraint issues), but
+// the signatures remain stable for when consumers provide concrete types in follow-up PRs.
+export type SchemaBuilder<_DB = any, _Relations = any, _Ctx = any> = PothosSchemaTypes.SchemaBuilder<any>
 
 // Module-level state — single contribution registry.
-const contributions: Array<(builder: SchemaBuilder) => void> = []
+const contributions: Array<(builder: SchemaBuilder<any, any, any>) => void> = []
 let built = false
 
-export function initBuilder<DB, Relations>(
+export function initBuilder<DB, Relations, Ctx = object>(
   opts: SchemaBuilderOptions<DB, Relations>,
-): SchemaBuilder {
-  const builder: SchemaBuilder = new (PothosSchemaBuilder as any)({
+): SchemaBuilder<DB, Relations, Ctx> {
+  const builder: SchemaBuilder<DB, Relations, Ctx> = new (PothosSchemaBuilder as any)({
     plugins: [
       DrizzlePlugin,
       RelayPlugin,
@@ -89,11 +89,13 @@ export function initBuilder<DB, Relations>(
   return builder
 }
 
-export function registerSchema(contribute: (builder: SchemaBuilder) => void): void {
-  contributions.push(contribute)
+export function registerSchema<DB = any, Relations = any, Ctx = any>(
+  contribute: (builder: SchemaBuilder<DB, Relations, Ctx>) => void,
+): void {
+  contributions.push(contribute as (b: SchemaBuilder<any, any, any>) => void)
 }
 
-export function buildSchema(builder: SchemaBuilder): GraphQLSchema {
+export function buildSchema(builder: SchemaBuilder<any, any, any>): GraphQLSchema {
   if (built)
     throw new Error('Schema already built — buildSchema() called twice')
   for (const contribute of contributions) contribute(builder)
