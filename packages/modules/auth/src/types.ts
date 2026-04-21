@@ -13,43 +13,23 @@ import type { TwoFactorService } from './services/twoFactor.service'
 import type { UserService } from './services/user.service'
 
 export interface AuthContext {
-  session: {
-    id: string
-    userId: string
-    expiresAt: Date
-    actorType: string
-    authMethod: string
-    organizationId: string | null
-    impersonatedBy: string | null
-  }
-  user: {
-    id: string
-    email: string
-    name: string
-    twoFactorEnabled: boolean
-    role: string
-    banned: boolean
-    banReason: string | null
-  }
-  actorType: string
-  organization: string | null
-  authSource: 'bearer' | 'cookie' | 'api-key'
+  userService: UserService
+  organizationService: OrganizationService
+  accountService: AccountService
+  sessionService: SessionService
+  twoFactorService: TwoFactorService
+  apiKeyService: ApiKeyService
+  appService: AppService
+  authService: AuthService
+  /** better-auth session — narrowed when needed */
+  session: any
+  /** better-auth user — narrowed when needed */
+  user: any
 }
-
-type AuthSession = Awaited<ReturnType<AuthService['getSession']>>
 
 declare module '@czo/kit/graphql' {
   interface GraphQLContextMap {
-    auth: {
-      instance: Auth
-      userService: UserService
-      organizationService: OrganizationService
-      authService: AuthService
-      apiKeyService: ApiKeyService
-      appService: AppService
-      session: NonNullable<AuthSession>['session'] | null
-      user: NonNullable<AuthSession>['user'] | null
-    }
+    auth: AuthContext
   }
 }
 
