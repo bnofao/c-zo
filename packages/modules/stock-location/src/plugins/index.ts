@@ -1,23 +1,31 @@
 import { useLogger } from '@czo/kit'
-import { registerRelations, registerSchema, useDatabase } from '@czo/kit/db'
+import { registerRelations, registerSchema as registerDbSchema, useDatabase } from '@czo/kit/db'
+import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
+import { registerStockLocationSchema } from '@czo/stock-location/graphql'
 import { stockLocationRelations } from '@czo/stock-location/relations'
 import * as stockLocationSchema from '@czo/stock-location/schema'
-import { createStockLocationAddressService, createStockLocationService } from '@czo/stock-location/services'
+import { createStockLocationService } from '@czo/stock-location/services'
 import { definePlugin } from 'nitro'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('stock-location:plugin')
 
   nitroApp.hooks.hook('czo:init', async () => {
-    registerSchema(stockLocationSchema)
+    registerDbSchema(stockLocationSchema)
     registerRelations(stockLocationRelations)
     logger.info('Schema and relations registered')
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
     const container = useContainer()
-    const accessService = await container.make('auth:access') as { register: (opt: { name: string, statements: Record<string, readonly string[]>, hierarchy: Array<{ name: string, permissions: Record<string, readonly string[]> }> }) => void }
+    const accessService = await container.make('auth:access') as {
+      register: (opt: {
+        name: string
+        statements: Record<string, readonly string[]>
+        hierarchy: Array<{ name: string, permissions: Record<string, readonly string[]> }>
+      }) => void
+    }
 
     accessService.register({
       name: 'stock-location',
@@ -48,13 +56,11 @@ export default definePlugin((nitroApp) => {
     const db = await useDatabase()
 
     const stockLocationService = createStockLocationService(db)
-    const stockLocationAddressService = createStockLocationAddressService(db)
     container.singleton('stockLocation:service', () => stockLocationService)
-    container.singleton('stockLocationAddress:service', () => stockLocationAddressService)
     logger.info('Service bound to container')
 
-    await import('@czo/stock-location/graphql')
-    logger.info('GraphQL schema and resolvers registered')
+    registerGraphQLSchema(registerStockLocationSchema)
+    logger.info('GraphQL schema registered')
 
     logger.success('Stock location module booted')
   })

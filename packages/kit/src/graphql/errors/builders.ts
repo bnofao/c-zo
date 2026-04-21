@@ -1,3 +1,4 @@
+import { OptimisticLockError } from '../../db/errors'
 import {
   ConflictError,
   ForbiddenError,
@@ -80,5 +81,17 @@ export function registerErrorTypes(builder: AnyBuilder): void {
     interfaces: [ErrorInterface],
 
     fields: (_t: any) => ({}),
+  })
+
+  builder.objectType(OptimisticLockError, {
+    name: 'OptimisticLockError',
+    interfaces: [ErrorInterface],
+
+    fields: (t: any) => ({
+      entityId: t.field({ type: 'ID', resolve: (e: any) => String(e.entityId) }),
+      expectedVersion: t.exposeInt('expectedVersion'),
+      actualVersion: t.int({ nullable: true, resolve: (e: any) => e.actualVersion }),
+      code: t.string({ resolve: () => 'OPTIMISTIC_LOCK_ERROR' }),
+    }),
   })
 }
