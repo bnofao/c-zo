@@ -137,6 +137,27 @@ catalogs:
     '@paralleldrive/cuid2':
       specifier: ^2.2.2
       version: 2.3.1
+    '@pothos/core':
+      specifier: ^4.12.0
+      version: 4.12.0
+    '@pothos/plugin-drizzle':
+      specifier: ^0.17.1
+      version: 0.17.1
+    '@pothos/plugin-errors':
+      specifier: ^4.9.0
+      version: 4.9.0
+    '@pothos/plugin-relay':
+      specifier: ^4.7.0
+      version: 4.7.0
+    '@pothos/plugin-scope-auth':
+      specifier: ^4.1.6
+      version: 4.1.6
+    '@pothos/plugin-tracing':
+      specifier: ^1.1.2
+      version: 1.1.2
+    '@pothos/plugin-zod':
+      specifier: ^4.1.6
+      version: 4.3.0
     zod:
       specifier: ^3.25.76
       version: 3.25.76
@@ -451,6 +472,27 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.28.0
         version: 1.39.0
+      '@pothos/core':
+        specifier: 'catalog:'
+        version: 4.12.0(graphql@16.12.0)
+      '@pothos/plugin-drizzle':
+        specifier: 'catalog:'
+        version: 0.17.1(@pothos/core@4.12.0(graphql@16.12.0))(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(graphql@16.12.0)
+      '@pothos/plugin-errors':
+        specifier: 'catalog:'
+        version: 4.9.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
+      '@pothos/plugin-relay':
+        specifier: 'catalog:'
+        version: 4.7.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
+      '@pothos/plugin-scope-auth':
+        specifier: 'catalog:'
+        version: 4.1.6(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
+      '@pothos/plugin-tracing':
+        specifier: 'catalog:'
+        version: 1.1.2(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
+      '@pothos/plugin-zod':
+        specifier: 'catalog:'
+        version: 4.3.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)(zod@4.3.4)
       amqplib:
         specifier: ^0.10.0
         version: 0.10.9
@@ -475,6 +517,9 @@ importers:
       exsolve:
         specifier: catalog:common
         version: 1.0.8
+      graphql-middleware:
+        specifier: ^6.0.0
+        version: 6.1.35(graphql@16.12.0)
       graphql-scalars:
         specifier: catalog:common
         version: 1.25.0(graphql@16.12.0)
@@ -503,9 +548,6 @@ importers:
         specifier: catalog:common
         version: 4.3.4
     devDependencies:
-      '@graphql-tools/schema':
-        specifier: 'catalog:'
-        version: 10.0.30(graphql@16.12.0)
       '@types/amqplib':
         specifier: catalog:types
         version: 0.10.8
@@ -524,9 +566,6 @@ importers:
       graphql:
         specifier: catalog:common
         version: 16.12.0
-      graphql-middleware:
-        specifier: catalog:common
-        version: 6.1.35(graphql@16.12.0)
       nitro:
         specifier: catalog:dev
         version: 3.0.260311-beta(@azure/identity@4.13.0)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(giget@2.0.0)(ioredis@5.9.2)(jiti@2.6.1)(rollup@4.54.0)(vite@7.3.0(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
@@ -2330,6 +2369,49 @@ packages:
 
   '@poppinss/utils@7.0.0-next.5':
     resolution: {integrity: sha512-ykv00LxAvcn9OmkoaAmTSoc6eksHpur6rZrx5fI/CkLNwknNWXO7nsqemhzxZYRdgskSU/2hnMCyZmzkvS653A==}
+
+  '@pothos/core@4.12.0':
+    resolution: {integrity: sha512-PeiODrj3GjQ7Nbs/5p65DEyBWZTSGGjgGO/BgaMEqS1jBNX/2zJTEQJA9zM5uPmCHUCDjE7Qn2U7lOi0ALp/8A==}
+    peerDependencies:
+      graphql: ^16.10.0
+
+  '@pothos/plugin-drizzle@0.17.1':
+    resolution: {integrity: sha512-83DYjA5dlydzGK7mtXq92oqq0pvj1nBdo5dYGM/I7Ms8IU30Atg1Ar84ezdpBGk8w1XCeJkEnOKlZ1JjQDdXUQ==}
+    peerDependencies:
+      '@pothos/core': '*'
+      drizzle-orm: '>=1.0.0-beta.2'
+      graphql: ^16.10.0
+
+  '@pothos/plugin-errors@4.9.0':
+    resolution: {integrity: sha512-RargBiHpg+LTQb8VcpR3FHX0cSLR2+rpU70v1Hhj2caOoNOMP7J+T2Y9vyXqJo3d+DtchPBjtixZ3lkQ11S/wQ==}
+    peerDependencies:
+      '@pothos/core': '*'
+      graphql: ^16.10.0
+
+  '@pothos/plugin-relay@4.7.0':
+    resolution: {integrity: sha512-IQ7f7WLu7uXxiZBcJgUTdspjIVzX3bgvd8XjnzxGJUbn/uE5HlVyCFmvhJffHIIS2OKSHhOOJRMwIwVwauwnSg==}
+    peerDependencies:
+      '@pothos/core': '*'
+      graphql: ^16.10.0
+
+  '@pothos/plugin-scope-auth@4.1.6':
+    resolution: {integrity: sha512-OuVrDiIf03VrExT3sgyt6YHYuFdUbJ6a6R9cHa01JWbnDUTEag8jFhtstZHou4tB8PkldtUgSspfkhJvFNk6bA==}
+    peerDependencies:
+      '@pothos/core': '*'
+      graphql: ^16.10.0
+
+  '@pothos/plugin-tracing@1.1.2':
+    resolution: {integrity: sha512-2DBLbCqvITS83lSPeuwpNd31fYoPhX6HnoIR5G5p3cQW6cfhEQ1yltJTMq62PrSd91Aadr0HhbT9R0Bhuw6sdQ==}
+    peerDependencies:
+      '@pothos/core': '*'
+      graphql: ^16.10.0
+
+  '@pothos/plugin-zod@4.3.0':
+    resolution: {integrity: sha512-g6fZ1Mp654sVSbXJ4yqgcdHzCI6iZdmtWJwaXutcTwZxMSz5nfOk72kXSHzxWji6zrOs+hzkJXvsLszUFcb63A==}
+    peerDependencies:
+      '@pothos/core': '*'
+      graphql: ^16.10.0
+      zod: ^4.*
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -9217,6 +9299,42 @@ snapshots:
       '@poppinss/string': 1.7.1
       '@poppinss/types': 1.2.1
       flattie: 1.1.1
+
+  '@pothos/core@4.12.0(graphql@16.12.0)':
+    dependencies:
+      graphql: 16.12.0
+
+  '@pothos/plugin-drizzle@0.17.1(@pothos/core@4.12.0(graphql@16.12.0))(drizzle-orm@1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3))(graphql@16.12.0)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      drizzle-orm: 1.0.0-beta.9-e89174b(@opentelemetry/api@1.9.0)(@types/mssql@9.1.9(@azure/core-client@1.10.1))(@types/pg@8.16.0)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.16.3)
+      graphql: 16.12.0
+
+  '@pothos/plugin-errors@4.9.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      graphql: 16.12.0
+
+  '@pothos/plugin-relay@4.7.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      graphql: 16.12.0
+
+  '@pothos/plugin-scope-auth@4.1.6(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      graphql: 16.12.0
+
+  '@pothos/plugin-tracing@1.1.2(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      graphql: 16.12.0
+
+  '@pothos/plugin-zod@4.3.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)(zod@4.3.4)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.12.0)
+      graphql: 16.12.0
+      zod: 4.3.4
 
   '@protobufjs/aspromise@1.1.2': {}
 
