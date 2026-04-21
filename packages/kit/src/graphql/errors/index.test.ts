@@ -11,7 +11,7 @@ describe('ValidationError', () => {
     expect(err).toBeInstanceOf(BaseGraphQLError)
     expect(err.code).toBe('VALIDATION_ERROR')
     expect(err.fields).toHaveLength(1)
-    expect(err.fields[0].path).toBe('email')
+    expect(err.fields[0]?.path).toBe('email')
     expect(err.message).toBe('Validation failed')
   })
 
