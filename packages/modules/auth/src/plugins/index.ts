@@ -170,13 +170,13 @@ export default definePlugin((nitroApp) => {
     container.singleton('auth', () => auth)
     logger.info('Auth instance created and bound to container')
 
-    const userService = createUserService(auth)
+    const userService = createUserService(db, auth)
     container.singleton('auth:users', () => userService)
 
-    const organizationService = createOrganizationService(auth)
+    const organizationService = createOrganizationService(db, auth)
     container.singleton('auth:organizations', () => organizationService)
 
-    const accountService = createAccountService(auth)
+    const accountService = createAccountService(db, auth)
     container.singleton('auth:accounts', () => accountService)
 
     const sessionService = createSessionService(db, auth)
