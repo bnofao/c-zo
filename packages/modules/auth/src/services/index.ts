@@ -1,3 +1,4 @@
+export * from './account.service'
 export * from './apiKey.service'
 export * from './app.service'
 export * from './auth.service'
