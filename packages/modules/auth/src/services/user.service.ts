@@ -1,12 +1,13 @@
 import type { Auth } from '@czo/auth/config'
-import type { Database } from '@czo/kit/db'
 import type { AdminOptions } from 'better-auth/plugins'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
-import { eq } from 'drizzle-orm'
-import { sessions, users } from '../database/schema'
+import type { InferSelectModel } from 'drizzle-orm'
+import type { sessions, users } from '../database/schema'
 import { mapAPIError } from './_internal/map-error'
 
 // ─── Types ───────────────────────────────────────────────────────────
+
+export type UserRow = InferSelectModel<typeof users>
+export type SessionRow = InferSelectModel<typeof sessions>
 
 export interface ListUsersParams {
   searchValue?: string
@@ -54,15 +55,22 @@ export type UserService = ReturnType<typeof createUserService>
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createUserService(db: Database, auth: Auth) {
+export function createUserService(auth: Auth) {
   return {
-    // ── Reads — Drizzle direct ──
+    // ── Reads — internalAdapter ──
 
-    async list(params: ListUsersParams, _headers?: Headers) {
-      const rows = await db.select().from(users)
+    async list(params: ListUsersParams): Promise<{ users: UserRow[], total: number, limit?: number, offset: number }> {
+      const ctx = await auth.$context
       const limit = params.limit ? Number(params.limit) : undefined
       const offset = params.offset ? Number(params.offset) : 0
 
+      // Build where clauses for better-auth's internalAdapter
+      const rows = await ctx.internalAdapter.listUsers(
+        limit,
+        offset,
+      ) as UserRow[]
+
+      // Apply search filtering in memory (internalAdapter.listUsers doesn't support text search)
       let filtered = rows
       if (params.searchValue && params.searchField) {
         const field = params.searchField
@@ -83,15 +91,15 @@ export function createUserService(db: Database, auth: Auth) {
       }
 
       const total = filtered.length
-      const paginated = limit !== undefined ? filtered.slice(offset, offset + limit) : filtered.slice(offset)
-      return { users: paginated as any[], total, limit, offset }
+      return { users: filtered, total, limit, offset }
     },
 
-    async get(userId: string, _headers?: Headers) {
-      const [row] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    async get(userId: string): Promise<UserRow> {
+      const ctx = await auth.$context
+      const row = await ctx.internalAdapter.findUserById(userId) as UserRow | null
       if (!row)
         throw new Error(`User not found: ${userId}`)
-      return row as any
+      return row
     },
 
     // ── hasPermission — admin role check ──
@@ -124,158 +132,112 @@ export function createUserService(db: Database, auth: Auth) {
       return false
     },
 
-    // ── Writes — Drizzle direct ──
+    // ── Writes — internalAdapter ──
 
-    async create(input: CreateUserInput, _headers?: Headers) {
-      const id = crypto.randomUUID()
-      const now = new Date()
-
-      let hashedPassword: string | undefined
-      if (input.password) {
-        try {
-          const ctx = await auth.$context
-          hashedPassword = await ctx.password.hash(input.password)
-        }
-        catch {
-          // fallback: keep password undefined (no credential stored)
-        }
-      }
+    async create(input: CreateUserInput): Promise<UserRow> {
+      const ctx = await auth.$context
 
       const role = Array.isArray(input.role) ? input.role[0] : (input.role ?? 'user')
 
-      const [row] = await db.insert(users).values({
-        id,
+      const row = await ctx.internalAdapter.createUser<UserRow>({
         email: input.email,
         name: input.name,
         role: role ?? 'user',
         emailVerified: false,
         banned: false,
-        createdAt: now,
-        updatedAt: now,
         ...(input.data as Record<string, unknown>),
-      }).returning()
+      })
 
       if (!row)
         throw new Error('Failed to create user')
 
-      // If password provided, store it in the accounts table via better-auth's internal adapter
-      if (hashedPassword) {
-        const accountId = crypto.randomUUID()
-        await db.insert(
-          (await import('../database/schema')).accounts,
-        ).values({
-          id: accountId,
-          accountId: id,
-          providerId: 'credential',
-          userId: id,
-          password: hashedPassword,
-          createdAt: now,
-          updatedAt: now,
-        }).onConflictDoNothing()
+      // If password provided, store credential via internalAdapter
+      if (input.password) {
+        try {
+          const hashedPassword = await ctx.password.hash(input.password)
+          await ctx.internalAdapter.createAccount({
+            accountId: row.id,
+            providerId: 'credential',
+            userId: row.id,
+            password: hashedPassword,
+          })
+        }
+        catch {
+          // non-fatal: credential not stored but user was created
+        }
       }
 
-      await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
-        userId: row.id,
-        email: row.email,
-      })
-
-      return row as any
+      return row
     },
 
-    async update(input: UpdateUserInput, _headers?: Headers) {
+    async update(input: UpdateUserInput): Promise<UserRow> {
       const { userId, data } = input
-      const now = new Date()
+      const ctx = await auth.$context
 
-      const [row] = await db.update(users)
-        .set({ ...data as any, updatedAt: now })
-        .where(eq(users.id, userId))
-        .returning()
+      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, data)
 
       if (!row)
         throw new Error(`User not found: ${userId}`)
 
-      await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
-        userId,
-        changes: data,
-      })
-
-      return row as any
+      return row
     },
 
-    async ban(input: BanUserInput, _headers?: Headers) {
+    async ban(input: BanUserInput): Promise<UserRow> {
       const { userId, banReason, banExpiresIn } = input
-      const now = new Date()
       const banExpires = banExpiresIn ? new Date(Date.now() + banExpiresIn * 1000) : null
+      const ctx = await auth.$context
 
-      const [row] = await db.update(users)
-        .set({
-          banned: true,
-          banReason: banReason ?? null,
-          banExpires: banExpires ?? undefined,
-          updatedAt: now,
-        })
-        .where(eq(users.id, userId))
-        .returning()
+      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
+        banned: true,
+        banReason: banReason ?? null,
+        banExpires: banExpires ?? undefined,
+        updatedAt: new Date(),
+      })
 
       if (!row)
         throw new Error(`User not found: ${userId}`)
 
       // Cascade session revocation — better-auth's domain
       try {
-        await (auth.api as any).revokeUserSessions({ body: { userId } })
+        await ctx.internalAdapter.deleteSessions(userId)
       }
       catch {
         // non-fatal: sessions may already be expired
       }
 
-      await publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
-        userId,
-        bannedBy: 'admin',
-        reason: banReason ?? null,
-        expiresIn: banExpiresIn ?? null,
-      })
-
-      return row as any
+      return row
     },
 
-    async unban(userId: string, _headers?: Headers) {
-      const now = new Date()
+    async unban(userId: string): Promise<UserRow> {
+      const ctx = await auth.$context
 
-      const [row] = await db.update(users)
-        .set({
-          banned: false,
-          banReason: null,
-          banExpires: null,
-          updatedAt: now,
-        })
-        .where(eq(users.id, userId))
-        .returning()
+      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
+        banned: false,
+        banReason: null,
+        banExpires: null,
+        updatedAt: new Date(),
+      })
 
       if (!row)
         throw new Error(`User not found: ${userId}`)
 
-      await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
-        userId,
-        unbannedBy: 'admin',
-      })
-
-      return row as any
+      return row
     },
 
-    async setRole(input: SetRoleInput, _headers?: Headers) {
+    async setRole(input: SetRoleInput): Promise<UserRow> {
       const { userId, role } = input
-      const now = new Date()
       const roleStr = Array.isArray(role) ? role.join(',') : role
+      const ctx = await auth.$context
 
-      const [row] = await db.update(users)
-        .set({ role: roleStr, updatedAt: now })
-        .where(eq(users.id, userId))
-        .returning()
+      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
+        role: roleStr,
+        updatedAt: new Date(),
+      })
 
       if (!row)
         throw new Error(`User not found: ${userId}`)
 
-      return row as any
+      return row
     },
 
     async setPassword(input: SetUserPasswordInput, headers: Headers) {
@@ -289,24 +251,27 @@ export function createUserService(db: Database, auth: Auth) {
       catch (err) { mapAPIError(err, 'User') }
     },
 
-    async remove(userId: string, _headers?: Headers) {
+    async remove(userId: string): Promise<{ success: boolean }> {
+      const ctx = await auth.$context
+
       // Cascade session revoke first
       try {
-        await (auth.api as any).revokeUserSessions({ body: { userId } })
+        await ctx.internalAdapter.deleteSessions(userId)
       }
       catch {
         // non-fatal
       }
 
-      await db.delete(users).where(eq(users.id, userId))
+      await ctx.internalAdapter.deleteUser(userId)
 
       return { success: true }
     },
 
-    // ── Sessions — Drizzle direct reads, better-auth writes ──
+    // ── Sessions — internalAdapter ──
 
-    async listSessions(userId: string, _headers?: Headers) {
-      return db.select().from(sessions).where(eq(sessions.userId, userId))
+    async listSessions(userId: string): Promise<SessionRow[]> {
+      const ctx = await auth.$context
+      return ctx.internalAdapter.listSessions(userId) as Promise<SessionRow[]>
     },
 
     async revokeSession(sessionToken: string, headers?: Headers) {
