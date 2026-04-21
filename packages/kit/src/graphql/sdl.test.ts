@@ -1,16 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { rmSync, existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { initBuilder, buildSchema, _resetBuilderState } from './builder'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { _resetBuilderState, buildSchema, initBuilder } from './builder'
 import { emitSDL, verifySDL } from './sdl'
 
 const db = drizzle.mock()
 const tmpFile = join(tmpdir(), `kit-sdl-test-${process.pid}.graphqls`)
 
 beforeEach(() => _resetBuilderState())
-afterEach(() => { if (existsSync(tmpFile)) rmSync(tmpFile) })
+afterEach(() => {
+  if (existsSync(tmpFile))
+    rmSync(tmpFile)
+})
 
 describe('emitSDL', () => {
   it('writes SDL to the given path with default header', () => {

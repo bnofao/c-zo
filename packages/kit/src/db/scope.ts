@@ -1,5 +1,6 @@
+import type { SQL, SQLWrapper } from 'drizzle-orm'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { and, isNull, isNotNull, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, isNotNull, isNull } from 'drizzle-orm'
 
 type TableWithDeletedAt = PgTable & { deletedAt: AnyPgColumn }
 

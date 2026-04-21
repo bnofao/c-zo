@@ -1,7 +1,7 @@
-import type { PgTable } from 'drizzle-orm/pg-core'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import { and, eq, sql } from 'drizzle-orm'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type { PgTable } from 'drizzle-orm/pg-core'
+import { and, eq, sql } from 'drizzle-orm'
 import { OptimisticLockError } from './errors'
 
 type TableWithVersion = PgTable & {

@@ -1,11 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
-  ValidationError, NotFoundError, ConflictError,
-  ForbiddenError, UnauthenticatedError, BaseGraphQLError,
+  BaseGraphQLError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthenticatedError,
+  ValidationError,
 } from './index'
 
-describe('ValidationError', () => {
+describe('validationError', () => {
   it('carries fields and default message', () => {
     const err = new ValidationError([{ path: 'email', message: 'bad', code: 'invalid_string' }])
     expect(err).toBeInstanceOf(BaseGraphQLError)
@@ -19,7 +23,8 @@ describe('ValidationError', () => {
     const schema = z.object({ email: z.string().email(), name: z.string().min(2) })
     const parse = schema.safeParse({ email: 'bad', name: 'a' })
     expect(parse.success).toBe(false)
-    if (parse.success) return
+    if (parse.success)
+      return
     const err = ValidationError.fromZod(parse.error)
     expect(err.fields.length).toBeGreaterThanOrEqual(2)
     expect(err.fields.some(f => f.path === 'email')).toBe(true)
@@ -27,7 +32,7 @@ describe('ValidationError', () => {
   })
 })
 
-describe('NotFoundError', () => {
+describe('notFoundError', () => {
   it('stores resource and id', () => {
     const err = new NotFoundError('User', 42)
     expect(err.code).toBe('NOT_FOUND')
@@ -38,7 +43,7 @@ describe('NotFoundError', () => {
   })
 })
 
-describe('ConflictError', () => {
+describe('conflictError', () => {
   it('stores resource, conflictField, and allows custom message', () => {
     const err = new ConflictError('User', 'email', 'Email already in use')
     expect(err.code).toBe('CONFLICT')
@@ -54,7 +59,7 @@ describe('ConflictError', () => {
   })
 })
 
-describe('ForbiddenError', () => {
+describe('forbiddenError', () => {
   it('carries requiredPermission', () => {
     const err = new ForbiddenError('user:create')
     expect(err.code).toBe('FORBIDDEN')
@@ -63,7 +68,7 @@ describe('ForbiddenError', () => {
   })
 })
 
-describe('UnauthenticatedError', () => {
+describe('unauthenticatedError', () => {
   it('has default and custom message', () => {
     expect(new UnauthenticatedError().message).toBe('Authentication required')
     expect(new UnauthenticatedError('Session expired').message).toBe('Session expired')

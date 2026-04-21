@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
-import { pgTable, integer, timestamp } from 'drizzle-orm/pg-core'
-import { notDeleted, onlyDeleted, notDeletedFilter, withNotDeleted } from './scope'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { integer, pgTable, timestamp } from 'drizzle-orm/pg-core'
+import { describe, expect, it } from 'vitest'
+import { notDeleted, notDeletedFilter, onlyDeleted, withNotDeleted } from './scope'
 
 const testTable = pgTable('test', {
   id: integer('id').primaryKey(),

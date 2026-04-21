@@ -1,5 +1,6 @@
-import { printSchema, lexicographicSortSchema, type GraphQLSchema } from 'graphql'
-import { writeFileSync, readFileSync, existsSync } from 'node:fs'
+import type { GraphQLSchema } from 'graphql'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { lexicographicSortSchema, printSchema } from 'graphql'
 
 export interface EmitSDLOptions {
   schema: GraphQLSchema
@@ -14,12 +15,13 @@ const DEFAULT_HEADER = '# AUTO-GENERATED — do not edit. Run `pnpm generate-sdl
 
 export function emitSDL({ schema, outputPath, sort = true, header }: EmitSDLOptions): void {
   const finalSchema = sort ? lexicographicSortSchema(schema) : schema
-  writeFileSync(outputPath, (header ?? DEFAULT_HEADER) + printSchema(finalSchema) + '\n')
+  writeFileSync(outputPath, `${(header ?? DEFAULT_HEADER) + printSchema(finalSchema)}\n`)
 }
 
 export function verifySDL({ schema, outputPath, sort = true, header }: EmitSDLOptions): boolean {
-  if (!existsSync(outputPath)) return false
+  if (!existsSync(outputPath))
+    return false
   const finalSchema = sort ? lexicographicSortSchema(schema) : schema
-  const expected = (header ?? DEFAULT_HEADER) + printSchema(finalSchema) + '\n'
+  const expected = `${(header ?? DEFAULT_HEADER) + printSchema(finalSchema)}\n`
   return readFileSync(outputPath, 'utf-8') === expected
 }

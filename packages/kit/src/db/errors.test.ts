@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { DatabaseError, OptimisticLockError, toDatabaseError } from './errors'
 
-describe('DatabaseError', () => {
+describe('databaseError', () => {
   it('has a name and message', () => {
     const err = new DatabaseError('some message')
     expect(err.name).toBe('DatabaseError')
@@ -15,7 +15,7 @@ describe('DatabaseError', () => {
   })
 })
 
-describe('OptimisticLockError', () => {
+describe('optimisticLockError', () => {
   it('includes entityId, expectedVersion, actualVersion', () => {
     const err = new OptimisticLockError(42, 3, 4)
     expect(err.entityId).toBe(42)
@@ -46,7 +46,8 @@ describe('toDatabaseError', () => {
     try {
       toDatabaseError(pgErr)
       throw new Error('should have thrown')
-    } catch (err) {
+    }
+    catch (err) {
       expect(err).toBeInstanceOf(DatabaseError)
       expect((err as DatabaseError).fieldErrors).toEqual({ email: ['must be unique'] })
     }

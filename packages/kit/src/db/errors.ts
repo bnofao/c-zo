@@ -23,7 +23,8 @@ export class OptimisticLockError extends Error {
 }
 
 export function toDatabaseError(err: unknown): never {
-  if (err instanceof DatabaseError) throw err
+  if (err instanceof DatabaseError)
+    throw err
   if (err instanceof Error && 'code' in err) {
     const pgCode = (err as { code: unknown }).code
     if (pgCode === '23505') {
