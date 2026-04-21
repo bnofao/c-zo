@@ -1,5 +1,4 @@
 import type { Auth } from '@czo/auth/config'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { mapAPIError } from './_internal/map-error'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -43,14 +42,7 @@ export function createApiKeyService(auth: Auth) {
   return {
     async create(input: CreateApiKeyInput, headers?: Headers) {
       try {
-        const result = await auth.api.createApiKey({ headers, body: input })
-        await publishAuthEvent(AUTH_EVENTS.API_KEY_CREATED, {
-          apiKeyId: result.id,
-          userId: input.userId ?? '',
-          name: input.name ?? null,
-          prefix: input.prefix ?? null,
-        })
-        return result
+        return await auth.api.createApiKey({ headers, body: input })
       }
       catch (err) { mapAPIError(err, 'ApiKey') }
     },

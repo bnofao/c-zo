@@ -1,5 +1,4 @@
 import type { Auth } from '@czo/auth/config'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { mapAPIError } from './_internal/map-error'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -33,24 +32,14 @@ export function createTwoFactorService(auth: Auth) {
   return {
     async enable(input: EnableTwoFactorInput, headers: Headers) {
       try {
-        const result = await auth.api.enableTwoFactor({ headers, body: input })
-        const session = await auth.api.getSession({ headers })
-        if (session?.user?.id) {
-          await publishAuthEvent(AUTH_EVENTS.TWO_FA_ENABLED, { userId: session.user.id })
-        }
-        return result
+        return await auth.api.enableTwoFactor({ headers, body: input })
       }
       catch (err) { mapAPIError(err, 'TwoFactor') }
     },
 
     async disable(password: string, headers: Headers) {
       try {
-        const result = await auth.api.disableTwoFactor({ headers, body: { password } })
-        const session = await auth.api.getSession({ headers })
-        if (session?.user?.id) {
-          await publishAuthEvent(AUTH_EVENTS.TWO_FA_DISABLED, { userId: session.user.id })
-        }
-        return result
+        return await auth.api.disableTwoFactor({ headers, body: { password } })
       }
       catch (err) { mapAPIError(err, 'TwoFactor') }
     },

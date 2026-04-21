@@ -1,6 +1,5 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { eq, sql } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
@@ -235,15 +234,6 @@ export function createAppService(db: Database, subscribableEvents: ReadonlySet<s
         .set({ installedAppId: id })
         .where(eq(apikeys.id, apiKey.id))
 
-      await publishAuthEvent(AUTH_EVENTS.APP_INSTALLED, {
-        appId: manifest.id,
-        registerUrl: manifest.register,
-        apiKey: apiKey.key,
-        installedBy: input.installedBy,
-        organizationId: input.organizationId,
-        webhookSecret,
-      })
-
       return { ...row, apiKey: { id: apiKey.id } }
     },
 
@@ -272,7 +262,6 @@ export function createAppService(db: Database, subscribableEvents: ReadonlySet<s
         throw new Error(`App "${appId}" not found`)
       }
 
-      await publishAuthEvent(AUTH_EVENTS.APP_UNINSTALLED, { appId })
       return result
     },
 
@@ -288,15 +277,10 @@ export function createAppService(db: Database, subscribableEvents: ReadonlySet<s
         throw new Error(`App "${id}" not found`)
       }
 
-      await publishAuthEvent(AUTH_EVENTS.APP_UPDATED, {
-        appId: result.appId,
-        version: parsed.version,
-        status: result.status,
-      })
       return result
     },
 
-    async setStatus(id: string, status: AppStatus) {
+    async setStatus(id: string, status: AppStatus): Promise<AppRow> {
       const [result] = await db
         .update(apps)
         .set({ status, updatedAt: new Date() })
@@ -307,11 +291,6 @@ export function createAppService(db: Database, subscribableEvents: ReadonlySet<s
         throw new Error(`App "${id}" not found`)
       }
 
-      await publishAuthEvent(AUTH_EVENTS.APP_UPDATED, {
-        appId: result.appId,
-        version: (result.manifest as AppManifest)?.version ?? '',
-        status,
-      })
       return result
     },
   }
