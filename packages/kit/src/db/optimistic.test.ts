@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
-import { pgTable, integer, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { optimisticUpdate } from './optimistic'
-import { OptimisticLockError } from './errors'
+import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createTestDb, truncate } from '../testing'
+import { OptimisticLockError } from './errors'
+import { optimisticUpdate } from './optimistic'
 
 const things = pgTable('things_opt_test', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -27,17 +27,20 @@ describe('optimisticUpdate', () => {
     `)
   })
 
+  beforeEach(() => truncate(db, things))
+
   afterAll(async () => {
     await db.execute(sql`DROP TABLE IF EXISTS things_opt_test`)
   })
-
-  beforeEach(() => truncate(db, things))
 
   it('increments version on successful update', async () => {
     const rows = await db.insert(things).values({ name: 'a' }).returning()
     const row = rows[0]!
     const updated = await optimisticUpdate({
-      db, table: things, id: row.id, expectedVersion: 1,
+      db,
+      table: things,
+      id: row.id,
+      expectedVersion: 1,
       values: { name: 'b' },
     })
     expect(updated.version).toBe(2)
@@ -48,29 +51,34 @@ describe('optimisticUpdate', () => {
     const rows = await db.insert(things).values({ name: 'a' }).returning()
     const row = rows[0]!
     await expect(optimisticUpdate({
-      db, table: things, id: row.id, expectedVersion: 999,
+      db,
+      table: things,
+      id: row.id,
+      expectedVersion: 999,
       values: { name: 'b' },
     })).rejects.toBeInstanceOf(OptimisticLockError)
   })
 
-  it('OptimisticLockError reports actualVersion for an existing row', async () => {
+  it('optimisticLockError reports actualVersion for an existing row', async () => {
     const rows = await db.insert(things).values({ name: 'a' }).returning()
     const row = rows[0]!
     try {
       await optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 999, values: { name: 'b' } })
       throw new Error('should have thrown')
-    } catch (err) {
+    }
+    catch (err) {
       expect(err).toBeInstanceOf(OptimisticLockError)
       expect((err as OptimisticLockError).actualVersion).toBe(1)
       expect((err as OptimisticLockError).expectedVersion).toBe(999)
     }
   })
 
-  it('OptimisticLockError reports null actualVersion for a missing row', async () => {
+  it('optimisticLockError reports null actualVersion for a missing row', async () => {
     try {
       await optimisticUpdate({ db, table: things, id: 99999, expectedVersion: 1, values: { name: 'x' } })
       throw new Error('should have thrown')
-    } catch (err) {
+    }
+    catch (err) {
       expect(err).toBeInstanceOf(OptimisticLockError)
       expect((err as OptimisticLockError).actualVersion).toBeNull()
     }

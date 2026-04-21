@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { initBuilder, registerSchema, buildSchema, _resetBuilderState } from './builder'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { _resetBuilderState, buildSchema, initBuilder, registerSchema } from './builder'
 
 const db = drizzle.mock()
 const relations = {} as any
@@ -40,10 +40,12 @@ describe('registerSchema + buildSchema', () => {
     registerSchema((b) => {
       order.push('a')
       b.objectRef<{ id: string }>('Foo').implement({
-        fields: (t) => ({ id: t.string({ resolve: () => 'x' }) }),
+        fields: t => ({ id: t.string({ resolve: () => 'x' }) }),
       })
     })
-    registerSchema((_b) => { order.push('b') })
+    registerSchema((_b) => {
+      order.push('b')
+    })
 
     const builder = initBuilder({ db, relations })
     const schema = buildSchema(builder)
