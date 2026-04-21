@@ -7,6 +7,7 @@ import RelayPlugin from '@pothos/plugin-relay'
 import ScopeAuthPlugin from '@pothos/plugin-scope-auth'
 import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-zod'
+import { ValidationError } from './errors'
 import { registerErrorTypes } from './errors/builders'
 import { DateTimeResolver, JSONObjectResolver } from './scalars'
 
@@ -42,6 +43,9 @@ export function initBuilder<DB, Relations, Ctx = object>(
     ],
     drizzle: { client: opts.db, relations: opts.relations },
     relay: { clientMutationId: 'omit', cursorType: 'String' },
+    zod: {
+      validationError: (error: any) => ValidationError.fromZod(error),
+    },
     scopeAuth: {
       authScopes: async (ctx: any) => ({
         permission: async ({ resource, actions }: { resource: string, actions: string[] }) =>
