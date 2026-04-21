@@ -13,12 +13,14 @@ import {
   useAccessService,
   useAuthActorService,
 } from '@czo/auth/config'
+import { registerAuthSchema } from '@czo/auth/graphql'
 import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { createAccountService, createApiKeyService, createAppService, createAuthService, createOrganizationService, createSessionService, createTwoFactorService, createUserService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
-import { registerRelations, registerSchema, registerSeeder, useDatabase } from '@czo/kit/db'
+import { registerRelations, registerSchema as registerDbSchema, registerSeeder, useDatabase } from '@czo/kit/db'
+import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 
@@ -47,7 +49,7 @@ export default definePlugin((nitroApp) => {
     const accessService = useAccessService()
     container.singleton('auth:access', () => accessService)
 
-    registerSchema(authSchema)
+    registerDbSchema(authSchema)
     registerRelations(authRelations)
 
     registerSeeder('users', {
@@ -205,9 +207,9 @@ export default definePlugin((nitroApp) => {
     accessService.freeze()
     logger.info('Actor and access registries frozen')
 
-    // Register GraphQL schema, resolvers and context only when auth is properly configured
-    await import('@czo/auth/graphql')
-    logger.info('GraphQL schema, resolvers and directives registered')
+    // Register GraphQL schema (Pothos builder contributions) when auth is properly configured
+    registerGraphQLSchema(registerAuthSchema)
+    logger.info('GraphQL schema registered')
 
     logger.success('Auth module booted')
   })
