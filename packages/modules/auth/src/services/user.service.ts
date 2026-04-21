@@ -1,7 +1,7 @@
 import type { Auth } from '@czo/auth/config'
-import type { Session, User } from 'better-auth'
-import type { SessionWithImpersonatedBy, UserWithRole } from 'better-auth/plugins'
-import { APIError } from 'better-auth'
+import type { AdminOptions } from 'better-auth/plugins'
+import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
+import { mapAPIError } from './_internal/map-error'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -23,12 +23,12 @@ export interface CreateUserInput {
   name: string
   password?: string
   role?: string | string[]
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 }
 
 export interface UpdateUserInput {
   userId: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 export interface SetRoleInput {
@@ -47,264 +47,173 @@ export interface BanUserInput {
   banExpiresIn?: number
 }
 
-export interface UserService {
-  list: (params: ListUsersParams, headers?: Headers) => Promise<{
-    users: UserWithRole[]
-    total: number
-    limit?: number
-    offset?: number
-  } | {
-    users: never []
-    total: number
-  }>
-  get: (userId: string, headers?: Headers) => Promise<UserWithRole>
-  create: (input: CreateUserInput, headers?: Headers) => Promise<UserWithRole>
-  update: (input: UpdateUserInput, headers?: Headers) => Promise<UserWithRole>
-  ban: (input: BanUserInput, headers?: Headers) => Promise<UserWithRole>
-  unban: (userId: string, headers?: Headers) => Promise<UserWithRole>
-  remove: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
-  setRole: (input: SetRoleInput, headers: Headers) => Promise<UserWithRole>
-  setUserPassword: (input: SetUserPasswordInput, headers: Headers) => Promise<{ status: boolean }>
-  listSessions: (userId: string, headers?: Headers) => Promise<SessionWithImpersonatedBy[]>
-  revokeSession: (sessionToken: string, headers?: Headers) => Promise<{ success: boolean }>
-  revokeSessions: (userId: string, headers?: Headers) => Promise<{ success: boolean }>
-  impersonate: (userId: string, headers?: Headers) => Promise<{ session: Session, user: UserWithRole }>
-  stopImpersonating: (headers: Headers) => Promise<{ session: Session & Record<string, any>, user: User & Record<string, any> }>
-}
+export type UserService = ReturnType<typeof createUserService>
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createUserService(auth: Auth): UserService {
-  async function list(params: ListUsersParams, headers?: Headers) {
-    try {
-      return await auth.api.listUsers({
-        headers,
-        query: { ...params },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to list users: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function get(userId: string, headers?: Headers) {
-    try {
-      return await auth.api.getUser({
-        headers,
-        query: { id: userId },
-      })
-    }
-    catch {
-      throw new Error(`User not found: ${userId}`)
-    }
-  }
-
-  async function create(input: CreateUserInput, headers?: Headers) {
-    try {
-      const result = await auth.api.createUser({
-        headers,
-        body: input as any,
-      })
-
-      return result.user
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to create user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function update(input: UpdateUserInput, headers?: Headers) {
-    try {
-      return await auth.api.adminUpdateUser({
-        headers,
-        body: { userId: input.userId, data: input.data },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to update user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function ban(input: BanUserInput, headers?: Headers) {
-    try {
-      const result = await auth.api.banUser({
-        headers,
-        body: input,
-      })
-
-      return result.user
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to ban user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function unban(userId: string, headers?: Headers) {
-    try {
-      const result = await auth.api.unbanUser({
-        headers,
-        body: { userId },
-      })
-
-      return result.user
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to unban user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function remove(userId: string, headers?: Headers) {
-    try {
-      return await auth.api.removeUser({
-        headers,
-        body: { userId },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to remove user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function setRole(input: SetRoleInput, headers: Headers) {
-    try {
-      const result = await auth.api.setRole({
-        headers,
-        body: { userId: input.userId, role: input.role as any },
-      })
-
-      return result.user
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to set role: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function setUserPassword(input: SetUserPasswordInput, headers: Headers) {
-    try {
-      return await auth.api.setUserPassword({
-        headers,
-        body: { userId: input.userId, newPassword: input.newPassword },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to set user password: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function listSessions(userId: string, headers?: Headers) {
-    try {
-      const result = await auth.api.listUserSessions({
-        headers,
-        body: { userId },
-      })
-
-      return result.sessions
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to list sessions: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function revokeSession(sessionToken: string, headers?: Headers) {
-    try {
-      return await auth.api.revokeUserSession({
-        headers,
-        body: { sessionToken },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to revoke session: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function revokeSessions(userId: string, headers?: Headers) {
-    try {
-      return await auth.api.revokeUserSessions({
-        headers,
-        body: { userId },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to revoke sessions: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function impersonate(userId: string, headers?: Headers) {
-    try {
-      return await auth.api.impersonateUser({
-        headers,
-        body: { userId },
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to impersonate user: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
-  async function stopImpersonating(headers: Headers) {
-    try {
-      return await auth.api.stopImpersonating({
-        headers,
-      })
-    }
-    catch (e: unknown) {
-      if (e instanceof APIError) {
-        throw new Error(`Failed to stop impersonating: ${e.message}`)
-      }
-      throw e
-    }
-  }
-
+export function createUserService(auth: Auth) {
   return {
-    list,
-    get,
-    create,
-    update,
-    ban,
-    unban,
-    remove,
-    setRole,
-    setUserPassword,
-    listSessions,
-    revokeSession,
-    revokeSessions,
-    impersonate,
-    stopImpersonating,
+    // ── Reads — via better-auth admin API ──
+
+    async list(params: ListUsersParams, headers?: Headers) {
+      try {
+        return await (auth.api as any).listUsers({ headers, query: { ...params } })
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async get(userId: string, headers?: Headers) {
+      try {
+        return await (auth.api as any).getUser({ headers, query: { id: userId } })
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    // ── hasPermission — admin role check ──
+
+    hasPermission(opts: {
+      userId: string
+      permissions: Record<string, string[]>
+      role?: string
+      connector?: 'AND' | 'OR'
+    }): boolean {
+      const { userId, permissions, role, connector = 'AND' } = opts
+      const adminOptions = auth.options.plugins?.find(
+        (p: { id: string }) => p.id === 'admin',
+      )?.options as AdminOptions | undefined
+
+      if (adminOptions?.adminUserIds?.includes(userId)) return true
+      if (!permissions) return false
+
+      const roles = (role || adminOptions?.defaultRole || 'user').split(',')
+      const acRoles = (adminOptions?.roles ?? {}) as Record<string, { authorize: (p: Record<string, string[]>, c: 'AND' | 'OR') => { success: boolean } } | undefined>
+      for (const r of roles) {
+        const acRole = acRoles[r]
+        const result = acRole?.authorize(permissions, connector)
+        if (result?.success) return true
+      }
+      return false
+    },
+
+    // ── Writes — via better-auth admin API ──
+
+    async create(input: CreateUserInput, headers?: Headers) {
+      try {
+        const result = await (auth.api as any).createUser({ headers, body: input })
+        await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
+          userId: result.user.id,
+          email: result.user.email,
+        })
+        return result.user
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async update(input: UpdateUserInput, headers?: Headers) {
+      try {
+        const result = await (auth.api as any).adminUpdateUser({
+          headers,
+          body: { userId: input.userId, data: input.data },
+        })
+        await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
+          userId: input.userId,
+          changes: input.data,
+        })
+        return result
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async ban(input: BanUserInput, headers?: Headers) {
+      try {
+        const result = await (auth.api as any).banUser({ headers, body: input })
+        await publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
+          userId: input.userId,
+          bannedBy: 'admin',
+          reason: input.banReason ?? null,
+          expiresIn: input.banExpiresIn ?? null,
+        })
+        return result.user
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async unban(userId: string, headers?: Headers) {
+      try {
+        const result = await (auth.api as any).unbanUser({ headers, body: { userId } })
+        await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
+          userId,
+          unbannedBy: 'admin',
+        })
+        return result.user
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async setRole(input: SetRoleInput, headers: Headers) {
+      try {
+        const result = await (auth.api as any).setRole({
+          headers,
+          body: { userId: input.userId, role: input.role },
+        })
+        return result.user
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async setPassword(input: SetUserPasswordInput, headers: Headers) {
+      try {
+        return await (auth.api as any).setUserPassword({
+          headers,
+          body: { userId: input.userId, newPassword: input.newPassword },
+        })
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async remove(userId: string, headers?: Headers) {
+      try {
+        return await (auth.api as any).removeUser({ headers, body: { userId } })
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    // ── Sessions & impersonation ──
+
+    async listSessions(userId: string, headers?: Headers) {
+      try {
+        const result = await (auth.api as any).listUserSessions({ headers, body: { userId } })
+        return result.sessions
+      }
+      catch (err) { mapAPIError(err, 'Session') }
+    },
+
+    async revokeSession(sessionToken: string, headers?: Headers) {
+      try {
+        return await (auth.api as any).revokeUserSession({ headers, body: { sessionToken } })
+      }
+      catch (err) { mapAPIError(err, 'Session') }
+    },
+
+    async revokeSessions(userId: string, headers?: Headers) {
+      try {
+        return await (auth.api as any).revokeUserSessions({ headers, body: { userId } })
+      }
+      catch (err) { mapAPIError(err, 'Session') }
+    },
+
+    async impersonate(userId: string, headers?: Headers) {
+      try {
+        return await (auth.api as any).impersonateUser({ headers, body: { userId } })
+      }
+      catch (err) { mapAPIError(err, 'User') }
+    },
+
+    async stopImpersonating(headers: Headers) {
+      try {
+        return await (auth.api as any).stopImpersonating({ headers })
+      }
+      catch (err) { mapAPIError(err, 'Session') }
+    },
   }
 }
