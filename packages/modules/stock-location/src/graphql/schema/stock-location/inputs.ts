@@ -33,6 +33,7 @@ export const updateStockLocationSchema = z.object({
 
 export function registerStockLocationInputs(builder: any): void {
   const StockLocationAddressInput = (builder as any).inputType('StockLocationAddressInput', {
+    validate: { schema: stockLocationAddressSchema },
     fields: (t: any) => ({
       addressLine1: t.string({ required: true }),
       addressLine2: t.string(),
@@ -57,6 +58,7 @@ export function registerStockLocationInputs(builder: any): void {
   })
 
   ;(builder as any).inputType('UpdateStockLocationInput', {
+    validate: { schema: updateStockLocationSchema },
     fields: (t: any) => ({
       name: t.string(),
       handle: t.string(),

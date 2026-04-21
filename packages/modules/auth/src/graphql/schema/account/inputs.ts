@@ -32,6 +32,7 @@ export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>
 
 export function registerAccountInputs(builder: any): void {
   builder.inputType('ChangePasswordInput', {
+    validate: { schema: changePasswordSchema },
     fields: (t: any) => ({
       currentPassword: t.string({ required: true }),
       newPassword: t.string({ required: true }),
@@ -40,6 +41,7 @@ export function registerAccountInputs(builder: any): void {
   })
 
   builder.inputType('ChangeEmailInput', {
+    validate: { schema: changeEmailSchema },
     fields: (t: any) => ({
       newEmail: t.string({ required: true }),
       callbackURL: t.string({ required: false }),
@@ -47,6 +49,7 @@ export function registerAccountInputs(builder: any): void {
   })
 
   builder.inputType('UpdateProfileInput', {
+    validate: { schema: updateProfileSchema },
     fields: (t: any) => ({
       name: t.string({ required: false }),
       image: t.string({ required: false }),
@@ -54,6 +57,7 @@ export function registerAccountInputs(builder: any): void {
   })
 
   builder.inputType('DeleteAccountInput', {
+    validate: { schema: deleteAccountSchema },
     fields: (t: any) => ({
       password: t.string({ required: false }),
       callbackURL: t.string({ required: false }),

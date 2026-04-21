@@ -32,6 +32,7 @@ export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
 export function registerOrganizationInputs(builder: any): void {
   builder.inputType('CreateOrganizationInput', {
+    validate: { schema: createOrganizationSchema },
     fields: (t: any) => ({
       name: t.string({ required: true }),
       slug: t.string({ required: true }),
@@ -42,6 +43,7 @@ export function registerOrganizationInputs(builder: any): void {
   })
 
   builder.inputType('UpdateOrganizationInput', {
+    validate: { schema: updateOrganizationSchema },
     fields: (t: any) => ({
       name: t.string({ required: false }),
       slug: t.string({ required: false }),
@@ -51,6 +53,7 @@ export function registerOrganizationInputs(builder: any): void {
   })
 
   builder.inputType('InviteMemberInput', {
+    validate: { schema: inviteMemberSchema },
     fields: (t: any) => ({
       email: t.string({ required: true }),
       role: t.string({ required: true }),

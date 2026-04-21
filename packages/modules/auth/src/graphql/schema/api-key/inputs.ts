@@ -35,6 +35,7 @@ export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>
 
 export function registerApiKeyInputs(builder: any): void {
   builder.inputType('CreateApiKeyInput', {
+    validate: { schema: createApiKeySchema },
     fields: (t: any) => ({
       name: t.string({ required: true }),
       expiresIn: t.int({ required: false }),
@@ -49,6 +50,7 @@ export function registerApiKeyInputs(builder: any): void {
   })
 
   builder.inputType('UpdateApiKeyInput', {
+    validate: { schema: updateApiKeySchema },
     fields: (t: any) => ({
       name: t.string({ required: false }),
       enabled: t.boolean({ required: false }),

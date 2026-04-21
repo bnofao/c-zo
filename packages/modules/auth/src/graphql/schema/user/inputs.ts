@@ -31,6 +31,7 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>
 
 export function registerUserInputs(builder: any): void {
   builder.inputType('CreateUserInput', {
+    validate: { schema: createUserSchema },
     fields: (t: any) => ({
       email: t.string({ required: true }),
       name: t.string({ required: true }),
@@ -40,6 +41,7 @@ export function registerUserInputs(builder: any): void {
   })
 
   builder.inputType('UpdateUserInput', {
+    validate: { schema: updateUserSchema },
     fields: (t: any) => ({
       name: t.string({ required: false }),
       email: t.string({ required: false }),

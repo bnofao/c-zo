@@ -26,6 +26,7 @@ export type VerifyBackupCodeInput = z.infer<typeof verifyBackupCodeSchema>
 
 export function registerTwoFactorInputs(builder: any): void {
   builder.inputType('VerifyTotpInput', {
+    validate: { schema: verifyTotpSchema },
     fields: (t: any) => ({
       code: t.string({ required: true }),
       trustDevice: t.boolean({ required: false }),
@@ -33,6 +34,7 @@ export function registerTwoFactorInputs(builder: any): void {
   })
 
   builder.inputType('VerifyOtpInput', {
+    validate: { schema: verifyOtpSchema },
     fields: (t: any) => ({
       code: t.string({ required: true }),
       trustDevice: t.boolean({ required: false }),
@@ -40,6 +42,7 @@ export function registerTwoFactorInputs(builder: any): void {
   })
 
   builder.inputType('VerifyBackupCodeInput', {
+    validate: { schema: verifyBackupCodeSchema },
     fields: (t: any) => ({
       code: t.string({ required: true }),
       disableSession: t.boolean({ required: false }),

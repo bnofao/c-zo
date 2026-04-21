@@ -49,6 +49,7 @@ export function registerAppInputs(builder: any): void {
   })
 
   builder.inputType('InstallAppInput', {
+    validate: { schema: installAppSchema },
     fields: (t: any) => ({
       manifestUrl: t.string({ required: true }),
       organizationId: t.id({ required: false }),
@@ -56,12 +57,14 @@ export function registerAppInputs(builder: any): void {
   })
 
   builder.inputType('UpdateAppManifestInput', {
+    validate: { schema: updateAppManifestSchema },
     fields: (t: any) => ({
       appId: t.string({ required: true }),
     }),
   })
 
   builder.inputType('SetAppStatusInput', {
+    validate: { schema: setAppStatusSchema },
     fields: (t: any) => ({
       appId: t.string({ required: true }),
       status: t.string({ required: true }),
