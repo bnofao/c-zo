@@ -3,7 +3,6 @@ import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { BackupCodeInvalidError, TotpVerificationFailedError, TwoFactorNotEnabledError } from './errors'
-import { verifyBackupCodeSchema, verifyOtpSchema, verifyTotpSchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -67,12 +66,8 @@ export function registerTwoFactorMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'VerifyTotpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = verifyTotpSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        await ctx.auth.twoFactorService.verifyTotp(parsed.data, ctx.request?.headers ?? new Headers())
+      resolve: async (_root: unknown, args: { input: { code: string, trustDevice?: boolean } }, ctx: Ctx) => {
+        await ctx.auth.twoFactorService.verifyTotp(args.input, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -86,12 +81,8 @@ export function registerTwoFactorMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'VerifyOtpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = verifyOtpSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        await ctx.auth.twoFactorService.verifyOtp(parsed.data, ctx.request?.headers ?? new Headers())
+      resolve: async (_root: unknown, args: { input: { code: string, trustDevice?: boolean } }, ctx: Ctx) => {
+        await ctx.auth.twoFactorService.verifyOtp(args.input, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -120,12 +111,8 @@ export function registerTwoFactorMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'VerifyBackupCodeInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = verifyBackupCodeSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        await ctx.auth.twoFactorService.verifyBackupCode(parsed.data, ctx.request?.headers ?? new Headers())
+      resolve: async (_root: unknown, args: { input: { code: string, disableSession?: boolean, trustDevice?: boolean } }, ctx: Ctx) => {
+        await ctx.auth.twoFactorService.verifyBackupCode(args.input, ctx.request?.headers ?? new Headers())
         return true
       },
     }))

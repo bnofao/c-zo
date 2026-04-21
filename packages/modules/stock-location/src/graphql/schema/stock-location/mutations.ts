@@ -1,10 +1,10 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
-import type { StockLocationService } from '../../../services/stock-location.service'
+import type { StockLocationService, UpdateStockLocationInput } from '../../../services/stock-location.service'
 import { OptimisticLockError } from '@czo/kit/db'
 import { ConflictError, NotFoundError, ValidationError } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 import { generateHandle } from '../../../services/stock-location.service'
-import { createStockLocationSchema, updateStockLocationSchema } from './inputs'
+import { createStockLocationSchema } from './inputs'
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -63,18 +63,15 @@ export function registerStockLocationMutations(builder: SchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
       resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const parsed = updateStockLocationSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
         const id = (args.id as { id: string }).id
         const version = args.version as number
+        const input = args.input as UpdateStockLocationInput
         const service = await getService()
         const existing = await service.find(Number(id))
         if (!existing)
           throw new NotFoundError('StockLocation', id)
 
-        return service.update(Number(id), version, parsed.data)
+        return service.update(Number(id), version, input)
       },
     }))
 

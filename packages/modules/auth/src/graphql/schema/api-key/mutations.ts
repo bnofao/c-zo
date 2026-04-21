@@ -2,7 +2,6 @@ import type { AuthContext } from '@czo/auth/types'
 import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { createApiKeySchema, updateApiKeySchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -19,17 +18,13 @@ export function registerApiKeyMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'CreateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { name: string, expiresIn?: number, prefix?: string, remaining?: number, refillAmount?: number, refillInterval?: number, rateLimitEnabled?: boolean, rateLimitTimeWindow?: number, rateLimitMax?: number } }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const parsed = createApiKeySchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
         const result = await ctx.auth.apiKeyService.create(
-          { ...parsed.data, userId: authUser.id },
+          { ...args.input, userId: authUser.id },
           ctx.request?.headers ?? new Headers(),
         )
         if (!result)
@@ -75,16 +70,12 @@ export function registerApiKeyMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'UpdateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { id: string, input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, input: { name?: string, enabled?: boolean, remaining?: number, expiresIn?: number, refillAmount?: number, refillInterval?: number, rateLimitEnabled?: boolean, rateLimitTimeWindow?: number, rateLimitMax?: number } }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const parsed = updateApiKeySchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
         const result = await ctx.auth.apiKeyService.update(
-          { keyId: String(args.id), ...parsed.data },
+          { keyId: String(args.id), ...args.input },
           ctx.request?.headers ?? new Headers(),
         )
         if (!result)

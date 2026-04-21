@@ -3,7 +3,6 @@ import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotLeaveAsLastOwnerError, InvitationExpiredError, MembershipAlreadyExistsError, SlugAlreadyTakenError } from './errors'
-import { createOrganizationSchema, inviteMemberSchema, updateOrganizationSchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -19,17 +18,13 @@ export function registerOrganizationMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'CreateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { name: string, slug: string, logo?: string, type?: string, keepCurrentActiveOrganization?: boolean } }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const parsed = createOrganizationSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
         const result = await ctx.auth.organizationService.create(
-          { ...parsed.data, userId: authUser.id },
+          { ...args.input, userId: authUser.id },
         )
         if (!result)
           throw new NotFoundError('Organization', 'created')
@@ -55,15 +50,11 @@ export function registerOrganizationMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'UpdateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { id?: string | null, input: unknown }, ctx: Ctx) => {
-        const parsed = updateOrganizationSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
+      resolve: async (_root: unknown, args: { id?: string | null, input: { name?: string, slug?: string, logo?: string, type?: string } }, ctx: Ctx) => {
         const result = await ctx.auth.organizationService.update(
           {
             organizationId: args.id ? String(args.id) : undefined,
-            data: parsed.data,
+            data: args.input,
           },
         )
         if (!result)
@@ -96,12 +87,8 @@ export function registerOrganizationMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'InviteMemberInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = inviteMemberSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        const result = await ctx.auth.organizationService.inviteMember(parsed.data, ctx.request?.headers ?? new Headers())
+      resolve: async (_root: unknown, args: { input: { email: string, role: string, organizationId?: string, resend?: boolean } }, ctx: Ctx) => {
+        const result = await ctx.auth.organizationService.inviteMember(args.input, ctx.request?.headers ?? new Headers())
         if (!result)
           throw new NotFoundError('Invitation', 'created')
         return result

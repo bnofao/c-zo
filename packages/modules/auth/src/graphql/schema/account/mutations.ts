@@ -2,7 +2,6 @@ import type { AuthContext } from '@czo/auth/types'
 import type { SchemaBuilder } from '@czo/kit/graphql'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotUnlinkLastAccountError, PasswordMismatchError } from './errors'
-import { changeEmailSchema, changePasswordSchema, deleteAccountSchema, updateProfileSchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -18,15 +17,11 @@ export function registerAccountMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'ChangeEmailInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { newEmail: string, callbackURL?: string } }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const parsed = changeEmailSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        await ctx.auth.accountService.changeEmail(parsed.data, ctx.request?.headers ?? new Headers())
+        await ctx.auth.accountService.changeEmail(args.input, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -40,15 +35,11 @@ export function registerAccountMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'ChangePasswordInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { currentPassword: string, newPassword: string, revokeOtherSessions?: boolean } }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const parsed = changePasswordSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        await ctx.auth.accountService.changePassword(parsed.data, ctx.request?.headers ?? new Headers())
+        await ctx.auth.accountService.changePassword(args.input, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
@@ -117,15 +108,11 @@ export function registerAccountMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'UpdateProfileInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { name?: string, image?: string } }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
-        const parsed = updateProfileSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        const result = await ctx.auth.accountService.updateProfile(parsed.data, ctx.request?.headers ?? new Headers())
+        const result = await ctx.auth.accountService.updateProfile(args.input, ctx.request?.headers ?? new Headers())
         if (!result)
           throw new NotFoundError('User', ctx.auth.user.id)
         return (result as any).user ?? result
@@ -141,13 +128,9 @@ export function registerAccountMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'DeleteAccountInput', required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input?: unknown }, ctx: Ctx) => {
+      resolve: async (_root: unknown, _args: unknown, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
-
-        const parsed = deleteAccountSchema.safeParse(args.input ?? {})
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
 
         await ctx.auth.accountService.deleteAccount(ctx.auth.user.id)
         return true

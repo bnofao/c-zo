@@ -3,7 +3,6 @@ import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotBanSelfError, CannotDemoteSelfError, UserAlreadyBannedError } from './errors'
-import { createUserSchema, updateUserSchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -19,12 +18,8 @@ export function registerUserMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'CreateUserInput', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = createUserSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
-        const result = await ctx.auth.userService.create(parsed.data)
+      resolve: async (_root: unknown, args: { input: { email: string, name: string, password?: string, role?: string } }, ctx: Ctx) => {
+        const result = await ctx.auth.userService.create(args.input)
         if (!result)
           throw new NotFoundError('User', 'created')
 
@@ -47,20 +42,16 @@ export function registerUserMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'UpdateUserInput', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
-      resolve: async (_root: unknown, args: { id: string, input: unknown }, ctx: Ctx) => {
-        const parsed = updateUserSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
+      resolve: async (_root: unknown, args: { id: string, input: { name?: string, email?: string } }, ctx: Ctx) => {
         const result = await ctx.auth.userService.update(
-          { userId: String(args.id), data: parsed.data },
+          { userId: String(args.id), data: args.input },
         )
         if (!result)
           throw new NotFoundError('User', String(args.id))
 
         await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
           userId: String(args.id),
-          changes: parsed.data,
+          changes: args.input,
         })
 
         return result

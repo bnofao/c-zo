@@ -3,7 +3,6 @@ import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { AppHandleTakenError, AppManifestInvalidError, AppNotInstalledError } from './errors'
-import { setAppStatusSchema } from './inputs'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
@@ -141,23 +140,19 @@ export function registerAppMutations(builder: SchemaBuilder): void {
         input: t.arg({ type: 'SetAppStatusInput', required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
-      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
-        const parsed = setAppStatusSchema.safeParse(args.input)
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
-
+      resolve: async (_root: unknown, args: { input: { appId: string, status: 'active' | 'inactive' | 'suspended' } }, ctx: Ctx) => {
         try {
           const result = await ctx.auth.appService.setStatus(
-            parsed.data.appId,
-            parsed.data.status as any,
+            args.input.appId,
+            args.input.status as any,
           )
           if (!result)
-            throw new NotFoundError('App', parsed.data.appId)
+            throw new NotFoundError('App', args.input.appId)
 
           await publishAuthEvent(AUTH_EVENTS.APP_UPDATED, {
             appId: result.appId,
             version: (result.manifest as any)?.version ?? '',
-            status: parsed.data.status,
+            status: args.input.status,
           })
 
           return result
@@ -167,7 +162,7 @@ export function registerAppMutations(builder: SchemaBuilder): void {
             throw err
           const e = err as { message?: string }
           if (e?.message?.includes('not found')) {
-            throw new NotFoundError('App', parsed.data.appId)
+            throw new NotFoundError('App', args.input.appId)
           }
           throw err
         }
