@@ -12,6 +12,7 @@ const things = pgTable('things_opt_test', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only env var, not a build-pipeline input
 describe.runIf(process.env.TEST_DATABASE_URL)('optimisticUpdate', () => {
   const db = createTestDb()
 
