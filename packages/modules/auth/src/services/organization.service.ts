@@ -1,10 +1,16 @@
 import type { Auth } from '@czo/auth/config'
 import type { Database } from '@czo/kit/db'
 import type { OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
+import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { invitations, members, organizations } from '../database/schema'
 import { mapAPIError } from './_internal/map-error'
+
+// ─── Row types ────────────────────────────────────────────────────────
+
+export type OrganizationRow = InferSelectModel<typeof organizations>
+export type MemberRow = InferSelectModel<typeof members>
+export type InvitationRow = InferSelectModel<typeof invitations>
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -112,7 +118,7 @@ export function createOrganizationService(db: Database, auth: Auth) {
       return row ?? null
     },
 
-    async list(_headers?: Headers) {
+    async list(): Promise<OrganizationRow[]> {
       return db.select().from(organizations)
     },
 
@@ -136,14 +142,14 @@ export function createOrganizationService(db: Database, auth: Auth) {
       catch (err) { mapAPIError(err, 'Organization') }
     },
 
-    async checkSlug(slug: string, _headers?: Headers) {
+    async checkSlug(slug: string): Promise<{ status: boolean }> {
       const [row] = await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1)
       return { status: !row }
     },
 
     // ── Org writes — Drizzle direct ──
 
-    async create(input: CreateOrganizationInput, _headers?: Headers) {
+    async create(input: CreateOrganizationInput): Promise<OrganizationRow> {
       const now = new Date()
       const id = crypto.randomUUID()
 
@@ -161,17 +167,10 @@ export function createOrganizationService(db: Database, auth: Auth) {
       if (!row)
         throw new Error('Failed to create organization')
 
-      await publishAuthEvent(AUTH_EVENTS.ORG_CREATED, {
-        orgId: row.id,
-        ownerId: input.userId ?? '',
-        name: input.name,
-        type: input.type ?? null,
-      })
-
       return row
     },
 
-    async update(input: UpdateOrganizationInput, _headers?: Headers) {
+    async update(input: UpdateOrganizationInput): Promise<OrganizationRow> {
       const { organizationId, data } = input
       if (!organizationId)
         throw new Error('organizationId required for update')
@@ -201,7 +200,7 @@ export function createOrganizationService(db: Database, auth: Auth) {
       return row
     },
 
-    async remove(organizationId: string, _headers?: Headers) {
+    async remove(organizationId: string): Promise<{ success: boolean }> {
       await db.delete(organizations).where(eq(organizations.id, organizationId))
       return { success: true }
     },
@@ -222,13 +221,13 @@ export function createOrganizationService(db: Database, auth: Auth) {
 
     // ── Members — Drizzle direct ──
 
-    async listMembers(params: ListMembersParams, _headers?: Headers) {
+    async listMembers(params: ListMembersParams): Promise<MemberRow[]> {
       if (!params.organizationId)
         throw new Error('organizationId required for listMembers')
       return db.select().from(members).where(eq(members.organizationId, params.organizationId))
     },
 
-    async addMember(input: { organizationId: string, userId: string, role?: string }) {
+    async addMember(input: { organizationId: string, userId: string, role?: string }): Promise<MemberRow> {
       const now = new Date()
       const id = crypto.randomUUID()
 
@@ -243,16 +242,10 @@ export function createOrganizationService(db: Database, auth: Auth) {
       if (!row)
         throw new Error('Failed to add member')
 
-      await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_ADDED, {
-        orgId: input.organizationId,
-        userId: input.userId,
-        role: input.role ?? 'member',
-      })
-
       return row
     },
 
-    async removeMember(input: RemoveMemberInput, _headers?: Headers) {
+    async removeMember(input: RemoveMemberInput): Promise<{ success: boolean }> {
       const { memberIdOrEmail, organizationId } = input
       if (!organizationId)
         throw new Error('organizationId required')
@@ -265,15 +258,10 @@ export function createOrganizationService(db: Database, auth: Auth) {
         ),
       )
 
-      await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_REMOVED, {
-        orgId: organizationId,
-        userId: memberIdOrEmail,
-      })
-
       return { success: true }
     },
 
-    async updateMemberRole(input: UpdateMemberRoleInput, _headers?: Headers) {
+    async updateMemberRole(input: UpdateMemberRoleInput): Promise<MemberRow> {
       const roleStr = Array.isArray(input.role) ? input.role.join(',') : input.role
 
       const [row] = await db.update(members)
@@ -322,40 +310,34 @@ export function createOrganizationService(db: Database, auth: Auth) {
       // Invitation creates an email send flow — keep better-auth for email dispatch,
       // but record the invitation in DB via better-auth's createInvitation
       try {
-        const result = await (auth.api as any).createInvitation({
+        return await (auth.api as any).createInvitation({
           headers,
           body: { ...input, role: input.role as any },
         })
-        await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_ADDED, {
-          orgId: input.organizationId ?? '',
-          userId: '',
-          role: Array.isArray(input.role) ? input.role.join(',') : input.role,
-        })
-        return result
       }
       catch (err) { mapAPIError(err, 'Invitation') }
     },
 
-    async getInvitation(invitationId: string, _headers?: Headers) {
+    async getInvitation(invitationId: string): Promise<InvitationRow> {
       const [row] = await db.select().from(invitations).where(eq(invitations.id, invitationId)).limit(1)
       if (!row)
         throw new Error(`Invitation not found: ${invitationId}`)
       return row
     },
 
-    async listInvitations(organizationId: string | undefined, _headers?: Headers) {
+    async listInvitations(organizationId: string | undefined): Promise<InvitationRow[]> {
       if (!organizationId)
         return db.select().from(invitations)
       return db.select().from(invitations).where(eq(invitations.organizationId, organizationId))
     },
 
-    async listUserInvitations(email?: string, _headers?: Headers) {
+    async listUserInvitations(email?: string): Promise<InvitationRow[]> {
       if (!email)
         return db.select().from(invitations)
       return db.select().from(invitations).where(eq(invitations.email, email))
     },
 
-    async cancelInvitation(invitationId: string, _headers?: Headers) {
+    async cancelInvitation(invitationId: string): Promise<InvitationRow> {
       const [row] = await db.update(invitations)
         .set({ status: 'cancelled' })
         .where(eq(invitations.id, invitationId))
@@ -376,7 +358,7 @@ export function createOrganizationService(db: Database, auth: Auth) {
       catch (err) { mapAPIError(err, 'Invitation') }
     },
 
-    async rejectInvitation(invitationId: string, _headers?: Headers) {
+    async rejectInvitation(invitationId: string): Promise<InvitationRow> {
       const [row] = await db.update(invitations)
         .set({ status: 'rejected' })
         .where(eq(invitations.id, invitationId))

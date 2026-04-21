@@ -112,7 +112,7 @@ describe('organizationService', () => {
     it('should insert org into database and return row', async () => {
       db._mocks.mockReturning.mockResolvedValue([mockOrg])
 
-      const result = await service.create({ name: 'Acme Corp', slug: 'acme-corp' }, headers)
+      const result = await service.create({ name: 'Acme Corp', slug: 'acme-corp' })
 
       expect(db.insert).toHaveBeenCalled()
       expect(result.id).toBe('org-1')
@@ -128,7 +128,7 @@ describe('organizationService', () => {
         logo: 'https://logo.png',
         type: 'merchant',
         metadata: { plan: 'pro' },
-      }, headers)
+      })
 
       expect(db.insert).toHaveBeenCalled()
       expect(result.type).toBe('merchant')
@@ -137,7 +137,7 @@ describe('organizationService', () => {
     it('should throw when insert returns no row', async () => {
       db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.create({ name: 'Test', slug: 'test' }, headers)).rejects.toThrow('Failed to create organization')
+      await expect(service.create({ name: 'Test', slug: 'test' })).rejects.toThrow('Failed to create organization')
     })
   })
 
@@ -146,26 +146,26 @@ describe('organizationService', () => {
       const updated = { ...mockOrg, name: 'Acme Inc' }
       db._mocks.mockReturning.mockResolvedValue([updated])
 
-      const result = await service.update({ data: { name: 'Acme Inc' }, organizationId: 'org-1' }, headers)
+      const result = await service.update({ data: { name: 'Acme Inc' }, organizationId: 'org-1' })
 
       expect(db.update).toHaveBeenCalled()
       expect(result.name).toBe('Acme Inc')
     })
 
     it('should throw if organizationId is missing', async () => {
-      await expect(service.update({ data: { name: 'X' } }, headers)).rejects.toThrow('organizationId required')
+      await expect(service.update({ data: { name: 'X' } })).rejects.toThrow('organizationId required')
     })
 
     it('should throw when org not found', async () => {
       db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.update({ data: { name: 'X' }, organizationId: 'missing' }, headers)).rejects.toThrow('Organization not found')
+      await expect(service.update({ data: { name: 'X' }, organizationId: 'missing' })).rejects.toThrow('Organization not found')
     })
   })
 
   describe('remove', () => {
     it('should delete org and return success', async () => {
-      const result = await service.remove('org-1', headers)
+      const result = await service.remove('org-1')
 
       expect(db.delete).toHaveBeenCalled()
       expect(result).toEqual({ success: true })
@@ -322,7 +322,7 @@ describe('organizationService', () => {
       const cancelled = { ...mockInvitation, status: 'cancelled' }
       db._mocks.mockReturning.mockResolvedValue([cancelled])
 
-      const result = await service.cancelInvitation('inv-1', headers)
+      const result = await service.cancelInvitation('inv-1')
 
       expect(db.update).toHaveBeenCalled()
       expect(result.status).toBe('cancelled')
@@ -331,7 +331,7 @@ describe('organizationService', () => {
     it('should throw when invitation not found', async () => {
       db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.cancelInvitation('inv-x', headers)).rejects.toThrow('Invitation not found')
+      await expect(service.cancelInvitation('inv-x')).rejects.toThrow('Invitation not found')
     })
   })
 
@@ -355,7 +355,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([mockInvitation]) })) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.getInvitation('inv-1', headers)
+      const result = await service.getInvitation('inv-1')
 
       expect(result.id).toBe('inv-1')
     })
@@ -364,7 +364,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await expect(service.getInvitation('inv-x', headers)).rejects.toThrow('Invitation not found')
+      await expect(service.getInvitation('inv-x')).rejects.toThrow('Invitation not found')
     })
   })
 
@@ -373,7 +373,7 @@ describe('organizationService', () => {
       const rejected = { ...mockInvitation, status: 'rejected' }
       db._mocks.mockReturning.mockResolvedValue([rejected])
 
-      const result = await service.rejectInvitation('inv-1', headers)
+      const result = await service.rejectInvitation('inv-1')
 
       expect(db.update).toHaveBeenCalled()
       expect(result.status).toBe('rejected')
@@ -385,7 +385,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await service.listInvitations('org-1', headers)
+      await service.listInvitations('org-1')
 
       expect(db.select).toHaveBeenCalled()
     })
@@ -394,7 +394,7 @@ describe('organizationService', () => {
       const fromMock = vi.fn().mockResolvedValue([mockInvitation])
       db.select.mockReturnValue({ from: fromMock })
 
-      await service.listInvitations(undefined, headers)
+      await service.listInvitations(undefined)
 
       expect(db.select).toHaveBeenCalled()
     })
@@ -421,14 +421,14 @@ describe('organizationService', () => {
 
   describe('removeMember', () => {
     it('should delete member from database', async () => {
-      const result = await service.removeMember({ memberIdOrEmail: 'u1', organizationId: 'org-1' }, headers)
+      const result = await service.removeMember({ memberIdOrEmail: 'u1', organizationId: 'org-1' })
 
       expect(db.delete).toHaveBeenCalled()
       expect(result).toEqual({ success: true })
     })
 
     it('should throw if organizationId is missing', async () => {
-      await expect(service.removeMember({ memberIdOrEmail: 'm1' }, headers)).rejects.toThrow('organizationId required')
+      await expect(service.removeMember({ memberIdOrEmail: 'm1' })).rejects.toThrow('organizationId required')
     })
   })
 
@@ -437,7 +437,7 @@ describe('organizationService', () => {
       const updated = { ...mockMember, role: 'admin' }
       db._mocks.mockReturning.mockResolvedValue([updated])
 
-      const result = await service.updateMemberRole({ memberId: 'm1', role: 'admin' }, headers)
+      const result = await service.updateMemberRole({ memberId: 'm1', role: 'admin' })
 
       expect(db.update).toHaveBeenCalled()
       expect(result.role).toBe('admin')
@@ -446,7 +446,7 @@ describe('organizationService', () => {
     it('should throw when member not found', async () => {
       db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.updateMemberRole({ memberId: 'missing', role: 'admin' }, headers)).rejects.toThrow('Member not found')
+      await expect(service.updateMemberRole({ memberId: 'missing', role: 'admin' })).rejects.toThrow('Member not found')
     })
   })
 
@@ -493,13 +493,13 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockMember]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await service.listMembers({ organizationId: 'org-1' }, headers)
+      await service.listMembers({ organizationId: 'org-1' })
 
       expect(db.select).toHaveBeenCalled()
     })
 
     it('should throw if organizationId missing', async () => {
-      await expect(service.listMembers({}, headers)).rejects.toThrow('organizationId required')
+      await expect(service.listMembers({})).rejects.toThrow('organizationId required')
     })
   })
 
@@ -508,7 +508,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await service.listUserInvitations('user@test.com', headers)
+      await service.listUserInvitations('user@test.com')
 
       expect(db.select).toHaveBeenCalled()
     })
