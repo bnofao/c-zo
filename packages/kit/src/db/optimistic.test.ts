@@ -34,7 +34,8 @@ describe('optimisticUpdate', () => {
   beforeEach(() => truncate(db, things))
 
   it('increments version on successful update', async () => {
-    const [row] = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const row = rows[0]!
     const updated = await optimisticUpdate({
       db, table: things, id: row.id, expectedVersion: 1,
       values: { name: 'b' },
@@ -44,7 +45,8 @@ describe('optimisticUpdate', () => {
   })
 
   it('throws OptimisticLockError on version mismatch', async () => {
-    const [row] = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const row = rows[0]!
     await expect(optimisticUpdate({
       db, table: things, id: row.id, expectedVersion: 999,
       values: { name: 'b' },
@@ -52,7 +54,8 @@ describe('optimisticUpdate', () => {
   })
 
   it('OptimisticLockError reports actualVersion for an existing row', async () => {
-    const [row] = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const row = rows[0]!
     try {
       await optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 999, values: { name: 'b' } })
       throw new Error('should have thrown')

@@ -3,10 +3,6 @@ export { discoverModuleSchemas } from './discover'
 
 export type { DiscoverSchemasOptions } from './discover'
 
-// Filters for GraphQL where inputs
-export { applyGlobalIdFilter, applyStringFilter } from './filters'
-export type { GlobalIDFilterInput, StringFilterInput } from './filters'
-
 // Instrumentation
 export { createDbMetrics, createRepositoryInstrumentation } from './instrumentation'
 
