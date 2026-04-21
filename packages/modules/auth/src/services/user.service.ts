@@ -1,6 +1,9 @@
 import type { Auth } from '@czo/auth/config'
+import type { Database } from '@czo/kit/db'
 import type { AdminOptions } from 'better-auth/plugins'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
+import { and, eq } from 'drizzle-orm'
+import { sessions, users } from '../database/schema'
 import { mapAPIError } from './_internal/map-error'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -51,27 +54,50 @@ export type UserService = ReturnType<typeof createUserService>
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createUserService(auth: Auth) {
+export function createUserService(db: Database, auth: Auth) {
   return {
-    // ── Reads — via better-auth admin API ──
+    // ── Reads — Drizzle direct ──
 
-    async list(params: ListUsersParams, headers?: Headers) {
-      try {
-        return await (auth.api as any).listUsers({ headers, query: { ...params } })
+    async list(params: ListUsersParams, _headers?: Headers) {
+      const rows = await db.select().from(users)
+      const limit = params.limit ? Number(params.limit) : undefined
+      const offset = params.offset ? Number(params.offset) : 0
+
+      let filtered = rows
+      if (params.searchValue && params.searchField) {
+        const field = params.searchField
+        const value = params.searchValue.toLowerCase()
+        filtered = rows.filter((u) => {
+          const col = u[field as keyof typeof u] as string | null
+          if (!col)
+            return false
+          const op = params.searchOperator ?? 'contains'
+          if (op === 'contains')
+            return col.toLowerCase().includes(value)
+          if (op === 'starts_with')
+            return col.toLowerCase().startsWith(value)
+          if (op === 'ends_with')
+            return col.toLowerCase().endsWith(value)
+          return false
+        })
       }
-      catch (err) { mapAPIError(err, 'User') }
+
+      const total = filtered.length
+      const paginated = limit !== undefined ? filtered.slice(offset, offset + limit) : filtered.slice(offset)
+      return { users: paginated as any[], total, limit, offset }
     },
 
-    async get(userId: string, headers?: Headers) {
-      try {
-        return await (auth.api as any).getUser({ headers, query: { id: userId } })
-      }
-      catch (err) { mapAPIError(err, 'User') }
+    async get(userId: string, _headers?: Headers) {
+      const [row] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+      if (!row)
+        throw new Error(`User not found: ${userId}`)
+      return row as any
     },
 
     // ── hasPermission — admin role check ──
 
     hasPermission(opts: {
+      auth?: Auth
       userId: string
       permissions: Record<string, string[]>
       role?: string
@@ -98,73 +124,162 @@ export function createUserService(auth: Auth) {
       return false
     },
 
-    // ── Writes — via better-auth admin API ──
+    // ── Writes — Drizzle direct ──
 
-    async create(input: CreateUserInput, headers?: Headers) {
-      try {
-        const result = await (auth.api as any).createUser({ headers, body: input })
-        await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
-          userId: result.user.id,
-          email: result.user.email,
-        })
-        return result.user
+    async create(input: CreateUserInput, _headers?: Headers) {
+      const id = crypto.randomUUID()
+      const now = new Date()
+
+      let hashedPassword: string | undefined
+      if (input.password) {
+        try {
+          const ctx = await auth.$context
+          hashedPassword = await ctx.password.hash(input.password)
+        }
+        catch {
+          // fallback: keep password undefined (no credential stored)
+        }
       }
-      catch (err) { mapAPIError(err, 'User') }
+
+      const role = Array.isArray(input.role) ? input.role[0] : (input.role ?? 'user')
+
+      const [row] = await db.insert(users).values({
+        id,
+        email: input.email,
+        name: input.name,
+        role: role ?? 'user',
+        emailVerified: false,
+        banned: false,
+        createdAt: now,
+        updatedAt: now,
+        ...(input.data as Record<string, unknown>),
+      }).returning()
+
+      if (!row)
+        throw new Error('Failed to create user')
+
+      // If password provided, store it in the accounts table via better-auth's internal adapter
+      if (hashedPassword) {
+        const accountId = crypto.randomUUID()
+        await db.insert(
+          (await import('../database/schema')).accounts,
+        ).values({
+          id: accountId,
+          accountId: id,
+          providerId: 'credential',
+          userId: id,
+          password: hashedPassword,
+          createdAt: now,
+          updatedAt: now,
+        }).onConflictDoNothing()
+      }
+
+      await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
+        userId: row.id,
+        email: row.email,
+      })
+
+      return row as any
     },
 
-    async update(input: UpdateUserInput, headers?: Headers) {
-      try {
-        const result = await (auth.api as any).adminUpdateUser({
-          headers,
-          body: { userId: input.userId, data: input.data },
-        })
-        await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
-          userId: input.userId,
-          changes: input.data,
-        })
-        return result
-      }
-      catch (err) { mapAPIError(err, 'User') }
+    async update(input: UpdateUserInput, _headers?: Headers) {
+      const { userId, data } = input
+      const now = new Date()
+
+      const [row] = await db.update(users)
+        .set({ ...data as any, updatedAt: now })
+        .where(eq(users.id, userId))
+        .returning()
+
+      if (!row)
+        throw new Error(`User not found: ${userId}`)
+
+      await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
+        userId,
+        changes: data,
+      })
+
+      return row as any
     },
 
-    async ban(input: BanUserInput, headers?: Headers) {
-      try {
-        const result = await (auth.api as any).banUser({ headers, body: input })
-        await publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
-          userId: input.userId,
-          bannedBy: 'admin',
-          reason: input.banReason ?? null,
-          expiresIn: input.banExpiresIn ?? null,
+    async ban(input: BanUserInput, _headers?: Headers) {
+      const { userId, banReason, banExpiresIn } = input
+      const now = new Date()
+      const banExpires = banExpiresIn ? new Date(Date.now() + banExpiresIn * 1000) : null
+
+      const [row] = await db.update(users)
+        .set({
+          banned: true,
+          banReason: banReason ?? null,
+          banExpires: banExpires ?? undefined,
+          updatedAt: now,
         })
-        return result.user
+        .where(eq(users.id, userId))
+        .returning()
+
+      if (!row)
+        throw new Error(`User not found: ${userId}`)
+
+      // Cascade session revocation — better-auth's domain
+      try {
+        await (auth.api as any).revokeUserSessions({ body: { userId } })
       }
-      catch (err) { mapAPIError(err, 'User') }
+      catch {
+        // non-fatal: sessions may already be expired
+      }
+
+      await publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
+        userId,
+        bannedBy: 'admin',
+        reason: banReason ?? null,
+        expiresIn: banExpiresIn ?? null,
+      })
+
+      return row as any
     },
 
-    async unban(userId: string, headers?: Headers) {
-      try {
-        const result = await (auth.api as any).unbanUser({ headers, body: { userId } })
-        await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
-          userId,
-          unbannedBy: 'admin',
+    async unban(userId: string, _headers?: Headers) {
+      const now = new Date()
+
+      const [row] = await db.update(users)
+        .set({
+          banned: false,
+          banReason: null,
+          banExpires: null,
+          updatedAt: now,
         })
-        return result.user
-      }
-      catch (err) { mapAPIError(err, 'User') }
+        .where(eq(users.id, userId))
+        .returning()
+
+      if (!row)
+        throw new Error(`User not found: ${userId}`)
+
+      await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
+        userId,
+        unbannedBy: 'admin',
+      })
+
+      return row as any
     },
 
-    async setRole(input: SetRoleInput, headers: Headers) {
-      try {
-        const result = await (auth.api as any).setRole({
-          headers,
-          body: { userId: input.userId, role: input.role },
-        })
-        return result.user
-      }
-      catch (err) { mapAPIError(err, 'User') }
+    async setRole(input: SetRoleInput, _headers?: Headers) {
+      const { userId, role } = input
+      const now = new Date()
+      const roleStr = Array.isArray(role) ? role.join(',') : role
+
+      const [row] = await db.update(users)
+        .set({ role: roleStr, updatedAt: now })
+        .where(eq(users.id, userId))
+        .returning()
+
+      if (!row)
+        throw new Error(`User not found: ${userId}`)
+
+      return row as any
     },
 
     async setPassword(input: SetUserPasswordInput, headers: Headers) {
+      // Password change involves credential verification by better-auth — keep as wrap
       try {
         return await (auth.api as any).setUserPassword({
           headers,
@@ -174,24 +289,28 @@ export function createUserService(auth: Auth) {
       catch (err) { mapAPIError(err, 'User') }
     },
 
-    async remove(userId: string, headers?: Headers) {
+    async remove(userId: string, _headers?: Headers) {
+      // Cascade session revoke first
       try {
-        return await (auth.api as any).removeUser({ headers, body: { userId } })
+        await (auth.api as any).revokeUserSessions({ body: { userId } })
       }
-      catch (err) { mapAPIError(err, 'User') }
+      catch {
+        // non-fatal
+      }
+
+      await db.delete(users).where(eq(users.id, userId))
+
+      return { success: true }
     },
 
-    // ── Sessions & impersonation ──
+    // ── Sessions — Drizzle direct reads, better-auth writes ──
 
-    async listSessions(userId: string, headers?: Headers) {
-      try {
-        const result = await (auth.api as any).listUserSessions({ headers, body: { userId } })
-        return result.sessions
-      }
-      catch (err) { mapAPIError(err, 'Session') }
+    async listSessions(userId: string, _headers?: Headers) {
+      return db.select().from(sessions).where(eq(sessions.userId, userId))
     },
 
     async revokeSession(sessionToken: string, headers?: Headers) {
+      // Cookie invalidation is better-auth's domain
       try {
         return await (auth.api as any).revokeUserSession({ headers, body: { sessionToken } })
       }
@@ -204,6 +323,8 @@ export function createUserService(auth: Auth) {
       }
       catch (err) { mapAPIError(err, 'Session') }
     },
+
+    // ── Impersonation — session creation, better-auth's domain ──
 
     async impersonate(userId: string, headers?: Headers) {
       try {
