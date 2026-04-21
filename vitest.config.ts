@@ -15,7 +15,7 @@ export default defineConfig({
           '@pothos/plugin-relay',
           '@pothos/plugin-errors',
           '@pothos/plugin-scope-auth',
-          '@pothos/plugin-zod',
+          '@pothos/plugin-validation',
           '@pothos/plugin-tracing',
           'graphql-scalars',
         ],

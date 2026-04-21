@@ -29,6 +29,23 @@ export class ValidationError extends BaseGraphQLError {
       })),
     )
   }
+
+  static fromStandardSchema(result: {
+    issues: ReadonlyArray<{
+      message: string
+      path?: ReadonlyArray<PropertyKey | { key: PropertyKey }>
+    }>
+  }): ValidationError {
+    return new ValidationError(
+      result.issues.map(issue => ({
+        path: (issue.path ?? [])
+          .map(p => typeof p === 'object' && p !== null && 'key' in p ? String(p.key) : String(p))
+          .join('.'),
+        message: issue.message,
+        code: 'validation',
+      })),
+    )
+  }
 }
 
 export class NotFoundError extends BaseGraphQLError {

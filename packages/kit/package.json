@@ -131,7 +131,7 @@
     "@pothos/plugin-relay": "catalog:",
     "@pothos/plugin-scope-auth": "catalog:",
     "@pothos/plugin-tracing": "catalog:",
-    "@pothos/plugin-zod": "catalog:",
+    "@pothos/plugin-validation": "catalog:",
     "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",

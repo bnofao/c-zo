@@ -143,9 +143,9 @@ catalogs:
     '@pothos/plugin-tracing':
       specifier: ^1.1.2
       version: 1.1.2
-    '@pothos/plugin-zod':
-      specifier: ^4.1.6
-      version: 4.3.0
+    '@pothos/plugin-validation':
+      specifier: ^4.2.0
+      version: 4.2.0
     zod:
       specifier: ^3.25.76
       version: 3.25.76
@@ -469,9 +469,9 @@ importers:
       '@pothos/plugin-tracing':
         specifier: 'catalog:'
         version: 1.1.2(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
-      '@pothos/plugin-zod':
+      '@pothos/plugin-validation':
         specifier: 'catalog:'
-        version: 4.3.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)(zod@4.3.4)
+        version: 4.2.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)
       amqplib:
         specifier: ^0.10.0
         version: 0.10.9
@@ -2377,12 +2377,11 @@ packages:
       '@pothos/core': '*'
       graphql: ^16.10.0
 
-  '@pothos/plugin-zod@4.3.0':
-    resolution: {integrity: sha512-g6fZ1Mp654sVSbXJ4yqgcdHzCI6iZdmtWJwaXutcTwZxMSz5nfOk72kXSHzxWji6zrOs+hzkJXvsLszUFcb63A==}
+  '@pothos/plugin-validation@4.2.0':
+    resolution: {integrity: sha512-iqqlNzHGhTbWIf6dfouMjJfh72gOQEft7gp0Bl0vhW8WNWuOwVmrXrXtF+Lu3hyZuBY7WfQ44jQ41hXjYmqx0g==}
     peerDependencies:
       '@pothos/core': '*'
       graphql: ^16.10.0
-      zod: ^4.*
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -9294,11 +9293,10 @@ snapshots:
       '@pothos/core': 4.12.0(graphql@16.12.0)
       graphql: 16.12.0
 
-  '@pothos/plugin-zod@4.3.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)(zod@4.3.4)':
+  '@pothos/plugin-validation@4.2.0(@pothos/core@4.12.0(graphql@16.12.0))(graphql@16.12.0)':
     dependencies:
       '@pothos/core': 4.12.0(graphql@16.12.0)
       graphql: 16.12.0
-      zod: 4.3.4
 
   '@protobufjs/aspromise@1.1.2': {}
 

@@ -37,7 +37,7 @@ catalog:
   '@pothos/plugin-relay': ^4.7.0
   '@pothos/plugin-scope-auth': ^4.1.6
   '@pothos/plugin-tracing': ^1.1.2
-  '@pothos/plugin-zod': ^4.1.6
+  '@pothos/plugin-validation': ^4.2.0
   '@radix-ui/react-dialog': 1.1.4
   '@radix-ui/react-dismissable-layer': 1.1.4
   '@radix-ui/react-slot': ^1.2.3
