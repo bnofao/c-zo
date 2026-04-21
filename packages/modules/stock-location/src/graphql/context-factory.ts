@@ -4,11 +4,9 @@ import '../types'
 
 registerContextFactory('stockLocation', async () => {
   const container = useContainer()
+  const service = await container.make('stockLocation:service')
 
   return {
-    stockLocation: {
-      service: await container.make('stockLocation:service'),
-      addressService: await container.make('stockLocationAddress:service'),
-    },
+    stockLocation: { service },
   }
 })

@@ -1,1 +1,1 @@
-export { registerStockLocationSchema } from './schema'
+export { registerStockLocationSchema, type StockLocationBuilder } from './schema'
