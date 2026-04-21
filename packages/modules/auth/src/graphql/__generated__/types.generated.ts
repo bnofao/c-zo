@@ -99,6 +99,12 @@ export type BackupCodesResult = {
   status: Scalars['Boolean']['output'];
 };
 
+export type BanUserPayload = {
+  __typename?: 'BanUserPayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
+};
+
 export type BooleanFilterInput = {
   AND?: InputMaybe<Array<BooleanFilterInput>>;
   NOT?: InputMaybe<BooleanFilterInput>;
@@ -142,7 +148,13 @@ export type CreateUserInput = {
   email: Scalars['EmailAddress']['input'];
   name: Scalars['String']['input'];
   password?: InputMaybe<Scalars['String']['input']>;
-  role?: InputMaybe<Scalars['String']['input']>;
+  role?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+export type CreateUserPayload = {
+  __typename?: 'CreateUserPayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
 };
 
 export type DateFilterInput = {
@@ -220,6 +232,12 @@ export type IDFilterInput = {
   notIn?: InputMaybe<Array<Scalars['ID']['input']>>;
 };
 
+export type ImpersonateUserPayload = {
+  __typename?: 'ImpersonateUserPayload';
+  success?: Maybe<Scalars['Boolean']['output']>;
+  userErrors: Array<UserError>;
+};
+
 export type InstallAppInput = {
   manifestUrl: Scalars['String']['input'];
   organizationId?: InputMaybe<Scalars['ID']['input']>;
@@ -294,37 +312,37 @@ export type MemberUser = {
 export type Mutation = {
   __typename?: 'Mutation';
   acceptInvitation: OrgMember;
-  banUser: Scalars['Boolean']['output'];
+  banUser: BanUserPayload;
   cancelInvitation: Scalars['Boolean']['output'];
   changeEmail: Scalars['Boolean']['output'];
   changePassword: Scalars['Boolean']['output'];
   createApiKey: ApiKey;
   createOrganization: Organization;
-  createUser: User;
+  createUser: CreateUserPayload;
   deleteAccount: Scalars['Boolean']['output'];
   deleteApiKey: Scalars['Boolean']['output'];
   deleteOrganization: Scalars['Boolean']['output'];
   disableTwoFactor: Scalars['Boolean']['output'];
   enableTwoFactor: EnableTwoFactorResult;
   generateBackupCodes: BackupCodesResult;
-  impersonateUser: Scalars['Boolean']['output'];
+  impersonateUser: ImpersonateUserPayload;
   installApp: InstallAppPayload;
   inviteMember: Invitation;
   leaveOrganization: Scalars['Boolean']['output'];
   rejectInvitation: Scalars['Boolean']['output'];
   removeMember: Scalars['Boolean']['output'];
-  removeUser: Scalars['Boolean']['output'];
+  removeUser: RemoveUserPayload;
   revokeMySession: Scalars['Boolean']['output'];
   revokeOtherSessions: Scalars['Boolean']['output'];
-  revokeSession: Scalars['Boolean']['output'];
-  revokeSessions: Scalars['Boolean']['output'];
+  revokeSession: RevokeSessionPayload;
+  revokeSessions: RevokeSessionsPayload;
   sendOtp: Scalars['Boolean']['output'];
   setActiveOrganization?: Maybe<Organization>;
   setAppStatus: SetAppStatusPayload;
-  setRole: Scalars['Boolean']['output'];
-  setUserPassword: Scalars['Boolean']['output'];
-  stopImpersonation: Scalars['Boolean']['output'];
-  unbanUser: Scalars['Boolean']['output'];
+  setRole: SetRolePayload;
+  setUserPassword: SetUserPasswordPayload;
+  stopImpersonation: StopImpersonationPayload;
+  unbanUser: UnbanUserPayload;
   uninstallApp: UninstallAppPayload;
   unlinkAccount: Scalars['Boolean']['output'];
   updateApiKey: ApiKey;
@@ -332,7 +350,7 @@ export type Mutation = {
   updateMemberRole: Scalars['Boolean']['output'];
   updateOrganization: Organization;
   updateProfile: User;
-  updateUser: User;
+  updateUser: UpdateUserPayload;
   verifyBackupCode: TwoFactorVerifyResult;
   verifyOtp: TwoFactorVerifyResult;
   verifyTotp: TwoFactorVerifyResult;
@@ -622,9 +640,12 @@ export type Query = {
   organization?: Maybe<FullOrganization>;
   organizations: Array<Organization>;
   totpUri: TotpUri;
-  user: User;
+  /** Fetch a user by its Relay global ID. */
+  user?: Maybe<User>;
+  /** List sessions for a given user. */
   userSessions: Array<UserSession>;
-  users: UserList;
+  /** List users with cursor-based pagination. */
+  users: UserConnection;
 };
 
 
@@ -693,7 +714,7 @@ export type QuerytotpUriArgs = {
 
 
 export type QueryuserArgs = {
-  userId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -703,11 +724,31 @@ export type QueryuserSessionsArgs = {
 
 
 export type QueryusersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  orderBy?: InputMaybe<UserOrderByInput>;
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<Array<UserOrderByInput>>;
   search?: InputMaybe<Scalars['String']['input']>;
   where?: InputMaybe<UserWhereInput>;
+};
+
+export type RemoveUserPayload = {
+  __typename?: 'RemoveUserPayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
+};
+
+export type RevokeSessionPayload = {
+  __typename?: 'RevokeSessionPayload';
+  success?: Maybe<Scalars['Boolean']['output']>;
+  userErrors: Array<UserError>;
+};
+
+export type RevokeSessionsPayload = {
+  __typename?: 'RevokeSessionsPayload';
+  success?: Maybe<Scalars['Boolean']['output']>;
+  userErrors: Array<UserError>;
 };
 
 export type SetAppStatusInput = {
@@ -721,9 +762,27 @@ export type SetAppStatusPayload = {
   userErrors: Array<UserError>;
 };
 
+export type SetRolePayload = {
+  __typename?: 'SetRolePayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
+};
+
+export type SetUserPasswordPayload = {
+  __typename?: 'SetUserPasswordPayload';
+  success?: Maybe<Scalars['Boolean']['output']>;
+  userErrors: Array<UserError>;
+};
+
 export type SlugCheckResult = {
   __typename?: 'SlugCheckResult';
   available: Scalars['Boolean']['output'];
+};
+
+export type StopImpersonationPayload = {
+  __typename?: 'StopImpersonationPayload';
+  success?: Maybe<Scalars['Boolean']['output']>;
+  userErrors: Array<UserError>;
 };
 
 export type StringFilterInput = {
@@ -762,6 +821,12 @@ export type TotpUri = {
 export type TwoFactorVerifyResult = {
   __typename?: 'TwoFactorVerifyResult';
   token: Scalars['String']['output'];
+};
+
+export type UnbanUserPayload = {
+  __typename?: 'UnbanUserPayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
 };
 
 export type UninstallAppPayload = {
@@ -807,11 +872,17 @@ export type UpdateProfileInput = {
 };
 
 export type UpdateUserInput = {
-  email?: InputMaybe<Scalars['EmailAddress']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+  role?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
-export type User = {
+export type UpdateUserPayload = {
+  __typename?: 'UpdateUserPayload';
+  user?: Maybe<User>;
+  userErrors: Array<UserError>;
+};
+
+export type User = Node & {
   __typename?: 'User';
   banExpires?: Maybe<Scalars['DateTime']['output']>;
   banReason?: Maybe<Scalars['String']['output']>;
@@ -821,6 +892,19 @@ export type User = {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   role: Scalars['String']['output'];
+};
+
+export type UserConnection = {
+  __typename?: 'UserConnection';
+  edges: Array<UserEdge>;
+  pageInfo: PageInfo;
+  totalCount?: Maybe<Scalars['Int']['output']>;
+};
+
+export type UserEdge = {
+  __typename?: 'UserEdge';
+  cursor: Scalars['String']['output'];
+  node: User;
 };
 
 export type UserError = {
@@ -843,23 +927,17 @@ export type UserInvitation = {
   status: Scalars['String']['output'];
 };
 
-export type UserList = {
-  __typename?: 'UserList';
-  total: Scalars['Int']['output'];
-  users: Array<User>;
-};
-
 export type UserOrderByInput = {
-  direction: OrderDirection;
+  dir: OrderDirection;
   field: UserOrderField;
 };
 
 export type UserOrderField =
-  | 'createdAt'
-  | 'email'
-  | 'name';
+  | 'CREATED_AT'
+  | 'EMAIL'
+  | 'NAME';
 
-export type UserSession = {
+export type UserSession = Node & {
   __typename?: 'UserSession';
   createdAt: Scalars['DateTime']['output'];
   expiresAt: Scalars['DateTime']['output'];
@@ -874,8 +952,14 @@ export type UserWhereInput = {
   AND?: InputMaybe<Array<UserWhereInput>>;
   NOT?: InputMaybe<UserWhereInput>;
   OR?: InputMaybe<Array<UserWhereInput>>;
+  banExpires?: InputMaybe<DateTimeFilterInput>;
+  banReason?: InputMaybe<StringFilterInput>;
+  banned?: InputMaybe<BooleanFilterInput>;
   createdAt?: InputMaybe<DateTimeFilterInput>;
+  email?: InputMaybe<StringFilterInput>;
   emailVerified?: InputMaybe<BooleanFilterInput>;
+  name?: InputMaybe<StringFilterInput>;
+  twoFactorEnabled?: InputMaybe<BooleanFilterInput>;
 };
 
 export type VerifyBackupCodeInput = {
@@ -967,7 +1051,11 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 
 /** Mapping of interface types */
 export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = ResolversObject<{
-  Node: ( AppRow & { __typename: 'App' } );
+  Node:
+    | ( AppRow & { __typename: 'App' } )
+    | ( UserWithRole & { __typename: 'User' } )
+    | ( UserSession & { __typename: 'UserSession' } )
+  ;
 }>;
 
 /** Mapping between all available schema types and the resolvers types */
@@ -986,12 +1074,14 @@ export type ResolversTypes = ResolversObject<{
   AppOrderField: ResolverTypeWrapper<'CREATED_AT' | 'APP_ID' | 'STATUS'>;
   AppWhereInput: AppWhereInput;
   BackupCodesResult: ResolverTypeWrapper<BackupCodesResult>;
+  BanUserPayload: ResolverTypeWrapper<Omit<BanUserPayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
   ChangePasswordInput: ChangePasswordInput;
   CreateApiKeyInput: CreateApiKeyInput;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
+  CreateUserPayload: ResolverTypeWrapper<Omit<CreateUserPayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
   Date: ResolverTypeWrapper<Scalars['Date']['output']>;
   DateFilterInput: DateFilterInput;
   DateTime: ResolverTypeWrapper<Scalars['DateTime']['output']>;
@@ -1003,6 +1093,7 @@ export type ResolversTypes = ResolversObject<{
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   FullOrganization: ResolverTypeWrapper<FullOrganization>;
   IDFilterInput: IDFilterInput;
+  ImpersonateUserPayload: ResolverTypeWrapper<ImpersonateUserPayload>;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: ResolverTypeWrapper<Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
@@ -1021,14 +1112,21 @@ export type ResolversTypes = ResolversObject<{
   Organization: ResolverTypeWrapper<Organization>;
   PageInfo: ResolverTypeWrapper<PageInfo>;
   Query: ResolverTypeWrapper<Record<PropertyKey, never>>;
+  RemoveUserPayload: ResolverTypeWrapper<Omit<RemoveUserPayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
+  RevokeSessionPayload: ResolverTypeWrapper<RevokeSessionPayload>;
+  RevokeSessionsPayload: ResolverTypeWrapper<RevokeSessionsPayload>;
   SetAppStatusInput: SetAppStatusInput;
   SetAppStatusPayload: ResolverTypeWrapper<Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
+  SetRolePayload: ResolverTypeWrapper<Omit<SetRolePayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
+  SetUserPasswordPayload: ResolverTypeWrapper<SetUserPasswordPayload>;
   SlugCheckResult: ResolverTypeWrapper<SlugCheckResult>;
+  StopImpersonationPayload: ResolverTypeWrapper<StopImpersonationPayload>;
   StringFilterInput: StringFilterInput;
   Time: ResolverTypeWrapper<Scalars['Time']['output']>;
   TimeFilterInput: TimeFilterInput;
   TotpUri: ResolverTypeWrapper<TotpUri>;
   TwoFactorVerifyResult: ResolverTypeWrapper<TwoFactorVerifyResult>;
+  UnbanUserPayload: ResolverTypeWrapper<Omit<UnbanUserPayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
   UninstallAppPayload: ResolverTypeWrapper<Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversTypes['App']> }>;
   UpdateApiKeyInput: UpdateApiKeyInput;
   UpdateAppManifestInput: UpdateAppManifestInput;
@@ -1036,12 +1134,14 @@ export type ResolversTypes = ResolversObject<{
   UpdateOrganizationInput: UpdateOrganizationInput;
   UpdateProfileInput: UpdateProfileInput;
   UpdateUserInput: UpdateUserInput;
+  UpdateUserPayload: ResolverTypeWrapper<Omit<UpdateUserPayload, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
   User: ResolverTypeWrapper<UserWithRole>;
+  UserConnection: ResolverTypeWrapper<Omit<UserConnection, 'edges'> & { edges: Array<ResolversTypes['UserEdge']> }>;
+  UserEdge: ResolverTypeWrapper<Omit<UserEdge, 'node'> & { node: ResolversTypes['User'] }>;
   UserError: ResolverTypeWrapper<UserError>;
   UserInvitation: ResolverTypeWrapper<UserInvitation>;
-  UserList: ResolverTypeWrapper<Omit<UserList, 'users'> & { users: Array<ResolversTypes['User']> }>;
   UserOrderByInput: UserOrderByInput;
-  UserOrderField: ResolverTypeWrapper<'name' | 'email' | 'createdAt'>;
+  UserOrderField: ResolverTypeWrapper<'NAME' | 'EMAIL' | 'CREATED_AT'>;
   UserSession: ResolverTypeWrapper<UserSession>;
   UserWhereInput: UserWhereInput;
   VerifyBackupCodeInput: VerifyBackupCodeInput;
@@ -1064,12 +1164,14 @@ export type ResolversParentTypes = ResolversObject<{
   AppOrderByInput: AppOrderByInput;
   AppWhereInput: AppWhereInput;
   BackupCodesResult: BackupCodesResult;
+  BanUserPayload: Omit<BanUserPayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
   BooleanFilterInput: BooleanFilterInput;
   ChangeEmailInput: ChangeEmailInput;
   ChangePasswordInput: ChangePasswordInput;
   CreateApiKeyInput: CreateApiKeyInput;
   CreateOrganizationInput: CreateOrganizationInput;
   CreateUserInput: CreateUserInput;
+  CreateUserPayload: Omit<CreateUserPayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
   Date: Scalars['Date']['output'];
   DateFilterInput: DateFilterInput;
   DateTime: Scalars['DateTime']['output'];
@@ -1081,6 +1183,7 @@ export type ResolversParentTypes = ResolversObject<{
   Float: Scalars['Float']['output'];
   FullOrganization: FullOrganization;
   IDFilterInput: IDFilterInput;
+  ImpersonateUserPayload: ImpersonateUserPayload;
   InstallAppInput: InstallAppInput;
   InstallAppManifestInput: InstallAppManifestInput;
   InstallAppPayload: Omit<InstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
@@ -1098,14 +1201,21 @@ export type ResolversParentTypes = ResolversObject<{
   Organization: Organization;
   PageInfo: PageInfo;
   Query: Record<PropertyKey, never>;
+  RemoveUserPayload: Omit<RemoveUserPayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
+  RevokeSessionPayload: RevokeSessionPayload;
+  RevokeSessionsPayload: RevokeSessionsPayload;
   SetAppStatusInput: SetAppStatusInput;
   SetAppStatusPayload: Omit<SetAppStatusPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
+  SetRolePayload: Omit<SetRolePayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
+  SetUserPasswordPayload: SetUserPasswordPayload;
   SlugCheckResult: SlugCheckResult;
+  StopImpersonationPayload: StopImpersonationPayload;
   StringFilterInput: StringFilterInput;
   Time: Scalars['Time']['output'];
   TimeFilterInput: TimeFilterInput;
   TotpUri: TotpUri;
   TwoFactorVerifyResult: TwoFactorVerifyResult;
+  UnbanUserPayload: Omit<UnbanUserPayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
   UninstallAppPayload: Omit<UninstallAppPayload, 'app'> & { app?: Maybe<ResolversParentTypes['App']> };
   UpdateApiKeyInput: UpdateApiKeyInput;
   UpdateAppManifestInput: UpdateAppManifestInput;
@@ -1113,10 +1223,12 @@ export type ResolversParentTypes = ResolversObject<{
   UpdateOrganizationInput: UpdateOrganizationInput;
   UpdateProfileInput: UpdateProfileInput;
   UpdateUserInput: UpdateUserInput;
+  UpdateUserPayload: Omit<UpdateUserPayload, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
   User: UserWithRole;
+  UserConnection: Omit<UserConnection, 'edges'> & { edges: Array<ResolversParentTypes['UserEdge']> };
+  UserEdge: Omit<UserEdge, 'node'> & { node: ResolversParentTypes['User'] };
   UserError: UserError;
   UserInvitation: UserInvitation;
-  UserList: Omit<UserList, 'users'> & { users: Array<ResolversParentTypes['User']> };
   UserOrderByInput: UserOrderByInput;
   UserSession: UserSession;
   UserWhereInput: UserWhereInput;
@@ -1179,6 +1291,16 @@ export type BackupCodesResultResolvers<ContextType = GraphQLContext, ParentType 
   status?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 }>;
 
+export type BanUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BanUserPayload'] = ResolversParentTypes['BanUserPayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type CreateUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreateUserPayload'] = ResolversParentTypes['CreateUserPayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
 export interface DateScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Date'], any> {
   name: 'Date';
 }
@@ -1206,6 +1328,11 @@ export type FullOrganizationResolvers<ContextType = GraphQLContext, ParentType e
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   type?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+}>;
+
+export type ImpersonateUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ImpersonateUserPayload'] = ResolversParentTypes['ImpersonateUserPayload']> = ResolversObject<{
+  success?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
 export type InstallAppPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['InstallAppPayload'] = ResolversParentTypes['InstallAppPayload']> = ResolversObject<{
@@ -1248,37 +1375,37 @@ export type MemberUserResolvers<ContextType = GraphQLContext, ParentType extends
 
 export type MutationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = ResolversObject<{
   acceptInvitation?: Resolver<ResolversTypes['OrgMember'], ParentType, ContextType, RequireFields<MutationacceptInvitationArgs, 'invitationId'>>;
-  banUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationbanUserArgs, 'userId'>>;
+  banUser?: Resolver<ResolversTypes['BanUserPayload'], ParentType, ContextType, RequireFields<MutationbanUserArgs, 'userId'>>;
   cancelInvitation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationcancelInvitationArgs, 'invitationId'>>;
   changeEmail?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationchangeEmailArgs, 'input'>>;
   changePassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationchangePasswordArgs, 'input'>>;
   createApiKey?: Resolver<ResolversTypes['ApiKey'], ParentType, ContextType, RequireFields<MutationcreateApiKeyArgs, 'input'>>;
   createOrganization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType, RequireFields<MutationcreateOrganizationArgs, 'input'>>;
-  createUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationcreateUserArgs, 'input'>>;
+  createUser?: Resolver<ResolversTypes['CreateUserPayload'], ParentType, ContextType, RequireFields<MutationcreateUserArgs, 'input'>>;
   deleteAccount?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, Partial<MutationdeleteAccountArgs>>;
   deleteApiKey?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationdeleteApiKeyArgs, 'keyId'>>;
   deleteOrganization?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationdeleteOrganizationArgs, 'organizationId'>>;
   disableTwoFactor?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationdisableTwoFactorArgs, 'password'>>;
   enableTwoFactor?: Resolver<ResolversTypes['EnableTwoFactorResult'], ParentType, ContextType, RequireFields<MutationenableTwoFactorArgs, 'password'>>;
   generateBackupCodes?: Resolver<ResolversTypes['BackupCodesResult'], ParentType, ContextType, RequireFields<MutationgenerateBackupCodesArgs, 'password'>>;
-  impersonateUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationimpersonateUserArgs, 'userId'>>;
+  impersonateUser?: Resolver<ResolversTypes['ImpersonateUserPayload'], ParentType, ContextType, RequireFields<MutationimpersonateUserArgs, 'userId'>>;
   installApp?: Resolver<ResolversTypes['InstallAppPayload'], ParentType, ContextType, RequireFields<MutationinstallAppArgs, 'input'>>;
   inviteMember?: Resolver<ResolversTypes['Invitation'], ParentType, ContextType, RequireFields<MutationinviteMemberArgs, 'input'>>;
   leaveOrganization?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationleaveOrganizationArgs, 'organizationId'>>;
   rejectInvitation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrejectInvitationArgs, 'invitationId'>>;
   removeMember?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationremoveMemberArgs, 'memberIdOrEmail'>>;
-  removeUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationremoveUserArgs, 'userId'>>;
+  removeUser?: Resolver<ResolversTypes['RemoveUserPayload'], ParentType, ContextType, RequireFields<MutationremoveUserArgs, 'userId'>>;
   revokeMySession?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrevokeMySessionArgs, 'token'>>;
   revokeOtherSessions?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  revokeSession?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrevokeSessionArgs, 'sessionToken'>>;
-  revokeSessions?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationrevokeSessionsArgs, 'userId'>>;
+  revokeSession?: Resolver<ResolversTypes['RevokeSessionPayload'], ParentType, ContextType, RequireFields<MutationrevokeSessionArgs, 'sessionToken'>>;
+  revokeSessions?: Resolver<ResolversTypes['RevokeSessionsPayload'], ParentType, ContextType, RequireFields<MutationrevokeSessionsArgs, 'userId'>>;
   sendOtp?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   setActiveOrganization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, Partial<MutationsetActiveOrganizationArgs>>;
   setAppStatus?: Resolver<ResolversTypes['SetAppStatusPayload'], ParentType, ContextType, RequireFields<MutationsetAppStatusArgs, 'input'>>;
-  setRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationsetRoleArgs, 'role' | 'userId'>>;
-  setUserPassword?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationsetUserPasswordArgs, 'newPassword' | 'userId'>>;
-  stopImpersonation?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  unbanUser?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationunbanUserArgs, 'userId'>>;
+  setRole?: Resolver<ResolversTypes['SetRolePayload'], ParentType, ContextType, RequireFields<MutationsetRoleArgs, 'role' | 'userId'>>;
+  setUserPassword?: Resolver<ResolversTypes['SetUserPasswordPayload'], ParentType, ContextType, RequireFields<MutationsetUserPasswordArgs, 'newPassword' | 'userId'>>;
+  stopImpersonation?: Resolver<ResolversTypes['StopImpersonationPayload'], ParentType, ContextType>;
+  unbanUser?: Resolver<ResolversTypes['UnbanUserPayload'], ParentType, ContextType, RequireFields<MutationunbanUserArgs, 'userId'>>;
   uninstallApp?: Resolver<ResolversTypes['UninstallAppPayload'], ParentType, ContextType, RequireFields<MutationuninstallAppArgs, 'appId'>>;
   unlinkAccount?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationunlinkAccountArgs, 'providerId'>>;
   updateApiKey?: Resolver<ResolversTypes['ApiKey'], ParentType, ContextType, RequireFields<MutationupdateApiKeyArgs, 'input' | 'keyId'>>;
@@ -1286,7 +1413,7 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   updateMemberRole?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType, RequireFields<MutationupdateMemberRoleArgs, 'memberId' | 'role'>>;
   updateOrganization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType, RequireFields<MutationupdateOrganizationArgs, 'input' | 'organizationId'>>;
   updateProfile?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationupdateProfileArgs, 'input'>>;
-  updateUser?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<MutationupdateUserArgs, 'input' | 'userId'>>;
+  updateUser?: Resolver<ResolversTypes['UpdateUserPayload'], ParentType, ContextType, RequireFields<MutationupdateUserArgs, 'input' | 'userId'>>;
   verifyBackupCode?: Resolver<ResolversTypes['TwoFactorVerifyResult'], ParentType, ContextType, RequireFields<MutationverifyBackupCodeArgs, 'input'>>;
   verifyOtp?: Resolver<ResolversTypes['TwoFactorVerifyResult'], ParentType, ContextType, RequireFields<MutationverifyOtpArgs, 'input'>>;
   verifyTotp?: Resolver<ResolversTypes['TwoFactorVerifyResult'], ParentType, ContextType, RequireFields<MutationverifyTotpArgs, 'input'>>;
@@ -1303,7 +1430,7 @@ export type MySessionResolvers<ContextType = GraphQLContext, ParentType extends 
 }>;
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = ResolversObject<{
-  __resolveType?: TypeResolveFn<'App', ParentType, ContextType>;
+  __resolveType?: TypeResolveFn<'App' | 'User' | 'UserSession', ParentType, ContextType>;
 }>;
 
 export type OrderDirectionResolvers = EnumResolverSignature<{ ASC?: any, DESC?: any }, ResolversTypes['OrderDirection']>;
@@ -1353,9 +1480,24 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   organization?: Resolver<Maybe<ResolversTypes['FullOrganization']>, ParentType, ContextType, Partial<QueryorganizationArgs>>;
   organizations?: Resolver<Array<ResolversTypes['Organization']>, ParentType, ContextType>;
   totpUri?: Resolver<ResolversTypes['TotpUri'], ParentType, ContextType, RequireFields<QuerytotpUriArgs, 'password'>>;
-  user?: Resolver<ResolversTypes['User'], ParentType, ContextType, RequireFields<QueryuserArgs, 'userId'>>;
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType, RequireFields<QueryuserArgs, 'id'>>;
   userSessions?: Resolver<Array<ResolversTypes['UserSession']>, ParentType, ContextType, RequireFields<QueryuserSessionsArgs, 'userId'>>;
-  users?: Resolver<ResolversTypes['UserList'], ParentType, ContextType, Partial<QueryusersArgs>>;
+  users?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<QueryusersArgs>>;
+}>;
+
+export type RemoveUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RemoveUserPayload'] = ResolversParentTypes['RemoveUserPayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type RevokeSessionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RevokeSessionPayload'] = ResolversParentTypes['RevokeSessionPayload']> = ResolversObject<{
+  success?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type RevokeSessionsPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RevokeSessionsPayload'] = ResolversParentTypes['RevokeSessionsPayload']> = ResolversObject<{
+  success?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
 export type SetAppStatusPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SetAppStatusPayload'] = ResolversParentTypes['SetAppStatusPayload']> = ResolversObject<{
@@ -1363,8 +1505,23 @@ export type SetAppStatusPayloadResolvers<ContextType = GraphQLContext, ParentTyp
   userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
+export type SetRolePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SetRolePayload'] = ResolversParentTypes['SetRolePayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type SetUserPasswordPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SetUserPasswordPayload'] = ResolversParentTypes['SetUserPasswordPayload']> = ResolversObject<{
+  success?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
 export type SlugCheckResultResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SlugCheckResult'] = ResolversParentTypes['SlugCheckResult']> = ResolversObject<{
   available?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+}>;
+
+export type StopImpersonationPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StopImpersonationPayload'] = ResolversParentTypes['StopImpersonationPayload']> = ResolversObject<{
+  success?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
 export interface TimeScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Time'], any> {
@@ -1379,6 +1536,11 @@ export type TwoFactorVerifyResultResolvers<ContextType = GraphQLContext, ParentT
   token?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
+export type UnbanUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UnbanUserPayload'] = ResolversParentTypes['UnbanUserPayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
 export type UninstallAppPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UninstallAppPayload'] = ResolversParentTypes['UninstallAppPayload']> = ResolversObject<{
   app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
   userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
@@ -1386,6 +1548,11 @@ export type UninstallAppPayloadResolvers<ContextType = GraphQLContext, ParentTyp
 
 export type UpdateAppManifestPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateAppManifestPayload'] = ResolversParentTypes['UpdateAppManifestPayload']> = ResolversObject<{
   app?: Resolver<Maybe<ResolversTypes['App']>, ParentType, ContextType>;
+  userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
+}>;
+
+export type UpdateUserPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateUserPayload'] = ResolversParentTypes['UpdateUserPayload']> = ResolversObject<{
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
   userErrors?: Resolver<Array<ResolversTypes['UserError']>, ParentType, ContextType>;
 }>;
 
@@ -1398,6 +1565,18 @@ export type UserResolvers<ContextType = GraphQLContext, ParentType extends Resol
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   role?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+}>;
+
+export type UserConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserConnection'] = ResolversParentTypes['UserConnection']> = ResolversObject<{
+  edges?: Resolver<Array<ResolversTypes['UserEdge']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+}>;
+
+export type UserEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserEdge'] = ResolversParentTypes['UserEdge']> = ResolversObject<{
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
 }>;
 
 export type UserErrorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserError'] = ResolversParentTypes['UserError']> = ResolversObject<{
@@ -1418,12 +1597,7 @@ export type UserInvitationResolvers<ContextType = GraphQLContext, ParentType ext
   status?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 }>;
 
-export type UserListResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserList'] = ResolversParentTypes['UserList']> = ResolversObject<{
-  total?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  users?: Resolver<Array<ResolversTypes['User']>, ParentType, ContextType>;
-}>;
-
-export type UserOrderFieldResolvers = EnumResolverSignature<{ createdAt?: any, email?: any, name?: any }, ResolversTypes['UserOrderField']>;
+export type UserOrderFieldResolvers = EnumResolverSignature<{ CREATED_AT?: any, EMAIL?: any, NAME?: any }, ResolversTypes['UserOrderField']>;
 
 export type UserSessionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserSession'] = ResolversParentTypes['UserSession']> = ResolversObject<{
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
@@ -1433,6 +1607,7 @@ export type UserSessionResolvers<ContextType = GraphQLContext, ParentType extend
   ipAddress?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   userAgent?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   userId?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 }>;
 
 export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
@@ -1444,11 +1619,14 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   AppEdge?: AppEdgeResolvers<ContextType>;
   AppOrderField?: AppOrderFieldResolvers;
   BackupCodesResult?: BackupCodesResultResolvers<ContextType>;
+  BanUserPayload?: BanUserPayloadResolvers<ContextType>;
+  CreateUserPayload?: CreateUserPayloadResolvers<ContextType>;
   Date?: GraphQLScalarType;
   DateTime?: GraphQLScalarType;
   EmailAddress?: GraphQLScalarType;
   EnableTwoFactorResult?: EnableTwoFactorResultResolvers<ContextType>;
   FullOrganization?: FullOrganizationResolvers<ContextType>;
+  ImpersonateUserPayload?: ImpersonateUserPayloadResolvers<ContextType>;
   InstallAppPayload?: InstallAppPayloadResolvers<ContextType>;
   Invitation?: InvitationResolvers<ContextType>;
   JSON?: GraphQLScalarType;
@@ -1463,17 +1641,26 @@ export type Resolvers<ContextType = GraphQLContext> = ResolversObject<{
   Organization?: OrganizationResolvers<ContextType>;
   PageInfo?: PageInfoResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
+  RemoveUserPayload?: RemoveUserPayloadResolvers<ContextType>;
+  RevokeSessionPayload?: RevokeSessionPayloadResolvers<ContextType>;
+  RevokeSessionsPayload?: RevokeSessionsPayloadResolvers<ContextType>;
   SetAppStatusPayload?: SetAppStatusPayloadResolvers<ContextType>;
+  SetRolePayload?: SetRolePayloadResolvers<ContextType>;
+  SetUserPasswordPayload?: SetUserPasswordPayloadResolvers<ContextType>;
   SlugCheckResult?: SlugCheckResultResolvers<ContextType>;
+  StopImpersonationPayload?: StopImpersonationPayloadResolvers<ContextType>;
   Time?: GraphQLScalarType;
   TotpUri?: TotpUriResolvers<ContextType>;
   TwoFactorVerifyResult?: TwoFactorVerifyResultResolvers<ContextType>;
+  UnbanUserPayload?: UnbanUserPayloadResolvers<ContextType>;
   UninstallAppPayload?: UninstallAppPayloadResolvers<ContextType>;
   UpdateAppManifestPayload?: UpdateAppManifestPayloadResolvers<ContextType>;
+  UpdateUserPayload?: UpdateUserPayloadResolvers<ContextType>;
   User?: UserResolvers<ContextType>;
+  UserConnection?: UserConnectionResolvers<ContextType>;
+  UserEdge?: UserEdgeResolvers<ContextType>;
   UserError?: UserErrorResolvers<ContextType>;
   UserInvitation?: UserInvitationResolvers<ContextType>;
-  UserList?: UserListResolvers<ContextType>;
   UserOrderField?: UserOrderFieldResolvers;
   UserSession?: UserSessionResolvers<ContextType>;
 }>;

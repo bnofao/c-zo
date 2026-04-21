@@ -1,7 +1,13 @@
 import type { MutationResolvers } from './../../../../__generated__/types.generated'
+import { fromGlobalId, withPaylaod } from '@czo/kit/graphql'
 
 export const revokeSessions: NonNullable<MutationResolvers['revokeSessions']> = async (_parent, _arg, _ctx) => {
-  await _ctx.auth.userService.revokeSessions(_arg.userId, _ctx.request.headers)
-
-  return true
+  const authContext = await _ctx.auth.instance.$context
+  return await withPaylaod({
+    key: 'success',
+    row: async () => {
+      await authContext.internalAdapter.deleteSessions(fromGlobalId(_arg.userId).id)
+      return true
+    },
+  })
 }

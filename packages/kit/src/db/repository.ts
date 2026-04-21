@@ -158,6 +158,18 @@ export type UpdateConfig<
   expectedVersion?: number
 }
 
+export type DeleteConfig<
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+  TFields extends TableRelationalConfig,
+  TConfig extends DBQueryConfig<'many', TSchema, TFields>,
+  TSelectedFields extends SelectedFields,
+> = BaseQueryConfig<TFullSchema, TSchema> & Omit<KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>, 'where' | 'columns'> & {
+  where?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>['where'] | SQL
+  columns?: TSelectedFields | ((table: TFields['table']) => TSelectedFields)
+  soft?: boolean
+}
+
 /**
  * The generic transaction session.
  */
@@ -414,7 +426,7 @@ export abstract class Repository<
             ? {
                 set: {
                   ...opts.onConflictDoUpdate.set,
-                  updatedAt: sql`NOW()`,
+                  updatedAt:  sql`NOW()`,
                 },
               }
             : {}),
@@ -504,25 +516,35 @@ export abstract class Repository<
 
   // ─── Delete ─────────────────────────────────────────────────────────
 
-  async delete<TSelectedFields extends SelectedFieldsFlat>(opts: {
-    columns: TSelectedFields
-    where?: SQL<unknown>
-    tx?: Transaction<T, R>
-    soft?: boolean
-  }): Promise<SelectResultFields<TSelectedFields>[] | null>
-  async delete(opts?: {
-    where?: SQL<unknown>
-    tx?: Transaction<T, R>
-    soft?: boolean
-  }): Promise<InferSelectModel<U>[] | null>
-  async delete<TSelectedFields extends SelectedFieldsFlat>(opts?: {
+  // async delete<TSelectedFields extends SelectedFieldsFlat>(opts: {
+  //   columns: TSelectedFields
+  //   where?: SQL<unknown>
+  //   tx?: Transaction<T, R>
+  //   soft?: boolean
+  // }): Promise<SelectResultFields<TSelectedFields>[] | null>
+  // async delete(opts?: {
+  //   where?: SQL<unknown>
+  //   tx?: Transaction<T, R>
+  //   soft?: boolean
+  // }): Promise<InferSelectModel<U>[] | null>
+  async delete<TSelectedFields extends SelectedFieldsFlat>(opts?: /* {
     columns?: TSelectedFields
     where?: SQL<unknown>
     tx?: Transaction<T, R>
     soft?: boolean
-  }) {
-    const where = opts?.where
+  } */ DeleteConfig<T, R, R[M], DBQueryConfig<'many', R, R[M]>, TSelectedFields>,
+ ) {
+    let where: SQL<unknown> | undefined
+
+    if (isSQLWrapper(opts?.where))
+      where = opts.where as any
+    else if (opts?.where)
+      where = relationsFilterToSQL(this.table, opts.where as any)
+      // const where = opts?.where
+
     let rows: InferSelectModel<U>[]
+
+    const columns = typeof opts?.columns === 'function' ? opts.columns(this.table) : opts?.columns
 
     // Check if soft delete is requested and table has deletedAt column
     if (opts?.soft && this.#hasColumn('deletedAt')) {
@@ -532,8 +554,8 @@ export abstract class Repository<
         .set({ deletedAt: sql`NOW()` } as PgUpdateSetSource<U>)
         .where(where)
 
-      if (opts?.columns) {
-        rows = await qb.returning(opts.columns) as unknown as InferSelectModel<U>[]
+      if (columns) {
+        rows = await qb.returning(columns) as unknown as InferSelectModel<U>[]
       }
       else {
         rows = await qb.returning() as unknown as InferSelectModel<U>[]
@@ -543,8 +565,8 @@ export abstract class Repository<
       // Hard delete
       const qb = (opts?.tx || this.db).delete(this.table).where(where)
 
-      if (opts?.columns) {
-        rows = await qb.returning(opts?.columns) as unknown as InferSelectModel<U>[]
+      if (columns) {
+        rows = await qb.returning(columns) as unknown as InferSelectModel<U>[]
       }
       else {
         rows = await qb.returning() as unknown as InferSelectModel<U>[]
@@ -802,9 +824,9 @@ export abstract class Repository<
       // Prepare update values
       const updateValues: Record<string, unknown> = {
         ...value,
-        ...(this.#hasColumn('updatedAt')
-          ? { updatedAt: sql`NOW()` }
-          : {}),
+        // ...(this.#hasColumn('updatedAt')
+        //   ? { updatedAt: sql`NOW()` }
+        //   : {}),
       }
 
       // Handle optimistic locking if version column exists

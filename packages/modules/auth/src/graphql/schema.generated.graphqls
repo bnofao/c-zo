@@ -65,6 +65,11 @@ type BackupCodesResult {
   status: Boolean!
 }
 
+type BanUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
 input BooleanFilterInput {
   AND: [BooleanFilterInput!]
   NOT: BooleanFilterInput
@@ -108,7 +113,12 @@ input CreateUserInput {
   email: EmailAddress!
   name: String!
   password: String
-  role: String
+  role: [String!]
+}
+
+type CreateUserPayload {
+  user: User
+  userErrors: [UserError!]!
 }
 
 scalar Date
@@ -190,6 +200,11 @@ input IDFilterInput {
   notIn: [ID!]
 }
 
+type ImpersonateUserPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
 input InstallAppInput {
   manifestUrl: String!
   organizationId: ID
@@ -260,37 +275,37 @@ type MemberUser {
 
 type Mutation {
   acceptInvitation(invitationId: ID!): OrgMember!
-  banUser(expiresIn: Int, reason: String, userId: ID!): Boolean!
+  banUser(expiresIn: Int, reason: String, userId: ID!): BanUserPayload!
   cancelInvitation(invitationId: ID!): Boolean!
   changeEmail(input: ChangeEmailInput!): Boolean!
   changePassword(input: ChangePasswordInput!): Boolean!
   createApiKey(input: CreateApiKeyInput!): ApiKey!
   createOrganization(input: CreateOrganizationInput!): Organization!
-  createUser(input: CreateUserInput!): User!
+  createUser(input: CreateUserInput!): CreateUserPayload!
   deleteAccount(input: DeleteAccountInput): Boolean!
   deleteApiKey(keyId: ID!): Boolean!
   deleteOrganization(organizationId: ID!): Boolean!
   disableTwoFactor(password: String!): Boolean!
   enableTwoFactor(issuer: String, password: String!): EnableTwoFactorResult!
   generateBackupCodes(password: String!): BackupCodesResult!
-  impersonateUser(userId: ID!): Boolean!
+  impersonateUser(userId: ID!): ImpersonateUserPayload!
   installApp(input: InstallAppInput!): InstallAppPayload!
   inviteMember(input: InviteMemberInput!): Invitation!
   leaveOrganization(organizationId: ID!): Boolean!
   rejectInvitation(invitationId: ID!): Boolean!
   removeMember(memberIdOrEmail: String!, organizationId: ID): Boolean!
-  removeUser(userId: ID!): Boolean!
+  removeUser(userId: ID!): RemoveUserPayload!
   revokeMySession(token: String!): Boolean!
   revokeOtherSessions: Boolean!
-  revokeSession(sessionToken: String!): Boolean!
-  revokeSessions(userId: ID!): Boolean!
+  revokeSession(sessionToken: String!): RevokeSessionPayload!
+  revokeSessions(userId: ID!): RevokeSessionsPayload!
   sendOtp: Boolean!
   setActiveOrganization(organizationId: ID, organizationSlug: String): Organization
   setAppStatus(input: SetAppStatusInput!): SetAppStatusPayload!
-  setRole(role: String!, userId: ID!): Boolean!
-  setUserPassword(newPassword: String!, userId: ID!): Boolean!
-  stopImpersonation: Boolean!
-  unbanUser(userId: ID!): Boolean!
+  setRole(role: String!, userId: ID!): SetRolePayload!
+  setUserPassword(newPassword: String!, userId: ID!): SetUserPasswordPayload!
+  stopImpersonation: StopImpersonationPayload!
+  unbanUser(userId: ID!): UnbanUserPayload!
   uninstallApp(appId: String!): UninstallAppPayload!
   unlinkAccount(accountId: String, providerId: String!): Boolean!
   updateApiKey(input: UpdateApiKeyInput!, keyId: ID!): ApiKey!
@@ -298,7 +313,7 @@ type Mutation {
   updateMemberRole(memberId: ID!, organizationId: ID, role: String!): Boolean!
   updateOrganization(input: UpdateOrganizationInput!, organizationId: ID!): Organization!
   updateProfile(input: UpdateProfileInput!): User!
-  updateUser(input: UpdateUserInput!, userId: ID!): User!
+  updateUser(input: UpdateUserInput!, userId: ID!): UpdateUserPayload!
   verifyBackupCode(input: VerifyBackupCodeInput!): TwoFactorVerifyResult!
   verifyOtp(input: VerifyOtpInput!): TwoFactorVerifyResult!
   verifyTotp(input: VerifyTotpInput!): TwoFactorVerifyResult!
@@ -374,9 +389,30 @@ type Query {
   organization(organizationId: ID, organizationSlug: String): FullOrganization
   organizations: [Organization!]!
   totpUri(password: String!): TotpUri!
-  user(userId: ID!): User!
+
+  """Fetch a user by its Relay global ID."""
+  user(id: ID!): User
+
+  """List sessions for a given user."""
   userSessions(userId: ID!): [UserSession!]!
-  users(limit: Int, offset: Int, orderBy: UserOrderByInput, search: String, where: UserWhereInput): UserList!
+
+  """List users with cursor-based pagination."""
+  users(after: String, before: String, first: Int, last: Int, orderBy: [UserOrderByInput!], search: String, where: UserWhereInput): UserConnection!
+}
+
+type RemoveUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type RevokeSessionPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
+type RevokeSessionsPayload {
+  success: Boolean
+  userErrors: [UserError!]!
 }
 
 input SetAppStatusInput {
@@ -389,8 +425,23 @@ type SetAppStatusPayload {
   userErrors: [UserError!]!
 }
 
+type SetRolePayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type SetUserPasswordPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
 type SlugCheckResult {
   available: Boolean!
+}
+
+type StopImpersonationPayload {
+  success: Boolean
+  userErrors: [UserError!]!
 }
 
 input StringFilterInput {
@@ -429,6 +480,11 @@ type TotpUri {
 
 type TwoFactorVerifyResult {
   token: String!
+}
+
+type UnbanUserPayload {
+  user: User
+  userErrors: [UserError!]!
 }
 
 type UninstallAppPayload {
@@ -472,11 +528,16 @@ input UpdateProfileInput {
 }
 
 input UpdateUserInput {
-  email: EmailAddress
   name: String
+  role: [String!]
 }
 
-type User {
+type UpdateUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type User implements Node {
   banExpires: DateTime
   banReason: String
   banned: Boolean!
@@ -485,6 +546,17 @@ type User {
   id: ID!
   name: String!
   role: String!
+}
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
 }
 
 type UserError {
@@ -505,23 +577,18 @@ type UserInvitation {
   status: String!
 }
 
-type UserList {
-  total: Int!
-  users: [User!]!
-}
-
 input UserOrderByInput {
-  direction: OrderDirection!
+  dir: OrderDirection!
   field: UserOrderField!
 }
 
 enum UserOrderField {
-  createdAt
-  email
-  name
+  CREATED_AT
+  EMAIL
+  NAME
 }
 
-type UserSession {
+type UserSession implements Node {
   createdAt: DateTime!
   expiresAt: DateTime!
   id: ID!
@@ -535,8 +602,14 @@ input UserWhereInput {
   AND: [UserWhereInput!]
   NOT: UserWhereInput
   OR: [UserWhereInput!]
+  banExpires: DateTimeFilterInput
+  banReason: StringFilterInput
+  banned: BooleanFilterInput
   createdAt: DateTimeFilterInput
+  email: StringFilterInput
   emailVerified: BooleanFilterInput
+  name: StringFilterInput
+  twoFactorEnabled: BooleanFilterInput
 }
 
 input VerifyBackupCodeInput {

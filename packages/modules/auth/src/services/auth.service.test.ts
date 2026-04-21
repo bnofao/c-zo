@@ -1,6 +1,6 @@
 import type { AuthService } from './auth.service'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthService } from './auth.service'
+import { createAuthService_ } from './auth.service'
 
 function createMockApi() {
   return {
@@ -27,7 +27,7 @@ function createMockApi() {
 }
 
 function createMockAuth() {
-  return { api: createMockApi() } as unknown as Parameters<typeof createAuthService>[0]
+  return { api: createMockApi() } as unknown as Parameters<typeof createAuthService_>[0]
 }
 
 function api(auth: ReturnType<typeof createMockAuth>) {
@@ -59,7 +59,7 @@ describe('authService', () => {
 
   beforeEach(() => {
     auth = createMockAuth()
-    service = createAuthService(auth)
+    service = createAuthService_(auth)
   })
 
   // ─── getSession ─────────────────────────────────────────────────

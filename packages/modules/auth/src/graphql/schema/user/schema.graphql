@@ -1,4 +1,4 @@
-type User {
+type User implements Node {
   id: ID!
   name: String!
   email: String!
@@ -9,12 +9,7 @@ type User {
   createdAt: DateTime!
 }
 
-type UserList {
-  users: [User!]!
-  total: Int!
-}
-
-type UserSession {
+type UserSession implements Node {
   id: ID!
   userId: ID!
   expiresAt: DateTime!
@@ -24,53 +19,148 @@ type UserSession {
   createdAt: DateTime!
 }
 
+# ─── Connection types ─────────────────────────
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int
+}
+
+type UserEdge {
+  node: User!
+  cursor: String!
+}
+
+# ─── Ordering ─────────────────────────────────
+
+enum UserOrderField {
+  NAME
+  EMAIL
+  CREATED_AT
+}
+
+input UserOrderByInput {
+  field: UserOrderField!
+  dir: OrderDirection!
+}
+
+# ─── Inputs ───────────────────────────────────
+
 input CreateUserInput {
   email: EmailAddress!
   name: String!
   password: String
-  role: String
+  role: [String!]
 }
 
 input UpdateUserInput {
   name: String
-  email: EmailAddress
+  role: [String!]
 }
 
+# ─── Filters ─────────────────────────────────
+
 input UserWhereInput {
+  name: StringFilterInput
+  email: StringFilterInput
   emailVerified: BooleanFilterInput
+  twoFactorEnabled: BooleanFilterInput
+  banned: BooleanFilterInput
+  banReason: StringFilterInput
+  banExpires: DateTimeFilterInput
   createdAt: DateTimeFilterInput
   AND: [UserWhereInput!]
   OR: [UserWhereInput!]
   NOT: UserWhereInput
 }
 
-enum UserOrderField {
-  name
-  email
-  createdAt
-}
-
-input UserOrderByInput {
-  field: UserOrderField!
-  direction: OrderDirection!
-}
+# ─── Queries ──────────────────────────────────
 
 extend type Query {
-  users(search: String, where: UserWhereInput, orderBy: UserOrderByInput, limit: Int, offset: Int): UserList! @admin
-  user(userId: ID!): User! @admin
+  """Fetch a user by its Relay global ID."""
+  user(id: ID!): User @admin
+  """List users with cursor-based pagination."""
+  users(
+    first: Int
+    after: String
+    last: Int
+    before: String
+    search: String
+    orderBy: [UserOrderByInput!]
+    where: UserWhereInput
+  ): UserConnection! @admin
+  """List sessions for a given user."""
   userSessions(userId: ID!): [UserSession!]! @admin
 }
 
+# ─── Mutation payloads ────────────────────────
+
+type CreateUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type UpdateUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type BanUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type UnbanUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type SetRolePayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type RemoveUserPayload {
+  user: User
+  userErrors: [UserError!]!
+}
+
+type ImpersonateUserPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
+type StopImpersonationPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
+type SetUserPasswordPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
+type RevokeSessionPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
+type RevokeSessionsPayload {
+  success: Boolean
+  userErrors: [UserError!]!
+}
+
 extend type Mutation {
-  createUser(input: CreateUserInput!): User! @admin
-  updateUser(userId: ID!, input: UpdateUserInput!): User! @admin
-  impersonateUser(userId: ID!): Boolean! @admin
-  stopImpersonation: Boolean! @admin
-  banUser(userId: ID!, reason: String, expiresIn: Int): Boolean! @admin
-  unbanUser(userId: ID!): Boolean! @admin
-  setRole(userId: ID!, role: String!): Boolean! @admin
-  setUserPassword(userId: ID!, newPassword: String!): Boolean! @admin
-  removeUser(userId: ID!): Boolean! @admin
-  revokeSession(sessionToken: String!): Boolean! @admin
-  revokeSessions(userId: ID!): Boolean! @admin
+  createUser(input: CreateUserInput!): CreateUserPayload! @permission(resource: "user", action: "create")
+  updateUser(userId: ID!, input: UpdateUserInput!): UpdateUserPayload! @permission(resource: "user", action: "update")
+  banUser(userId: ID!, reason: String, expiresIn: Int): BanUserPayload! @permission(resource: "user", action: "ban")
+  unbanUser(userId: ID!): UnbanUserPayload! @permission(resource: "user", action: "ban")
+  setRole(userId: ID!, role: String!): SetRolePayload! @permission(resource: "user", action: "set-role")
+  setUserPassword(userId: ID!, newPassword: String!): SetUserPasswordPayload! @admin
+  removeUser(userId: ID!): RemoveUserPayload! @permission(resource: "user", action: "delete")
+  impersonateUser(userId: ID!): ImpersonateUserPayload! @permission(resource: "user", action: "impersonate")
+  stopImpersonation: StopImpersonationPayload! @admin
+  revokeSession(sessionToken: String!): RevokeSessionPayload! @permission(resource: "session", action: "revoke")
+  revokeSessions(userId: ID!): RevokeSessionsPayload! @permission(resource: "session", action: "revoke")
 }

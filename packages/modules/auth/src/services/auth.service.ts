@@ -1,5 +1,11 @@
-import type { Auth } from '@czo/auth/config'
-import type { AdminOptions, OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
+import type { AccessRole, Auth } from '@czo/auth/config'
+import type { Relations } from '@czo/auth/relations'
+import type { AccountSchema, SessionSchema } from '@czo/auth/schema'
+import type { Database } from '@czo/kit/db'
+import type { AccessControl, AdminOptions, OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
+import type { OrganizationService } from './organization.service'
+import type { UserService } from './user.service'
+import { Repository } from '@czo/kit/db'
 import { APIError } from 'better-auth'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -58,27 +64,6 @@ export interface VerifyBackupCodeInput {
   trustDevice?: boolean
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-const cacheOrgRoles = new Map<
-  string,
-  { [x: string]: Role<Record<string, string[]>> | undefined }
->()
-
-function isValidPermissionsRecord(value: unknown): value is Record<string, string[]> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return false
-  for (const [key, actions] of Object.entries(value)) {
-    if (typeof key !== 'string')
-      return false
-    if (!Array.isArray(actions))
-      return false
-    if (!actions.every((a: unknown) => typeof a === 'string'))
-      return false
-  }
-  return true
-}
-
 async function _adminHasPermission(
   auth: Auth,
   userId: string,
@@ -119,7 +104,7 @@ async function _orgMemberHasPermission(
   useMemoryCache = false,
   connector: 'AND' | 'OR' = 'AND',
 ) {
-  const orgOptions = auth?.options?.plugins?.find(
+  const orgOptions = auth.options?.plugins?.find(
     (p: { id: string }) => p.id === 'organization',
   )?.options as OrganizationOptions | undefined
 
@@ -181,7 +166,7 @@ async function _orgMemberHasPermission(
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createAuthService(auth: Auth) {
+export function createAuthService_(auth: Auth) {
   async function getSession(headers: Headers) {
     try {
       return await auth.api.getSession({ headers })
@@ -508,5 +493,60 @@ export function createAuthService(auth: Auth) {
     verifyBackupCode,
     generateBackupCodes,
     hasPermission,
+  }
+}
+
+class AccountRepository extends Repository<{ accounts: AccountSchema }, Relations, AccountSchema, 'accounts'> {
+  get model() {
+    return 'accounts' as const
+  }
+}
+
+class SessionRepository extends Repository<{ sessions: SessionSchema }, Relations, SessionSchema, 'sessions'> {
+  get model() {
+    return 'sessions' as const
+  }
+}
+
+export function createAuthService(
+  db: Database,
+  auth: Auth,
+  organizationService: OrganizationService,
+  userService: UserService,
+  acc: AccessControl,
+  roles?: Record<string, AccessRole>,
+) {
+  return {
+    account: AccountRepository.buildService([db]),
+    session: SessionRepository.buildService([db], { exclude: ['create', 'update', 'restore', 'delete']}),
+    hasPermission: async (opts: {
+      ctx: PermissionCheckContext
+      permissions: { [key: string]: string[] }
+      role?: string
+      options?: {
+        allowCreatorAllPermissions?: boolean
+        useMemoryCache?: boolean
+        connector?: 'AND' | 'OR'
+      }
+    }) => opts.ctx.organizationId && opts.role
+      ? await organizationService.hasPermission({
+          auth,
+          orgId: opts.ctx.organizationId,
+          permissions: opts.permissions,
+          role: opts.role,
+          allowCreatorAllPermissions: opts.options?.allowCreatorAllPermissions,
+          useMemoryCache: opts.options?.useMemoryCache,
+          connector: opts.options?.connector,
+        })
+      : userService.hasPermission({
+          auth,
+          userId: opts.ctx.userId,
+          permissions: opts.permissions,
+          role: opts.role,
+          connector: opts.options?.connector,
+        }),
+    getSession: (headers: Headers) => auth.api.getSession({ headers }),
+    accessControl: acc,
+    roles,
   }
 }

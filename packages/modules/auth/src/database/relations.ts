@@ -2,10 +2,10 @@ import type { SchemaRegistry } from '@czo/kit/db'
 import { defineRelationsPart } from 'drizzle-orm'
 
 export function authRelations(schema: SchemaRegistry) {
-  const { apps, users, webhookDeliveries, apikeys } = schema
+  const { apps, users, webhookDeliveries, apikeys, organizations, accounts, sessions } = schema
 
   return defineRelationsPart(
-    { apps, users, webhookDeliveries, apikeys },
+    { apps, users, webhookDeliveries, apikeys, organizations, accounts, sessions },
     r => ({
       apps: {
         installedByUser: r.one.users({
@@ -27,6 +27,20 @@ export function authRelations(schema: SchemaRegistry) {
           to: r.apps.id,
         }),
       },
+      users: {
+
+      },
+      organizations: {
+
+      },
+      accounts: {
+
+      },
+      sessions: {
+        
+      }
     }),
   )
 }
+
+export type Relations = ReturnType<typeof authRelations>

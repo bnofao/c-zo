@@ -1,6 +1,6 @@
 import type { UserService } from './user.service'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createUserService } from './user.service'
+import { createUserService_ } from './user.service'
 
 function createMockApi() {
   return {
@@ -22,7 +22,7 @@ function createMockApi() {
 }
 
 function createMockAuth() {
-  return { api: createMockApi() } as unknown as Parameters<typeof createUserService>[0]
+  return { api: createMockApi() } as unknown as Parameters<typeof createUserService_>[0]
 }
 
 function api(auth: ReturnType<typeof createMockAuth>) {
@@ -37,7 +37,7 @@ describe('userService', () => {
 
   beforeEach(() => {
     auth = createMockAuth()
-    service = createUserService(auth)
+    service = createUserService_(auth)
   })
 
   describe('list', () => {

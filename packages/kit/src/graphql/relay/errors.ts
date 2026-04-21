@@ -3,7 +3,7 @@ import { DatabaseError } from '../../db/repository'
 
 export enum ErrorCode {
   UNIQUE_CONSTRAINT = 'UNIQUE_CONSTRAINT',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  BAD_REQUEST = 'BAD_REQUEST',
   NOT_FOUND = 'NOT_FOUND',
   FORBIDDEN = 'FORBIDDEN',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
@@ -30,7 +30,7 @@ export function toUserErrors(error: unknown): UserError[] {
     return error.issues.map(issue => ({
       field: issue.path.map(String),
       message: issue.message,
-      code: ErrorCode.VALIDATION_ERROR,
+      code: ErrorCode.BAD_REQUEST,
     }))
   }
 
@@ -50,13 +50,27 @@ export function toUserErrors(error: unknown): UserError[] {
   return [{ field: null, message, code: ErrorCode.INTERNAL_ERROR }]
 }
 
-export async function withPaylaod<T>(opts: {
+export async function withPaylaod<T extends object | boolean | string | number>(opts: {
   key: string
-  func: () => T
+  row: (() => Promise<T>) | T | null,
+  error?: unknown
 }) {
-  const { key, func } = opts
+  const { key, row, error } = opts
+  if (typeof row !== 'function') {
+    if (error) {
+      return {
+        [key]: null,
+        userErrors: toUserErrors(error),
+      }
+    }
+    return {
+      [key]: row,
+      userErrors: [],
+    }
+  }
+
   try {
-    const result = await func()
+    const result = await row()
 
     return {
       [key]: result,
