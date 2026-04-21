@@ -1,6 +1,6 @@
+import type { Database } from '@czo/kit/db'
+import { notDeleted, OptimisticLockError, optimisticUpdate, toDatabaseError } from '@czo/kit/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { notDeleted, optimisticUpdate, toDatabaseError, type Database } from '@czo/kit/db'
-import { OptimisticLockError } from '@czo/kit/db'
 import { stockLocationAddresses, stockLocations } from '../database/schema'
 import { publishStockLocationEvent } from '../events/stock-location-events'
 import { STOCK_LOCATION_EVENTS } from '../events/types'

@@ -1,5 +1,5 @@
 import { useLogger } from '@czo/kit'
-import { registerRelations, registerSchema as registerDbSchema, useDatabase } from '@czo/kit/db'
+import { registerSchema as registerDbSchema, registerRelations, useDatabase } from '@czo/kit/db'
 import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 import { registerStockLocationSchema } from '@czo/stock-location/graphql'

@@ -1,5 +1,5 @@
-import type { StockLocationService } from './services/stock-location.service'
 import type { GraphQLContextMap } from '@czo/kit/graphql'
+import type { StockLocationService } from './services/stock-location.service'
 
 declare module '@czo/kit/db' {
   interface SchemaRegistry {
