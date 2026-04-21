@@ -15,7 +15,7 @@ export function registerOrganizationQueries(builder: any): void {
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.organizations.findFirst(
           query({ where: (o: any, { eq }: any) => eq(o.id, String(args.id)) }),
         )
@@ -33,7 +33,7 @@ export function registerOrganizationQueries(builder: any): void {
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.organizations.findMany(
           query({
             where: args.search

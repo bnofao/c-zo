@@ -17,7 +17,7 @@ export function registerApiKeyQueries(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.apikeys.findFirst(
           query({ where: (k: any, { eq }: any) => eq(k.id, String(args.id)) }),
         )
@@ -35,7 +35,7 @@ export function registerApiKeyQueries(builder: any): void {
         if (!authUser) throw new UnauthenticatedError()
 
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.apikeys.findMany(
           query({ where: (k: any, { eq }: any) => eq(k.userId, String(authUser.id)) }),
         )

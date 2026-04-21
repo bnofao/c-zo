@@ -123,7 +123,7 @@ export function registerAppMutations(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
       resolve: async (_root: any, args: any) => {
         const parsed = setAppStatusSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const appService = await container.make('auth:apps')

@@ -14,7 +14,7 @@ export function registerAccountQueries(builder: any): void {
         if (!authUser) return null
 
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.users.findFirst(
           query({ where: (u: any, { eq }: any) => eq(u.id, String(authUser.id)) }),
         )

@@ -15,7 +15,7 @@ export function registerAppQueries(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.apps.findFirst(
           query({ where: (a: any, { eq }: any) => eq(a.id, String(args.id)) }),
         )
@@ -34,7 +34,7 @@ export function registerAppQueries(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.apps.findMany(
           query({
             where: args.where?.status
@@ -58,7 +58,7 @@ export function registerAppQueries(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.apps.findFirst(
           query({ where: (a: any, { eq }: any) => eq(a.appId, args.slug) }),
         )

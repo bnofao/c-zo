@@ -17,7 +17,7 @@ export function registerUserMutations(builder: any): void {
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = createUserSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const userService = await container.make('auth:users')
@@ -40,7 +40,7 @@ export function registerUserMutations(builder: any): void {
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = updateUserSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const userService = await container.make('auth:users')

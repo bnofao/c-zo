@@ -21,7 +21,7 @@ export function registerApiKeyMutations(builder: any): void {
         if (!authUser) throw new UnauthenticatedError()
 
         const parsed = createApiKeySchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const apiKeyService = await container.make('auth:apikeys')
@@ -70,7 +70,7 @@ export function registerApiKeyMutations(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const parsed = updateApiKeySchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const apiKeyService = await container.make('auth:apikeys')

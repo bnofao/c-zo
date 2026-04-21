@@ -1,6 +1,4 @@
-import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
-import { CannotBanSelfError, CannotDemoteSelfError, UserAlreadyBannedError } from './errors'
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
@@ -16,7 +14,7 @@ export function registerUserQueries(builder: any): void {
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.users.findFirst(
           query({ where: (u: any, { eq }: any) => eq(u.id, String(args.id)) }),
         )
@@ -36,7 +34,7 @@ export function registerUserQueries(builder: any): void {
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query: any, _root: any, args: any) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase()
+        const db = await useDatabase() as any
         return db.query.users.findMany(
           query({
             where: args.search

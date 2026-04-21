@@ -63,7 +63,7 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyTotpSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
@@ -84,7 +84,7 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyOtpSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
@@ -122,7 +122,7 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyBackupCodeSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')

@@ -20,7 +20,7 @@ export function registerOrganizationMutations(builder: any): void {
         if (!authUser) throw new UnauthenticatedError()
 
         const parsed = createOrganizationSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
@@ -46,7 +46,7 @@ export function registerOrganizationMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = updateOrganizationSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
@@ -92,7 +92,7 @@ export function registerOrganizationMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = inviteMemberSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')

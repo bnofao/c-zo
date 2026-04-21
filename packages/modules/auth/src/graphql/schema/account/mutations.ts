@@ -19,7 +19,7 @@ export function registerAccountMutations(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const parsed = changeEmailSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const accountService = await container.make('auth:accounts')
@@ -42,7 +42,7 @@ export function registerAccountMutations(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const parsed = changePasswordSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const accountService = await container.make('auth:accounts')
@@ -126,7 +126,7 @@ export function registerAccountMutations(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const parsed = updateProfileSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const accountService = await container.make('auth:accounts')
@@ -150,7 +150,7 @@ export function registerAccountMutations(builder: any): void {
         if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
 
         const parsed = deleteAccountSchema.safeParse(args.input ?? {})
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error)
+        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const accountService = await container.make('auth:accounts')
