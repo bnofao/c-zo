@@ -12,7 +12,7 @@ const things = pgTable('things_opt_test', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-describe('optimisticUpdate', () => {
+describe.runIf(process.env.TEST_DATABASE_URL)('optimisticUpdate', () => {
   const db = createTestDb()
 
   beforeAll(async () => {
