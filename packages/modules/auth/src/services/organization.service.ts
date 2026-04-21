@@ -80,11 +80,15 @@ export type OrganizationService = ReturnType<typeof createOrganizationService>
 const cacheOrgRoles = new Map<string, { [x: string]: Role<Record<string, string[]>> | undefined }>()
 
 function isValidPermissionsRecord(value: unknown): value is Record<string, string[]> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return false
   for (const [key, actions] of Object.entries(value)) {
-    if (typeof key !== 'string') return false
-    if (!Array.isArray(actions)) return false
-    if (!actions.every((a: unknown) => typeof a === 'string')) return false
+    if (typeof key !== 'string')
+      return false
+    if (!Array.isArray(actions))
+      return false
+    if (!actions.every((a: unknown) => typeof a === 'string'))
+      return false
   }
   return true
 }
@@ -116,7 +120,8 @@ async function orgMemberHasPermission(
 
     if (dbRoles) {
       for (const { role: roleName, permission: permissionsString } of dbRoles) {
-        if (roleName in acRoles) continue
+        if (roleName in acRoles)
+          continue
         const parsed: unknown = JSON.parse(permissionsString)
         if (!isValidPermissionsRecord(parsed)) {
           throw new Error(`Invalid permissions for role ${roleName}`)
@@ -131,18 +136,21 @@ async function orgMemberHasPermission(
   }
   cacheOrgRoles.set(orgId, acRoles)
 
-  if (!permissions) return false
+  if (!permissions)
+    return false
 
   const roles = role.split(',')
   const creatorRole = orgOptions?.creatorRole || 'owner'
   const isCreator = roles.includes(creatorRole)
 
-  if (isCreator && allowCreatorAllPermissions) return true
+  if (isCreator && allowCreatorAllPermissions)
+    return true
 
   for (const r of roles) {
     const acRole = acRoles[r as keyof typeof acRoles]
     const result = acRole?.authorize(permissions, connector)
-    if (result?.success) return true
+    if (result?.success)
+      return true
   }
   return false
 }

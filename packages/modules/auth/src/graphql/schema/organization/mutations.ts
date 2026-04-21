@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
-import { createOrganizationSchema, inviteMemberSchema, updateOrganizationSchema } from './inputs'
 import { CannotLeaveAsLastOwnerError, InvitationExpiredError, MembershipAlreadyExistsError, SlugAlreadyTakenError } from './errors'
+import { createOrganizationSchema, inviteMemberSchema, updateOrganizationSchema } from './inputs'
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
@@ -17,10 +17,12 @@ export function registerOrganizationMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const authUser = (ctx as any).auth?.user
-        if (!authUser) throw new UnauthenticatedError()
+        if (!authUser)
+          throw new UnauthenticatedError()
 
         const parsed = createOrganizationSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
@@ -28,11 +30,11 @@ export function registerOrganizationMutations(builder: any): void {
           { ...parsed.data, userId: authUser.id },
           ctx.request?.headers,
         )
-        if (!result) throw new NotFoundError('Organization', 'created')
+        if (!result)
+          throw new NotFoundError('Organization', 'created')
         return result
       },
-    }),
-  )
+    }))
 
   // ── updateOrganization ────────────────────────────────────────────────────
   builder.mutationField('updateOrganization', (t: any) =>
@@ -46,7 +48,8 @@ export function registerOrganizationMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = updateOrganizationSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
@@ -57,11 +60,11 @@ export function registerOrganizationMutations(builder: any): void {
           },
           ctx.request?.headers,
         )
-        if (!result) throw new NotFoundError('Organization', String(args.id ?? 'active'))
+        if (!result)
+          throw new NotFoundError('Organization', String(args.id ?? 'active'))
         return result
       },
-    }),
-  )
+    }))
 
   // ── deleteOrganization ────────────────────────────────────────────────────
   builder.mutationField('deleteOrganization', (t: any) =>
@@ -78,8 +81,7 @@ export function registerOrganizationMutations(builder: any): void {
         await (orgService as any).remove(String(args.id), ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── inviteMember ──────────────────────────────────────────────────────────
   builder.mutationField('inviteMember', (t: any) =>
@@ -92,16 +94,17 @@ export function registerOrganizationMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = inviteMemberSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
         const result = await (orgService as any).inviteMember(parsed.data, ctx.request?.headers)
-        if (!result) throw new NotFoundError('Invitation', 'created')
+        if (!result)
+          throw new NotFoundError('Invitation', 'created')
         return result
       },
-    }),
-  )
+    }))
 
   // ── acceptInvitation ──────────────────────────────────────────────────────
   builder.mutationField('acceptInvitation', (t: any) =>
@@ -118,8 +121,7 @@ export function registerOrganizationMutations(builder: any): void {
         await (orgService as any).acceptInvitation(String(args.invitationId), ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── rejectInvitation ──────────────────────────────────────────────────────
   builder.mutationField('rejectInvitation', (t: any) =>
@@ -136,8 +138,7 @@ export function registerOrganizationMutations(builder: any): void {
         await (orgService as any).rejectInvitation(String(args.invitationId), ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── cancelInvitation ──────────────────────────────────────────────────────
   builder.mutationField('cancelInvitation', (t: any) =>
@@ -154,8 +155,7 @@ export function registerOrganizationMutations(builder: any): void {
         await (orgService as any).cancelInvitation(String(args.invitationId), ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── removeMember ──────────────────────────────────────────────────────────
   builder.mutationField('removeMember', (t: any) =>
@@ -179,8 +179,7 @@ export function registerOrganizationMutations(builder: any): void {
         )
         return true
       },
-    }),
-  )
+    }))
 
   // ── updateMemberRole ──────────────────────────────────────────────────────
   builder.mutationField('updateMemberRole', (t: any) =>
@@ -204,11 +203,11 @@ export function registerOrganizationMutations(builder: any): void {
           },
           ctx.request?.headers,
         )
-        if (!result) throw new NotFoundError('Member', String(args.memberId))
+        if (!result)
+          throw new NotFoundError('Member', String(args.memberId))
         return result.member ?? result
       },
-    }),
-  )
+    }))
 
   // ── setActiveOrganization ─────────────────────────────────────────────────
   builder.mutationField('setActiveOrganization', (t: any) =>
@@ -221,7 +220,8 @@ export function registerOrganizationMutations(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
@@ -234,8 +234,7 @@ export function registerOrganizationMutations(builder: any): void {
         )
         return true
       },
-    }),
-  )
+    }))
 
   // ── leaveOrganization ─────────────────────────────────────────────────────
   builder.mutationField('leaveOrganization', (t: any) =>
@@ -247,13 +246,13 @@ export function registerOrganizationMutations(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const orgService = await container.make('auth:organizations')
         await (orgService as any).leave(String(args.organizationId), ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 }

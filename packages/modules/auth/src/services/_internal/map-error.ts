@@ -1,4 +1,3 @@
-import { APIError } from 'better-auth'
 import {
   ConflictError,
   ForbiddenError,
@@ -6,6 +5,7 @@ import {
   UnauthenticatedError,
   ValidationError,
 } from '@czo/kit/graphql'
+import { APIError } from 'better-auth'
 
 export function mapAPIError(err: unknown, resource: string): never {
   if (err instanceof APIError) {

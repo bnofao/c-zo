@@ -1,7 +1,7 @@
 import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
-import { verifyBackupCodeSchema, verifyOtpSchema, verifyTotpSchema } from './inputs'
 import { BackupCodeInvalidError, TotpVerificationFailedError, TwoFactorNotEnabledError } from './errors'
+import { verifyBackupCodeSchema, verifyOtpSchema, verifyTotpSchema } from './inputs'
 
 // ─── Two-Factor Mutations ─────────────────────────────────────────────────────
 
@@ -18,7 +18,8 @@ export function registerTwoFactorMutations(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
@@ -29,8 +30,7 @@ export function registerTwoFactorMutations(builder: any): void {
         // Return the TOTP URI (for QR scanning) if present
         return (result as any)?.totpURI ?? (result as any)?.uri ?? null
       },
-    }),
-  )
+    }))
 
   // ── disableTwoFactor ──────────────────────────────────────────────────────
   builder.mutationField('disableTwoFactor', (t: any) =>
@@ -42,15 +42,15 @@ export function registerTwoFactorMutations(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         await (twoFactorService as any).disable(args.password, ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── verifyTotp ────────────────────────────────────────────────────────────
   builder.mutationField('verifyTotp', (t: any) =>
@@ -63,15 +63,15 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyTotpSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         await (twoFactorService as any).verifyTotp(parsed.data, ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── verifyOtp ─────────────────────────────────────────────────────────────
   builder.mutationField('verifyOtp', (t: any) =>
@@ -84,15 +84,15 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyOtpSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         await (twoFactorService as any).verifyOtp(parsed.data, ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── sendOtp ───────────────────────────────────────────────────────────────
   builder.mutationField('sendOtp', (t: any) =>
@@ -101,15 +101,15 @@ export function registerTwoFactorMutations(builder: any): void {
       errors: { types: [UnauthenticatedError] },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, _args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         await (twoFactorService as any).sendOtp(ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── verifyBackupCode ──────────────────────────────────────────────────────
   builder.mutationField('verifyBackupCode', (t: any) =>
@@ -122,15 +122,15 @@ export function registerTwoFactorMutations(builder: any): void {
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
         const parsed = verifyBackupCodeSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         await (twoFactorService as any).verifyBackupCode(parsed.data, ctx.request?.headers)
         return true
       },
-    }),
-  )
+    }))
 
   // ── generateBackupCodes ───────────────────────────────────────────────────
   builder.mutationField('generateBackupCodes', (t: any) =>
@@ -142,7 +142,8 @@ export function registerTwoFactorMutations(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
@@ -152,6 +153,5 @@ export function registerTwoFactorMutations(builder: any): void {
         )
         return (result as any)?.backupCodes ?? result ?? []
       },
-    }),
-  )
+    }))
 }

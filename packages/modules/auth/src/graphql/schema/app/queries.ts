@@ -1,6 +1,3 @@
-import { NotFoundError, UnauthenticatedError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
-
 // ─── App Queries ──────────────────────────────────────────────────────────────
 
 export function registerAppQueries(builder: any): void {
@@ -20,8 +17,7 @@ export function registerAppQueries(builder: any): void {
           query({ where: (a: any, { eq }: any) => eq(a.id, String(args.id)) }),
         )
       },
-    }),
-  )
+    }))
 
   // ── apps(connection) — paginated list of installed apps ───────────────────
   builder.queryField('apps', (t: any) =>
@@ -44,8 +40,7 @@ export function registerAppQueries(builder: any): void {
         )
       },
       edgesField: {},
-    }),
-  )
+    }))
 
   // ── appBySlug(slug) — single app by appId/slug ────────────────────────────
   builder.queryField('appBySlug', (t: any) =>
@@ -63,6 +58,5 @@ export function registerAppQueries(builder: any): void {
           query({ where: (a: any, { eq }: any) => eq(a.appId, args.slug) }),
         )
       },
-    }),
-  )
+    }))
 }

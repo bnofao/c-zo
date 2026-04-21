@@ -1,6 +1,6 @@
+import type { AuthContext } from '../types'
 import { registerContextFactory } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
-import type { AuthContext } from '../types'
 
 export async function buildAuthContext(request: Request): Promise<AuthContext> {
   const container = useContainer()

@@ -1,7 +1,7 @@
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 import { AppHandleTakenError, AppManifestInvalidError, AppNotInstalledError } from './errors'
-import { setAppStatusSchema, updateAppManifestSchema } from './inputs'
+import { setAppStatusSchema } from './inputs'
 
 // ─── App Mutations ────────────────────────────────────────────────────────────
 
@@ -17,7 +17,8 @@ export function registerAppMutations(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['install'] } },
       resolve: async (_root: any, args: any, ctx: any) => {
         const authUser = (ctx as any).auth?.user
-        if (!authUser) throw new UnauthenticatedError()
+        if (!authUser)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const appService = await container.make('auth:apps')
@@ -30,7 +31,8 @@ export function registerAppMutations(builder: any): void {
             apiKeyService,
             args.input.organizationId ? String(args.input.organizationId) : undefined,
           )
-          if (!result) throw new NotFoundError('App', 'installed')
+          if (!result)
+            throw new NotFoundError('App', 'installed')
           return result
         }
         catch (err: any) {
@@ -43,8 +45,7 @@ export function registerAppMutations(builder: any): void {
           throw err
         }
       },
-    }),
-  )
+    }))
 
   // ── uninstallApp ──────────────────────────────────────────────────────────
   builder.mutationField('uninstallApp', (t: any) =>
@@ -69,8 +70,7 @@ export function registerAppMutations(builder: any): void {
           throw err
         }
       },
-    }),
-  )
+    }))
 
   // ── updateAppManifest — update manifest for an installed app ──────────────
   builder.mutationField('updateAppManifest', (t: any) =>
@@ -95,11 +95,13 @@ export function registerAppMutations(builder: any): void {
         const appService = await container.make('auth:apps')
         try {
           const result = await (appService as any).updateManifest(args.input.appId, parsedManifest)
-          if (!result) throw new NotFoundError('App', args.input.appId)
+          if (!result)
+            throw new NotFoundError('App', args.input.appId)
           return result
         }
         catch (err: any) {
-          if (err instanceof NotFoundError || err instanceof AppManifestInvalidError) throw err
+          if (err instanceof NotFoundError || err instanceof AppManifestInvalidError)
+            throw err
           if (err?.message?.includes('not found')) {
             throw new NotFoundError('App', args.input.appId)
           }
@@ -109,8 +111,7 @@ export function registerAppMutations(builder: any): void {
           throw err
         }
       },
-    }),
-  )
+    }))
 
   // ── setAppStatus — activate, disable, or mark app as error ───────────────
   builder.mutationField('setAppStatus', (t: any) =>
@@ -123,7 +124,8 @@ export function registerAppMutations(builder: any): void {
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
       resolve: async (_root: any, args: any) => {
         const parsed = setAppStatusSchema.safeParse(args.input)
-        if (!parsed.success) throw ValidationError.fromZod(parsed.error as any)
+        if (!parsed.success)
+          throw ValidationError.fromZod(parsed.error as any)
 
         const container = useContainer()
         const appService = await container.make('auth:apps')
@@ -132,17 +134,18 @@ export function registerAppMutations(builder: any): void {
             parsed.data.appId,
             parsed.data.status as any,
           )
-          if (!result) throw new NotFoundError('App', parsed.data.appId)
+          if (!result)
+            throw new NotFoundError('App', parsed.data.appId)
           return result
         }
         catch (err: any) {
-          if (err instanceof NotFoundError) throw err
+          if (err instanceof NotFoundError)
+            throw err
           if (err?.message?.includes('not found')) {
             throw new NotFoundError('App', parsed.data.appId)
           }
           throw err
         }
       },
-    }),
-  )
+    }))
 }

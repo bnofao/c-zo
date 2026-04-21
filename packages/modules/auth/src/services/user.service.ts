@@ -82,15 +82,18 @@ export function createUserService(auth: Auth) {
         (p: { id: string }) => p.id === 'admin',
       )?.options as AdminOptions | undefined
 
-      if (adminOptions?.adminUserIds?.includes(userId)) return true
-      if (!permissions) return false
+      if (adminOptions?.adminUserIds?.includes(userId))
+        return true
+      if (!permissions)
+        return false
 
       const roles = (role || adminOptions?.defaultRole || 'user').split(',')
       const acRoles = (adminOptions?.roles ?? {}) as Record<string, { authorize: (p: Record<string, string[]>, c: 'AND' | 'OR') => { success: boolean } } | undefined>
       for (const r of roles) {
         const acRole = acRoles[r]
         const result = acRole?.authorize(permissions, connector)
-        if (result?.success) return true
+        if (result?.success)
+          return true
       }
       return false
     },

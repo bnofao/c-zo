@@ -14,13 +14,13 @@ export function registerTwoFactorQueries(builder: any): void {
       },
       authScopes: { loggedIn: true },
       resolve: async (_root: any, args: any, ctx: any) => {
-        if (!(ctx as any).auth?.user) throw new UnauthenticatedError()
+        if (!(ctx as any).auth?.user)
+          throw new UnauthenticatedError()
 
         const container = useContainer()
         const twoFactorService = await container.make('auth:twoFactor')
         const result = await (twoFactorService as any).getTotpUri(args.password, ctx.request?.headers)
         return result?.totpURI ?? result?.uri ?? null
       },
-    }),
-  )
+    }))
 }

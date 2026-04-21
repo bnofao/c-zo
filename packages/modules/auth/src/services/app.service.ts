@@ -4,7 +4,7 @@ import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { eq, sql } from 'drizzle-orm'
 import { Kind, parse } from 'graphql'
 import { z } from 'zod'
-import { apps, apikeys } from '../database/schema'
+import { apikeys, apps } from '../database/schema'
 
 // ─── Zod Schema ──────────────────────────────────────────────────────
 

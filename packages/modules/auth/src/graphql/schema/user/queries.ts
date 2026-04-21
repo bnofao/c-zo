@@ -19,8 +19,7 @@ export function registerUserQueries(builder: any): void {
           query({ where: (u: any, { eq }: any) => eq(u.id, String(args.id)) }),
         )
       },
-    }),
-  )
+    }))
 
   // ── users(connection) — paginated list with optional search ───────────────
   builder.queryField('users', (t: any) =>
@@ -44,8 +43,7 @@ export function registerUserQueries(builder: any): void {
         )
       },
       edgesField: {},
-    }),
-  )
+    }))
 
   // ── userSessions(userId) — admin: list sessions for a user ────────────────
   // Direct Drizzle since sessions is not in authRelations
@@ -62,6 +60,5 @@ export function registerUserQueries(builder: any): void {
         const sessions = await (userService as any).listSessions(String(args.userId))
         return sessions ?? []
       },
-    }),
-  )
+    }))
 }
