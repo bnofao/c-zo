@@ -102,7 +102,7 @@ export function registerSchema<DB, Relations, Ctx>(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildSchema(builder: CZOBuilder<any, any, any>): GraphQLSchema {
-  if (built) throw new Error('buildSchema() called twice — schema already assembled')
+  if (built) throw new Error('Schema already built — buildSchema() called twice')
   for (const contribute of contributions) contribute(builder)
   built = true
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
