@@ -2,7 +2,7 @@ import type { Auth } from '@czo/auth/config'
 import type { Database } from '@czo/kit/db'
 import type { AdminOptions } from 'better-auth/plugins'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { sessions, users } from '../database/schema'
 import { mapAPIError } from './_internal/map-error'
 

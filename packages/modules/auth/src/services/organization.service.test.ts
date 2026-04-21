@@ -265,11 +265,10 @@ describe('organizationService', () => {
 
   describe('list', () => {
     it('should return orgs from database', async () => {
-      const fromMock = { mockResolvedValue: vi.fn() }
       const selectFromMock = vi.fn().mockResolvedValue([mockOrg])
       db.select.mockReturnValue({ from: selectFromMock })
 
-      const result = await service.list()
+      await service.list()
 
       expect(db.select).toHaveBeenCalled()
     })
@@ -386,7 +385,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.listInvitations('org-1', headers)
+      await service.listInvitations('org-1', headers)
 
       expect(db.select).toHaveBeenCalled()
     })
@@ -455,7 +454,7 @@ describe('organizationService', () => {
     it('should call leaveOrganization via better-auth', async () => {
       mockApi.leaveOrganization.mockResolvedValue(mockMember)
 
-      const result = await service.leave('org-1', headers)
+      await service.leave('org-1', headers)
 
       expect(mockApi.leaveOrganization).toHaveBeenCalledWith({
         headers,
@@ -494,7 +493,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockMember]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.listMembers({ organizationId: 'org-1' }, headers)
+      await service.listMembers({ organizationId: 'org-1' }, headers)
 
       expect(db.select).toHaveBeenCalled()
     })
@@ -509,7 +508,7 @@ describe('organizationService', () => {
       const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
       db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.listUserInvitations('user@test.com', headers)
+      await service.listUserInvitations('user@test.com', headers)
 
       expect(db.select).toHaveBeenCalled()
     })
