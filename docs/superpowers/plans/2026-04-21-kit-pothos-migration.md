@@ -38,11 +38,11 @@ mkdir -p packages/kit/old/src/graphql/context
 Run:
 ```bash
 git mv packages/kit/src/db/repository.ts packages/kit/old/src/db/repository.ts
-git mv packages/kit/src/graphql/middleware packages/kit/old/src/graphql/middleware-src
-git mv packages/kit/src/graphql/directive packages/kit/old/src/graphql/directive-src
-git mv packages/kit/src/graphql/relay packages/kit/old/src/graphql/relay-src
-git mv packages/kit/src/graphql/resolvers packages/kit/old/src/graphql/resolvers-src
-git mv packages/kit/src/graphql/schema packages/kit/old/src/graphql/schema-src
+git mv packages/kit/src/graphql/middleware packages/kit/old/src/graphql/middleware
+git mv packages/kit/src/graphql/directive packages/kit/old/src/graphql/directive
+git mv packages/kit/src/graphql/relay packages/kit/old/src/graphql/relay
+git mv packages/kit/src/graphql/resolvers packages/kit/old/src/graphql/resolvers
+git mv packages/kit/src/graphql/schema packages/kit/old/src/graphql/schema
 ```
 
 Expected: les dossiers sources sont déplacés. `git status` montre `renamed:`.
