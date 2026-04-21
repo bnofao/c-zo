@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotLeaveAsLastOwnerError, InvitationExpiredError, MembershipAlreadyExistsError, SlugAlreadyTakenError } from './errors'
@@ -8,9 +9,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
-export function registerOrganizationMutations(builder: any): void {
+export function registerOrganizationMutations(builder: SchemaBuilder): void {
   // ── createOrganization ────────────────────────────────────────────────────
-  builder.mutationField('createOrganization', (t: any) =>
+  builder.mutationField('createOrganization', t =>
     t.field({
       type: 'Organization',
       errors: { types: [ValidationError, SlugAlreadyTakenError] },
@@ -18,7 +19,7 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'CreateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
@@ -45,7 +46,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── updateOrganization ────────────────────────────────────────────────────
-  builder.mutationField('updateOrganization', (t: any) =>
+  builder.mutationField('updateOrganization', t =>
     t.field({
       type: 'Organization',
       errors: { types: [ValidationError, NotFoundError, SlugAlreadyTakenError] },
@@ -54,7 +55,7 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'UpdateOrganizationInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id?: string | null, input: unknown }, ctx: Ctx) => {
         const parsed = updateOrganizationSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -72,7 +73,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── deleteOrganization ────────────────────────────────────────────────────
-  builder.mutationField('deleteOrganization', (t: any) =>
+  builder.mutationField('deleteOrganization', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, ForbiddenError] },
@@ -80,14 +81,14 @@ export function registerOrganizationMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['delete'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         await ctx.auth.organizationService.remove(String(args.id))
         return true
       },
     }))
 
   // ── inviteMember ──────────────────────────────────────────────────────────
-  builder.mutationField('inviteMember', (t: any) =>
+  builder.mutationField('inviteMember', t =>
     t.field({
       type: 'Invitation',
       errors: { types: [ValidationError, MembershipAlreadyExistsError] },
@@ -95,7 +96,7 @@ export function registerOrganizationMutations(builder: any): void {
         input: t.arg({ type: 'InviteMemberInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = inviteMemberSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -108,7 +109,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── acceptInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('acceptInvitation', (t: any) =>
+  builder.mutationField('acceptInvitation', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, InvitationExpiredError] },
@@ -116,14 +117,14 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
         await ctx.auth.organizationService.acceptInvitation(String(args.invitationId), ctx.request?.headers ?? new Headers())
         return true
       },
     }))
 
   // ── rejectInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('rejectInvitation', (t: any) =>
+  builder.mutationField('rejectInvitation', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -131,14 +132,14 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
         await ctx.auth.organizationService.rejectInvitation(String(args.invitationId))
         return true
       },
     }))
 
   // ── cancelInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('cancelInvitation', (t: any) =>
+  builder.mutationField('cancelInvitation', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -146,14 +147,14 @@ export function registerOrganizationMutations(builder: any): void {
         invitationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
         await ctx.auth.organizationService.cancelInvitation(String(args.invitationId))
         return true
       },
     }))
 
   // ── removeMember ──────────────────────────────────────────────────────────
-  builder.mutationField('removeMember', (t: any) =>
+  builder.mutationField('removeMember', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, ForbiddenError] },
@@ -162,7 +163,7 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { memberIdOrEmail: string, organizationId?: string | null }, ctx: Ctx) => {
         await ctx.auth.organizationService.removeMember(
           {
             memberIdOrEmail: args.memberIdOrEmail,
@@ -180,7 +181,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── updateMemberRole ──────────────────────────────────────────────────────
-  builder.mutationField('updateMemberRole', (t: any) =>
+  builder.mutationField('updateMemberRole', t =>
     t.field({
       type: 'Member',
       errors: { types: [NotFoundError, ForbiddenError] },
@@ -190,7 +191,7 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { memberId: string, role: string, organizationId?: string | null }, ctx: Ctx) => {
         const result = await ctx.auth.organizationService.updateMemberRole(
           {
             memberId: String(args.memberId),
@@ -205,7 +206,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── setActiveOrganization ─────────────────────────────────────────────────
-  builder.mutationField('setActiveOrganization', (t: any) =>
+  builder.mutationField('setActiveOrganization', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -214,7 +215,7 @@ export function registerOrganizationMutations(builder: any): void {
         organizationSlug: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { organizationId?: string | null, organizationSlug?: string | null }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -230,7 +231,7 @@ export function registerOrganizationMutations(builder: any): void {
     }))
 
   // ── leaveOrganization ─────────────────────────────────────────────────────
-  builder.mutationField('leaveOrganization', (t: any) =>
+  builder.mutationField('leaveOrganization', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, ForbiddenError, CannotLeaveAsLastOwnerError] },
@@ -238,7 +239,7 @@ export function registerOrganizationMutations(builder: any): void {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { organizationId: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 

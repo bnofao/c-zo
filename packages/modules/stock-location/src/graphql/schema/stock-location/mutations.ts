@@ -1,3 +1,4 @@
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import type { StockLocationService } from '../../../services/stock-location.service'
 import { OptimisticLockError } from '@czo/kit/db'
 import { ConflictError, NotFoundError, ValidationError } from '@czo/kit/graphql'
@@ -14,9 +15,9 @@ async function getService(): Promise<StockLocationService> {
 
 // ─── Stock Location Mutations ─────────────────────────────────────────────────
 
-export function registerStockLocationMutations(builder: any): void {
+export function registerStockLocationMutations(builder: SchemaBuilder): void {
   // ── createStockLocation ───────────────────────────────────────────────────
-  (builder as any).mutationField('createStockLocation', (t: any) =>
+  builder.mutationField('createStockLocation', t =>
     t.field({
       type: 'StockLocation',
       errors: { types: [ValidationError, ConflictError] },
@@ -24,11 +25,11 @@ export function registerStockLocationMutations(builder: any): void {
         input: t.arg({ type: 'CreateStockLocationInput', required: true }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['create'] } },
-      resolve: async (_root: any, args: any) => {
-        const raw = args.input
+      resolve: async (_root: unknown, args: Record<string, unknown>) => {
+        const raw = args.input as { name: string, handle?: string | null, organizationId?: { id: string } | string | null }
         const parsed = createStockLocationSchema.safeParse({
           ...raw,
-          organizationId: raw.organizationId?.id ?? raw.organizationId,
+          organizationId: (raw.organizationId as { id: string } | null | undefined)?.id ?? raw.organizationId,
           handle: raw.handle ?? generateHandle(raw.name),
         })
         if (!parsed.success)
@@ -51,7 +52,7 @@ export function registerStockLocationMutations(builder: any): void {
     }))
 
   // ── updateStockLocation ───────────────────────────────────────────────────
-  ;(builder as any).mutationField('updateStockLocation', (t: any) =>
+  builder.mutationField('updateStockLocation', t =>
     t.field({
       type: 'StockLocation',
       errors: { types: [ValidationError, NotFoundError, OptimisticLockError] },
@@ -61,22 +62,24 @@ export function registerStockLocationMutations(builder: any): void {
         input: t.arg({ type: 'UpdateStockLocationInput', required: true }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: Record<string, unknown>) => {
         const parsed = updateStockLocationSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
 
+        const id = (args.id as { id: string }).id
+        const version = args.version as number
         const service = await getService()
-        const existing = await service.find(Number(args.id.id))
+        const existing = await service.find(Number(id))
         if (!existing)
-          throw new NotFoundError('StockLocation', args.id.id)
+          throw new NotFoundError('StockLocation', id)
 
-        return service.update(Number(args.id.id), args.version, parsed.data)
+        return service.update(Number(id), version, parsed.data)
       },
     }))
 
   // ── deleteStockLocation ───────────────────────────────────────────────────
-  ;(builder as any).mutationField('deleteStockLocation', (t: any) =>
+  builder.mutationField('deleteStockLocation', t =>
     t.field({
       type: 'StockLocation',
       errors: { types: [NotFoundError, OptimisticLockError] },
@@ -85,18 +88,20 @@ export function registerStockLocationMutations(builder: any): void {
         version: t.arg.int({ required: true }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['delete'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: Record<string, unknown>) => {
+        const id = (args.id as { id: string }).id
+        const version = args.version as number
         const service = await getService()
-        const existing = await service.find(Number(args.id.id))
+        const existing = await service.find(Number(id))
         if (!existing)
-          throw new NotFoundError('StockLocation', args.id.id)
+          throw new NotFoundError('StockLocation', id)
 
-        return service.softDelete(Number(args.id.id), args.version)
+        return service.softDelete(Number(id), version)
       },
     }))
 
   // ── setStockLocationStatus ────────────────────────────────────────────────
-  ;(builder as any).mutationField('setStockLocationStatus', (t: any) =>
+  builder.mutationField('setStockLocationStatus', t =>
     t.field({
       type: 'StockLocation',
       errors: { types: [NotFoundError, OptimisticLockError] },
@@ -106,18 +111,21 @@ export function registerStockLocationMutations(builder: any): void {
         isActive: t.arg.boolean({ required: true }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: Record<string, unknown>) => {
+        const id = (args.id as { id: string }).id
+        const version = args.version as number
+        const isActive = args.isActive as boolean
         const service = await getService()
-        const existing = await service.find(Number(args.id.id))
+        const existing = await service.find(Number(id))
         if (!existing)
-          throw new NotFoundError('StockLocation', args.id.id)
+          throw new NotFoundError('StockLocation', id)
 
-        return service.setStatus(Number(args.id.id), args.version, args.isActive)
+        return service.setStatus(Number(id), version, isActive)
       },
     }))
 
   // ── setDefaultStockLocation ───────────────────────────────────────────────
-  ;(builder as any).mutationField('setDefaultStockLocation', (t: any) =>
+  builder.mutationField('setDefaultStockLocation', t =>
     t.field({
       type: 'StockLocation',
       errors: { types: [NotFoundError, OptimisticLockError] },
@@ -126,13 +134,15 @@ export function registerStockLocationMutations(builder: any): void {
         version: t.arg.int({ required: true }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: any, args: any) => {
+      resolve: async (_root: unknown, args: Record<string, unknown>) => {
+        const id = (args.id as { id: string }).id
+        const version = args.version as number
         const service = await getService()
-        const existing = await service.find(Number(args.id.id))
+        const existing = await service.find(Number(id))
         if (!existing)
-          throw new NotFoundError('StockLocation', args.id.id)
+          throw new NotFoundError('StockLocation', id)
 
-        return service.setDefault(Number(args.id.id), args.version)
+        return service.setDefault(Number(id), version)
       },
     }))
 }

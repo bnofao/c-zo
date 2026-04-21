@@ -1,13 +1,14 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { UnauthenticatedError } from '@czo/kit/graphql'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Two-Factor Queries ───────────────────────────────────────────────────────
 
-export function registerTwoFactorQueries(builder: any): void {
+export function registerTwoFactorQueries(builder: SchemaBuilder): void {
   // ── totpUri — get the TOTP URI for QR code generation ────────────────────
-  builder.queryField('totpUri', (t: any) =>
+  builder.queryField('totpUri', t =>
     t.field({
       type: 'String',
       nullable: true,
@@ -15,7 +16,7 @@ export function registerTwoFactorQueries(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { password: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 

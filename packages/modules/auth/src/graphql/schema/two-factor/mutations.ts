@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { BackupCodeInvalidError, TotpVerificationFailedError, TwoFactorNotEnabledError } from './errors'
@@ -8,9 +9,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Two-Factor Mutations ─────────────────────────────────────────────────────
 
-export function registerTwoFactorMutations(builder: any): void {
+export function registerTwoFactorMutations(builder: SchemaBuilder): void {
   // ── enableTwoFactor ───────────────────────────────────────────────────────
-  builder.mutationField('enableTwoFactor', (t: any) =>
+  builder.mutationField('enableTwoFactor', t =>
     t.field({
       type: 'String',
       nullable: true,
@@ -20,7 +21,7 @@ export function registerTwoFactorMutations(builder: any): void {
         issuer: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { password: string, issuer?: string | null }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -37,7 +38,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── disableTwoFactor ──────────────────────────────────────────────────────
-  builder.mutationField('disableTwoFactor', (t: any) =>
+  builder.mutationField('disableTwoFactor', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [UnauthenticatedError, TwoFactorNotEnabledError] },
@@ -45,7 +46,7 @@ export function registerTwoFactorMutations(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { password: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -58,7 +59,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── verifyTotp ────────────────────────────────────────────────────────────
-  builder.mutationField('verifyTotp', (t: any) =>
+  builder.mutationField('verifyTotp', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, TotpVerificationFailedError] },
@@ -66,7 +67,7 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyTotpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = verifyTotpSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -77,7 +78,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── verifyOtp ─────────────────────────────────────────────────────────────
-  builder.mutationField('verifyOtp', (t: any) =>
+  builder.mutationField('verifyOtp', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, TotpVerificationFailedError] },
@@ -85,7 +86,7 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyOtpInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = verifyOtpSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -96,7 +97,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── sendOtp ───────────────────────────────────────────────────────────────
-  builder.mutationField('sendOtp', (t: any) =>
+  builder.mutationField('sendOtp', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
@@ -111,7 +112,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── verifyBackupCode ──────────────────────────────────────────────────────
-  builder.mutationField('verifyBackupCode', (t: any) =>
+  builder.mutationField('verifyBackupCode', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, BackupCodeInvalidError] },
@@ -119,7 +120,7 @@ export function registerTwoFactorMutations(builder: any): void {
         input: t.arg({ type: 'VerifyBackupCodeInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = verifyBackupCodeSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -130,7 +131,7 @@ export function registerTwoFactorMutations(builder: any): void {
     }))
 
   // ── generateBackupCodes ───────────────────────────────────────────────────
-  builder.mutationField('generateBackupCodes', (t: any) =>
+  builder.mutationField('generateBackupCodes', t =>
     t.field({
       type: ['String'],
       errors: { types: [UnauthenticatedError, TwoFactorNotEnabledError] },
@@ -138,7 +139,7 @@ export function registerTwoFactorMutations(builder: any): void {
         password: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { password: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 

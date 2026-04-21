@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { createApiKeySchema, updateApiKeySchema } from './inputs'
@@ -7,9 +8,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── API Key Mutations ────────────────────────────────────────────────────────
 
-export function registerApiKeyMutations(builder: any): void {
+export function registerApiKeyMutations(builder: SchemaBuilder): void {
   // ── createApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('createApiKey', (t: any) =>
+  builder.mutationField('createApiKey', t =>
     t.field({
       // Returns a special object with the full key (only visible once)
       type: 'String',
@@ -18,7 +19,7 @@ export function registerApiKeyMutations(builder: any): void {
         input: t.arg({ type: 'CreateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
@@ -47,7 +48,7 @@ export function registerApiKeyMutations(builder: any): void {
     }))
 
   // ── deleteApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('deleteApiKey', (t: any) =>
+  builder.mutationField('deleteApiKey', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, UnauthenticatedError] },
@@ -55,7 +56,7 @@ export function registerApiKeyMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -65,7 +66,7 @@ export function registerApiKeyMutations(builder: any): void {
     }))
 
   // ── updateApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('updateApiKey', (t: any) =>
+  builder.mutationField('updateApiKey', t =>
     t.field({
       type: 'ApiKey',
       errors: { types: [ValidationError, NotFoundError, UnauthenticatedError] },
@@ -74,7 +75,7 @@ export function registerApiKeyMutations(builder: any): void {
         input: t.arg({ type: 'UpdateApiKeyInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, input: unknown }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 

@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotUnlinkLastAccountError, PasswordMismatchError } from './errors'
 import { changeEmailSchema, changePasswordSchema, deleteAccountSchema, updateProfileSchema } from './inputs'
@@ -7,9 +8,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Account Mutations ────────────────────────────────────────────────────────
 
-export function registerAccountMutations(builder: any): void {
+export function registerAccountMutations(builder: SchemaBuilder): void {
   // ── changeEmail ───────────────────────────────────────────────────────────
-  builder.mutationField('changeEmail', (t: any) =>
+  builder.mutationField('changeEmail', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, UnauthenticatedError] },
@@ -17,7 +18,7 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'ChangeEmailInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -31,7 +32,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── changePassword ────────────────────────────────────────────────────────
-  builder.mutationField('changePassword', (t: any) =>
+  builder.mutationField('changePassword', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, UnauthenticatedError, PasswordMismatchError] },
@@ -39,7 +40,7 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'ChangePasswordInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -53,7 +54,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── revokeMySession ───────────────────────────────────────────────────────
-  builder.mutationField('revokeMySession', (t: any) =>
+  builder.mutationField('revokeMySession', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
@@ -61,7 +62,7 @@ export function registerAccountMutations(builder: any): void {
         token: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { token: string }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -71,7 +72,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── revokeOtherSessions ───────────────────────────────────────────────────
-  builder.mutationField('revokeOtherSessions', (t: any) =>
+  builder.mutationField('revokeOtherSessions', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
@@ -86,7 +87,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── unlinkAccount ─────────────────────────────────────────────────────────
-  builder.mutationField('unlinkAccount', (t: any) =>
+  builder.mutationField('unlinkAccount', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, UnauthenticatedError, CannotUnlinkLastAccountError] },
@@ -95,7 +96,7 @@ export function registerAccountMutations(builder: any): void {
         accountId: t.arg.string({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { providerId: string, accountId?: string | null }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -108,7 +109,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── updateProfile ─────────────────────────────────────────────────────────
-  builder.mutationField('updateProfile', (t: any) =>
+  builder.mutationField('updateProfile', t =>
     t.field({
       type: 'User',
       errors: { types: [ValidationError, UnauthenticatedError] },
@@ -116,7 +117,7 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'UpdateProfileInput', required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 
@@ -132,7 +133,7 @@ export function registerAccountMutations(builder: any): void {
     }))
 
   // ── deleteAccount ─────────────────────────────────────────────────────────
-  builder.mutationField('deleteAccount', (t: any) =>
+  builder.mutationField('deleteAccount', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [ValidationError, UnauthenticatedError] },
@@ -140,7 +141,7 @@ export function registerAccountMutations(builder: any): void {
         input: t.arg({ type: 'DeleteAccountInput', required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input?: unknown }, ctx: Ctx) => {
         if (!ctx.auth?.user)
           throw new UnauthenticatedError()
 

@@ -1,13 +1,14 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { UnauthenticatedError } from '@czo/kit/graphql'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Queries ─────────────────────────────────────────────────────
 
-export function registerOrganizationQueries(builder: any): void {
+export function registerOrganizationQueries(builder: SchemaBuilder): void {
   // ── organization(id) — single org by ID ──────────────────────────────────
-  builder.queryField('organization', (t: any) =>
+  builder.queryField('organization', t =>
     t.drizzleField({
       type: 'organizations',
       nullable: true,
@@ -15,46 +16,45 @@ export function registerOrganizationQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query: any, _root: unknown, args: any) => {
+      resolve: async (query, _root: unknown, args: Record<string, unknown>) => {
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any
-        return db.query.organizations.findFirst(
-          query({ where: (o: any, { eq }: any) => eq(o.id, String(args.id)) }),
-        )
+        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
+        return db.query.organizations.findFirst(query({ where: (o: any, { eq }: any) => eq(o.id, String(args.id)) } as any))
       },
     }))
 
   // ── organizations(connection) — paginated list ────────────────────────────
-  builder.queryField('organizations', (t: any) =>
+  builder.queryField('organizations', t =>
     t.drizzleConnection({
       type: 'organizations',
       args: {
         search: t.arg.string({ required: false }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query: any, _root: unknown, args: any) => {
+      resolve: async (query, _root: unknown, args: any) => { // Pothos drizzleConnection args: complex inferred type requires any here
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any
-        return db.query.organizations.findMany(
-          query({
-            where: args.search
-              ? (o: any, { ilike }: any) => ilike(o.name, `%${args.search}%`)
-              : undefined,
-          }),
-        )
+        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        const search = args.search as string | null | undefined
+        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
+        return db.query.organizations.findMany(query({
+          where: search
+            ? (o: any, { ilike }: any) => ilike(o.name, `%${search}%`)
+            : undefined,
+        } as any))
       },
       edgesField: {},
     }))
 
   // ── checkSlug(slug) — verify organization slug availability ───────────────
-  builder.queryField('checkSlug', (t: any) =>
+  builder.queryField('checkSlug', t =>
     t.field({
       type: 'Boolean',
       args: {
         slug: t.arg.string({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { slug: string }, ctx: Ctx) => {
         const result = await ctx.auth.organizationService.checkSlug(args.slug)
         // result.status is a boolean: true means slug is available (not taken)
         return result?.status ?? false
@@ -63,14 +63,14 @@ export function registerOrganizationQueries(builder: any): void {
 
   // ── members(organizationId) — list members of an org ─────────────────────
   // Direct service call since org members don't appear in authRelations
-  builder.queryField('members', (t: any) =>
+  builder.queryField('members', t =>
     t.field({
       type: ['Member'],
       args: {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { organizationId: string }, ctx: Ctx) => {
         const result = await ctx.auth.organizationService.listMembers(
           { organizationId: String(args.organizationId) },
         )
@@ -79,7 +79,7 @@ export function registerOrganizationQueries(builder: any): void {
     }))
 
   // ── invitation(id) — single invitation by ID ─────────────────────────────
-  builder.queryField('invitation', (t: any) =>
+  builder.queryField('invitation', t =>
     t.field({
       type: 'Invitation',
       nullable: true,
@@ -87,20 +87,20 @@ export function registerOrganizationQueries(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         return ctx.auth.organizationService.getInvitation(String(args.id))
       },
     }))
 
   // ── invitations(organizationId) — list invitations for an org ────────────
-  builder.queryField('invitations', (t: any) =>
+  builder.queryField('invitations', t =>
     t.field({
       type: ['Invitation'],
       args: {
         organizationId: t.arg.id({ required: false }),
       },
       authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { organizationId?: string | null }, ctx: Ctx) => {
         const result = await ctx.auth.organizationService.listInvitations(
           args.organizationId ? String(args.organizationId) : undefined,
         )
@@ -109,7 +109,7 @@ export function registerOrganizationQueries(builder: any): void {
     }))
 
   // ── myInvitations — invitations for the authenticated user ────────────────
-  builder.queryField('myInvitations', (t: any) =>
+  builder.queryField('myInvitations', t =>
     t.field({
       type: ['Invitation'],
       authScopes: { loggedIn: true },
@@ -124,7 +124,7 @@ export function registerOrganizationQueries(builder: any): void {
     }))
 
   // ── activeMember — the active member record for the authenticated user ────
-  builder.queryField('activeMember', (t: any) =>
+  builder.queryField('activeMember', t =>
     t.field({
       type: 'Member',
       nullable: true,
@@ -138,7 +138,7 @@ export function registerOrganizationQueries(builder: any): void {
     }))
 
   // ── activeMemberRole — role of the active member ──────────────────────────
-  builder.queryField('activeMemberRole', (t: any) =>
+  builder.queryField('activeMemberRole', t =>
     t.field({
       type: 'String',
       nullable: true,

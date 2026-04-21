@@ -1,10 +1,11 @@
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { useDatabase, withNotDeleted } from '@czo/kit/db'
 
 // ─── Stock Location Queries ───────────────────────────────────────────────────
 
-export function registerStockLocationQueries(builder: any): void {
+export function registerStockLocationQueries(builder: SchemaBuilder): void {
   // ── stockLocation(id) — single stock location by global ID ────────────────
-  (builder as any).queryField('stockLocation', (t: any) =>
+  builder.queryField('stockLocation', t =>
     t.drizzleField({
       type: 'stockLocations',
       nullable: true,
@@ -12,18 +13,19 @@ export function registerStockLocationQueries(builder: any): void {
         id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
       },
       authScopes: { permission: { resource: 'stock-location', actions: ['read'] } },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query, _root: unknown, args: Record<string, unknown>) => {
         const db = await useDatabase()
-        return (db as any).query.stockLocations.findFirst(
+        const id = (args.id as { id: string }).id
+        return (db as any).query.stockLocations.findFirst( // db.query.* shape not available without full schema generic threading
           query({
-            where: withNotDeleted({ id: Number(args.id.id) }),
+            where: withNotDeleted({ id: Number(id) }),
           }),
         )
       },
     }))
 
   // ── stockLocations — paginated connection with optional filters ────────────
-  ;(builder as any).queryField('stockLocations', (t: any) =>
+  builder.queryField('stockLocations', t =>
     t.drizzleConnection({
       type: 'stockLocations',
       authScopes: { permission: { resource: 'stock-location', actions: ['read'] } },
@@ -32,14 +34,17 @@ export function registerStockLocationQueries(builder: any): void {
         isActive: t.arg.boolean(),
         isDefault: t.arg.boolean(),
       },
-      resolve: async (query: any, _root: any, args: any) => {
+      resolve: async (query, _root: unknown, args: any) => { // Pothos drizzleConnection with globalID args: complex inferred type requires any here
         const db = await useDatabase()
-        return (db as any).query.stockLocations.findMany(
+        const organizationId = args.organizationId as { id: string } | null | undefined
+        const isActive = args.isActive as boolean | null | undefined
+        const isDefault = args.isDefault as boolean | null | undefined
+        return (db as any).query.stockLocations.findMany( // db.query.* shape not available without full schema generic threading
           query({
             where: withNotDeleted({
-              ...(args.organizationId && { organizationId: args.organizationId.id }),
-              ...(args.isActive !== null && args.isActive !== undefined && { isActive: args.isActive }),
-              ...(args.isDefault !== null && args.isDefault !== undefined && { isDefault: args.isDefault }),
+              ...(organizationId && { organizationId: organizationId.id }),
+              ...(isActive !== null && isActive !== undefined && { isActive }),
+              ...(isDefault !== null && isDefault !== undefined && { isDefault }),
             }),
             orderBy: { createdAt: 'desc' },
           }),

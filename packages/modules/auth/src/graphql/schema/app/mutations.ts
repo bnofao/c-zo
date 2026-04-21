@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { AppHandleTakenError, AppManifestInvalidError, AppNotInstalledError } from './errors'
@@ -8,9 +9,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── App Mutations ────────────────────────────────────────────────────────────
 
-export function registerAppMutations(builder: any): void {
+export function registerAppMutations(builder: SchemaBuilder): void {
   // ── installApp — install from manifest URL ────────────────────────────────
-  builder.mutationField('installApp', (t: any) =>
+  builder.mutationField('installApp', t =>
     t.field({
       type: 'App',
       errors: { types: [ValidationError, AppHandleTakenError, AppManifestInvalidError] },
@@ -18,7 +19,7 @@ export function registerAppMutations(builder: any): void {
         input: t.arg({ type: 'InstallAppInput', required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['install'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { manifestUrl: string, organizationId?: string | null } }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
@@ -44,12 +45,13 @@ export function registerAppMutations(builder: any): void {
 
           return result
         }
-        catch (err: any) {
-          if (err?.message?.includes('already installed')) {
-            throw new AppHandleTakenError(err.message)
+        catch (err: unknown) {
+          const e = err as { message?: string }
+          if (e?.message?.includes('already installed')) {
+            throw new AppHandleTakenError(e.message ?? '')
           }
-          if (err?.message?.includes('manifest')) {
-            throw new AppManifestInvalidError(err.message)
+          if (e?.message?.includes('manifest')) {
+            throw new AppManifestInvalidError(e.message ?? '')
           }
           throw err
         }
@@ -57,7 +59,7 @@ export function registerAppMutations(builder: any): void {
     }))
 
   // ── uninstallApp ──────────────────────────────────────────────────────────
-  builder.mutationField('uninstallApp', (t: any) =>
+  builder.mutationField('uninstallApp', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, AppNotInstalledError] },
@@ -65,7 +67,7 @@ export function registerAppMutations(builder: any): void {
         appId: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['uninstall'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { appId: string }, ctx: Ctx) => {
         try {
           await ctx.auth.appService.uninstall(args.appId)
 
@@ -73,8 +75,9 @@ export function registerAppMutations(builder: any): void {
 
           return true
         }
-        catch (err: any) {
-          if (err?.message?.includes('not found')) {
+        catch (err: unknown) {
+          const e = err as { message?: string }
+          if (e?.message?.includes('not found')) {
             throw new AppNotInstalledError(args.appId)
           }
           throw err
@@ -83,7 +86,7 @@ export function registerAppMutations(builder: any): void {
     }))
 
   // ── updateAppManifest — update manifest for an installed app ──────────────
-  builder.mutationField('updateAppManifest', (t: any) =>
+  builder.mutationField('updateAppManifest', t =>
     t.field({
       type: 'App',
       errors: { types: [ValidationError, NotFoundError, AppManifestInvalidError] },
@@ -92,7 +95,7 @@ export function registerAppMutations(builder: any): void {
         manifest: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: { appId: string }, manifest: string }, ctx: Ctx) => {
         let parsedManifest: unknown
         try {
           parsedManifest = JSON.parse(args.manifest)
@@ -114,14 +117,15 @@ export function registerAppMutations(builder: any): void {
 
           return result
         }
-        catch (err: any) {
+        catch (err: unknown) {
           if (err instanceof NotFoundError || err instanceof AppManifestInvalidError)
             throw err
-          if (err?.message?.includes('not found')) {
+          const e = err as { message?: string, name?: string }
+          if (e?.message?.includes('not found')) {
             throw new NotFoundError('App', args.input.appId)
           }
-          if (err?.message?.includes('manifest') || err?.name === 'ZodError') {
-            throw new AppManifestInvalidError(err.message)
+          if (e?.message?.includes('manifest') || e?.name === 'ZodError') {
+            throw new AppManifestInvalidError(e.message ?? '')
           }
           throw err
         }
@@ -129,7 +133,7 @@ export function registerAppMutations(builder: any): void {
     }))
 
   // ── setAppStatus — activate, disable, or mark app as error ───────────────
-  builder.mutationField('setAppStatus', (t: any) =>
+  builder.mutationField('setAppStatus', t =>
     t.field({
       type: 'App',
       errors: { types: [ValidationError, NotFoundError] },
@@ -137,7 +141,7 @@ export function registerAppMutations(builder: any): void {
         input: t.arg({ type: 'SetAppStatusInput', required: true }),
       },
       authScopes: { permission: { resource: 'apps', actions: ['update'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = setAppStatusSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -158,10 +162,11 @@ export function registerAppMutations(builder: any): void {
 
           return result
         }
-        catch (err: any) {
+        catch (err: unknown) {
           if (err instanceof NotFoundError)
             throw err
-          if (err?.message?.includes('not found')) {
+          const e = err as { message?: string }
+          if (e?.message?.includes('not found')) {
             throw new NotFoundError('App', parsed.data.appId)
           }
           throw err

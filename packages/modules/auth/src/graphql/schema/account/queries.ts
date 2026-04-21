@@ -1,31 +1,31 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { UnauthenticatedError } from '@czo/kit/graphql'
 
 interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Account Queries ──────────────────────────────────────────────────────────
 
-export function registerAccountQueries(builder: any): void {
+export function registerAccountQueries(builder: SchemaBuilder): void {
   // ── me — the currently authenticated user ─────────────────────────────────
-  builder.queryField('me', (t: any) =>
+  builder.queryField('me', t =>
     t.drizzleField({
       type: 'users',
       nullable: true,
-      resolve: async (query: any, _root: unknown, _args: unknown, ctx: Ctx) => {
+      resolve: async (query, _root: unknown, _args: unknown, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           return null
 
         const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any
-        return db.query.users.findFirst(
-          query({ where: (u: any, { eq }: any) => eq(u.id, String(authUser.id)) }),
-        )
+        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
+        return db.query.users.findFirst(query({ where: (u: any, { eq }: any) => eq(u.id, String(authUser.id)) } as any))
       },
     }))
 
   // ── myAccounts — linked OAuth / credential accounts for the current user ──
-  builder.queryField('myAccounts', (t: any) =>
+  builder.queryField('myAccounts', t =>
     t.field({
       type: ['LinkedAccount'],
       authScopes: { loggedIn: true },
@@ -40,7 +40,7 @@ export function registerAccountQueries(builder: any): void {
 
   // ── mySessions — active sessions for the current user ────────────────────
   // Uses MySession (not admin Session) — self-service view with token exposed
-  builder.queryField('mySessions', (t: any) =>
+  builder.queryField('mySessions', t =>
     t.field({
       type: ['MySession'],
       authScopes: { loggedIn: true },
@@ -54,7 +54,7 @@ export function registerAccountQueries(builder: any): void {
     }))
 
   // ── accountInfo — raw account info from better-auth ───────────────────────
-  builder.queryField('accountInfo', (t: any) =>
+  builder.queryField('accountInfo', t =>
     t.field({
       type: 'LinkedAccount',
       nullable: true,

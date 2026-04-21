@@ -1,4 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
+import type { SchemaBuilder } from '@czo/kit/graphql'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { CannotBanSelfError, CannotDemoteSelfError, UserAlreadyBannedError } from './errors'
@@ -8,9 +9,9 @@ interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── User Mutations ───────────────────────────────────────────────────────────
 
-export function registerUserMutations(builder: any): void {
+export function registerUserMutations(builder: SchemaBuilder): void {
   // ── createUser ────────────────────────────────────────────────────────────
-  builder.mutationField('createUser', (t: any) =>
+  builder.mutationField('createUser', t =>
     t.field({
       type: 'User',
       errors: { types: [ValidationError, NotFoundError] },
@@ -18,7 +19,7 @@ export function registerUserMutations(builder: any): void {
         input: t.arg({ type: 'CreateUserInput', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { input: unknown }, ctx: Ctx) => {
         const parsed = createUserSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -37,7 +38,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── updateUser ────────────────────────────────────────────────────────────
-  builder.mutationField('updateUser', (t: any) =>
+  builder.mutationField('updateUser', t =>
     t.field({
       type: 'User',
       errors: { types: [ValidationError, NotFoundError] },
@@ -46,7 +47,7 @@ export function registerUserMutations(builder: any): void {
         input: t.arg({ type: 'UpdateUserInput', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, input: unknown }, ctx: Ctx) => {
         const parsed = updateUserSchema.safeParse(args.input)
         if (!parsed.success)
           throw ValidationError.fromZod(parsed.error as any)
@@ -67,7 +68,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── banUser ───────────────────────────────────────────────────────────────
-  builder.mutationField('banUser', (t: any) =>
+  builder.mutationField('banUser', t =>
     t.field({
       type: 'User',
       errors: { types: [NotFoundError, ForbiddenError, CannotBanSelfError, UserAlreadyBannedError] },
@@ -77,7 +78,7 @@ export function registerUserMutations(builder: any): void {
         expiresIn: t.arg.int({ required: false }),
       },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, reason?: string | null, expiresIn?: number | null }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (authUser?.id === String(args.id))
           throw new CannotBanSelfError()
@@ -104,7 +105,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── unbanUser ─────────────────────────────────────────────────────────────
-  builder.mutationField('unbanUser', (t: any) =>
+  builder.mutationField('unbanUser', t =>
     t.field({
       type: 'User',
       errors: { types: [NotFoundError] },
@@ -112,7 +113,7 @@ export function registerUserMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         const result = await ctx.auth.userService.unban(String(args.id))
         if (!result)
           throw new NotFoundError('User', String(args.id))
@@ -127,7 +128,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── setRole ───────────────────────────────────────────────────────────────
-  builder.mutationField('setRole', (t: any) =>
+  builder.mutationField('setRole', t =>
     t.field({
       type: 'User',
       errors: { types: [NotFoundError, ForbiddenError, CannotDemoteSelfError] },
@@ -136,7 +137,7 @@ export function registerUserMutations(builder: any): void {
         role: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['setRole'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, role: string }, ctx: Ctx) => {
         const authUser = ctx.auth?.user
         if (authUser?.id === String(args.id))
           throw new CannotDemoteSelfError()
@@ -151,7 +152,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── setUserPassword ───────────────────────────────────────────────────────
-  builder.mutationField('setUserPassword', (t: any) =>
+  builder.mutationField('setUserPassword', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -160,7 +161,7 @@ export function registerUserMutations(builder: any): void {
         newPassword: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['setPassword'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string, newPassword: string }, ctx: Ctx) => {
         await ctx.auth.userService.setPassword(
           { userId: String(args.id), newPassword: args.newPassword },
           ctx.request?.headers ?? new Headers(),
@@ -170,7 +171,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── removeUser ────────────────────────────────────────────────────────────
-  builder.mutationField('removeUser', (t: any) =>
+  builder.mutationField('removeUser', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -178,14 +179,14 @@ export function registerUserMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['delete'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         await ctx.auth.userService.remove(String(args.id))
         return true
       },
     }))
 
   // ── impersonateUser ───────────────────────────────────────────────────────
-  builder.mutationField('impersonateUser', (t: any) =>
+  builder.mutationField('impersonateUser', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError, ForbiddenError] },
@@ -193,14 +194,14 @@ export function registerUserMutations(builder: any): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['impersonate'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
         await ctx.auth.userService.impersonate(String(args.id), ctx.request?.headers ?? new Headers())
         return true
       },
     }))
 
   // ── stopImpersonation ─────────────────────────────────────────────────────
-  builder.mutationField('stopImpersonation', (t: any) =>
+  builder.mutationField('stopImpersonation', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [UnauthenticatedError] },
@@ -215,7 +216,7 @@ export function registerUserMutations(builder: any): void {
     }))
 
   // ── revokeSession ─────────────────────────────────────────────────────────
-  builder.mutationField('revokeSession', (t: any) =>
+  builder.mutationField('revokeSession', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -223,14 +224,14 @@ export function registerUserMutations(builder: any): void {
         sessionToken: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { sessionToken: string }, ctx: Ctx) => {
         await ctx.auth.userService.revokeSession(args.sessionToken, ctx.request?.headers ?? new Headers())
         return true
       },
     }))
 
   // ── revokeSessions ────────────────────────────────────────────────────────
-  builder.mutationField('revokeSessions', (t: any) =>
+  builder.mutationField('revokeSessions', t =>
     t.field({
       type: 'Boolean',
       errors: { types: [NotFoundError] },
@@ -238,7 +239,7 @@ export function registerUserMutations(builder: any): void {
         userId: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
-      resolve: async (_root: unknown, args: any, ctx: Ctx) => {
+      resolve: async (_root: unknown, args: { userId: string }, ctx: Ctx) => {
         await ctx.auth.userService.revokeSessions(String(args.userId), ctx.request?.headers ?? new Headers())
         return true
       },
