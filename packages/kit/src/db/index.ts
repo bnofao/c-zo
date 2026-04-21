@@ -17,8 +17,11 @@ export type { DbMetrics, RepositoryInstrumentationOptions } from './instrumentat
 export { useDatabase } from './manager'
 export type { Database } from './manager'
 
-// Re-export repository builders
-export * from './repository'
+// Re-export new DB helpers
+export * from './errors'
+export * from './scope'
+export * from './optimistic'
+// NB: repository.ts a été déplacé dans old/ — plus exporté
 
 // Schema registry for dynamic module schema registration
 export { registeredRelations, registeredSchemas, registerRelations, registerSchema } from './schema-registry'

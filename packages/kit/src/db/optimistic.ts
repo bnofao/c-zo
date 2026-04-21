@@ -1,7 +1,7 @@
 import type { PgTable } from 'drizzle-orm/pg-core'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { and, eq, sql } from 'drizzle-orm'
-import type { Database } from './manager'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { OptimisticLockError } from './errors'
 
 type TableWithVersion = PgTable & {
@@ -11,7 +11,7 @@ type TableWithVersion = PgTable & {
 }
 
 export interface OptimisticUpdateParams<T extends TableWithVersion> {
-  db: Database
+  db: NodePgDatabase<any, any>
   table: T
   id: number | string
   expectedVersion: number
@@ -21,23 +21,24 @@ export interface OptimisticUpdateParams<T extends TableWithVersion> {
 export async function optimisticUpdate<T extends TableWithVersion>(
   { db, table, id, expectedVersion, values }: OptimisticUpdateParams<T>,
 ): Promise<InferSelectModel<T>> {
-  const updated = await db
+  const updated = await (db as any)
     .update(table)
     .set({
       ...values,
       version: sql`${table.version} + 1`,
       updatedAt: sql`NOW()`,
-    } as any)
+    })
     .where(and(eq(table.id, id), eq(table.version, expectedVersion)))
-    .returning()
+    .returning() as unknown[]
 
   if (updated.length === 0) {
-    const [current] = await db
+    const rows = await (db as any)
       .select({ version: table.version })
       .from(table)
       .where(eq(table.id, id))
-      .limit(1)
+      .limit(1) as Array<{ version: number }>
 
+    const current = rows[0]
     throw new OptimisticLockError(id, expectedVersion, current?.version ?? null)
   }
 
