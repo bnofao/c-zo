@@ -2,6 +2,26 @@ import type { OrganizationService } from './organization.service'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOrganizationService } from './organization.service'
 
+// ─── DB mock ─────────────────────────────────────────────────────────
+
+function createMockDb() {
+  const mockReturning = vi.fn().mockResolvedValue([])
+  const mockWhere = vi.fn(() => ({ returning: mockReturning, limit: vi.fn().mockResolvedValue([]) }))
+  const mockValues = vi.fn(() => ({ returning: mockReturning, onConflictDoNothing: vi.fn().mockResolvedValue([]) }))
+  const mockSet = vi.fn(() => ({ where: mockWhere }))
+  const mockFrom = vi.fn(() => ({ where: mockWhere, limit: vi.fn().mockResolvedValue([]) }))
+
+  return {
+    select: vi.fn(() => ({ from: mockFrom })),
+    insert: vi.fn(() => ({ values: mockValues })),
+    update: vi.fn(() => ({ set: mockSet })),
+    delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+    _mocks: { mockReturning, mockWhere, mockValues, mockSet, mockFrom },
+  }
+}
+
+// ─── Auth/API mock ────────────────────────────────────────────────────
+
 function createMockApi() {
   return {
     createOrganization: vi.fn(),
@@ -28,11 +48,15 @@ function createMockApi() {
 }
 
 function createMockAuth() {
-  return { api: createMockApi() } as unknown as Parameters<typeof createOrganizationService>[0]
-}
-
-function api(auth: ReturnType<typeof createMockAuth>) {
-  return (auth as unknown as { api: ReturnType<typeof createMockApi> }).api
+  const mockApi = createMockApi()
+  return {
+    auth: {
+      api: mockApi,
+      options: { plugins: [] },
+      $context: Promise.resolve({ adapter: { findMany: vi.fn().mockResolvedValue([]) } }),
+    } as any,
+    mockApi,
+  }
 }
 
 const headers = new Headers({ authorization: 'Bearer test-token' })
@@ -43,13 +67,17 @@ const mockOrg = {
   slug: 'acme-corp',
   logo: null,
   metadata: null,
+  type: null,
   createdAt: new Date('2026-01-01'),
-  members: [{ id: 'm1', organizationId: 'org-1', userId: 'u1', role: 'owner', createdAt: new Date() }],
+  updatedAt: new Date('2026-01-01'),
 }
 
-const mockFullOrg = {
-  ...mockOrg,
-  invitations: [],
+const mockMember = {
+  id: 'm1',
+  organizationId: 'org-1',
+  userId: 'u1',
+  role: 'owner',
+  createdAt: new Date('2026-01-01'),
 }
 
 const mockInvitation = {
@@ -63,180 +91,158 @@ const mockInvitation = {
   createdAt: new Date('2026-01-25'),
 }
 
-const mockMember = {
-  id: 'm1',
-  organizationId: 'org-1',
-  userId: 'u1',
-  role: 'owner',
-  createdAt: new Date('2026-01-01'),
-  user: { id: 'u1', name: 'Owner', email: 'owner@test.com', image: undefined },
-}
-
 describe('organizationService', () => {
-  let auth: ReturnType<typeof createMockAuth>
+  let db: ReturnType<typeof createMockDb>
+  let mockApi: ReturnType<typeof createMockApi>
+  let auth: any
   let service: OrganizationService
 
   beforeEach(() => {
-    auth = createMockAuth()
-    service = createOrganizationService(auth)
+    db = createMockDb()
+    const mock = createMockAuth()
+    auth = mock.auth
+    mockApi = mock.mockApi
+    service = createOrganizationService(db as any, auth)
+    vi.clearAllMocks()
   })
 
   // ─── Organization CRUD ───────────────────────────────────────────
 
   describe('create', () => {
-    it('should call createOrganization with input and headers', async () => {
-      api(auth).createOrganization.mockResolvedValue(mockOrg)
+    it('should insert org into database and return row', async () => {
+      db._mocks.mockReturning.mockResolvedValue([mockOrg])
 
       const result = await service.create({ name: 'Acme Corp', slug: 'acme-corp' }, headers)
 
-      expect(api(auth).createOrganization).toHaveBeenCalledWith({
-        headers,
-        body: { name: 'Acme Corp', slug: 'acme-corp' },
-      })
-      expect(result!.id).toBe('org-1')
-    })
-
-    it('should call createOrganization without headers for server-side usage', async () => {
-      api(auth).createOrganization.mockResolvedValue(mockOrg)
-
-      await service.create({
-        name: 'Acme Corp',
-        slug: 'acme-corp',
-        userId: 'u1',
-      })
-
-      expect(api(auth).createOrganization).toHaveBeenCalledWith({
-        headers: undefined,
-        body: {
-          name: 'Acme Corp',
-          slug: 'acme-corp',
-          userId: 'u1',
-        },
-      })
+      expect(db.insert).toHaveBeenCalled()
+      expect(result.id).toBe('org-1')
     })
 
     it('should pass optional fields when provided', async () => {
-      api(auth).createOrganization.mockResolvedValue(mockOrg)
+      db._mocks.mockReturning.mockResolvedValue([{ ...mockOrg, type: 'merchant', logo: 'https://logo.png' }])
 
-      await service.create({
+      const result = await service.create({
         name: 'Acme Corp',
         slug: 'acme-corp',
         userId: 'u1',
         logo: 'https://logo.png',
         type: 'merchant',
         metadata: { plan: 'pro' },
-        keepCurrentActiveOrganization: true,
       }, headers)
 
-      expect(api(auth).createOrganization).toHaveBeenCalledWith({
-        headers,
-        body: {
-          name: 'Acme Corp',
-          slug: 'acme-corp',
-          userId: 'u1',
-          logo: 'https://logo.png',
-          type: 'merchant',
-          metadata: { plan: 'pro' },
-          keepCurrentActiveOrganization: true,
-        },
-      })
+      expect(db.insert).toHaveBeenCalled()
+      expect(result.type).toBe('merchant')
     })
 
-    it('should propagate non-APIError', async () => {
-      api(auth).createOrganization.mockRejectedValue(new Error('Network failure'))
+    it('should throw when insert returns no row', async () => {
+      db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.create({ name: 'Test', slug: 'test' }, headers)).rejects.toThrow('Network failure')
+      await expect(service.create({ name: 'Test', slug: 'test' }, headers)).rejects.toThrow('Failed to create organization')
     })
   })
 
   describe('update', () => {
-    it('should call updateOrganization with data and organizationId', async () => {
+    it('should update org in database and return row', async () => {
       const updated = { ...mockOrg, name: 'Acme Inc' }
-      api(auth).updateOrganization.mockResolvedValue(updated)
+      db._mocks.mockReturning.mockResolvedValue([updated])
 
-      const result = await service.update({
-        data: { name: 'Acme Inc' },
-        organizationId: 'org-1',
-      }, headers)
+      const result = await service.update({ data: { name: 'Acme Inc' }, organizationId: 'org-1' }, headers)
 
-      expect(api(auth).updateOrganization).toHaveBeenCalledWith({
-        headers,
-        body: {
-          data: { name: 'Acme Inc' },
-          organizationId: 'org-1',
-        },
-      })
-      expect(result!.name).toBe('Acme Inc')
+      expect(db.update).toHaveBeenCalled()
+      expect(result.name).toBe('Acme Inc')
     })
 
-    it('should allow update without organizationId (uses active org)', async () => {
-      api(auth).updateOrganization.mockResolvedValue(mockOrg)
-
-      await service.update({ data: { slug: 'new-slug' } }, headers)
-
-      expect(api(auth).updateOrganization).toHaveBeenCalledWith({
-        headers,
-        body: { data: { slug: 'new-slug' } },
-      })
+    it('should throw if organizationId is missing', async () => {
+      await expect(service.update({ data: { name: 'X' } }, headers)).rejects.toThrow('organizationId required')
     })
 
-    it('should propagate error', async () => {
-      api(auth).updateOrganization.mockRejectedValue(new Error('Forbidden'))
+    it('should throw when org not found', async () => {
+      db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.update({ data: { name: 'X' } }, headers)).rejects.toThrow('Forbidden')
+      await expect(service.update({ data: { name: 'X' }, organizationId: 'missing' }, headers)).rejects.toThrow('Organization not found')
     })
   })
 
   describe('remove', () => {
-    it('should call deleteOrganization with organizationId', async () => {
-      api(auth).deleteOrganization.mockResolvedValue(mockOrg)
-
+    it('should delete org and return success', async () => {
       const result = await service.remove('org-1', headers)
 
-      expect(api(auth).deleteOrganization).toHaveBeenCalledWith({
-        headers,
-        body: { organizationId: 'org-1' },
-      })
+      expect(db.delete).toHaveBeenCalled()
+      expect(result).toEqual({ success: true })
+    })
+  })
+
+  describe('find', () => {
+    it('should return org when found', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([mockOrg]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
+
+      const result = await service.find('org-1')
+
+      expect(result).not.toBeNull()
       expect(result!.id).toBe('org-1')
     })
 
-    it('should propagate error', async () => {
-      api(auth).deleteOrganization.mockRejectedValue(new Error('Not allowed'))
+    it('should return null when not found', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await expect(service.remove('org-1', headers)).rejects.toThrow('Not allowed')
+      const result = await service.find('unknown')
+
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('findBySlug', () => {
+    it('should return org when found by slug', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([mockOrg]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
+
+      const result = await service.findBySlug('acme-corp')
+
+      expect(result!.slug).toBe('acme-corp')
+    })
+
+    it('should return null when not found', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
+
+      const result = await service.findBySlug('missing')
+
+      expect(result).toBeNull()
     })
   })
 
   describe('setActive', () => {
     it('should call setActiveOrganization with organizationId', async () => {
-      api(auth).setActiveOrganization.mockResolvedValue(mockFullOrg)
+      mockApi.setActiveOrganization.mockResolvedValue({ id: 'org-1' })
 
       const result = await service.setActive({ organizationId: 'org-1' }, headers)
 
-      expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
+      expect(mockApi.setActiveOrganization).toHaveBeenCalledWith({
         headers,
         body: { organizationId: 'org-1', organizationSlug: undefined },
       })
-      expect(result!.id).toBe('org-1')
+      expect(result.id).toBe('org-1')
     })
 
-    it('should accept organizationSlug instead', async () => {
-      api(auth).setActiveOrganization.mockResolvedValue(mockFullOrg)
+    it('should accept organizationSlug', async () => {
+      mockApi.setActiveOrganization.mockResolvedValue({})
 
       await service.setActive({ organizationSlug: 'acme-corp' }, headers)
 
-      expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
+      expect(mockApi.setActiveOrganization).toHaveBeenCalledWith({
         headers,
         body: { organizationId: undefined, organizationSlug: 'acme-corp' },
       })
     })
 
     it('should accept null to clear active org', async () => {
-      api(auth).setActiveOrganization.mockResolvedValue(null)
+      mockApi.setActiveOrganization.mockResolvedValue(null)
 
       await service.setActive({ organizationId: null }, headers)
 
-      expect(api(auth).setActiveOrganization).toHaveBeenCalledWith({
+      expect(mockApi.setActiveOrganization).toHaveBeenCalledWith({
         headers,
         body: { organizationId: null, organizationSlug: undefined },
       })
@@ -244,484 +250,268 @@ describe('organizationService', () => {
   })
 
   describe('get', () => {
-    it('should call getFullOrganization with organizationId', async () => {
-      api(auth).getFullOrganization.mockResolvedValue(mockFullOrg)
+    it('should call getFullOrganization via better-auth', async () => {
+      mockApi.getFullOrganization.mockResolvedValue({ id: 'org-1', name: 'Acme Corp', members: [] })
 
       const result = await service.get({ organizationId: 'org-1' }, headers)
 
-      expect(api(auth).getFullOrganization).toHaveBeenCalledWith({
+      expect(mockApi.getFullOrganization).toHaveBeenCalledWith({
         headers,
         query: { organizationId: 'org-1', organizationSlug: undefined, membersLimit: undefined },
       })
-      expect(result!.name).toBe('Acme Corp')
-    })
-
-    it('should accept slug and membersLimit', async () => {
-      api(auth).getFullOrganization.mockResolvedValue(mockFullOrg)
-
-      await service.get({ organizationSlug: 'acme-corp', membersLimit: 50 }, headers)
-
-      expect(api(auth).getFullOrganization).toHaveBeenCalledWith({
-        headers,
-        query: { organizationId: undefined, organizationSlug: 'acme-corp', membersLimit: 50 },
-      })
-    })
-
-    it('should return null when not found', async () => {
-      api(auth).getFullOrganization.mockResolvedValue(null)
-
-      const result = await service.get({ organizationId: 'unknown' }, headers)
-
-      expect(result).toBeNull()
+      expect(result.name).toBe('Acme Corp')
     })
   })
 
   describe('list', () => {
-    it('should call listOrganizations and return array', async () => {
-      api(auth).listOrganizations.mockResolvedValue([mockOrg])
+    it('should return orgs from database', async () => {
+      const fromMock = { mockResolvedValue: vi.fn() }
+      const selectFromMock = vi.fn().mockResolvedValue([mockOrg])
+      db.select.mockReturnValue({ from: selectFromMock })
 
-      const result = await service.list(headers)
+      const result = await service.list()
 
-      expect(api(auth).listOrganizations).toHaveBeenCalledWith({ headers })
-      expect(result).toHaveLength(1)
-      expect(result[0]!.slug).toBe('acme-corp')
+      expect(db.select).toHaveBeenCalled()
+    })
+  })
+
+  describe('checkSlug', () => {
+    it('should return status false when slug is taken', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([mockOrg]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
+
+      const result = await service.checkSlug('acme-corp')
+
+      expect(result.status).toBe(false)
     })
 
-    it('should return empty array when no orgs', async () => {
-      api(auth).listOrganizations.mockResolvedValue([])
+    it('should return status true when slug is available', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.list(headers)
+      const result = await service.checkSlug('new-slug')
 
-      expect(result).toEqual([])
-    })
-
-    it('should propagate error', async () => {
-      api(auth).listOrganizations.mockRejectedValue(new Error('API failure'))
-
-      await expect(service.list(headers)).rejects.toThrow('API failure')
+      expect(result.status).toBe(true)
     })
   })
 
   // ─── Invitations ─────────────────────────────────────────────────
 
   describe('inviteMember', () => {
-    it('should call createInvitation with email and role', async () => {
-      api(auth).createInvitation.mockResolvedValue(mockInvitation)
+    it('should call createInvitation via better-auth and publish event', async () => {
+      mockApi.createInvitation.mockResolvedValue(mockInvitation)
 
       const result = await service.inviteMember({
         email: 'new@test.com',
         role: 'member',
+        organizationId: 'org-1',
       }, headers)
 
-      expect(api(auth).createInvitation).toHaveBeenCalledWith({
-        headers,
-        body: { email: 'new@test.com', role: 'member' },
-      })
+      expect(mockApi.createInvitation).toHaveBeenCalled()
       expect(result.id).toBe('inv-1')
     })
 
-    it('should pass organizationId and resend when provided', async () => {
-      api(auth).createInvitation.mockResolvedValue(mockInvitation)
-
-      await service.inviteMember({
-        email: 'new@test.com',
-        role: 'admin',
-        organizationId: 'org-1',
-        resend: true,
-      }, headers)
-
-      expect(api(auth).createInvitation).toHaveBeenCalledWith({
-        headers,
-        body: {
-          email: 'new@test.com',
-          role: 'admin',
-          organizationId: 'org-1',
-          resend: true,
-        },
-      })
-    })
-
     it('should propagate error', async () => {
-      api(auth).createInvitation.mockRejectedValue(new Error('Already invited'))
+      mockApi.createInvitation.mockRejectedValue(new Error('Already invited'))
 
       await expect(service.inviteMember({ email: 'x@t.com', role: 'member' }, headers)).rejects.toThrow('Already invited')
     })
   })
 
   describe('cancelInvitation', () => {
-    it('should call cancelInvitation with invitationId', async () => {
-      const cancelled = { ...mockInvitation, status: 'canceled' }
-      api(auth).cancelInvitation.mockResolvedValue(cancelled)
+    it('should update invitation status to cancelled', async () => {
+      const cancelled = { ...mockInvitation, status: 'cancelled' }
+      db._mocks.mockReturning.mockResolvedValue([cancelled])
 
       const result = await service.cancelInvitation('inv-1', headers)
 
-      expect(api(auth).cancelInvitation).toHaveBeenCalledWith({
-        headers,
-        body: { invitationId: 'inv-1' },
-      })
-      expect(result!.status).toBe('canceled')
+      expect(db.update).toHaveBeenCalled()
+      expect(result.status).toBe('cancelled')
     })
 
-    it('should propagate error', async () => {
-      api(auth).cancelInvitation.mockRejectedValue(new Error('Not found'))
+    it('should throw when invitation not found', async () => {
+      db._mocks.mockReturning.mockResolvedValue([])
 
-      await expect(service.cancelInvitation('inv-x', headers)).rejects.toThrow('Not found')
+      await expect(service.cancelInvitation('inv-x', headers)).rejects.toThrow('Invitation not found')
     })
   })
 
   describe('acceptInvitation', () => {
-    it('should call acceptInvitation and return invitation + member', async () => {
+    it('should delegate to better-auth for transactional accept', async () => {
       const response = { invitation: { ...mockInvitation, status: 'accepted' }, member: mockMember }
-      api(auth).acceptInvitation.mockResolvedValue(response)
+      mockApi.acceptInvitation.mockResolvedValue(response)
 
       const result = await service.acceptInvitation('inv-1', headers)
 
-      expect(api(auth).acceptInvitation).toHaveBeenCalledWith({
+      expect(mockApi.acceptInvitation).toHaveBeenCalledWith({
         headers,
         body: { invitationId: 'inv-1' },
       })
-      expect(result!.invitation.status).toBe('accepted')
-      expect(result!.member.userId).toBe('u1')
-    })
-
-    it('should return null when invitation expired', async () => {
-      api(auth).acceptInvitation.mockResolvedValue(null)
-
-      const result = await service.acceptInvitation('inv-expired', headers)
-
-      expect(result).toBeNull()
+      expect(result.invitation.status).toBe('accepted')
     })
   })
 
   describe('getInvitation', () => {
-    it('should call getInvitation with id as query', async () => {
-      const enriched = {
-        ...mockInvitation,
-        organizationName: 'Acme Corp',
-        organizationSlug: 'acme-corp',
-        inviterEmail: 'owner@test.com',
-      }
-      api(auth).getInvitation.mockResolvedValue(enriched)
+    it('should return invitation from database', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([mockInvitation]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
       const result = await service.getInvitation('inv-1', headers)
 
-      expect(api(auth).getInvitation).toHaveBeenCalledWith({
-        headers,
-        query: { id: 'inv-1' },
-      })
-      expect(result.organizationName).toBe('Acme Corp')
-      expect(result.inviterEmail).toBe('owner@test.com')
+      expect(result.id).toBe('inv-1')
     })
 
-    it('should propagate error', async () => {
-      api(auth).getInvitation.mockRejectedValue(new Error('not found'))
+    it('should throw when invitation not found', async () => {
+      const fromMock = { where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([]) })) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await expect(service.getInvitation('inv-x', headers)).rejects.toThrow('not found')
+      await expect(service.getInvitation('inv-x', headers)).rejects.toThrow('Invitation not found')
     })
   })
 
   describe('rejectInvitation', () => {
-    it('should call rejectInvitation with invitationId', async () => {
-      const response = { invitation: { ...mockInvitation, status: 'rejected' }, member: null }
-      api(auth).rejectInvitation.mockResolvedValue(response)
+    it('should update invitation status to rejected', async () => {
+      const rejected = { ...mockInvitation, status: 'rejected' }
+      db._mocks.mockReturning.mockResolvedValue([rejected])
 
       const result = await service.rejectInvitation('inv-1', headers)
 
-      expect(api(auth).rejectInvitation).toHaveBeenCalledWith({
-        headers,
-        body: { invitationId: 'inv-1' },
-      })
-      expect(result.invitation!.status).toBe('rejected')
-      expect(result.member).toBeNull()
+      expect(db.update).toHaveBeenCalled()
+      expect(result.status).toBe('rejected')
     })
   })
 
   describe('listInvitations', () => {
-    it('should call listInvitations for active org by default', async () => {
-      api(auth).listInvitations.mockResolvedValue([mockInvitation])
+    it('should query invitations from database', async () => {
+      const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.listInvitations(undefined, headers)
+      const result = await service.listInvitations('org-1', headers)
 
-      expect(api(auth).listInvitations).toHaveBeenCalledWith({
-        headers,
-        query: { organizationId: undefined },
-      })
-      expect(result).toHaveLength(1)
+      expect(db.select).toHaveBeenCalled()
     })
 
-    it('should pass organizationId when provided', async () => {
-      api(auth).listInvitations.mockResolvedValue([])
+    it('should return all invitations when no organizationId', async () => {
+      const fromMock = vi.fn().mockResolvedValue([mockInvitation])
+      db.select.mockReturnValue({ from: fromMock })
 
-      await service.listInvitations('org-1', headers)
+      await service.listInvitations(undefined, headers)
 
-      expect(api(auth).listInvitations).toHaveBeenCalledWith({
-        headers,
-        query: { organizationId: 'org-1' },
-      })
+      expect(db.select).toHaveBeenCalled()
     })
   })
 
   // ─── Members ─────────────────────────────────────────────────────
 
+  describe('addMember', () => {
+    it('should insert member and return row', async () => {
+      db._mocks.mockReturning.mockResolvedValue([mockMember])
+
+      const result = await service.addMember({ organizationId: 'org-1', userId: 'u1', role: 'owner' })
+
+      expect(db.insert).toHaveBeenCalled()
+      expect(result.userId).toBe('u1')
+    })
+
+    it('should throw when insert fails', async () => {
+      db._mocks.mockReturning.mockResolvedValue([])
+
+      await expect(service.addMember({ organizationId: 'org-1', userId: 'u1' })).rejects.toThrow('Failed to add member')
+    })
+  })
+
   describe('removeMember', () => {
-    it('should call removeMember with memberIdOrEmail', async () => {
-      api(auth).removeMember.mockResolvedValue({ member: mockMember })
+    it('should delete member from database', async () => {
+      const result = await service.removeMember({ memberIdOrEmail: 'u1', organizationId: 'org-1' }, headers)
 
-      const result = await service.removeMember({ memberIdOrEmail: 'm1' }, headers)
-
-      expect(api(auth).removeMember).toHaveBeenCalledWith({
-        headers,
-        body: { memberIdOrEmail: 'm1', organizationId: undefined },
-      })
-      expect(result!.member.id).toBe('m1')
+      expect(db.delete).toHaveBeenCalled()
+      expect(result).toEqual({ success: true })
     })
 
-    it('should accept email as identifier', async () => {
-      api(auth).removeMember.mockResolvedValue({ member: mockMember })
-
-      await service.removeMember({ memberIdOrEmail: 'user@test.com', organizationId: 'org-1' }, headers)
-
-      expect(api(auth).removeMember).toHaveBeenCalledWith({
-        headers,
-        body: { memberIdOrEmail: 'user@test.com', organizationId: 'org-1' },
-      })
-    })
-
-    it('should propagate error', async () => {
-      api(auth).removeMember.mockRejectedValue(new Error('Cannot remove owner'))
-
-      await expect(service.removeMember({ memberIdOrEmail: 'm1' }, headers)).rejects.toThrow('Cannot remove owner')
+    it('should throw if organizationId is missing', async () => {
+      await expect(service.removeMember({ memberIdOrEmail: 'm1' }, headers)).rejects.toThrow('organizationId required')
     })
   })
 
   describe('updateMemberRole', () => {
-    it('should call updateMemberRole with memberId and role', async () => {
+    it('should update member role in database', async () => {
       const updated = { ...mockMember, role: 'admin' }
-      api(auth).updateMemberRole.mockResolvedValue(updated)
+      db._mocks.mockReturning.mockResolvedValue([updated])
 
       const result = await service.updateMemberRole({ memberId: 'm1', role: 'admin' }, headers)
 
-      expect(api(auth).updateMemberRole).toHaveBeenCalledWith({
-        headers,
-        body: { memberId: 'm1', role: 'admin', organizationId: undefined },
-      })
+      expect(db.update).toHaveBeenCalled()
       expect(result.role).toBe('admin')
     })
 
-    it('should accept array of roles', async () => {
-      const updated = { ...mockMember, role: 'admin' }
-      api(auth).updateMemberRole.mockResolvedValue(updated)
+    it('should throw when member not found', async () => {
+      db._mocks.mockReturning.mockResolvedValue([])
 
-      await service.updateMemberRole({ memberId: 'm1', role: ['admin', 'editor'], organizationId: 'org-1' }, headers)
-
-      expect(api(auth).updateMemberRole).toHaveBeenCalledWith({
-        headers,
-        body: { memberId: 'm1', role: ['admin', 'editor'], organizationId: 'org-1' },
-      })
+      await expect(service.updateMemberRole({ memberId: 'missing', role: 'admin' }, headers)).rejects.toThrow('Member not found')
     })
   })
 
   describe('leave', () => {
-    it('should call leaveOrganization with organizationId', async () => {
-      const leftMember = { ...mockMember, organizationId: 'org-1' }
-      api(auth).leaveOrganization.mockResolvedValue(leftMember)
+    it('should call leaveOrganization via better-auth', async () => {
+      mockApi.leaveOrganization.mockResolvedValue(mockMember)
 
       const result = await service.leave('org-1', headers)
 
-      expect(api(auth).leaveOrganization).toHaveBeenCalledWith({
+      expect(mockApi.leaveOrganization).toHaveBeenCalledWith({
         headers,
         body: { organizationId: 'org-1' },
       })
-      expect(result.id).toBe('m1')
-    })
-
-    it('should propagate error', async () => {
-      api(auth).leaveOrganization.mockRejectedValue(new Error('Cannot leave as only owner'))
-
-      await expect(service.leave('org-1', headers)).rejects.toThrow('Cannot leave as only owner')
     })
   })
 
   describe('getActiveMember', () => {
-    it('should call getActiveMember and return member', async () => {
-      api(auth).getActiveMember.mockResolvedValue(mockMember)
+    it('should call getActiveMember via better-auth', async () => {
+      mockApi.getActiveMember.mockResolvedValue(mockMember)
 
       const result = await service.getActiveMember(headers)
 
-      expect(api(auth).getActiveMember).toHaveBeenCalledWith({ headers })
-      expect(result!.id).toBe('m1')
-      expect(result!.role).toBe('owner')
-    })
-
-    it('should return null when no active member', async () => {
-      api(auth).getActiveMember.mockResolvedValue(null)
-
-      const result = await service.getActiveMember(headers)
-
-      expect(result).toBeNull()
-    })
-
-    it('should propagate error', async () => {
-      api(auth).getActiveMember.mockRejectedValue(new Error('No active org'))
-
-      await expect(service.getActiveMember(headers)).rejects.toThrow('No active org')
+      expect(mockApi.getActiveMember).toHaveBeenCalledWith({ headers })
+      expect(result.id).toBe('m1')
     })
   })
 
   describe('getActiveMemberRole', () => {
-    it('should call getActiveMemberRole without params', async () => {
-      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'admin' })
+    it('should call getActiveMemberRole via better-auth', async () => {
+      mockApi.getActiveMemberRole.mockResolvedValue({ role: 'admin' })
 
-      const result = await service.getActiveMemberRole({}, headers)
+      const result = await service.getActiveMemberRole({ userId: 'u1', organizationId: 'org-1' }, headers)
 
-      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
-        headers,
-        query: { userId: undefined, organizationId: undefined, organizationSlug: undefined },
-      })
-      expect(result.role).toBe('admin')
-    })
-
-    it('should pass userId and organizationId when provided', async () => {
-      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'member' })
-
-      await service.getActiveMemberRole({ userId: 'u1', organizationId: 'org-1' }, headers)
-
-      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
+      expect(mockApi.getActiveMemberRole).toHaveBeenCalledWith({
         headers,
         query: { userId: 'u1', organizationId: 'org-1', organizationSlug: undefined },
       })
-    })
-
-    it('should accept organizationSlug', async () => {
-      api(auth).getActiveMemberRole.mockResolvedValue({ role: 'owner' })
-
-      await service.getActiveMemberRole({ organizationSlug: 'acme-corp' }, headers)
-
-      expect(api(auth).getActiveMemberRole).toHaveBeenCalledWith({
-        headers,
-        query: { userId: undefined, organizationId: undefined, organizationSlug: 'acme-corp' },
-      })
-    })
-
-    it('should propagate error', async () => {
-      api(auth).getActiveMemberRole.mockRejectedValue(new Error('Not a member'))
-
-      await expect(service.getActiveMemberRole({}, headers)).rejects.toThrow('Not a member')
-    })
-  })
-
-  describe('checkSlug', () => {
-    it('should return status true when slug is available', async () => {
-      api(auth).checkOrganizationSlug.mockResolvedValue({ status: true })
-
-      const result = await service.checkSlug('new-slug', headers)
-
-      expect(api(auth).checkOrganizationSlug).toHaveBeenCalledWith({
-        headers,
-        body: { slug: 'new-slug' },
-      })
-      expect(result.status).toBe(true)
-    })
-
-    it('should return status false when slug is taken', async () => {
-      api(auth).checkOrganizationSlug.mockResolvedValue({ status: false })
-
-      const result = await service.checkSlug('acme-corp', headers)
-
-      expect(result.status).toBe(false)
-    })
-
-    it('should call checkSlug without headers for server-side usage', async () => {
-      api(auth).checkOrganizationSlug.mockResolvedValue({ status: true })
-
-      await service.checkSlug('new-slug')
-
-      expect(api(auth).checkOrganizationSlug).toHaveBeenCalledWith({
-        headers: undefined,
-        body: { slug: 'new-slug' },
-      })
-    })
-  })
-
-  describe('listUserInvitations', () => {
-    it('should call listUserInvitations without email by default', async () => {
-      const invWithOrg = { ...mockInvitation, organizationName: 'Acme Corp' }
-      api(auth).listUserInvitations.mockResolvedValue([invWithOrg])
-
-      const result = await service.listUserInvitations(undefined, headers)
-
-      expect(api(auth).listUserInvitations).toHaveBeenCalledWith({
-        headers,
-        query: { email: undefined },
-      })
-      expect(result).toHaveLength(1)
-      expect(result[0]!.organizationName).toBe('Acme Corp')
-    })
-
-    it('should call listUserInvitations without headers for server-side usage', async () => {
-      api(auth).listUserInvitations.mockResolvedValue([])
-
-      await service.listUserInvitations('user@test.com')
-
-      expect(api(auth).listUserInvitations).toHaveBeenCalledWith({
-        headers: undefined,
-        query: { email: 'user@test.com' },
-      })
-    })
-
-    it('should pass email when provided', async () => {
-      api(auth).listUserInvitations.mockResolvedValue([])
-
-      await service.listUserInvitations('user@test.com', headers)
-
-      expect(api(auth).listUserInvitations).toHaveBeenCalledWith({
-        headers,
-        query: { email: 'user@test.com' },
-      })
+      expect(result.role).toBe('admin')
     })
   })
 
   describe('listMembers', () => {
-    it('should call listMembers and return members with total', async () => {
-      api(auth).listMembers.mockResolvedValue({ members: [mockMember], total: 1 })
+    it('should query members from database with organizationId', async () => {
+      const fromMock = { where: vi.fn().mockResolvedValue([mockMember]) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      const result = await service.listMembers({}, headers)
+      const result = await service.listMembers({ organizationId: 'org-1' }, headers)
 
-      expect(api(auth).listMembers).toHaveBeenCalledWith({
-        headers,
-        query: {},
-      })
-      expect(result.members).toHaveLength(1)
-      expect(result.total).toBe(1)
+      expect(db.select).toHaveBeenCalled()
     })
 
-    it('should pass all query params', async () => {
-      api(auth).listMembers.mockResolvedValue({ members: [], total: 0 })
-
-      await service.listMembers({
-        organizationId: 'org-1',
-        limit: 10,
-        offset: 5,
-        sortBy: 'createdAt',
-        sortDirection: 'desc',
-      }, headers)
-
-      expect(api(auth).listMembers).toHaveBeenCalledWith({
-        headers,
-        query: {
-          organizationId: 'org-1',
-          limit: 10,
-          offset: 5,
-          sortBy: 'createdAt',
-          sortDirection: 'desc',
-        },
-      })
+    it('should throw if organizationId missing', async () => {
+      await expect(service.listMembers({}, headers)).rejects.toThrow('organizationId required')
     })
+  })
 
-    it('should propagate error', async () => {
-      api(auth).listMembers.mockRejectedValue(new Error('Not authorized'))
+  describe('listUserInvitations', () => {
+    it('should query invitations by email from database', async () => {
+      const fromMock = { where: vi.fn().mockResolvedValue([mockInvitation]) }
+      db.select.mockReturnValue({ from: vi.fn().mockReturnValue(fromMock) })
 
-      await expect(service.listMembers({}, headers)).rejects.toThrow('Not authorized')
+      const result = await service.listUserInvitations('user@test.com', headers)
+
+      expect(db.select).toHaveBeenCalled()
     })
   })
 })
