@@ -54,6 +54,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "graphql:generate": "graphql-codegen --config codegen.ts",
     "migrate:generate": "drizzle-kit generate",
     "migrate:latest": "drizzle-kit migrate",
     "migrate:status": "drizzle-kit check",
