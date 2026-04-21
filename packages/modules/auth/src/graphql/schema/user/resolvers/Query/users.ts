@@ -1,13 +1,14 @@
 import type { QueryResolvers } from './../../../../__generated__/types.generated'
-import { translateUserWhereInput } from './utils'
+import { withConnection } from '@czo/kit/graphql'
 
 export const users: NonNullable<QueryResolvers['users']> = async (_parent, _arg, _ctx) => {
-  const whereParams = translateUserWhereInput(_arg.where, _arg.orderBy)
-
-  return _ctx.auth.userService.list({
-    limit: _arg.limit ?? undefined,
-    offset: _arg.offset ?? undefined,
-    ...(_arg.search ? { searchValue: _arg.search, searchField: 'email' as const } : {}),
-    ...whereParams,
-  }, _ctx.request.headers)
+  const { where, orderBy, ...args } = _arg
+  return await withConnection({
+    args,
+    findFunction: _ctx.auth.userService.findMany,
+    countFunction: _ctx.auth.userService.count,
+    where,
+    orderBy,
+    tiebreakers: ['id'],
+  }) as any
 }

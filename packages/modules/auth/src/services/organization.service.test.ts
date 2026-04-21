@@ -1,6 +1,6 @@
 import type { OrganizationService } from './organization.service'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOrganizationService } from './organization.service'
+import { createOrganizationService_ } from './organization.service'
 
 function createMockApi() {
   return {
@@ -28,7 +28,7 @@ function createMockApi() {
 }
 
 function createMockAuth() {
-  return { api: createMockApi() } as unknown as Parameters<typeof createOrganizationService>[0]
+  return { api: createMockApi() } as unknown as Parameters<typeof createOrganizationService_>[0]
 }
 
 function api(auth: ReturnType<typeof createMockAuth>) {
@@ -78,7 +78,7 @@ describe('organizationService', () => {
 
   beforeEach(() => {
     auth = createMockAuth()
-    service = createOrganizationService(auth)
+    service = createOrganizationService_(auth)
   })
 
   // ─── Organization CRUD ───────────────────────────────────────────

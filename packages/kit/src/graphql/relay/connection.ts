@@ -118,7 +118,7 @@ export async function withConnection<T extends Record<string, unknown>>(opts: {
 
   return {
     ...connection,
-    totalCount: countFunction ? () => countFunction(conditions) : null,
+    totalCount: countFunction ? () => countFunction(conditions) : null as any,
   }
 }
 
