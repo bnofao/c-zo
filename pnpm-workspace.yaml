@@ -58,6 +58,7 @@ catalog:
   cmdk: ^0.2.0
   copy-to-clipboard: ^3.3.3
   date-fns: ^3.6.0
+  effect: ^3.21.2
   errx: ^0.1.0
   exsolve: ^1.0.7
   graphql-scalars: ^1.25.0

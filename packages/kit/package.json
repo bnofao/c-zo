@@ -30,6 +30,14 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
+    "./db/effect": {
+      "types": "./src/db/effect.ts",
+      "default": "./dist/db/effect.mjs"
+    },
+    "./effect": {
+      "types": "./src/effect/index.ts",
+      "default": "./dist/effect/index.mjs"
+    },
     "./ioc": {
       "types": "./src/ioc/index.ts",
       "default": "./dist/ioc/index.mjs"
@@ -138,6 +146,7 @@
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
     "drizzle-seed": "catalog:common",
+    "effect": "catalog:",
     "exsolve": "catalog:common",
     "graphql-scalars": "catalog:common",
     "hookable": "catalog:dev",
