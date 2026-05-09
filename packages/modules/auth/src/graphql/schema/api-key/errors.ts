@@ -1,33 +1,50 @@
-import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
+import { registerError } from '@czo/kit/graphql'
+import {
+  ApiKeyNotFound,
+  InvalidApiKey,
+  KeyDisabled,
+  KeyExpired,
+  Misconfigured,
+  NoChanges,
+  RateLimited,
+  RefillPairRequired,
+  Unauthorized as ApiKeyUnauthorized,
+  UsageExceeded,
+} from '../../../services/api-key'
 
-// ─── Domain errors ────────────────────────────────────────────────────────────
-
-export class ApiKeyExpiredError extends BaseGraphQLError {
-  readonly code = 'API_KEY_EXPIRED'
-  constructor(public readonly keyId: string) {
-    super(`API key '${keyId}' has expired`)
-    this.name = 'ApiKeyExpiredError'
-  }
+// Re-export the tagged-error classes from the service so resolvers can list
+// them in `errors: { types: [...] }` without reaching into services/.
+export {
+  ApiKeyNotFound,
+  ApiKeyUnauthorized,
+  InvalidApiKey,
+  KeyDisabled,
+  KeyExpired,
+  Misconfigured,
+  NoChanges,
+  RateLimited,
+  RefillPairRequired,
+  UsageExceeded,
 }
-
-export class ApiKeyRevokedError extends BaseGraphQLError {
-  readonly code = 'API_KEY_REVOKED'
-  constructor(public readonly keyId: string) {
-    super(`API key '${keyId}' has been revoked`)
-    this.name = 'ApiKeyRevokedError'
-  }
-}
-
-// ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerApiKeyErrors(builder: any): void {
-  registerError(builder, ApiKeyExpiredError, {
+  registerError(builder, InvalidApiKey, { name: 'InvalidApiKeyError' })
+  registerError(builder, KeyDisabled, { name: 'ApiKeyDisabledError' })
+  registerError(builder, KeyExpired, {
     name: 'ApiKeyExpiredError',
-    fields: t => ({ keyId: t.exposeString('keyId') }),
+    fields: t => ({ keyId: t.exposeID('keyId') }),
   })
-
-  registerError(builder, ApiKeyRevokedError, {
-    name: 'ApiKeyRevokedError',
-    fields: t => ({ keyId: t.exposeString('keyId') }),
+  registerError(builder, ApiKeyUnauthorized, { name: 'ApiKeyUnauthorizedError' })
+  registerError(builder, RateLimited, {
+    name: 'ApiKeyRateLimitedError',
+    fields: t => ({ tryAgainIn: t.exposeInt('tryAgainIn') }),
   })
+  registerError(builder, Misconfigured, {
+    name: 'ApiKeyMisconfiguredError',
+    fields: t => ({ reason: t.exposeString('reason') }),
+  })
+  registerError(builder, UsageExceeded, { name: 'ApiKeyUsageExceededError' })
+  registerError(builder, ApiKeyNotFound, { name: 'ApiKeyNotFoundError' })
+  registerError(builder, NoChanges, { name: 'ApiKeyNoChangesError' })
+  registerError(builder, RefillPairRequired, { name: 'ApiKeyRefillPairRequiredError' })
 }

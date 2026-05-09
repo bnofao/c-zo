@@ -24,12 +24,16 @@ export function useRuntime(): ManagedRuntime.ManagedRuntime<never, never> {
  * the original typed failure (not a FiberFailure) so Pothos's `errors: { types }`
  * plugin can match via instanceof. Defects are wrapped in an Error preserving
  * the original cause, so consumers always receive an Error instance.
+ *
+ * The Effect's `R` (requirements) is allowed to be non-`never`: the runtime is
+ * intentionally typed as opaque (`<never, never>`) and we trust the Layer
+ * composed at boot to provide the services the Effect needs. Internal cast.
  */
-export async function runEffect<A, E>(
+export async function runEffect<A, E, R = never>(
   rt: ManagedRuntime.ManagedRuntime<never, never>,
-  effect: Effect.Effect<A, E>,
+  effect: Effect.Effect<A, E, R>,
 ): Promise<A> {
-  const exit = await rt.runPromiseExit(effect)
+  const exit = await rt.runPromiseExit(effect as Effect.Effect<A, E>)
   if (Exit.isSuccess(exit))
     return exit.value
   const failure = Cause.failureOption(exit.cause)

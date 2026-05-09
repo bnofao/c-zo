@@ -1,4 +1,5 @@
 import type { AuthContext } from '../types'
+import { useRuntime } from '@czo/kit/effect'
 import { registerContextFactory } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 
@@ -38,6 +39,7 @@ export async function buildAuthContext(request: Request): Promise<AuthContext> {
     // apiKeyService,
     // appService,
     authService,
+    runtime: useRuntime(),
     session: session ?? null,
     user: session?.user ?? null,
   }

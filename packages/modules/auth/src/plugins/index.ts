@@ -17,11 +17,15 @@ import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
 import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
+import { ApiKeyServiceLive, OrganizationServiceLive } from '@czo/auth/layers'
 import { /* createAccountService, createApiKeyService, createAppService, */createAuthService, createOrganizationService, /* createSessionService, createTwoFactorService,  */createUserService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
 import { registerSchema as registerDbSchema, registerRelations, registerSeeder, useDatabase } from '@czo/kit/db'
+import { DrizzleDbLive } from '@czo/kit/db/effect'
+import { setRuntime } from '@czo/kit/effect'
 import { registerAuthScopes, registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
+import { Layer, ManagedRuntime } from 'effect'
 import { definePlugin } from 'nitro'
 
 export default definePlugin((nitroApp) => {
@@ -198,6 +202,21 @@ export default definePlugin((nitroApp) => {
     const authService = createAuthService(userService, organizationService, ac, roles)
     container.singleton('auth:service', () => authService)
     logger.info('Services bound: users, auth, organizations, accounts, sessions, twoFactor, apiKeys, apps')
+
+    // Build the Effect ManagedRuntime once at boot. Composes the auth-module
+    // Layers with the kit's DrizzleDbLive infra. `provideMerge` wires
+    // OrganizationServiceLive into ApiKeyServiceLive's deps AND keeps it
+    // accessible at the runtime surface (so other consumers can yield* it).
+    // Exposed via setRuntime() so resolvers can call useRuntime() at request
+    // time. The runtime is disposed on Nitro close.
+    const AuthModuleLive = ApiKeyServiceLive.pipe(
+      Layer.provideMerge(OrganizationServiceLive),
+      Layer.provide(DrizzleDbLive),
+    )
+    const runtime = ManagedRuntime.make(AuthModuleLive)
+    setRuntime(runtime)
+    nitroApp.hooks.hook('close', () => runtime.dispose())
+    logger.info('Effect runtime built (ApiKeyService, OrganizationService)')
 
     await registerAppConsumer()
     await registerWebhookDispatcher()

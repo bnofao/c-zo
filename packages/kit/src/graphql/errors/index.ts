@@ -11,6 +11,13 @@ export interface FieldError {
   code: string
 }
 
+/**
+ * Base class for legacy GraphQL errors. New code in modules migrated to Effect
+ * (see the `auth/apiKey` pilot) uses `Data.TaggedError` directly — those classes
+ * extend `Error` via Effect and are registered with `registerError(...)` exactly
+ * the same way without needing to extend this base class. Once all modules are
+ * migrated, this base class will be deprecated.
+ */
 export abstract class BaseGraphQLError extends Error {
   abstract readonly code: string
 }

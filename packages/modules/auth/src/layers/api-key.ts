@@ -1,22 +1,29 @@
-import type { Auth } from '@czo/auth/config'
-import type { ApiKey, AuthRelations, CreateApiKeyInput, UpdateApiKeyInput } from '@czo/auth/types'
+import type { ApiKey, AuthRelations } from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
-import type {
-  CreateApiKeyOptions,
-  FindManyOptions,
-  FindOneOptions,
-  KeyGenerator,
-  RemoveApiKeyOptions,
-  ScopedQueryOptions,
-  UpdateApiKeyOptions,
-  VerifyApiKeyOptions,
-} from '../services/api-key'
-import type { OrganizationService } from '../services/organization.service'
+import type { KeyGenerator } from '../services/api-key'
 import { defaultKeyHasher } from '@better-auth/api-key'
 import { apikeys } from '@czo/auth/schema'
+import { DrizzleDb } from '@czo/kit/db/effect'
 import { generateRandomString } from 'better-auth/crypto'
 import { role } from 'better-auth/plugins'
 import { and, eq, sql } from 'drizzle-orm'
+import { Effect, Layer } from 'effect'
+import {
+  ApiKeyService,
+  DbFailed,
+  Intrusion,
+  InvalidApiKey,
+  KeyDisabled,
+  KeyExpired,
+  Misconfigured,
+  NoChanges,
+  ApiKeyNotFound,
+  RateLimited,
+  RefillPairRequired,
+  Unauthorized,
+  UsageExceeded,
+} from '../services/api-key'
+import { OrganizationService } from '../services/organization'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -25,290 +32,122 @@ const defaultKeyGenerator: KeyGenerator = ({ length, prefix }) => {
   return prefix ? `${prefix}_${hex}` : hex
 }
 
-// ─── Factory ─────────────────────────────────────────────────────────
+// ─── Layer ───────────────────────────────────────────────────────────
 
-export function createApiKeyService(db: Database<AuthRelations>, auth: Auth, organizationService: OrganizationService) {
-  /**
-   * Verify the session caller is allowed to access keys belonging to (reference, referenceId).
-   * - `user`: caller must BE the referenced user.
-   * - `organization`: caller must be a member of the referenced organization.
-   */
-  const assertScopeAllowed = async (scope: ScopedQueryOptions): Promise<boolean> => {
-    if (scope.reference === 'organization') {
-      if (scope.referenceId === undefined) {
-        await scope.onIntrusion?.()
-        return false
-      }
-      const isMember = await organizationService.checkMembership(scope.referenceId, scope.userId)
+export const ApiKeyServiceLive = Layer.effect(
+  ApiKeyService,
+  Effect.gen(function* () {
+    // The kit's DrizzleDb Tag exposes the bare `Database` type. We narrow to
+    // `Database<AuthRelations>` here so RQBv2 query inference (`db.query.apikeys.…`)
+    // matches the auth schema. The runtime client is the same — only the static
+    // type changes.
+    const db = (yield* DrizzleDb) as Database<AuthRelations>
+    const org = yield* OrganizationService
 
-      if (!isMember) {
-        await scope.onIntrusion?.()
-        return false
-      }
-
-      return true
-    }
-
-    if (scope.reference === 'user') {
-      const { referenceId = scope.userId } = scope
-      if (scope.userId !== referenceId) {
-        await scope.onIntrusion?.()
-        return false
-      }
-
-      return true
-    }
-
-    await scope.onIntrusion?.()
-
-    return false
-  }
-
-  /**
-   * Fetch a single API key, scoped to the caller's allowed (reference, referenceId).
-   * The `where` is built by the service — callers cannot bypass scoping.
-   */
-  const findFirst = async (opts: FindOneOptions, config?: Parameters<typeof db.query.apikeys.findFirst>[0]): Promise<ApiKey | null> => {
-    const { where } = config ?? {}
-    const reference = where?.reference ?? 'user'
-    const referenceId = where?.referenceId ?? opts.session.userId
-
-    if (!(await assertScopeAllowed({
-      reference: reference as string,
-      referenceId: referenceId as number,
-      userId: opts.session.userId,
-      onIntrusion: opts.onIntrusion,
-    }))) {
-      return null
-    }
-
-    const data = await db.query.apikeys.findFirst({
-      ...config,
-      where: {
-        ...where,
-        reference,
-        referenceId,
-      },
-    })
-
-    if (!data) {
-      await opts.onNotFound?.()
-      return null
-    }
-
-    return data
-  }
-
-  /**
-   * Validate a hashed API key — runs the full pipeline (lookup, enabled, expiry,
-   * permissions, remaining/refill, rate-limit) and persists the updated row
-   * (`remaining`, `lastRefillAt`, `requestCount`, `lastRequest`, `updatedAt`).
-   *
-   * Returns the updated row on success, `null` on any failure (callbacks signal which).
-   *
-   * Both the `remaining` decrement (and refill) and the `requestCount`
-   * increment (and reset) are performed in a single atomic UPDATE — concurrent
-   * requests cannot drive `remaining` below zero or under-count requests.
-   * The rate-limit cap check is JS-side (best-effort signaling for
-   * `onRateLimited`); under perfect concurrency it can be transiently
-   * exceeded by N racing callers, but the count itself stays correct.
-   */
-  const validate = async (hashedKey: string, opts?: VerifyApiKeyOptions): Promise<ApiKey | null> => {
-    const apiKey = await db.query.apikeys.findFirst({
-      where: { key: hashedKey },
-    })
-    if (!apiKey) {
-      await opts?.onInvalidKey?.()
-      return null
-    }
-
-    if (!apiKey.enabled) {
-      await opts?.onKeyDisabled?.()
-      return null
-    }
-
-    const nowDate = new Date()
-    const nowMs = nowDate.getTime()
-
-    if (apiKey.expiresAt && apiKey.expiresAt.getTime() < nowMs) {
-      await opts?.onKeyExpired?.()
-      return null
-    }
-
-    if (opts?.permissions) {
-      const granted = apiKey.permissions ?? {}
-      const allowed = role(granted).authorize(opts.permissions)
-      if (!allowed.success) {
-        await opts.onUnauthorized?.()
-        return null
-      }
-    }
-
-    // Rate-limit cap check (best-effort, JS-side). The actual `requestCount`
-    // increment is performed atomically in the UPDATE below, so concurrent
-    // calls cannot under-count. The cap may be exceeded transiently by N
-    // racing callers, but subsequent requests will see the correct count
-    // and start blocking. Mirrors `better-auth/api-key/rate-limit.ts`.
-    if (apiKey.rateLimitEnabled) {
-      const windowMs = apiKey.rateLimitTimeWindow
-      const max = apiKey.rateLimitMax
-      // null = "not configured" → rate-limit disabled (matches better-auth).
-      if (windowMs !== null && max !== null) {
-        if (windowMs <= 0 || max <= 0) {
-          await opts?.onMisconfigured?.({
-            reason: 'rateLimitTimeWindow and rateLimitMax must be > 0 when rateLimitEnabled is true',
-          })
-          return null
-        }
-        const elapsed = nowMs - (apiKey.lastRequest?.getTime() ?? 0)
-        const inWindow = apiKey.lastRequest !== null && elapsed < windowMs
-        const currentCount = apiKey.requestCount ?? 0
-        if (inWindow && currentCount >= max) {
-          await opts?.onRateLimited?.({ tryAgainIn: Math.ceil(windowMs - elapsed) })
-          return null
-        }
-      }
-    }
-
-    // Atomic decrement-or-refill: the CASE expressions and WHERE precondition
-    // evaluate against the row's current state in DB, so concurrent calls
-    // cannot both decrement past zero. Zero rows updated ⇒ quota exhausted.
-    const refillDue = sql`(
-      ${apikeys.refillInterval} IS NOT NULL
-      AND ${apikeys.refillAmount} IS NOT NULL
-      AND EXTRACT(EPOCH FROM (${nowDate}::timestamptz - COALESCE(${apikeys.lastRefillAt}, ${apikeys.createdAt}))) * 1000 > ${apikeys.refillInterval}
-    )`
-
-    let updated: ApiKey | undefined
-    try {
-      ;[updated] = await db.update(apikeys)
-        .set({
-          remaining: sql`CASE
-            WHEN ${apikeys.remaining} IS NULL THEN NULL
-            WHEN ${refillDue} THEN ${apikeys.refillAmount} - 1
-            ELSE ${apikeys.remaining} - 1
-          END`,
-          lastRefillAt: sql`CASE
-            WHEN ${refillDue} THEN ${nowDate}::timestamptz
-            ELSE ${apikeys.lastRefillAt}
-          END`,
-          lastRequest: nowDate,
-          // Atomic increment / reset / passthrough — race-free under
-          // concurrent calls. Branches mirror the JS pre-check above.
-          requestCount: sql`CASE
-            WHEN ${apikeys.rateLimitEnabled} IS NOT TRUE
-              OR ${apikeys.rateLimitTimeWindow} IS NULL
-              OR ${apikeys.rateLimitMax} IS NULL
-              THEN COALESCE(${apikeys.requestCount}, 0)
-            WHEN ${apikeys.lastRequest} IS NULL
-              OR EXTRACT(EPOCH FROM (${nowDate}::timestamptz - ${apikeys.lastRequest})) * 1000 > ${apikeys.rateLimitTimeWindow}
-              THEN 1
-            ELSE COALESCE(${apikeys.requestCount}, 0) + 1
-          END`,
-          updatedAt: nowDate,
-        })
-        .where(and(
-          eq(apikeys.id, apiKey.id),
-          sql`(
-            ${apikeys.remaining} IS NULL
-            OR ${apikeys.remaining} > 0
-            OR (${refillDue} AND ${apikeys.refillAmount} > 0)
-          )`,
-        ))
-        .returning()
-    }
-    catch {
-      await opts?.onFailed?.()
-      return null
-    }
-
-    if (!updated) {
-      await opts?.onFailed?.()
-      return null
-    }
-
-    return updated
-  }
-
-  return {
-    findFirst,
+    const tryDb = <A>(f: () => Promise<A>) =>
+      Effect.tryPromise({ try: f, catch: cause => new DbFailed({ cause }) })
 
     /**
-     * List API keys for (reference, referenceId), gated on caller membership/ownership.
-     * Returns `[]` on intrusion (callback fired), `[]` when no keys match.
+     * Extract `reference` / `referenceId` from a Drizzle RQBv2 `where` clause.
+     * RQBv2's static type doesn't expose these as plain props, but callers
+     * pass them as literal fields — hence the local cast in one place.
      */
-    async findMany(opts: FindManyOptions, config?: Parameters<typeof db.query.apikeys.findMany>[0]): Promise<ApiKey[]> {
-      const { where } = config ?? {}
-      const reference = where?.reference ?? 'user'
-      const referenceId = where?.referenceId ?? opts.session.userId
-
-      if (!(await assertScopeAllowed({
-        reference: reference as string,
-        referenceId: referenceId as number,
-        userId: opts.session.userId,
-      }))) {
-        return []
+    const extractScope = (
+      where: unknown,
+      defaultUserId: number,
+    ): { reference: string, referenceId: number } => {
+      const w = (where ?? {}) as { reference?: string, referenceId?: number }
+      return {
+        reference: w.reference ?? 'user',
+        referenceId: w.referenceId ?? defaultUserId,
       }
+    }
 
-      return db.query.apikeys.findMany({
-        ...config,
-        where: {
-          ...where,
-          reference,
-          referenceId,
-        },
+    /**
+     * Verify the session caller is allowed to access keys belonging to (reference, referenceId).
+     * - `user`: caller must BE the referenced user.
+     * - `organization`: caller must be a member of the referenced organization.
+     */
+    const assertScopeAllowed = (scope: {
+      reference: string
+      referenceId?: number
+      userId: number
+    }): Effect.Effect<void, Intrusion> =>
+      Effect.gen(function* () {
+        if (scope.reference === 'organization') {
+          if (scope.referenceId === undefined)
+            return yield* Effect.fail(new Intrusion())
+          const isMember = yield* org.checkMembership(scope.referenceId, scope.userId)
+          if (!isMember)
+            return yield* Effect.fail(new Intrusion())
+          return
+        }
+        if (scope.reference === 'user') {
+          const refId = scope.referenceId ?? scope.userId
+          if (scope.userId !== refId)
+            return yield* Effect.fail(new Intrusion())
+          return
+        }
+        return yield* Effect.fail(new Intrusion())
       })
-    },
 
-    /**
-     * Create an API key — direct Drizzle implementation (replaces `auth.api.createApiKey`).
-     * Mirrors the validation pipeline of better-auth's `create-api-key.ts` route.
-     * Returns the inserted row plus the plain `key` (only available at creation time).
-     */
-    async create(input: CreateApiKeyInput, opts: CreateApiKeyOptions): Promise<(ApiKey) | null> {
-      const {
-        reference = 'user',
-        keyLength = 64,
-        startCharsLength = 6,
-        rateLimit = {
+    const findFirst: ApiKeyService['findFirst'] = (opts, config) =>
+      Effect.gen(function* () {
+        const scope = extractScope(config?.where, opts.session.userId)
+        yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
+        const data = yield* tryDb(() => db.query.apikeys.findFirst({
+          ...config,
+          where: { ...config?.where, ...scope },
+        }))
+        if (!data)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        return data
+      })
+
+    const findMany: ApiKeyService['findMany'] = (opts, config) =>
+      Effect.gen(function* () {
+        const scope = extractScope(config?.where, opts.session.userId)
+        yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
+        const rows = yield* tryDb(() => db.query.apikeys.findMany({
+          ...config,
+          where: { ...config?.where, ...scope },
+        }))
+        return rows
+      })
+
+    const create: ApiKeyService['create'] = (input, opts) =>
+      Effect.gen(function* () {
+        const reference = opts.reference ?? 'user'
+        const keyLength = opts.keyLength ?? 64
+        const startCharsLength = opts.startCharsLength ?? 6
+        const rateLimit = opts.rateLimit ?? {
           maxRequests: 10,
           timeWindow: 1000 * 60 * 60 * 24,
-        },
-      } = opts
-
-      if (reference === 'organization') {
-        const isMember = await organizationService.checkMembership(input.referenceId, opts.session.userId)
-        if (!isMember) {
-          await opts.onIntrusion?.()
-          return null
         }
-      }
-      else if (reference === 'user' && opts.session.userId !== input.referenceId) {
-        await opts.onIntrusion?.()
-        return null
-      }
 
-      if ((input.refillAmount && !input.refillInterval) || (input.refillInterval && !input.refillAmount)) {
-        await opts.onRefillPairRequired?.()
-        return null
-      }
+        if (reference === 'organization') {
+          const isMember = yield* org.checkMembership(input.referenceId, opts.session.userId)
+          if (!isMember)
+            return yield* Effect.fail(new Intrusion())
+        }
+        else if (reference === 'user' && opts.session.userId !== input.referenceId) {
+          return yield* Effect.fail(new Intrusion())
+        }
 
-      const generator = opts.keyGenerator ?? defaultKeyGenerator
-      const hasher = opts.keyHasher ?? defaultKeyHasher
-      const key = await generator({ length: keyLength, prefix: input.prefix })
-      const hashedKey = await hasher(key)
-      const start = key.substring(0, startCharsLength)
+        if ((input.refillAmount && !input.refillInterval) || (input.refillInterval && !input.refillAmount))
+          return yield* Effect.fail(new RefillPairRequired())
 
-      const expiresAt = input.expiresIn
-        ? new Date(Date.now() + input.expiresIn * 1000)
-        : null
-      const remaining = input.remaining ?? input.refillAmount ?? null
+        const generator = opts.keyGenerator ?? defaultKeyGenerator
+        const hasher = opts.keyHasher ?? defaultKeyHasher
+        const key = yield* Effect.promise(async () =>
+          generator({ length: keyLength, prefix: input.prefix }))
+        const hashedKey = yield* Effect.promise(async () => hasher(key))
+        const start = key.substring(0, startCharsLength)
+        const expiresAt = input.expiresIn ? new Date(Date.now() + input.expiresIn * 1000) : null
+        const remaining = input.remaining ?? input.refillAmount ?? null
+        const now = new Date()
 
-      const now = new Date()
-
-      let apiKey: ApiKey | undefined
-      try {
-        ;[apiKey] = await db.insert(apikeys).values({
+        const [row] = yield* tryDb(() => db.insert(apikeys).values({
           configId: input.group,
           name: input.name,
           prefix: input.prefix,
@@ -327,142 +166,182 @@ export function createApiKeyService(db: Database<AuthRelations>, auth: Auth, org
           metadata: input.metadata,
           createdAt: now,
           updatedAt: now,
-        }).returning()
-      }
-      catch {
-        await opts.onFailed?.()
-        return null
-      }
+        }).returning())
 
-      if (!apiKey) {
-        await opts.onFailed?.()
-        return null
-      }
+        return { ...row, key } as unknown as ApiKey
+      })
 
-      return { ...apiKey, key }
-    },
+    const update: ApiKeyService['update'] = (id, input, opts) =>
+      Effect.gen(function* () {
+        const reference = opts.reference ?? 'user'
+        const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
+        yield* assertScopeAllowed({ reference, referenceId, userId: opts.session.userId })
 
-    /**
-     * Update an API key — direct Drizzle implementation (replaces `auth.api.updateApiKey`).
-     * Mirrors the validation pipeline of better-auth's `update-api-key.ts` route.
-     * Returns the updated row, or `null` on intrusion / not-found / no-changes / failure
-     * (caller signaled via callbacks).
-     */
-    async update(id: number, input: UpdateApiKeyInput, opts: UpdateApiKeyOptions): Promise<ApiKey | null> {
-      const { reference = 'user' } = opts
-      const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
-
-      if (!(await assertScopeAllowed({
-        reference,
-        referenceId,
-        userId: opts.session.userId,
-        onIntrusion: opts.onIntrusion,
-      }))) {
-        return null
-      }
-
-      if ((input.refillAmount !== undefined && input.refillInterval === undefined)
-        || (input.refillInterval !== undefined && input.refillAmount === undefined)) {
-        await opts.onRefillPairRequired?.()
-        return null
-      }
-
-      const { expiresIn, ...rest } = input
-      const patch: Partial<typeof apikeys.$inferInsert> = { ...rest }
-
-      if (expiresIn !== undefined) {
-        patch.expiresAt = expiresIn === null
-          ? null
-          : new Date(Date.now() + expiresIn * 1000)
-      }
-
-      const hasChanges = Object.values(patch).some(v => v !== undefined)
-      if (!hasChanges) {
-        await opts.onNoChanges?.()
-        return null
-      }
-
-      patch.updatedAt = new Date()
-
-      let updated: ApiKey | undefined
-      try {
-        ;[updated] = await db.update(apikeys)
-          .set(patch)
-          .where(and(
-            eq(apikeys.id, id),
-            eq(apikeys.reference, reference),
-            eq(apikeys.referenceId, referenceId!),
-          ))
-          .returning()
-      }
-      catch {
-        await opts.onFailed?.()
-        return null
-      }
-
-      if (!updated) {
-        await opts.onNotFound?.()
-        return null
-      }
-
-      return updated
-    },
-
-    validate,
-
-    /**
-     * Verify a plain API key — hashes the input then delegates to `validate`.
-     * Use this from request-handling code that holds the user-supplied key.
-     */
-    async verify(plainKey: string, opts?: VerifyApiKeyOptions): Promise<ApiKey | null> {
-      if (!plainKey) {
-        await opts?.onInvalidKey?.()
-        return null
-      }
-      const hasher = opts?.keyHasher ?? defaultKeyHasher
-      const hashed = await hasher(plainKey)
-      return validate(hashed, opts)
-    },
-
-    /**
-     * Delete an API key — direct Drizzle implementation (replaces `auth.api.deleteApiKey`).
-     * Mirrors the ownership pipeline of better-auth's `delete-api-key.ts` route.
-     * Returns `true` on success, `null` on any failure (caller signaled via callbacks).
-     */
-    async remove(id: number, opts: RemoveApiKeyOptions): Promise<boolean> {
-      const { reference = 'user' } = opts
-      const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
-
-      if (!(await assertScopeAllowed({
-        reference,
-        referenceId,
-        userId: opts.session.userId,
-        onIntrusion: opts.onIntrusion,
-      }))) {
-        return false
-      }
-
-      try {
-        const [deleted] = await db.delete(apikeys)
-          .where(and(
-            eq(apikeys.id, id),
-            eq(apikeys.reference, reference),
-            eq(apikeys.referenceId, referenceId!),
-          ))
-          .returning({ id: apikeys.id })
-
-        if (!deleted) {
-          await opts.onNotFound?.()
-
-          return false
+        if ((input.refillAmount !== undefined && input.refillInterval === undefined)
+          || (input.refillInterval !== undefined && input.refillAmount === undefined)) {
+          return yield* Effect.fail(new RefillPairRequired())
         }
-      }
-      catch {
-        await opts.onFailed?.()
-        return false
-      }
 
-      return true
-    },
-  }
-}
+        const { expiresIn, ...rest } = input
+        const patch: Record<string, unknown> = { ...rest }
+        if (expiresIn !== undefined) {
+          patch.expiresAt = expiresIn === null
+            ? null
+            : new Date(Date.now() + expiresIn * 1000)
+        }
+
+        const hasChanges = Object.values(patch).some(v => v !== undefined)
+        if (!hasChanges)
+          return yield* Effect.fail(new NoChanges())
+
+        patch.updatedAt = new Date()
+
+        const [updated] = yield* tryDb(() => db.update(apikeys)
+          .set(patch as Partial<typeof apikeys.$inferInsert>)
+          .where(and(
+            eq(apikeys.id, id),
+            eq(apikeys.reference, reference),
+            eq(apikeys.referenceId, referenceId!),
+          ))
+          .returning())
+
+        if (!updated)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        return updated
+      })
+
+    /**
+     * Validate a hashed API key — runs the full pipeline (lookup, enabled,
+     * expiry, permissions, remaining/refill, rate-limit) and persists the
+     * updated row in a single atomic UPDATE (`CASE` expressions + `WHERE`
+     * precondition). Concurrent requests cannot drive `remaining` below zero
+     * or under-count `requestCount`. The rate-limit cap check is JS-side
+     * (best-effort signaling for `RateLimited`); under perfect concurrency it
+     * can be transiently exceeded by N racing callers, but the count itself
+     * stays correct.
+     */
+    const validate: ApiKeyService['validate'] = (hashedKey, opts) =>
+      Effect.gen(function* () {
+        const apiKey = yield* tryDb(() => db.query.apikeys.findFirst({ where: { key: hashedKey } }))
+        if (!apiKey)
+          return yield* Effect.fail(new InvalidApiKey())
+
+        if (!apiKey.enabled)
+          return yield* Effect.fail(new KeyDisabled())
+
+        const nowDate = new Date()
+        const nowMs = nowDate.getTime()
+
+        if (apiKey.expiresAt && apiKey.expiresAt.getTime() < nowMs)
+          return yield* Effect.fail(new KeyExpired({ keyId: apiKey.id }))
+
+        if (opts?.permissions) {
+          const granted = apiKey.permissions ?? {}
+          const allowed = role(granted).authorize(opts.permissions)
+          if (!allowed.success)
+            return yield* Effect.fail(new Unauthorized())
+        }
+
+        // Rate-limit cap check (best-effort, JS-side). The actual `requestCount`
+        // increment is performed atomically in the UPDATE below, so concurrent
+        // calls cannot under-count. The cap may be exceeded transiently by N
+        // racing callers, but subsequent requests will see the correct count
+        // and start blocking. Mirrors `better-auth/api-key/rate-limit.ts`.
+        if (apiKey.rateLimitEnabled) {
+          const windowMs = apiKey.rateLimitTimeWindow
+          const max = apiKey.rateLimitMax
+          // null = "not configured" → rate-limit disabled (matches better-auth).
+          if (windowMs !== null && max !== null) {
+            if (windowMs <= 0 || max <= 0) {
+              return yield* Effect.fail(new Misconfigured({
+                reason: 'rateLimitTimeWindow and rateLimitMax must be > 0 when rateLimitEnabled is true',
+              }))
+            }
+            const elapsed = nowMs - (apiKey.lastRequest?.getTime() ?? 0)
+            const inWindow = apiKey.lastRequest !== null && elapsed < windowMs
+            const currentCount = apiKey.requestCount ?? 0
+            if (inWindow && currentCount >= max)
+              return yield* Effect.fail(new RateLimited({ tryAgainIn: Math.ceil(windowMs - elapsed) }))
+          }
+        }
+
+        // Atomic decrement-or-refill + atomic requestCount increment/reset/passthrough.
+        // The CASE expressions and WHERE precondition evaluate against the row's
+        // current state in DB, so concurrent calls cannot both decrement past
+        // zero. Zero rows updated ⇒ quota exhausted.
+        const refillDue = sql`(
+          ${apikeys.refillInterval} IS NOT NULL
+          AND ${apikeys.refillAmount} IS NOT NULL
+          AND EXTRACT(EPOCH FROM (${nowDate}::timestamptz - COALESCE(${apikeys.lastRefillAt}, ${apikeys.createdAt}))) * 1000 > ${apikeys.refillInterval}
+        )`
+
+        const [updated] = yield* tryDb(() => db.update(apikeys)
+          .set({
+            remaining: sql`CASE
+              WHEN ${apikeys.remaining} IS NULL THEN NULL
+              WHEN ${refillDue} THEN ${apikeys.refillAmount} - 1
+              ELSE ${apikeys.remaining} - 1
+            END`,
+            lastRefillAt: sql`CASE
+              WHEN ${refillDue} THEN ${nowDate}::timestamptz
+              ELSE ${apikeys.lastRefillAt}
+            END`,
+            lastRequest: nowDate,
+            requestCount: sql`CASE
+              WHEN ${apikeys.rateLimitEnabled} IS NOT TRUE
+                OR ${apikeys.rateLimitTimeWindow} IS NULL
+                OR ${apikeys.rateLimitMax} IS NULL
+                THEN COALESCE(${apikeys.requestCount}, 0)
+              WHEN ${apikeys.lastRequest} IS NULL
+                OR EXTRACT(EPOCH FROM (${nowDate}::timestamptz - ${apikeys.lastRequest})) * 1000 > ${apikeys.rateLimitTimeWindow}
+                THEN 1
+              ELSE COALESCE(${apikeys.requestCount}, 0) + 1
+            END`,
+            updatedAt: nowDate,
+          })
+          .where(and(
+            eq(apikeys.id, apiKey.id),
+            sql`(
+              ${apikeys.remaining} IS NULL
+              OR ${apikeys.remaining} > 0
+              OR (${refillDue} AND ${apikeys.refillAmount} > 0)
+            )`,
+          ))
+          .returning())
+
+        if (!updated)
+          return yield* Effect.fail(new UsageExceeded())
+        return updated
+      })
+
+    const verify: ApiKeyService['verify'] = (plainKey, opts) =>
+      Effect.gen(function* () {
+        if (!plainKey)
+          return yield* Effect.fail(new InvalidApiKey())
+        const hasher = opts?.keyHasher ?? defaultKeyHasher
+        const hashed = yield* Effect.promise(async () => hasher(plainKey))
+        return yield* validate(hashed, opts)
+      })
+
+    const remove: ApiKeyService['remove'] = (id, opts) =>
+      Effect.gen(function* () {
+        const reference = opts.reference ?? 'user'
+        const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
+        yield* assertScopeAllowed({ reference, referenceId, userId: opts.session.userId })
+
+        const [deleted] = yield* tryDb(() => db.delete(apikeys)
+          .where(and(
+            eq(apikeys.id, id),
+            eq(apikeys.reference, reference),
+            eq(apikeys.referenceId, referenceId!),
+          ))
+          .returning({ id: apikeys.id }))
+
+        if (!deleted)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        return true
+      })
+
+    return { findFirst, findMany, create, update, validate, verify, remove }
+  }),
+)

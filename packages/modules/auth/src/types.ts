@@ -29,6 +29,13 @@ export interface AuthContext {
   // apiKeyService: ApiKeyService
   // appService: AppService
   authService: AuthService
+  /**
+   * Effect ManagedRuntime built at boot in the auth Nitro plugin. Resolvers
+   * pass it to `runEffect(ctx.auth.runtime, …)` to execute Effect-based
+   * services (e.g. ApiKeyService) and have failures rejected as the original
+   * tagged error so Pothos's errors plugin can route them.
+   */
+  runtime: ReturnType<typeof import('@czo/kit/effect').useRuntime>
   /** better-auth session — narrowed when needed */
   session: any
   /** better-auth user — narrowed when needed */
