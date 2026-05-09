@@ -1,5 +1,5 @@
 export * from './account.service'
-export * from './apiKey.service'
+export * from './api-key'
 export * from './app.service'
 export * from './auth.service'
 export * from './organization.service'

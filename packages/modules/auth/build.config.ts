@@ -21,6 +21,7 @@ export default defineBuildConfig({
     'src/events/index',
     'src/listeners/index',
     'src/services/index',
+    'src/layers/index',
     'src/graphql/index',
     {
       input: 'src/plugins/',

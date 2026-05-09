@@ -1,113 +1,22 @@
 import type { Auth } from '@czo/auth/config'
 import type { ApiKey, AuthRelations, CreateApiKeyInput, UpdateApiKeyInput } from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
-// import type { ApiKey, ApiKeyOptions } from '@better-auth/api-key'
-import type { Awaitable } from 'better-auth'
-import type { InferSelectModel } from 'drizzle-orm'
-import type { OrganizationService } from './organization.service'
+import type {
+  CreateApiKeyOptions,
+  FindManyOptions,
+  FindOneOptions,
+  KeyGenerator,
+  RemoveApiKeyOptions,
+  ScopedQueryOptions,
+  UpdateApiKeyOptions,
+  VerifyApiKeyOptions,
+} from '../services/api-key'
+import type { OrganizationService } from '../services/organization.service'
 import { defaultKeyHasher } from '@better-auth/api-key'
 import { apikeys } from '@czo/auth/schema'
 import { generateRandomString } from 'better-auth/crypto'
 import { role } from 'better-auth/plugins'
 import { and, eq, sql } from 'drizzle-orm'
-
-// ─── Types ───────────────────────────────────────────────────────────
-
-export type ApiKeyRow = InferSelectModel<typeof apikeys>
-
-interface KeyGenerator {
-  (options: { length: number, prefix: string | undefined }): Awaitable<string>
-}
-
-interface KeyHasher {
-  (key: string): Awaitable<string>
-}
-
-interface CreateApiKeyOptions {
-  /** Custom key generator. Defaults to a length-based random hex string. */
-  keyGenerator?: KeyGenerator
-  /** Custom hasher. Defaults to better-auth's `defaultKeyHasher` (sha256). */
-  keyHasher?: KeyHasher
-  // ── error callbacks (return-style, like user.service / organization.service)
-  onFailed?: () => Promise<void>
-  onIntrusion?: () => Promise<void>
-  onRefillPairRequired?: () => Promise<void>
-  rateLimit?: {
-    maxRequests?: number
-    timeWindow?: number
-  }
-  rateLimitMax?: number
-  keyLength?: number
-  reference?: string
-  startCharsLength?: number
-  session: {
-    userId: number
-  }
-}
-
-interface FindOneOptions {
-  onNotFound?: () => Promise<void>
-  onIntrusion?: () => Promise<void>
-  session: {
-    userId: number
-  }
-}
-
-interface FindManyOptions {
-  onIntrusion?: () => Promise<void>
-  session: {
-    userId: number
-  }
-}
-
-interface ScopedQueryOptions {
-  reference: string
-  referenceId?: number
-  userId: number
-  onIntrusion?: () => Promise<void>
-}
-
-interface UpdateApiKeyOptions {
-  onNotFound?: () => Promise<void>
-  onIntrusion?: () => Promise<void>
-  onFailed?: () => Promise<void>
-  onNoChanges?: () => Promise<void>
-  onRefillPairRequired?: () => Promise<void>
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
-}
-
-interface VerifyApiKeyOptions {
-  /** Required permissions, e.g. `{ users: ['read', 'write'] }`. Subset check against `apiKey.permissions`. */
-  permissions?: Record<string, string[]>
-  /** Custom hasher for `verify` (plain → hashed). Defaults to better-auth's `defaultKeyHasher` (sha256). */
-  keyHasher?: KeyHasher
-  // ── error callbacks
-  onInvalidKey?: () => Promise<void>
-  onKeyDisabled?: () => Promise<void>
-  onKeyExpired?: () => Promise<void>
-  onUnauthorized?: () => Promise<void>
-  onRateLimited?: (info: { tryAgainIn: number }) => Promise<void>
-  /** Fired when the key has rate-limit enabled but `rateLimitTimeWindow`/`rateLimitMax` are non-positive (set-but-invalid). Callers should treat this as a config bug, not a normal rate limit. */
-  onMisconfigured?: (info: { reason: string }) => Promise<void>
-  onFailed?: () => Promise<void>
-}
-
-interface RemoveApiKeyOptions {
-  onNotFound?: () => Promise<void>
-  onIntrusion?: () => Promise<void>
-  onFailed?: () => Promise<void>
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
-}
-
-export type ApiKeyService = ReturnType<typeof createApiKeyService>
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
