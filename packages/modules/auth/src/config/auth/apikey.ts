@@ -1,11 +1,14 @@
+import type { ApiKey, ApiKeyConfigurationOptions, ApiKeyOptions } from '@better-auth/api-key'
 import type { GenericEndpointContext } from 'better-auth'
-import type { ApiKey, ApiKeyOptions } from 'better-auth/plugins'
-import { apiKey } from 'better-auth/plugins'
+import { apiKey } from '@better-auth/api-key'
 import { AUTH_EVENTS, publishAuthEvent } from '../../events'
 
-export function apiKeyConfig(option?: ApiKeyOptions) {
+export function apiKeyConfig(
+  config?: (ApiKeyConfigurationOptions & ApiKeyOptions) | ApiKeyConfigurationOptions[],
+  option?: ApiKeyOptions
+) {
   return apiKey({
-    ...option,
+    ...config,
     requireName: true,
     rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 100 },
     schema: {
@@ -27,7 +30,7 @@ export function apiKeyConfig(option?: ApiKeyOptions) {
         },
       },
     },
-  })
+  }, option)
 }
 
 export function apiKeyHooks() {
@@ -36,7 +39,7 @@ export function apiKeyHooks() {
       after: async (apikey: ApiKey & Record<string, unknown>, _ctx: GenericEndpointContext | null) => {
         void publishAuthEvent(AUTH_EVENTS.API_KEY_CREATED, {
           apiKeyId: apikey.id,
-          userId: apikey.userId,
+          userId: apikey.referenceId,
           name: apikey.name ?? null,
           prefix: apikey.prefix ?? null,
         })

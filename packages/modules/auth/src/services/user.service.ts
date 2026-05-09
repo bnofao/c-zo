@@ -1,13 +1,20 @@
-import type { Auth } from '@czo/auth/config'
+import type { AccessRole, Auth } from '@czo/auth/config'
+import type { sessions, UserSchema } from '@czo/auth/schema'
+import type { AuthRelations, BanUserInput, CreateUserInput, ImpersonateUserInput, UpdateUserInput, User } from '@czo/auth/types'
+import type { Database } from '@czo/kit/db'
 import type { AdminOptions } from 'better-auth/plugins'
-import type { InferSelectModel } from 'drizzle-orm'
-import type { sessions, users } from '../database/schema'
+import { eq, type InferInsertModel, type InferSelectModel } from 'drizzle-orm'
+import { users } from '@czo/auth/schema'
 import { mapAPIError } from './_internal/map-error'
+import { deleteSessionCookie } from 'better-auth/cookies'
+import { parseSessionOutput } from 'better-auth/db'
+import { validateRole } from './utils/validate-roles'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type UserRow = InferSelectModel<typeof users>
+// export type User = InferSelectModel<UserSchema>
 export type SessionRow = InferSelectModel<typeof sessions>
+export type UserInsert = Pick<InferInsertModel<UserSchema>, 'email' | 'name' | 'role'> & { password: string }
 
 export interface ListUsersParams {
   searchValue?: string
@@ -22,18 +29,18 @@ export interface ListUsersParams {
   filterOperator?: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'contains'
 }
 
-export interface CreateUserInput {
-  email: string
-  name: string
-  password?: string
-  role?: string | string[]
-  data?: Record<string, unknown>
-}
+// export interface CreateUserInput {
+//   email: string
+//   name: string
+//   password?: string
+//   role?: string | string[]
+//   data?: Record<string, unknown>
+// }
 
-export interface UpdateUserInput {
-  userId: string
-  data: Record<string, unknown>
-}
+// export interface UpdateUserInput {
+//   userId: string
+//   data: Record<string, unknown>
+// }
 
 export interface SetRoleInput {
   userId: string
@@ -45,62 +52,104 @@ export interface SetUserPasswordInput {
   newPassword: string
 }
 
-export interface BanUserInput {
-  userId: string
-  banReason?: string
-  banExpiresIn?: number
-}
+// export interface BanUserInput {
+//   userId: string
+//   banReason?: string
+//   banExpiresIn?: number
+// }
 
 export type UserService = ReturnType<typeof createUserService>
 
+interface CreateUserOptions {
+  onUserExists?: (user: User) => Promise<never>
+  onFailed?: () => Promise<never>
+  onInvalidRole?: () => Promise<never>
+}
+
+interface UpdateUserOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+  onInvalidRole?: () => Promise<never>
+}
+
+interface BanUserOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+  onSelfBan?: () => Promise<never>
+  onAlreadyBanned?: () => Promise<void>
+  authUserId?: number
+}
+
+interface UnbanUserOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+  onNotBanned?: () => Promise<void>
+}
+
+interface SetRoleOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+  onInvalidRole?: () => Promise<never>
+}
+
+interface SetPasswordOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+}
+
+interface RemoveUserOptions {
+  onFailed?: () => Promise<never>
+  onNotFound?: () => Promise<never>
+  onSelfRemove?: () => Promise<never>
+  authUserId?: number
+}
+
+interface FindOneOptions {
+  onNotFound?: () => Promise<void>
+}
+
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createUserService(auth: Auth) {
+export function createUserService(
+  db: Database<AuthRelations>,
+  auth: Auth,
+  roles?: Record<string, AccessRole>,
+) {
+  
+  const findFirst = async (config?: Parameters<typeof db.query.users.findFirst>[0], opts?: FindOneOptions) => {
+    const data = await db.query.users.findFirst(config)
+
+    if (!data) {
+      if (opts?.onNotFound)
+        opts.onNotFound()
+      return null
+    }
+
+    return data
+  }
+
+  // const validateRole = (role: string | string[]) => {
+  //   const _roles = Array.isArray(role) ? role : [role]
+
+  //   for (const role of _roles) {
+  //     if (roles && !roles[role])
+  //       return false
+  //   }
+  //   return _roles.join(',') // store as comma-separated string
+  // }
+
+  const hashPassword = async (ctx: Awaited<typeof auth.$context> ,password: string): Promise<string> => {
+    return await ctx.password.hash(password)
+  }
+
   return {
     // ── Reads — internalAdapter ──
 
-    async list(params: ListUsersParams): Promise<{ users: UserRow[], total: number, limit?: number, offset: number }> {
-      const ctx = await auth.$context
-      const limit = params.limit ? Number(params.limit) : undefined
-      const offset = params.offset ? Number(params.offset) : 0
-
-      // Build where clauses for better-auth's internalAdapter
-      const rows = await ctx.internalAdapter.listUsers(
-        limit,
-        offset,
-      ) as UserRow[]
-
-      // Apply search filtering in memory (internalAdapter.listUsers doesn't support text search)
-      let filtered = rows
-      if (params.searchValue && params.searchField) {
-        const field = params.searchField
-        const value = params.searchValue.toLowerCase()
-        filtered = rows.filter((u) => {
-          const col = u[field as keyof typeof u] as string | null
-          if (!col)
-            return false
-          const op = params.searchOperator ?? 'contains'
-          if (op === 'contains')
-            return col.toLowerCase().includes(value)
-          if (op === 'starts_with')
-            return col.toLowerCase().startsWith(value)
-          if (op === 'ends_with')
-            return col.toLowerCase().endsWith(value)
-          return false
-        })
-      }
-
-      const total = filtered.length
-      return { users: filtered, total, limit, offset }
+    async findMany(config?: Parameters<typeof db.query.users.findMany>[0]) {
+      return db.query.users.findMany(config)
     },
 
-    async get(userId: string): Promise<UserRow> {
-      const ctx = await auth.$context
-      const row = await ctx.internalAdapter.findUserById(userId) as UserRow | null
-      if (!row)
-        throw new Error(`User not found: ${userId}`)
-      return row
-    },
+    findFirst,
 
     // ── hasPermission — admin role check ──
 
@@ -112,9 +161,10 @@ export function createUserService(auth: Auth) {
       connector?: 'AND' | 'OR'
     }): boolean {
       const { userId, permissions, role, connector = 'AND' } = opts
-      const adminOptions = auth.options.plugins?.find(
-        (p: { id: string }) => p.id === 'admin',
-      )?.options as AdminOptions | undefined
+      const adminOptions = (auth.options.plugins?.find(
+        (p) => p.id === 'admin',
+        // @ts-expect-error access plugin options type not exported, so we have to assert here
+      ))?.options as AdminOptions | undefined
 
       if (adminOptions?.adminUserIds?.includes(userId))
         return true
@@ -134,31 +184,51 @@ export function createUserService(auth: Auth) {
 
     // ── Writes — internalAdapter ──
 
-    async create(input: CreateUserInput): Promise<UserRow> {
-      const ctx = await auth.$context
+    async create(input: CreateUserInput, opts?: CreateUserOptions): Promise<User | null>  {
+      const existing = await db.query.users.findFirst({ where: { email: input.email } })
 
-      const role = Array.isArray(input.role) ? input.role[0] : (input.role ?? 'user')
+      if (existing) {
+        if (opts?.onUserExists)
+          await opts.onUserExists(existing)
+        return null
+      }
 
-      const row = await ctx.internalAdapter.createUser<UserRow>({
-        email: input.email,
-        name: input.name,
-        role: role ?? 'user',
-        emailVerified: false,
-        banned: false,
-        ...(input.data as Record<string, unknown>),
-      })
+      if (input.role) {
+        const validRole = validateRole(input.role, roles)
 
-      if (!row)
-        throw new Error('Failed to create user')
+        if (!validRole) {
+          if (opts?.onInvalidRole) {
+            await opts.onInvalidRole()
+          }
+          return null
+        }
 
+        input.role = validRole
+      }
+
+      const [user] = await db.insert(users).values({
+        ...input,
+        role: input.role as (string | undefined | null) ?? 'user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning()
+
+      if (!user) {
+        if (opts?.onFailed) {
+          await opts.onFailed()
+        } 
+        return null
+      }
+        
       // If password provided, store credential via internalAdapter
       if (input.password) {
         try {
-          const hashedPassword = await ctx.password.hash(input.password)
-          await ctx.internalAdapter.createAccount({
-            accountId: row.id,
+          const authContext = await auth.$context
+          const hashedPassword = await hashPassword(authContext, input.password)
+          await authContext.internalAdapter.linkAccount({
+            accountId: String(user.id),
             providerId: 'credential',
-            userId: row.id,
+            userId: String(user.id),
             password: hashedPassword,
           })
         }
@@ -167,142 +237,253 @@ export function createUserService(auth: Auth) {
         }
       }
 
-      return row
+      return user
     },
 
-    async update(input: UpdateUserInput): Promise<UserRow> {
-      const { userId, data } = input
-      const ctx = await auth.$context
+    async update(id: number, input: UpdateUserInput, opts?: UpdateUserOptions): Promise<User | null> {
+      const existing = await findFirst(
+        { where: { id }},
+        { onNotFound: opts?.onNotFound }
+      )
 
-      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, data)
+      if (!existing) {
+        return null
+      }
 
-      if (!row)
-        throw new Error(`User not found: ${userId}`)
+      if (Object.keys(input).length === 0) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+        return null
+      }
 
-      return row
-    },
+      if (input.role) {
+        const validRole = validateRole(input.role, roles)
 
-    async ban(input: BanUserInput): Promise<UserRow> {
-      const { userId, banReason, banExpiresIn } = input
-      const banExpires = banExpiresIn ? new Date(Date.now() + banExpiresIn * 1000) : null
-      const ctx = await auth.$context
+        if (!validRole) {
+          if (opts?.onInvalidRole) {
+            await opts.onInvalidRole()
+          }
+          return null
+        }
 
-      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
-        banned: true,
-        banReason: banReason ?? null,
-        banExpires: banExpires ?? undefined,
+        input.role = validRole
+      }
+
+      const [user] = await db.update(users).set({
+        ...input,
+        role: input.role as (string | undefined | null),
         updatedAt: new Date(),
-      })
+      }).where(eq(users.id, id)).returning()
 
-      if (!row)
-        throw new Error(`User not found: ${userId}`)
-
-      // Cascade session revocation — better-auth's domain
-      try {
-        await ctx.internalAdapter.deleteSessions(userId)
-      }
-      catch {
-        // non-fatal: sessions may already be expired
+      if (!user) {
+        if (opts?.onFailed)
+          await opts.onFailed()
       }
 
-      return row
+      return user ?? null
     },
 
-    async unban(userId: string): Promise<UserRow> {
-      const ctx = await auth.$context
+    async ban(id: number, input: BanUserInput, opts?: BanUserOptions): Promise<User | null> {
 
-      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
+      const existing = await findFirst({ where: { id }}, { onNotFound: opts?.onNotFound})
+
+      if (!existing) {
+        return null
+      }
+
+      if (existing.banned) {
+        if (opts?.onAlreadyBanned)
+          await opts.onAlreadyBanned()
+      }
+
+      if (opts?.authUserId && existing.id === opts.authUserId) {
+        if (opts?.onSelfBan)
+          await opts.onSelfBan()
+      }
+
+      const [user] = await db.update(users).set({
+        banned: true,
+        banReason: input.reason ?? 'No reason provided',
+        banExpires: typeof input.expiresIn === 'number' ? new Date(Date.now() + input.expiresIn * 1000) : null, // TODO: set default ban duration if not provided?
+        updatedAt: new Date(),
+      }).where(eq(users.id, id)).returning()
+
+      if (!user) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+      }
+
+      return user ?? null 
+    },
+
+    async unban(id: number, opts?: UnbanUserOptions): Promise<User | null> {
+
+      const existing = await findFirst({ where: { id }}, { onNotFound: opts?.onNotFound})
+
+      if (!existing) {
+        return null
+      }
+
+      if (!existing.banned) {
+        if (opts?.onNotBanned)
+          await opts.onNotBanned()
+      }
+
+      const [user] = await db.update(users).set({
         banned: false,
         banReason: null,
         banExpires: null,
         updatedAt: new Date(),
-      })
+      }).where(eq(users.id, id)).returning()
 
-      if (!row)
-        throw new Error(`User not found: ${userId}`)
+      if (!user) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+      }
 
-      return row
+      return user ?? null
     },
 
-    async setRole(input: SetRoleInput): Promise<UserRow> {
-      const { userId, role } = input
-      const roleStr = Array.isArray(role) ? role.join(',') : role
-      const ctx = await auth.$context
+    async setRole(id: number, role: string | string[], opts?: SetRoleOptions): Promise<User | null> {
 
-      const row = await ctx.internalAdapter.updateUser<UserRow>(userId, {
-        role: roleStr,
+      const existing = await findFirst({ where: { id }}, { onNotFound: opts?.onNotFound})
+
+      if (!existing) {
+        return null
+      }
+
+      const validRole = validateRole(role, roles)
+
+      if (!validRole) {
+        if (opts?.onInvalidRole)
+          await opts.onInvalidRole()
+        return null
+      }
+
+      const [user] = await db.update(users).set({
+        role: validRole,
         updatedAt: new Date(),
-      })
+      }).where(eq(users.id, id)).returning()
 
-      if (!row)
-        throw new Error(`User not found: ${userId}`)
-
-      return row
-    },
-
-    async setPassword(input: SetUserPasswordInput, headers: Headers) {
-      // Password change involves credential verification by better-auth — keep as wrap
-      try {
-        return await (auth.api as any).setUserPassword({
-          headers,
-          body: { userId: input.userId, newPassword: input.newPassword },
-        })
+      if (!user) {
+        if (opts?.onFailed)
+          await opts.onFailed()
       }
-      catch (err) { mapAPIError(err, 'User') }
+
+      return user ?? null
     },
 
-    async remove(userId: string): Promise<{ success: boolean }> {
+    async setPassword(id: number, password: string, opts?: SetPasswordOptions): Promise<true | null> {
+
+      const existing = await findFirst({ where: { id }}, { onNotFound: opts?.onNotFound})
+
+      if (!existing) {
+        return null
+      }
+
+      const authContext = await auth.$context
+      const hashedPassword = await hashPassword(authContext, password)
+      try {
+        authContext.internalAdapter.updatePassword(String(id), hashedPassword)
+        return true
+      }
+      catch { 
+        if (opts?.onFailed)
+          await opts.onFailed()
+      }
+
+      return null
+    },
+
+    async remove(id: number, opts?: RemoveUserOptions): Promise<{ success: boolean }> {
+
+      const existing = await findFirst({ where: { id }}, { onNotFound: opts?.onNotFound})
+
+      if (!existing) {
+        return { success: false }
+      }
+
+      if (opts?.authUserId && existing.id === opts.authUserId) {
+        if (opts?.onSelfRemove)
+          await opts.onSelfRemove()
+        return { success: false }
+      }
+
       const ctx = await auth.$context
 
-      // Cascade session revoke first
       try {
-        await ctx.internalAdapter.deleteSessions(userId)
-      }
-      catch {
-        // non-fatal
-      }
+        await ctx.internalAdapter.deleteUser(String(id))
 
-      await ctx.internalAdapter.deleteUser(userId)
-
-      return { success: true }
+        return { success: true }
+      } catch {
+        if (opts?.onFailed)
+          await opts.onFailed()
+      }
+        return { success: false }
     },
 
     // ── Sessions — internalAdapter ──
 
-    async listSessions(userId: string): Promise<SessionRow[]> {
+    async listSessions(id: number) {
       const ctx = await auth.$context
-      return ctx.internalAdapter.listSessions(userId) as Promise<SessionRow[]>
+      const sessions = await ctx.internalAdapter.listSessions(String(id))
+
+      return sessions.map((s) => parseSessionOutput(ctx.options, s))
     },
 
-    async revokeSession(sessionToken: string, headers?: Headers) {
-      // Cookie invalidation is better-auth's domain
-      try {
-        return await (auth.api as any).revokeUserSession({ headers, body: { sessionToken } })
-      }
-      catch (err) { mapAPIError(err, 'Session') }
+    async revokeSession(token: string) {
+      const authContext = await auth.$context
+      await authContext.internalAdapter.deleteSessions(token)
+
+      return true;
     },
 
-    async revokeSessions(userId: string, headers?: Headers) {
-      try {
-        return await (auth.api as any).revokeUserSessions({ headers, body: { userId } })
-      }
-      catch (err) { mapAPIError(err, 'Session') }
+    async revokeSessions(id: number) {
+      const authContext = await auth.$context
+      await authContext.internalAdapter.deleteSessions(String(id))
+
+      return true;
     },
 
     // ── Impersonation — session creation, better-auth's domain ──
 
-    async impersonate(userId: string, headers?: Headers) {
-      try {
-        return await (auth.api as any).impersonateUser({ headers, body: { userId } })
-      }
-      catch (err) { mapAPIError(err, 'User') }
-    },
+    // async impersonate(id: number, input: ImpersonateUserInput, opts?: ImpersonateUserOptions) {
+    //   const targetUser = await getById(id)
 
-    async stopImpersonating(headers: Headers) {
-      try {
-        return await (auth.api as any).stopImpersonating({ headers })
-      }
-      catch (err) { mapAPIError(err, 'Session') }
-    },
+    //   if (!targetUser) {
+    //     if (opts?.onNotFound)
+    //       await opts.onNotFound()
+    //     return null
+    //   }
+
+    //   // TODO : guard against impersonating admins if needed (requires role info in User model)
+
+    //   const authContext = await auth.$context
+    //   const session = await authContext.internalAdapter.createSession(
+    //     String(targetUser.id),
+    //     true,
+    //     {
+    //       impersonatedBy: String(input.byUserId),
+    //       actor: input.actor,
+    //       expiresAt: input.sessionDuration ? new Date(Date.now() + input.sessionDuration * 1000) : new Date(Date.now() + 60 * 60 * 1000), // default to 1 hour session if duration not provided
+    //     }
+    //   )
+
+    //   if (!session) {
+    //     if (opts?.onSessionFailed)
+    //       await opts.onSessionFailed()
+    //     return null
+    //   }
+      
+    //   const authCookies = authContext.authCookies
+    //   deleteSessionCookie(auth) // ensure any existing session cookie is cleared
+    // },
+
+    // async stopImpersonating(headers: Headers) {
+    //   try {
+    //     return await (auth.api as any).stopImpersonating({ headers })
+    //   }
+    //   catch (err) { mapAPIError(err, 'Session') }
+    // },
   }
 }

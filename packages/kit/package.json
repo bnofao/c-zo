@@ -80,6 +80,7 @@
     "@opentelemetry/sdk-metrics": "^1.30.0",
     "@opentelemetry/sdk-trace-node": "^1.30.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "@pothos/core": "catalog:",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
     "graphql-middleware": "^6.0.0",

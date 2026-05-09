@@ -1,10 +1,11 @@
-import type { DomainEvent, DomainEventHandler, HookableEventBus, PublishHook, Unsubscribe } from '../types'
+import type { DomainEvent, DomainEventHandler, EventErrorHandler, HookableEventBus, PublishHook, SubscribeOptions, Unsubscribe } from '../types'
 import { runWithContext } from '@czo/kit/telemetry'
 
 interface Subscription {
   pattern: string
   regex: RegExp
   handler: DomainEventHandler
+  onError?: EventErrorHandler
 }
 
 /**
@@ -55,44 +56,68 @@ function patternToRegex(pattern: string): RegExp {
   return new RegExp(`^${regex}$`)
 }
 
+export interface CreateHookableEventBusOptions {
+  /**
+   * If true, handlers are awaited one after another (serial).
+   * If false (default), handlers run concurrently via Promise.allSettled.
+   */
+  serial?: boolean
+}
+
 /**
  * Create an in-memory EventBus backed by hookable's EventEmitter.
  *
- * Implements AMQP-style pattern matching (`*` and `#` wildcards)
- * with parallel handler execution via `Promise.allSettled()`.
+ * Implements AMQP-style pattern matching (`*` and `#` wildcards).
+ * Handler execution is parallel by default; pass `{ serial: true }`
+ * to run handlers sequentially.
  */
-export async function createHookableEventBus(): Promise<HookableEventBus> {
+export async function createHookableEventBus(
+  options: CreateHookableEventBusOptions = {},
+): Promise<HookableEventBus> {
+  const { serial = false } = options
   let subscriptions: Subscription[] = []
   const noop: PublishHook = () => undefined
   let publishHook: PublishHook = noop
+
+  const runHandler = async (sub: Subscription, event: DomainEvent): Promise<void> => {
+    const ctx = {
+      correlationId: event.metadata.correlationId ?? crypto.randomUUID(),
+    }
+    try {
+      await runWithContext(ctx, () => sub.handler(event))
+    }
+    catch (err) {
+      await runWithContext(ctx, () => sub.onError?.(err, event))
+    }
+  }
 
   const publish = async (event: DomainEvent): Promise<unknown> => {
     const matching = subscriptions.filter(sub => sub.regex.test(event.type))
 
     if (matching.length > 0) {
-      await Promise.allSettled(
-        matching.map(async (sub) => {
-          try {
-            const ctx = {
-              correlationId: event.metadata.correlationId ?? crypto.randomUUID(),
-            }
-            await runWithContext(ctx, () => sub.handler(event))
-          }
-          catch {
-            // Swallow — domain event handlers must not break publishers
-          }
-        }),
-      )
+      if (serial) {
+        for (const sub of matching) {
+          await runHandler(sub, event)
+        }
+      }
+      else {
+        await Promise.allSettled(matching.map(sub => runHandler(sub, event)))
+      }
     }
 
     return publishHook(event)
   }
 
-  const subscribe = (pattern: string, handler: DomainEventHandler): Unsubscribe => {
+  const subscribe = <T = unknown>(
+    pattern: string,
+    handler: DomainEventHandler<T>,
+    options?: SubscribeOptions<T>,
+  ): Unsubscribe => {
     const subscription: Subscription = {
       pattern,
       regex: patternToRegex(pattern),
-      handler,
+      handler: handler as DomainEventHandler,
+      onError: options?.onError as EventErrorHandler | undefined,
     }
     subscriptions = [...subscriptions, subscription]
 

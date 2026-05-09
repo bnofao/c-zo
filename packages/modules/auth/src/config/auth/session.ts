@@ -25,6 +25,7 @@ export function sessionConfig(option?: BetterAuthOptions['session']) {
       organizationId: { type: 'string' as const, required: false, input: false, fieldName: 'organization_id' },
     },
     preserveSessionInDatabase: true,
+    storeSessionInDatabase: true,
   }
 }
 

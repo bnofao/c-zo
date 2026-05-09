@@ -17,6 +17,14 @@ function getBus(): Promise<EventBus> {
   return busPromise
 }
 
+export function authEvent(type: AuthEventType, payload: EventMap[AuthEventType]) {
+  return createDomainEvent({
+    type,
+    payload,
+    metadata: { source: 'auth' },
+  })
+}
+
 export async function publishAuthEvent<K extends AuthEventType>(
   type: K,
   payload: EventMap[K],

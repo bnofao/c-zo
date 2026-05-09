@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -37,36 +37,23 @@ export class SlugAlreadyTakenError extends BaseGraphQLError {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerOrganizationErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
+  registerError(builder, CannotLeaveAsLastOwnerError, { name: 'CannotLeaveAsLastOwnerError' })
 
-  builder.objectType(CannotLeaveAsLastOwnerError, {
-    name: 'CannotLeaveAsLastOwnerError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(InvitationExpiredError, {
+  registerError(builder, InvitationExpiredError, {
     name: 'InvitationExpiredError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      invitationId: t.exposeString('invitationId'),
-    }),
+    fields: t => ({ invitationId: t.exposeString('invitationId') }),
   })
 
-  builder.objectType(MembershipAlreadyExistsError, {
+  registerError(builder, MembershipAlreadyExistsError, {
     name: 'MembershipAlreadyExistsError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
+    fields: t => ({
       userId: t.exposeString('userId'),
       organizationId: t.exposeString('organizationId'),
     }),
   })
 
-  builder.objectType(SlugAlreadyTakenError, {
+  registerError(builder, SlugAlreadyTakenError, {
     name: 'SlugAlreadyTakenError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      slug: t.exposeString('slug'),
-    }),
+    fields: t => ({ slug: t.exposeString('slug') }),
   })
 }

@@ -13,14 +13,14 @@ import {
   useAccessService,
   useAuthActorService,
 } from '@czo/auth/config'
-import { registerAuthSchema } from '@czo/auth/graphql'
+import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
 import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
-import { createAccountService, createApiKeyService, createAppService, createAuthService, createOrganizationService, createSessionService, createTwoFactorService, createUserService } from '@czo/auth/services'
+import { /* createAccountService, createApiKeyService, createAppService, */createAuthService, createOrganizationService, /* createSessionService, createTwoFactorService,  */createUserService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
 import { registerSchema as registerDbSchema, registerRelations, registerSeeder, useDatabase } from '@czo/kit/db'
-import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
+import { registerAuthScopes, registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { useContainer } from '@czo/kit/ioc'
 import { definePlugin } from 'nitro'
 
@@ -170,32 +170,32 @@ export default definePlugin((nitroApp) => {
     container.singleton('auth', () => auth)
     logger.info('Auth instance created and bound to container')
 
-    const userService = createUserService(auth)
+    const userService = createUserService(db, auth, roles)
     container.singleton('auth:users', () => userService)
 
-    const organizationService = createOrganizationService(db, auth)
+    const organizationService = createOrganizationService(db, auth, userService)
     container.singleton('auth:organizations', () => organizationService)
 
-    const accountService = createAccountService(db, auth)
-    container.singleton('auth:accounts', () => accountService)
+    // const accountService = createAccountService(db, auth)
+    // container.singleton('auth:accounts', () => accountService)
 
-    const sessionService = createSessionService(db, auth)
-    container.singleton('auth:sessions', () => sessionService)
+    // const sessionService = createSessionService(db, auth)
+    // container.singleton('auth:sessions', () => sessionService)
 
-    const twoFactorService = createTwoFactorService(auth)
-    container.singleton('auth:twoFactor', () => twoFactorService)
+    // const twoFactorService = createTwoFactorService(auth)
+    // container.singleton('auth:twoFactor', () => twoFactorService)
 
-    const apiKeyService = createApiKeyService(auth)
-    container.singleton('auth:apikeys', () => apiKeyService)
+    // const apiKeyService = createApiKeyService(auth)
+    // container.singleton('auth:apikeys', () => apiKeyService)
 
-    const subscribableEvents = authConfig.app?.subscribableEvents?.length
-      ? new Set(authConfig.app.subscribableEvents)
-      : new Set([])
+    // const subscribableEvents = authConfig.app?.subscribableEvents?.length
+    //   ? new Set(authConfig.app.subscribableEvents)
+    //   : new Set([])
 
-    const appService = createAppService(db, subscribableEvents)
-    container.singleton('auth:apps', () => appService)
+    // const appService = createAppService(db, subscribableEvents)
+    // container.singleton('auth:apps', () => appService)
 
-    const authService = createAuthService(auth, userService, organizationService)
+    const authService = createAuthService(userService, organizationService, ac, roles)
     container.singleton('auth:service', () => authService)
     logger.info('Services bound: users, auth, organizations, accounts, sessions, twoFactor, apiKeys, apps')
 
@@ -208,6 +208,7 @@ export default definePlugin((nitroApp) => {
     logger.info('Actor and access registries frozen')
 
     // Register GraphQL schema (Pothos builder contributions) when auth is properly configured
+    registerAuthScopes(authScopes)
     registerGraphQLSchema(registerAuthSchema)
     logger.info('GraphQL schema registered')
 

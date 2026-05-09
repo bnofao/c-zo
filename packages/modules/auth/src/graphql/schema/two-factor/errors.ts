@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -29,23 +29,7 @@ export class TwoFactorNotEnabledError extends BaseGraphQLError {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerTwoFactorErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
-
-  builder.objectType(TotpVerificationFailedError, {
-    name: 'TotpVerificationFailedError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(BackupCodeInvalidError, {
-    name: 'BackupCodeInvalidError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(TwoFactorNotEnabledError, {
-    name: 'TwoFactorNotEnabledError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
+  registerError(builder, TotpVerificationFailedError, { name: 'TotpVerificationFailedError' })
+  registerError(builder, BackupCodeInvalidError, { name: 'BackupCodeInvalidError' })
+  registerError(builder, TwoFactorNotEnabledError, { name: 'TwoFactorNotEnabledError' })
 }

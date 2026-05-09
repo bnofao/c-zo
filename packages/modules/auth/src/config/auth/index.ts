@@ -77,8 +77,8 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/admin/list-user-sessions',
       '/admin/create-user',
       '/admin/update-user',
-      '/admin/impersonate-user',
-      '/admin/stop-impersonating',
+      // '/admin/impersonate-user',
+      // '/admin/stop-impersonating',
       '/admin/ban-user',
       '/admin/unban-user',
       '/admin/set-role',
@@ -93,7 +93,7 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/organization/create',
       '/organization/update',
       '/organization/delete',
-      '/organization/set-active',
+      // '/organization/set-active',
       '/organization/list-members',
       '/organization/list-invitations',
       '/organization/get-invitation',
@@ -102,8 +102,8 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/organization/get-active-member-role',
       '/organization/invite-member',
       '/organization/cancel-invitation',
-      '/organization/accept-invitation',
-      '/organization/reject-invitation',
+      // '/organization/accept-invitation',
+      // '/organization/reject-invitation',
       '/organization/remove-member',
       '/organization/update-member-role',
       '/organization/leave',
@@ -137,7 +137,7 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/two-factor/verify-backup-code',
       '/two-factor/generate-backup-codes',
     ],
-  } satisfies BetterAuthOptions & { databaseHooks?: Record<string, unknown> }
+  }
 }
 
 export function createAuth(db: unknown, options: AuthOption)/* : Auth */ {

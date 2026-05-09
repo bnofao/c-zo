@@ -1,5 +1,10 @@
 import type { z } from 'zod'
 
+export { getErrorInterface, registerError, registerErrorTypes } from './builders'
+export type { RegisterErrorOptions } from './builders'
+
+export { decodeGlobalID, encodeGlobalID } from '@pothos/plugin-relay'
+
 export interface FieldError {
   path: string
   message: string

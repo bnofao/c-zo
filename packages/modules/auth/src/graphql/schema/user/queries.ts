@@ -1,7 +1,5 @@
-import type { AuthContext } from '@czo/auth/types'
 import type { SchemaBuilder } from '@czo/kit/graphql'
-
-interface Ctx { auth: AuthContext, request?: Request }
+import { decodeGlobalID } from '@czo/kit/graphql'
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
@@ -15,11 +13,9 @@ export function registerUserQueries(builder: SchemaBuilder): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (query, _root: unknown, args: Record<string, unknown>) => {
-        const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
-        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
-        return db.query.users.findFirst(query({ where: (u: any, { eq }: any) => eq(u.id, String(args.id)) } as any))
+      resolve: async (_query, _root, args, ctx) => {
+        const { id } = decodeGlobalID(args.id)
+        return await ctx.auth.userService.findFirst({ where: { id: Number(id) } })
       },
     }))
 
@@ -30,35 +26,32 @@ export function registerUserQueries(builder: SchemaBuilder): void {
       args: {
         search: t.arg.string({ required: false }),
         where: t.arg({ type: 'UserWhereInput', required: false }),
-        orderBy: t.arg({ type: 'UserOrderByInput', required: false }),
+        orderBy: t.arg({ type: ['UserOrderByInput'], required: false }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (query, _root: unknown, args: any) => { // Pothos drizzleConnection args: complex inferred type requires any here
-        const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
-        const search = args.search as string | null | undefined
-        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
-        return db.query.users.findMany(query({
-          where: search
-            ? (u: any, { ilike }: any) => ilike(u.name, `%${search}%`)
+      resolve: async (query, _root, args, ctx) => {
+        return ctx.auth.userService.findMany(query({
+          where: args.where as any, // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
+          orderBy: args.orderBy
+            ? args.orderBy.map(o => ({ [o.field]: o.direction }))
             : undefined,
-        } as any))
+        }))
       },
-      edgesField: {},
+      // edgesField: {},
     }))
 
   // ── userSessions(userId) — admin: list sessions for a user ────────────────
   // Direct Drizzle since sessions is not in authRelations
-  builder.queryField('userSessions', t =>
-    t.field({
-      type: ['Session'],
-      args: {
-        userId: t.arg.id({ required: true }),
-      },
-      authScopes: { permission: { resource: 'user', actions: ['read'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>, ctx: Ctx) => {
-        const sessions = await ctx.auth.userService.listSessions(String(args.userId))
-        return sessions ?? []
-      },
-    }))
+  // builder.queryField('userSessions', t =>
+  //   t.field({
+  //     type: ['Session'],
+  //     args: {
+  //       userId: t.arg.id({ required: true }),
+  //     },
+  //     authScopes: { permission: { resource: 'user', actions: ['read'] } },
+  //     resolve: async (_root: unknown, args: Record<string, unknown>, ctx: Ctx) => {
+  //       const sessions = await ctx.auth.userService.listSessions(String(args.userId))
+  //       return sessions ?? []
+  //     },
+  //   }))
 }

@@ -55,6 +55,19 @@ export type EventPayload<K extends string> = K extends keyof EventMap ? EventMap
 /** A handler that processes a domain event */
 export type DomainEventHandler<T = unknown> = (event: DomainEvent<T>) => Promise<void> | void
 
+/** Called when a subscriber's handler throws. Scoped to the subscription that failed. */
+export type EventErrorHandler<T = unknown> = (err: unknown, event: DomainEvent<T>) => Promise<void> | void
+
+/** Options passed to {@link EventBus.subscribe}. */
+export interface SubscribeOptions<T = unknown> {
+  /**
+   * Invoked if the handler throws.
+   * If omitted, errors are silently swallowed (default behavior).
+   * Errors thrown by `onError` itself are swallowed to prevent cascading failures.
+   */
+  onError?: EventErrorHandler<T>
+}
+
 /** Function returned by subscribe() to remove the subscription */
 export type Unsubscribe = () => void
 
@@ -87,6 +100,18 @@ export interface EventBus {
 
 /** Extended EventBus with a publish hook slot (hookable only). */
 export interface HookableEventBus extends EventBus {
+  /**
+   * Subscribe with provider-specific options.
+   *
+   * Extends {@link EventBus.subscribe} with a third `options` parameter.
+   * Currently supports `onError` — invoked if the handler throws.
+   */
+  subscribe: <T = unknown>(
+    pattern: string,
+    handler: DomainEventHandler<T>,
+    options?: SubscribeOptions<T>,
+  ) => Unsubscribe
+
   /** Register a hook that runs on every publish. Single slot — last registration wins. */
   onPublish: (hook: PublishHook) => void
 }

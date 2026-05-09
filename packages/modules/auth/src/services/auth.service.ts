@@ -1,5 +1,5 @@
-import type { Auth } from '@czo/auth/config'
-import type { AdminOptions } from 'better-auth/plugins'
+import type { AccessRole, Auth } from '@czo/auth/config'
+import type { AccessControl, AdminOptions } from 'better-auth/plugins'
 import type { OrganizationService } from './organization.service'
 import type { UserService } from './user.service'
 import { mapAPIError } from './_internal/map-error'
@@ -17,30 +17,31 @@ export type AuthService = ReturnType<typeof createAuthService>
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createAuthService(
-  auth: Auth,
   userService: UserService,
   organizationService: OrganizationService,
+  acc: AccessControl,
+  roles?: Record<string, AccessRole>,
 ) {
   return {
     // ── Session ──
 
-    async getSession(headers: Headers) {
-      try {
-        return await auth.api.getSession({ headers })
-      }
-      catch (err) {
-        mapAPIError(err, 'Session')
-      }
-    },
+    // async getSession(headers: Headers) {
+    //   try {
+    //     return await auth.api.getSession({ headers })
+    //   }
+    //   catch (err) {
+    //     mapAPIError(err, 'Session')
+    //   }
+    // },
 
     // ── Access control getters ──
 
     get accessControl() {
-      return (auth.options as any).ac
+      return acc
     },
 
     get roles() {
-      return (auth.options as any).roles
+      return roles
     },
 
     // ── hasPermission dispatcher ──
@@ -73,11 +74,11 @@ export function createAuthService(
 
     // ── Admin shortcuts (preserved for backwards compat) ──
 
-    isAdminUser(userId: string): boolean {
-      const adminOptions = auth.options.plugins?.find(
-        (p: { id: string }) => p.id === 'admin',
-      )?.options as AdminOptions | undefined
-      return adminOptions?.adminUserIds?.includes(userId) ?? false
-    },
+    // isAdminUser(userId: string): boolean {
+    //   const adminOptions = auth.options.plugins?.find(
+    //     (p: { id: string }) => p.id === 'admin',
+    //   )?.options as AdminOptions | undefined
+    //   return adminOptions?.adminUserIds?.includes(userId) ?? false
+    // },
   }
 }

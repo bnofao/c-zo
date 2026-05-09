@@ -1,3 +1,4 @@
+import type { CreateHookableEventBusOptions } from './providers/hookable'
 import type { HookableEventBus } from './types'
 import { createHookableEventBus } from './providers/hookable'
 
@@ -8,12 +9,12 @@ let instancePromise: Promise<HookableEventBus> | undefined
  * Get the singleton in-process (hookable) EventBus instance.
  * Module consumers subscribe here for domain events within the same process.
  */
-export async function useHookable(): Promise<HookableEventBus> {
+export async function useHookable(options: CreateHookableEventBusOptions = {}): Promise<HookableEventBus> {
   if (instance)
     return instance
 
   if (!instancePromise) {
-    instancePromise = createHookableEventBus().then((bus) => {
+    instancePromise = createHookableEventBus(options).then((bus) => {
       instance = bus
       return bus
     })

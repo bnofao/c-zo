@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -29,25 +29,12 @@ export class CannotUnlinkLastAccountError extends BaseGraphQLError {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerAccountErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
+  registerError(builder, PasswordMismatchError, { name: 'PasswordMismatchError' })
 
-  builder.objectType(PasswordMismatchError, {
-    name: 'PasswordMismatchError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(AccountAlreadyLinkedError, {
+  registerError(builder, AccountAlreadyLinkedError, {
     name: 'AccountAlreadyLinkedError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      providerId: t.exposeString('providerId'),
-    }),
+    fields: t => ({ providerId: t.exposeString('providerId') }),
   })
 
-  builder.objectType(CannotUnlinkLastAccountError, {
-    name: 'CannotUnlinkLastAccountError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
+  registerError(builder, CannotUnlinkLastAccountError, { name: 'CannotUnlinkLastAccountError' })
 }

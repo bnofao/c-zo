@@ -1,18 +1,7 @@
+import type { AuthGraphQLShemaBuilder, CreateUserInput, UpdateUserInput, UserWhereInput } from '@czo/auth/types'
+import { orderDirectionSchema, type SchemaBuilderRefs } from '@czo/kit/graphql'
+import { createUserSchema, updateUserSchema, userOrderFieldSchema } from '@czo/auth/types'
 import { z } from 'zod'
-
-// ─── Zod schemas (exported for service-layer validation) ─────────────────────
-
-export const createUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1).max(255),
-  password: z.string().min(8).optional(),
-  role: z.string().optional(),
-})
-
-export const updateUserSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  email: z.string().email().optional(),
-})
 
 export const userWhereSchema = z.object({
   emailVerified: z.boolean().optional(),
@@ -24,38 +13,44 @@ export const userOrderBySchema = z.object({
   direction: z.enum(['asc', 'desc']),
 })
 
-export type CreateUserInput = z.infer<typeof createUserSchema>
-export type UpdateUserInput = z.infer<typeof updateUserSchema>
-
 // ─── Pothos input type registration ──────────────────────────────────────────
 
-export function registerUserInputs(builder: any): void {
-  builder.inputType('CreateUserInput', {
-    validate: { schema: createUserSchema },
-    fields: (t: any) => ({
+export function registerUserInputs(builder: AuthGraphQLShemaBuilder): void {
+  builder.inputType('UserCreateData', {
+    validate: createUserSchema,
+    fields: t => ({
       email: t.string({ required: true }),
       name: t.string({ required: true }),
-      password: t.string({ required: false }),
-      role: t.string({ required: false }),
+      password: t.string({ required: true }),
+      role: t.string(),
     }),
   })
 
-  builder.inputType('UpdateUserInput', {
-    validate: { schema: updateUserSchema },
-    fields: (t: any) => ({
-      name: t.string({ required: false }),
-      email: t.string({ required: false }),
+  builder.inputType('UserUpdateData', {
+    validate: updateUserSchema,
+    fields: (t) => ({
+      name: t.string(),
+      role: t.string(),
     }),
   })
 
-  builder.inputType('UserWhereInput', {
-    fields: (t: any) => ({
-      emailVerified: t.boolean({ required: false }),
-      banned: t.boolean({ required: false }),
+  const UserWhereInputRef = builder.inputRef<UserWhereInput>('UserWhereInput').implement({
+    fields: (t) => ({
+      name: t.field({ type: 'StringFilterInput' }),
+      email: t.field({ type: 'StringFilterInput' }),
+      emailVerified: t.field({ type: 'BooleanFilterInput' }),
+      twoFactorEnabled: t.field({ type: 'BooleanFilterInput' }),
+      banned: t.field({ type: 'BooleanFilterInput' }),
+      banReason: t.field({ type: 'StringFilterInput' }),
+      banExpires: t.field({ type: 'DateTimeFilterInput' }),
+      createdAt: t.field({ type: 'DateTimeFilterInput' }),
+      AND: t.field({ type: [UserWhereInputRef] }),
+      OR: t.field({ type: [UserWhereInputRef] }),
+      NOT: t.field({ type: UserWhereInputRef }),
     }),
   })
 
-  builder.enumType('UserOrderField', {
+  const UserOrderFieldRef = builder.enumType('UserOrderField', {
     values: {
       NAME: { value: 'name' },
       EMAIL: { value: 'email' },
@@ -63,10 +58,32 @@ export function registerUserInputs(builder: any): void {
     } as const,
   })
 
+  const OrderDirectionRef = builder.enumType('OrderDirection', {
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
   builder.inputType('UserOrderByInput', {
-    fields: (t: any) => ({
-      field: t.field({ type: 'UserOrderField', required: true }),
-      direction: t.string({ required: true }),
+    fields: (t) => ({
+      field: t.field({ type: UserOrderFieldRef, required: true, validate: userOrderFieldSchema }),
+      direction: t.field({ type: OrderDirectionRef, required: true, validate: orderDirectionSchema }),
+    }),
+  })
+
+  builder.inputType('UserBanData', {
+    fields: (t) => ({
+      reason: t.string(),
+      expires: t.field({ type: 'DateTime' }),
+    }),
+  })
+
+  builder.inputType('ImpersonateUserInput', {
+    fields: (t) => ({
+      byUserId: t.int({ required: true }),
+      actor: t.string({ required: true }),
+      sessionDuration: t.int({ description: 'Duration in seconds' }),
     }),
   })
 }

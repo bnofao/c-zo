@@ -1,85 +1,117 @@
-import type { Auth } from '@czo/auth/config'
+import type { AccessRole, Auth } from '@czo/auth/config'
+import type { AuthRelations, CancelOrgInvitationInput, CreateOrganizationInput, CreateOrgInvitationInput, CreateOrgMemberInput, Organization, OrganizationInvitation, OrganizationMember, RemoveOrgMemberInput, UpdateOrganizationInput, UpdateOrgMemberInput, User } from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
 import type { OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
-import type { InferSelectModel } from 'drizzle-orm'
-import { and, eq } from 'drizzle-orm'
+import type { UserService } from './user.service'
+import { and, count, eq, like } from 'drizzle-orm'
 import { invitations, members, organizations } from '../database/schema'
-import { mapAPIError } from './_internal/map-error'
+import { validateRole } from './utils/validate-roles'
 
-// ─── Row types ────────────────────────────────────────────────────────
-
-export type OrganizationRow = InferSelectModel<typeof organizations>
-export type MemberRow = InferSelectModel<typeof members>
-export type InvitationRow = InferSelectModel<typeof invitations>
-
-// ─── Types ───────────────────────────────────────────────────────────
-
-export interface CreateOrganizationInput {
-  name: string
-  slug: string
-  userId?: string
-  logo?: string
-  type?: string
-  metadata?: Record<string, unknown>
-  keepCurrentActiveOrganization?: boolean
+interface CreateOrganizationOptions {
+  onLimit?: () => Promise<void>
+  limit?: number | ((user: User) => Promise<boolean>)
+  role?: string | string[]
+  onFailed?: () => Promise<void>
+  onExists?: () => Promise<void>
+  onUserNotFound?: () => Promise<void>
 }
 
-export interface UpdateOrganizationInput {
-  data: {
-    name?: string
-    slug?: string
-    logo?: string
-    type?: string
-    metadata?: Record<string, unknown>
+interface UpdateOrganizationOptions {
+  // placeholder for now — likely won't need options for update, but keeping the signature consistent with create
+  onFailed?: () => Promise<void>
+  onNotFound?: () => Promise<void>
+  authUserId?: number
+  onIntrusion?: () => Promise<void>
+  onSlugConflict?: () => Promise<void>
+}
+
+interface DeleteOrganizationOptions {
+  // placeholder for now — likely won't need options for update, but keeping the signature consistent with create
+  prevent?: boolean
+  onFailed?: () => Promise<void>
+  onNotFound?: () => Promise<void>
+  session?: {
+    userId: number
+    organizationId: number
+    token: string
   }
-  organizationId?: string
+  onIntrusion?: () => Promise<void>
 }
 
-export interface InviteMemberInput {
-  email: string
-  role: string | string[]
-  organizationId?: string
-  resend?: boolean
+interface FindOneOptions {
+  onNotFound?: () => Promise<void>
+  auth?: {
+    userId: number
+  }
 }
 
-export interface GetOrganizationInput {
-  organizationId?: string
-  organizationSlug?: string
-  membersLimit?: number
+interface FindManyOptions {
+  auth?: {
+    userId: number
+  }
 }
 
-export interface SetActiveOrganizationInput {
-  organizationId?: string | null
-  organizationSlug?: string
+interface AddMemberOptions {
+  onUserNotFound?: () => Promise<void>
+  onOrganizationNotFound?: () => Promise<void>
+  onMemberExists?: (member: OrganizationMember) => Promise<void>
+  onFailed?: () => Promise<void>
+  limit?: number
+  onLimit?: () => Promise<void>
+  onInvalidRole?: () => Promise<void>
 }
 
-export interface RemoveMemberInput {
-  memberIdOrEmail: string
-  organizationId?: string
+interface FindOneMemberOptions {
+  onNotFound?: () => Promise<void>
 }
 
-export interface UpdateMemberRoleInput {
-  memberId: string
-  role: string | string[]
-  organizationId?: string
+interface RemoveMemberOptions {
+  onFailed?: () => Promise<void>
+  onNotFound?: () => Promise<void>
+  creatorRole?: string
+  onAttemptToRemoveLastOwner?: () => Promise<void>
+  session?: {
+    userId: number
+    organizationId: number
+    token: string
+  }
 }
 
-export interface GetActiveMemberRoleInput {
-  userId?: string
-  organizationId?: string
-  organizationSlug?: string
+interface UpdateMemberOptions {
+  onFailed?: () => Promise<void>
+  onNotFound?: () => Promise<void>
+  onIntrusion?: () => Promise<void>
+  onAttemptToSetOwner?: () => Promise<void>
+  onAttemptToLeaveOrganizationWithoutAnOwner?: () => Promise<void>
+  onInvalidRole?: () => Promise<void>
+  creatorRole?: string
+  session?: {
+    userId: number
+  }
 }
 
-export interface ListMembersParams {
-  organizationId?: string
-  organizationSlug?: string
-  limit?: number | string
-  offset?: number | string
-  sortBy?: string
-  sortDirection?: 'asc' | 'desc'
-  filterField?: string
-  filterValue?: string | number | boolean
-  filterOperator?: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'contains'
+interface CreateInvitationOptions {
+  onFailed?: () => Promise<void>
+  onIntrusion?: () => Promise<void>
+  onAttemptToSetOwner?: () => Promise<void>
+  onMemberExists?: () => Promise<void>
+  onExists?: () => Promise<void>
+  cancelPendingOnReInvite?: boolean
+  limit?: number | (() => Promise<number>)
+  onLimitReached?: () => Promise<void>
+  // sendInvitationEmail?: (invitation: OrganizationInvitation) => Promise<void>
+  onInvalidRole?: () => Promise<void>
+  expiration?: number
+  creatorRole?: string
+}
+
+interface CancelInvitationOptions {
+  onFailed?: () => Promise<void>
+  onNotFound?: () => Promise<void>
+  onIntrusion?: () => Promise<void>
+  session?: {
+    userId: number
+  }
 }
 
 export type OrganizationService = ReturnType<typeof createOrganizationService>
@@ -104,271 +136,692 @@ function isValidPermissionsRecord(value: unknown): value is Record<string, strin
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createOrganizationService(db: Database, auth: Auth) {
+export function createOrganizationService(db: Database<AuthRelations>, auth: Auth, userService: UserService, roles?: Record<string, AccessRole>) {
+  const checkMembership = async (organizationId: number, userId: number) => {
+    const isMember = await db.query.members.findFirst({
+      where: {
+        organizationId,
+        userId,
+      },
+    })
+    return !!isMember
+  }
+
+  const findFirst = async (config?: Parameters<typeof db.query.organizations.findFirst>[0], opts?: FindOneOptions) => {
+    const { where } = config || {}
+    const data = await db.query.organizations.findFirst(opts?.auth
+      ? { ...config, where: {
+          ...where,
+          members: { userId: opts.auth.userId },
+        } }
+      : config)
+
+    if (!data) {
+      if (opts?.onNotFound)
+        opts.onNotFound()
+      return null
+    }
+
+    return data
+  }
+
+  const findFirstMember = async (orgId: number, config?: Parameters<typeof db.query.members.findFirst>[0], opts?: FindOneMemberOptions) => {
+    const { where } = config || {}
+    const data = await db.query.members.findFirst({ ...config, where: {
+      ...where,
+      organizationId: orgId,
+    } })
+
+    if (!data) {
+      if (opts?.onNotFound)
+        opts.onNotFound()
+      return null
+    }
+
+    return data
+  }
+
+  const findFirstInvitation = async (orgId: number, config?: Parameters<typeof db.query.invitations.findFirst>[0], opts?: FindOneMemberOptions) => {
+    const { where } = config || {}
+    const data = await db.query.invitations.findFirst({ ...config, where: {
+      ...where,
+      organizationId: orgId,
+    } })
+
+    if (!data) {
+      if (opts?.onNotFound)
+        opts.onNotFound()
+      return null
+    }
+
+    return data
+  }
+
+  const findManyInvitations = async (orgId: number, config?: Parameters<typeof db.query.invitations.findMany>[0]) => {
+    const { where } = config || {}
+    return await db.query.invitations.findMany({ ...config, where: {
+      ...where,
+      organizationId: orgId,
+    }})
+  }
+
   return {
+    checkMembership,
     // ── Org reads — Drizzle direct ──
 
-    async find(organizationId: string) {
-      const [row] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1)
-      return row ?? null
-    },
+    findFirst,
 
-    async findBySlug(slug: string) {
-      const [row] = await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1)
-      return row ?? null
-    },
-
-    async list(): Promise<OrganizationRow[]> {
-      return db.select().from(organizations)
-    },
-
-    async exists(organizationId: string) {
-      const [row] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1)
-      return row !== undefined
-    },
-
-    async get(input: GetOrganizationInput, headers: Headers) {
-      // Full org with members — delegate to better-auth (session-aware, handles eager loading)
-      try {
-        return await (auth.api as any).getFullOrganization({
-          headers,
-          query: {
-            organizationId: input.organizationId,
-            organizationSlug: input.organizationSlug,
-            membersLimit: input.membersLimit,
-          },
-        })
-      }
-      catch (err) { mapAPIError(err, 'Organization') }
-    },
-
-    async checkSlug(slug: string): Promise<{ status: boolean }> {
-      const [row] = await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1)
-      return { status: !row }
+    async findMany(config?: Parameters<typeof db.query.organizations.findMany>[0], opts?: FindManyOptions) {
+      const { where } = config || {}
+      return await db.query.organizations.findMany(opts?.auth
+        ? { ...config, where: {
+            ...where,
+            members: { userId: opts.auth.userId },
+          } }
+        : config)
     },
 
     // ── Org writes — Drizzle direct ──
 
-    async create(input: CreateOrganizationInput): Promise<OrganizationRow> {
-      const now = new Date()
-      const id = crypto.randomUUID()
+    async create(input: CreateOrganizationInput, opts?: CreateOrganizationOptions): Promise<Organization & { members: OrganizationMember[] } | null> {
+      const { userId, ...orgData } = input
+      const user = await userService.findFirst({ where: { id: userId } })
 
-      const [row] = await db.insert(organizations).values({
-        id,
-        name: input.name,
-        slug: input.slug,
-        logo: input.logo ?? null,
-        type: input.type ?? null,
-        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
-        createdAt: now,
-        updatedAt: now,
-      }).returning()
+      if (!user) {
+        if (opts?.onUserNotFound)
+          await opts.onUserNotFound()
+        return null
+      }
 
-      if (!row)
-        throw new Error('Failed to create organization')
+      if (opts?.limit) {
+        let hasReachedLimit = false
 
-      return row
+        if (typeof opts.limit === 'function') {
+          hasReachedLimit = await opts.limit(user)
+        }
+        else {
+          const [value] = await db.select({ count: count() })
+            .from(organizations)
+            .innerJoin(members, eq(members.organizationId, organizations.id))
+            .where(eq(members.userId, userId))
+            .limit(1)
+
+          hasReachedLimit = value ? value.count < opts.limit : false
+        }
+
+        if (hasReachedLimit) {
+          if (opts?.onLimit)
+            await opts.onLimit()
+          return null
+        }
+      }
+
+      const existing = await findFirst({ where: { slug: input.slug } })
+
+      if (existing) {
+        if (opts?.onExists)
+          await opts.onExists()
+        return null
+      }
+
+      try {
+        const org = await db.transaction(async (tx) => {
+          const now = new Date()
+          const [_org] = await tx.insert(organizations).values({
+            ...orgData,
+            metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+            createdAt: now,
+          }).returning()
+
+          if (!_org)
+            tx.rollback()
+
+          const [member] = await tx.insert(members).values({
+            organizationId: _org?.id as number,
+            userId,
+            role: Array.isArray(opts?.role) ? opts.role.join(',') : opts?.role || 'owner',
+            createdAt: now,
+          }).returning()
+
+          if (!member)
+            tx.rollback()
+
+          return { ..._org!, members: [member!] }
+        })
+
+        return org
+      }
+      catch {
+        if (opts?.onFailed)
+          await opts.onFailed()
+        return null
+      }
     },
 
-    async update(input: UpdateOrganizationInput): Promise<OrganizationRow> {
-      const { organizationId, data } = input
-      if (!organizationId)
-        throw new Error('organizationId required for update')
+    async update(id: number, input: UpdateOrganizationInput, opts?: UpdateOrganizationOptions): Promise<Organization | null> {
+      const existing = await findFirst({ where: { id } })
 
-      const now = new Date()
+      if (!existing) {
+        if (opts?.onNotFound)
+          await opts.onNotFound()
+        return null
+      }
 
-      const updateData: Record<string, unknown> = { updatedAt: now }
-      if (data.name !== undefined)
-        updateData.name = data.name
-      if (data.slug !== undefined)
-        updateData.slug = data.slug
-      if (data.logo !== undefined)
-        updateData.logo = data.logo
-      if (data.type !== undefined)
-        updateData.type = data.type
-      if (data.metadata !== undefined)
-        updateData.metadata = JSON.stringify(data.metadata)
+      if (opts?.authUserId) {
+        const isMember = checkMembership(id, opts.authUserId)
 
-      const [row] = await db.update(organizations)
-        .set(updateData as any)
-        .where(eq(organizations.id, organizationId))
+        if (!isMember) {
+          if (opts?.onIntrusion)
+            await opts.onIntrusion()
+          return null
+        }
+      }
+
+      const slugConflict = input.slug ? await findFirst({ where: { slug: input.slug } }) : null
+
+      if (slugConflict && slugConflict.id !== id) {
+        if (opts?.onSlugConflict)
+          await opts.onSlugConflict()
+        return null
+      }
+
+      const [org] = await db.update(organizations)
+        .set({
+          ...input,
+          metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+          updatedAt: new Date(),
+        } as any)
+        .where(eq(organizations.id, id))
         .returning()
 
-      if (!row)
-        throw new Error(`Organization not found: ${organizationId}`)
+      if (!org) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+        return null
+      }
 
-      return row
+      return org
     },
 
-    async remove(organizationId: string): Promise<{ success: boolean }> {
-      await db.delete(organizations).where(eq(organizations.id, organizationId))
-      return { success: true }
+    async delete(id: number, opts?: DeleteOrganizationOptions): Promise<Organization | null> {
+      if (opts?.prevent)
+        return null
+
+      const existing = await findFirst({ where: { id } })
+
+      if (!existing) {
+        if (opts?.onNotFound)
+          await opts.onNotFound()
+        return null
+      }
+      if (opts?.session) {
+        const isMember = await checkMembership(id, opts.session.userId)
+
+        if (!isMember) {
+          if (opts?.onIntrusion)
+            await opts.onIntrusion()
+          return null
+        }
+
+        if (opts.session.organizationId === id) {
+          const authCtx = await auth.$context
+          authCtx.internalAdapter.updateSession(opts.session.token, {
+            activeOrganizationId: null,
+          })
+        }
+      }
+
+      const [org] = await db.delete(organizations).where(eq(organizations.id, id)).returning()
+
+      if (!org) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+        return null
+      }
+
+      return org
     },
 
     // setActive modifies session state — better-auth's domain
-    async setActive(input: SetActiveOrganizationInput, headers: Headers) {
-      try {
-        return await (auth.api as any).setActiveOrganization({
-          headers,
-          body: {
-            organizationId: input.organizationId,
-            organizationSlug: input.organizationSlug,
-          },
-        })
-      }
-      catch (err) { mapAPIError(err, 'Organization') }
-    },
+    // async setActive(input: SetActiveOrganizationInput, opts: SetActiveOptions) {
+    //   const slug = input.slug
+    //   let id = input.id
+
+    //   if( !slug && !id) {
+    //     id = opts.auth.organizationId
+    //     if (!id) {
+    //       if (opts.onNotFound)
+    //         await opts.onNotFound()
+    //       return null
+    //     }
+    //   }
+
+    //   const org = await findOne({
+    //     where: id ? { id } : slug ? { slug } : undefined,
+    //   }, {
+    //     onNotFound: opts?.onNotFound,
+    //     auth: opts?.auth,
+    //     onIntrusion: opts?.onIntrusion,
+    //   })
+
+    //   try {
+    //     return await (auth.api as any).setActiveOrganization({
+    //       headers,
+    //       body: {
+    //         organizationId: input.organizationId,
+    //         organizationSlug: input.organizationSlug,
+    //       },
+    //     })
+    //   }
+    //   catch (err) { mapAPIError(err, 'Organization') }
+    // },
 
     // ── Members — Drizzle direct ──
 
-    async listMembers(params: ListMembersParams): Promise<MemberRow[]> {
-      if (!params.organizationId)
-        throw new Error('organizationId required for listMembers')
-      return db.select().from(members).where(eq(members.organizationId, params.organizationId))
-    },
+    // async listMembers(params: ListMembersParams): Promise<MemberRow[]> {
+    //   if (!params.organizationId)
+    //     throw new Error('organizationId required for listMembers')
+    //   return db.select().from(members).where(eq(members.organizationId, params.organizationId))
+    // },
 
-    async addMember(input: { organizationId: string, userId: string, role?: string }): Promise<MemberRow> {
-      const now = new Date()
-      const id = crypto.randomUUID()
+    async addMember(input: CreateOrgMemberInput, opts?: AddMemberOptions): Promise<OrganizationMember | null> {
+      const existingUser = await userService.findFirst({ where: { id: input.userId } })
 
-      const [row] = await db.insert(members).values({
-        id,
-        organizationId: input.organizationId,
-        userId: input.userId,
-        role: input.role ?? 'member',
-        createdAt: now,
+      if (!existingUser) {
+        if (opts?.onUserNotFound)
+          await opts.onUserNotFound()
+        return null
+      }
+
+      const existingMember = await findFirstMember(input.organizationId, { where: { userId: input.userId } })
+
+      if (existingMember) {
+        if (opts?.onMemberExists)
+          await opts.onMemberExists(existingMember)
+        return null
+      }
+
+      const existingOrg = await findFirst({ where: { id: input.organizationId } })
+
+      if (!existingOrg) {
+        if (opts?.onOrganizationNotFound)
+          await opts.onOrganizationNotFound()
+        return null
+      }
+
+      if (opts?.limit) {
+        const count = await db.$count(members, eq(members.organizationId, input.organizationId))
+        if (count >= opts.limit) {
+          if (opts.onLimit)
+            await opts.onLimit()
+          return null
+        }
+      }
+
+      const validRole = validateRole(input.role, roles)
+
+      if (!validRole) {
+        if (opts?.onInvalidRole) {
+          await opts.onInvalidRole()
+        }
+        return null
+      }
+
+      const [member] = await db.insert(members).values({
+        ...input,
+        role: validRole,
+        createdAt: new Date(),
       }).returning()
 
-      if (!row)
-        throw new Error('Failed to add member')
-
-      return row
-    },
-
-    async removeMember(input: RemoveMemberInput): Promise<{ success: boolean }> {
-      const { memberIdOrEmail, organizationId } = input
-      if (!organizationId)
-        throw new Error('organizationId required')
-
-      // memberIdOrEmail can be member id or user id/email; we treat it as userId
-      await db.delete(members).where(
-        and(
-          eq(members.organizationId, organizationId),
-          eq(members.userId, memberIdOrEmail),
-        ),
-      )
-
-      return { success: true }
-    },
-
-    async updateMemberRole(input: UpdateMemberRoleInput): Promise<MemberRow> {
-      const roleStr = Array.isArray(input.role) ? input.role.join(',') : input.role
-
-      const [row] = await db.update(members)
-        .set({ role: roleStr })
-        .where(eq(members.id, input.memberId))
-        .returning()
-
-      if (!row)
-        throw new Error(`Member not found: ${input.memberId}`)
-
-      return row
-    },
-
-    async leave(organizationId: string, headers: Headers) {
-      // leave requires knowing the current user — better-auth handles from session
-      try {
-        return await (auth.api as any).leaveOrganization({ headers, body: { organizationId } })
+      if (!member) {
+        if (opts?.onFailed)
+          opts.onFailed()
+        return null
       }
-      catch (err) { mapAPIError(err, 'Organization') }
+
+      return member
     },
 
-    async getActiveMember(headers: Headers) {
-      try {
-        return await (auth.api as any).getActiveMember({ headers })
-      }
-      catch (err) { mapAPIError(err, 'Member') }
+    findFirstMember,
+
+    async findManyMembers(orgId: number, config?: Parameters<typeof db.query.members.findMany>[0]) {
+      const { where } = config || {}
+      return await db.query.members.findMany({ ...config, where: {
+        ...where,
+        organizationId: orgId,
+      } })
     },
 
-    async getActiveMemberRole(input: GetActiveMemberRoleInput, headers: Headers) {
-      try {
-        return await (auth.api as any).getActiveMemberRole({
-          headers,
-          query: {
-            userId: input.userId,
-            organizationId: input.organizationId,
-            organizationSlug: input.organizationSlug,
+    async removeMember(input: RemoveOrgMemberInput, opts?: RemoveMemberOptions): Promise<OrganizationMember | null> {
+      const { identifier, organizationId } = input
+      let member: OrganizationMember | null = null
+
+      if (typeof identifier === 'string' && identifier.includes('@')) {
+        member = await findFirstMember(organizationId, {
+          where: {
+            user: {
+              email: identifier,
+            },
           },
         })
       }
-      catch (err) { mapAPIError(err, 'Member') }
-    },
-
-    // ── Invitations — Drizzle direct ──
-
-    async inviteMember(input: InviteMemberInput, headers: Headers) {
-      // Invitation creates an email send flow — keep better-auth for email dispatch,
-      // but record the invitation in DB via better-auth's createInvitation
-      try {
-        return await (auth.api as any).createInvitation({
-          headers,
-          body: { ...input, role: input.role as any },
+      else {
+        member = await findFirstMember(organizationId, {
+          where: {
+            id: identifier as number,
+            OR: [{
+              user: { id: identifier as number },
+            }],
+          },
         })
       }
-      catch (err) { mapAPIError(err, 'Invitation') }
-    },
 
-    async getInvitation(invitationId: string): Promise<InvitationRow> {
-      const [row] = await db.select().from(invitations).where(eq(invitations.id, invitationId)).limit(1)
-      if (!row)
-        throw new Error(`Invitation not found: ${invitationId}`)
-      return row
-    },
-
-    async listInvitations(organizationId: string | undefined): Promise<InvitationRow[]> {
-      if (!organizationId)
-        return db.select().from(invitations)
-      return db.select().from(invitations).where(eq(invitations.organizationId, organizationId))
-    },
-
-    async listUserInvitations(email?: string): Promise<InvitationRow[]> {
-      if (!email)
-        return db.select().from(invitations)
-      return db.select().from(invitations).where(eq(invitations.email, email))
-    },
-
-    async cancelInvitation(invitationId: string): Promise<InvitationRow> {
-      const [row] = await db.update(invitations)
-        .set({ status: 'cancelled' })
-        .where(eq(invitations.id, invitationId))
-        .returning()
-
-      if (!row)
-        throw new Error(`Invitation not found: ${invitationId}`)
-
-      return row
-    },
-
-    async acceptInvitation(invitationId: string, headers: Headers) {
-      // Transactional: create member + mark invitation accepted
-      // Better-auth handles the session/user lookup for the accepting user
-      try {
-        return await (auth.api as any).acceptInvitation({ headers, body: { invitationId } })
+      if (!member) {
+        if (opts?.onNotFound)
+          await opts.onNotFound()
+        return null
       }
-      catch (err) { mapAPIError(err, 'Invitation') }
+
+      const _roles = member.role.split(',')
+      const creatorRole = opts?.creatorRole || 'owner'
+      const isOwner = _roles.includes(creatorRole)
+
+      if (isOwner) {
+        const ownersCount = await db.$count(members, and(
+          like(members.role, `%${creatorRole}%`),
+          eq(members.organizationId, input.organizationId),
+        ))
+
+        if (ownersCount <= 1) {
+          if (opts?.onAttemptToRemoveLastOwner)
+            await opts.onAttemptToRemoveLastOwner()
+
+          return null
+        }
+      }
+
+      const [_member] = await db.delete(members).where(and(
+        eq(members.id, member.id),
+        eq(members.organizationId, organizationId),
+      )).returning()
+
+      if (!_member) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+
+        return null
+      }
+
+      if (opts?.session) {
+        if (opts.session.organizationId === organizationId && opts.session.userId === member.userId) {
+          const authCtx = await auth.$context
+          await authCtx.internalAdapter.updateSession(opts.session.token, {
+            activeOrganizationId: null,
+          })
+        }
+      }
+
+      return _member
     },
 
-    async rejectInvitation(invitationId: string): Promise<InvitationRow> {
-      const [row] = await db.update(invitations)
-        .set({ status: 'rejected' })
-        .where(eq(invitations.id, invitationId))
+    async updateMemberRole(input: UpdateOrgMemberInput, opts?: UpdateMemberOptions): Promise<OrganizationMember | null> {
+      const existing = await findFirstMember(input.organizationId, { where: { id: input.id } })
+
+      if (!existing) {
+        if (opts?.onNotFound)
+          await opts.onNotFound()
+
+        return null
+      }
+
+      let updaterIsCreator = false
+      const creatorRole = opts?.creatorRole || 'owner'
+      const role = typeof input.role === 'string' ? [input.role] : input.role
+      const isSettingCreatorRole = role.includes(creatorRole)
+      const isUpdatingCreator = existing.role.split(',').includes(creatorRole)
+
+      if (opts?.session) {
+        const authMember = await findFirstMember(input.organizationId, {
+          where: { userId: opts.session.userId },
+        })
+
+        if (!authMember) {
+          if (opts.onIntrusion)
+            await opts.onIntrusion()
+
+          return null
+        }
+
+        updaterIsCreator = authMember.role.split(',').includes(creatorRole)
+      }
+
+      if (
+        (isUpdatingCreator && !updaterIsCreator)
+        || (isSettingCreatorRole && !updaterIsCreator)
+      ) {
+        if (opts?.onAttemptToSetOwner) {
+          await opts.onAttemptToSetOwner()
+        }
+
+        return null
+      }
+
+      if (updaterIsCreator && (existing.userId === opts?.session?.userId)) {
+        const ownerCount = await db.$count(members, and(
+          like(members.role, `%${creatorRole}%`),
+          eq(members.organizationId, input.organizationId),
+        ))
+
+        if (ownerCount <= 1 && !isSettingCreatorRole) {
+          if (opts.onAttemptToLeaveOrganizationWithoutAnOwner)
+            await opts.onAttemptToLeaveOrganizationWithoutAnOwner()
+
+          return null
+        }
+      }
+
+      const validatedRole = validateRole(role, roles)
+
+      if (!validatedRole) {
+        if (opts?.onInvalidRole)
+          await opts.onInvalidRole()
+
+        return null
+      }
+
+      const [member] = await db.update(members)
+        .set({ role: validatedRole })
+        .where(eq(members.id, input.id))
         .returning()
 
-      if (!row)
-        throw new Error(`Invitation not found: ${invitationId}`)
+      if (!member) {
+        if (opts?.onFailed)
+          await opts.onFailed()
 
-      return row
+        return null
+      }
+
+      return member
     },
+
+    // async leave(organizationId: string, headers: Headers) {
+    //   // leave requires knowing the current user — better-auth handles from session
+    //   try {
+    //     return await (auth.api as any).leaveOrganization({ headers, body: { organizationId } })
+    //   }
+    //   catch (err) { mapAPIError(err, 'Organization') }
+    // },
+
+    // async getActiveMember(headers: Headers) {
+    //   try {
+    //     return await (auth.api as any).getActiveMember({ headers })
+    //   }
+    //   catch (err) { mapAPIError(err, 'Member') }
+    // },
+
+    // async getActiveMemberRole(input: GetActiveMemberRoleInput, headers: Headers) {
+    //   try {
+    //     return await (auth.api as any).getActiveMemberRole({
+    //       headers,
+    //       query: {
+    //         userId: input.userId,
+    //         organizationId: input.organizationId,
+    //         organizationSlug: input.organizationSlug,
+    //       },
+    //     })
+    //   }
+    //   catch (err) { mapAPIError(err, 'Member') }
+    // },
+
+    // // ── Invitations — Drizzle direct ──
+
+    async createInvitation(input: CreateOrgInvitationInput, opts?: CreateInvitationOptions) {
+      const { resend, ..._input } = input
+      const existingInviter = await findFirstMember(input.organizationId, {
+        where: {
+          userId: input.inviterId
+        },
+      }, { onNotFound: opts?.onIntrusion})
+      const creatorRole = opts?.creatorRole ?? 'owner'
+      const _roles = validateRole(input.role, roles)
+
+      if (!_roles) {
+        if (opts?.onInvalidRole)
+          await opts.onInvalidRole()
+
+        return null
+      }
+
+      if (!existingInviter?.role.split(',').includes(creatorRole) && _roles.split(',').includes(creatorRole)) {
+        if (opts?.onAttemptToSetOwner)
+          opts.onAttemptToSetOwner()
+
+        return null
+      }
+
+      const existingMember = await findFirstMember(input.organizationId, {
+        where: {
+          user: { email: input.email },
+        },
+      })
+
+      if (existingMember) {
+        if (opts?.onMemberExists)
+          await opts.onMemberExists()
+
+        return null
+      }
+
+      const existing = await findFirstInvitation(input.organizationId, {
+        where: { email: input.email },
+      })
+
+      if (existing && !resend) {
+        if (opts?.onExists)
+          await opts.onExists()
+
+        return null
+      }
+
+      const expiration = opts?.expiration || 60 * 60 * 48
+
+      if (existing && resend) {
+        const [invitation] = await db.update(invitations)
+          .set({ expiresAt: new Date(Date.now() + (expiration * 1000)) })
+          .where(eq(invitations.id, existing.id))
+          .returning()
+
+        if (!invitation) {
+          if (opts?.onFailed)
+            await opts.onFailed()
+
+          return null
+        }
+
+        // if (opts?.sendInvitationEmail)
+        //   await opts.sendInvitationEmail(invitation)
+
+        return invitation
+      }
+
+      if (existing && opts?.cancelPendingOnReInvite) {
+        db.update(invitations)
+          .set({ status: 'cancel' })
+          .where(eq(invitations.id, existing.id))
+      }
+
+      const invitationLimit = typeof opts?.limit === 'function' ? (await opts.limit()) : (opts?.limit ?? 100)
+      const pendingInvitations = await findManyInvitations(input.organizationId, {
+        where: { status: 'pending' }
+      })
+
+      if (pendingInvitations.length >= invitationLimit) {
+        if (opts?.onLimitReached)
+          await opts.onLimitReached()
+
+        return null
+      }
+
+      const [invitation] = await db.insert(invitations)
+        .values({
+          ..._input,
+          status: 'pending',
+          role: _roles,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + (expiration * 1000))
+        })
+        .returning()
+
+      if (!invitation) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+
+        return null
+      }
+
+        // if (opts?.sendInvitationEmail)
+        //   await opts.sendInvitationEmail(invitation)
+
+      return invitation
+    },
+
+    async cancelInvitation(input: CancelOrgInvitationInput, opts?: CancelInvitationOptions){
+      if (opts?.session?.userId && !(await checkMembership(input.organizationId, opts.session.userId))) {
+        if (opts.onIntrusion)
+          await opts.onIntrusion()
+
+        return null
+      }
+
+      const existing = await findFirstInvitation(input.organizationId, {
+        where: { id: input.id },
+      })
+
+      if (!existing) {
+        if (opts?.onNotFound)
+          await opts.onNotFound()
+
+        return null
+      }
+
+      const [invitation] = await db.update(invitations)
+        .set({ status: 'cancelled' })
+        .where(eq(invitations.id, input.id))
+        .returning()
+
+      if (!invitation) {
+        if (opts?.onFailed)
+          await opts.onFailed()
+
+        return null
+      }
+
+      return invitation
+    },
+
+    findFirstInvitation,
+
+    findManyInvitations,
 
     // ── hasPermission — preserved verbatim from auth.service.ts ──────
 
@@ -386,6 +839,7 @@ export function createOrganizationService(db: Database, auth: Auth) {
 
       const orgOptions = auth.options?.plugins?.find(
         (p: { id: string }) => p.id === 'organization',
+        // @ts-expect-error - we know this is the right shape, but TS doesn't
       )?.options as OrganizationOptions | undefined
 
       let acRoles: { [x: string]: Role<Record<string, string[]>> | undefined } = {
@@ -408,6 +862,7 @@ export function createOrganizationService(db: Database, auth: Auth) {
             if (!isValidPermissionsRecord(parsed)) {
               throw new Error(`Invalid permissions for role ${roleName}`)
             }
+            // @ts-expect-error - we just verified this is the right shape, but TS doesn't know that
             acRoles[roleName] = orgOptions.ac.newRole(parsed)
           }
         }

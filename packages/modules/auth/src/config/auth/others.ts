@@ -89,6 +89,9 @@ export function advancedConfig(option?: BetterAuthAdvancedOptions) {
       httpOnly: true,
       sameSite: 'lax' as const,
     },
+    database: {
+      generateId: "serial" as const,
+    },
   }
 }
 

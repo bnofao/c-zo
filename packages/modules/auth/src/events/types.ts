@@ -8,13 +8,13 @@
 // ─── Payload interfaces ────────────────────────────────────────────────
 
 export interface AuthUserRegisteredPayload {
-  userId: string
+  userId: number
   email: string
   actorType?: string
 }
 
 export interface AuthUserUpdatedPayload {
-  userId: string
+  userId: number
   changes: Record<string, unknown>
 }
 
@@ -97,15 +97,15 @@ export interface AuthImpersonationStoppedPayload {
 }
 
 export interface AuthUserBannedPayload {
-  userId: string
-  bannedBy: string
+  userId: number
+  bannedBy: number
   reason: string | null
-  expiresIn: number | null
+  expires: Date | null
 }
 
 export interface AuthUserUnbannedPayload {
-  userId: string
-  unbannedBy: string
+  userId: number
+  unbannedBy: number
 }
 
 export interface AuthPasswordResetRequestedPayload {

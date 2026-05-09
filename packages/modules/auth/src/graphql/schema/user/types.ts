@@ -1,3 +1,5 @@
+import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
+
 // User sub-module — Pothos type definitions
 //
 // Session type ownership: `user` module owns `Session` (admin-scoped list).
@@ -11,10 +13,10 @@
 // managed by better-auth and have no defineRelationsPart entries. Therefore
 // t.relation('sessions') and t.relation('accounts') are NOT used here.
 
-export function registerUserTypes(builder: any): void {
+export function registerUserTypes(builder: AuthGraphQLShemaBuilder): void {
   // ── Session type (admin-scoped view) ──────────────────────────────────────
-  (builder as any).objectRef('Session').implement({
-    fields: (t: any) => ({
+  builder.objectRef('Session').implement({
+    fields: (t) => ({
       id: t.id({ resolve: (s: any) => s.id }),
       userId: t.string({ resolve: (s: any) => s.userId }),
       expiresAt: t.field({ type: 'DateTime', resolve: (s: any) => s.expiresAt }),
@@ -27,15 +29,15 @@ export function registerUserTypes(builder: any): void {
   });
 
   // ── User node ─────────────────────────────────────────────────────────────
-  (builder as any).drizzleNode('users', {
+  builder.drizzleNode('users', {
     name: 'User',
     id: { column: (u: any) => u.id },
-    fields: (t: any) => ({
+    fields: (t) => ({
       name: t.exposeString('name'),
       email: t.exposeString('email'),
       emailVerified: t.exposeBoolean('emailVerified'),
       image: t.exposeString('image', { nullable: true }),
-      role: t.string({ resolve: (u: any) => u.role ?? 'user' }),
+      role: t.string({ resolve: (u) => u.role ?? 'user' }),
       banned: t.exposeBoolean('banned'),
       banReason: t.exposeString('banReason', { nullable: true }),
       banExpires: t.expose('banExpires', { type: 'DateTime', nullable: true }),

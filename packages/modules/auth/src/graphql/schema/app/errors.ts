@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -29,29 +29,18 @@ export class AppNotInstalledError extends BaseGraphQLError {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerAppErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
-
-  builder.objectType(AppHandleTakenError, {
+  registerError(builder, AppHandleTakenError, {
     name: 'AppHandleTakenError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      appId: t.exposeString('appId'),
-    }),
+    fields: t => ({ appId: t.exposeString('appId') }),
   })
 
-  builder.objectType(AppManifestInvalidError, {
+  registerError(builder, AppManifestInvalidError, {
     name: 'AppManifestInvalidError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      reason: t.exposeString('reason'),
-    }),
+    fields: t => ({ reason: t.exposeString('reason') }),
   })
 
-  builder.objectType(AppNotInstalledError, {
+  registerError(builder, AppNotInstalledError, {
     name: 'AppNotInstalledError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      appId: t.exposeString('appId'),
-    }),
+    fields: t => ({ appId: t.exposeString('appId') }),
   })
 }

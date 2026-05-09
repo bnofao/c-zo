@@ -100,7 +100,7 @@ export function actorType({ actorService }: ActorTypeOptions): BetterAuthPlugin 
               })
             }
 
-            const body = ctx.body as { provider?: string, additionalData?: Record<string, unknown> } | undefined
+            const body = ctx.context.body as { provider?: string, additionalData?: Record<string, unknown> } | undefined
             const method = (body?.provider ? `oauth:${body.provider}` : ctx.path.split('/').pop() ?? 'email') as AuthMethod
 
             if (!actorService.isMethodAllowedForActor(actor, method)) {

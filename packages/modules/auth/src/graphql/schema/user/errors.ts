@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -26,28 +26,27 @@ export class UserAlreadyBannedError extends BaseGraphQLError {
   }
 }
 
+export class UserNotBannedError extends BaseGraphQLError {
+  readonly code = 'USER_NOT_BANNED'
+  constructor(public readonly userId: string) {
+    super(`User '${userId}' is not banned`)
+    this.name = 'UserNotBannedError'
+  }
+}
+
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerUserErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
+  registerError(builder, CannotBanSelfError, { name: 'CannotBanSelfError' })
+  registerError(builder, CannotDemoteSelfError, { name: 'CannotDemoteSelfError' })
 
-  builder.objectType(CannotBanSelfError, {
-    name: 'CannotBanSelfError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(CannotDemoteSelfError, {
-    name: 'CannotDemoteSelfError',
-    interfaces: [ErrorInterface],
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(UserAlreadyBannedError, {
+  registerError(builder, UserAlreadyBannedError, {
     name: 'UserAlreadyBannedError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      userId: t.exposeString('userId'),
-    }),
+    fields: t => ({ userId: t.exposeString('userId') }),
+  })
+
+  registerError(builder, UserNotBannedError, {
+    name: 'UserNotBannedError',
+    fields: t => ({ userId: t.exposeString('userId') }),
   })
 }

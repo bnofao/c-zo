@@ -1,4 +1,4 @@
-import { BaseGraphQLError } from '@czo/kit/graphql'
+import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
 
 // ─── Domain errors ────────────────────────────────────────────────────────────
 
@@ -21,21 +21,13 @@ export class ApiKeyRevokedError extends BaseGraphQLError {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerApiKeyErrors(builder: any): void {
-  const ErrorInterface = builder.interfaceRef('Error')
-
-  builder.objectType(ApiKeyExpiredError, {
+  registerError(builder, ApiKeyExpiredError, {
     name: 'ApiKeyExpiredError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      keyId: t.exposeString('keyId'),
-    }),
+    fields: t => ({ keyId: t.exposeString('keyId') }),
   })
 
-  builder.objectType(ApiKeyRevokedError, {
+  registerError(builder, ApiKeyRevokedError, {
     name: 'ApiKeyRevokedError',
-    interfaces: [ErrorInterface],
-    fields: (t: any) => ({
-      keyId: t.exposeString('keyId'),
-    }),
+    fields: t => ({ keyId: t.exposeString('keyId') }),
   })
 }

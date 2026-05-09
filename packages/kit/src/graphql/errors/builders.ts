@@ -12,23 +12,31 @@ import {
 
 type AnyBuilder = any
 
+const ERROR_REFS = Symbol.for('@czo/kit/graphql:error-refs')
+
+interface ErrorRefs {
+  ErrorInterface: any
+  FieldErrorObject: any
+}
+
+export interface RegisterErrorOptions {
+  name: string
+  fields?: (t: any) => Record<string, any>
+}
+
 /**
  * Register the standard GraphQL error types on a Pothos builder.
  * Called automatically by initBuilder().
  */
-
 export function registerErrorTypes(builder: AnyBuilder): void {
-  const ErrorInterface = (builder as any).interfaceRef('Error').implement({
-
+  const ErrorInterface = builder.interfaceRef('Error').implement({
     fields: (t: any) => ({
       message: t.exposeString('message'),
-
       code: t.string({ resolve: (e: any) => e.code }),
     }),
   })
 
-  const FieldErrorObject = (builder as any).objectRef('FieldError').implement({
-
+  const FieldErrorObject = builder.objectRef('FieldError').implement({
     fields: (t: any) => ({
       path: t.exposeString('path'),
       message: t.exposeString('message'),
@@ -36,62 +44,80 @@ export function registerErrorTypes(builder: AnyBuilder): void {
     }),
   })
 
-  builder.objectType(ValidationError, {
+  builder[ERROR_REFS] = { ErrorInterface, FieldErrorObject } satisfies ErrorRefs
+
+  registerError(builder, ValidationError, {
     name: 'ValidationError',
-    interfaces: [ErrorInterface],
-
     fields: (t: any) => ({
-
       fields: t.field({ type: [FieldErrorObject], resolve: (e: any) => e.fields }),
     }),
   })
 
-  builder.objectType(NotFoundError, {
+  registerError(builder, NotFoundError, {
     name: 'NotFoundError',
-    interfaces: [ErrorInterface],
-
     fields: (t: any) => ({
       resource: t.exposeString('resource'),
-
       id: t.id({ resolve: (e: any) => String(e.id) }),
     }),
   })
 
-  builder.objectType(ConflictError, {
+  registerError(builder, ConflictError, {
     name: 'ConflictError',
-    interfaces: [ErrorInterface],
-
     fields: (t: any) => ({
       resource: t.exposeString('resource'),
       conflictField: t.exposeString('conflictField'),
     }),
   })
 
-  builder.objectType(ForbiddenError, {
+  registerError(builder, ForbiddenError, {
     name: 'ForbiddenError',
-    interfaces: [ErrorInterface],
-
     fields: (t: any) => ({
       requiredPermission: t.exposeString('requiredPermission'),
     }),
   })
 
-  builder.objectType(UnauthenticatedError, {
-    name: 'UnauthenticatedError',
-    interfaces: [ErrorInterface],
+  registerError(builder, UnauthenticatedError, { name: 'UnauthenticatedError' })
 
-    fields: (_t: any) => ({}),
-  })
-
-  builder.objectType(OptimisticLockError, {
+  registerError(builder, OptimisticLockError, {
     name: 'OptimisticLockError',
-    interfaces: [ErrorInterface],
-
     fields: (t: any) => ({
       entityId: t.field({ type: 'ID', resolve: (e: any) => String(e.entityId) }),
       expectedVersion: t.exposeInt('expectedVersion'),
       actualVersion: t.int({ nullable: true, resolve: (e: any) => e.actualVersion }),
       code: t.string({ resolve: () => 'OPTIMISTIC_LOCK_ERROR' }),
     }),
+  })
+}
+
+/**
+ * Returns the implemented `Error` interface ref previously registered by
+ * registerErrorTypes() on this builder. Throws if the builder hasn't been
+ * initialized yet.
+ *
+ * Why not just `builder.interfaceRef('Error')` again? Pothos resolves refs to
+ * type configs by *object identity*, not by name — a fresh interfaceRef call
+ * yields a placeholder with no `.implement()` association.
+ */
+export function getErrorInterface(builder: AnyBuilder): any {
+  const refs = builder[ERROR_REFS] as ErrorRefs | undefined
+  if (!refs)
+    throw new Error('registerErrorTypes(builder) was not called — call initBuilder() first')
+  return refs.ErrorInterface
+}
+
+/**
+ * Register a domain error class as a GraphQL ObjectType implementing the shared
+ * `Error` interface. `fields` defaults to none (the interface already exposes
+ * `message` and `code`).
+ */
+export function registerError(
+  builder: AnyBuilder,
+  ErrorClass: new (...args: any[]) => Error,
+  opts: RegisterErrorOptions,
+): void {
+  builder.objectType(ErrorClass, {
+    name: opts.name,
+    interfaces: [getErrorInterface(builder)],
+    fields: opts.fields ?? ((_t: any) => ({})),
   })
 }
