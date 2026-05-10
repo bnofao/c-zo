@@ -9,7 +9,6 @@ import type { AccountService } from './services/account.service'
 import type { ApiKeyService } from './services/api-key'
 import type { AppService } from './services/app.service'
 import type { AuthService } from './services/auth.service'
-import type { OrganizationService } from './services/organization.service'
 import type { SessionService } from './services/session.service'
 import type { TwoFactorService } from './services/twoFactor.service'
 import { apikeys, invitations, members, organizations, users } from '@czo/auth/schema'
@@ -19,7 +18,6 @@ import { z } from 'zod'
 export type { Relations as AuthRelations } from '@czo/auth/relations'
 
 export interface AuthContext {
-  organizationService: OrganizationService
   // accountService: AccountService
   // sessionService: SessionService
   // twoFactorService: TwoFactorService
@@ -51,12 +49,18 @@ declare module '@czo/kit/graphql' {
     UserOrderByInput: UserOrderByInput
     UserBanData: BanUserInput
     ImpersonateUserInput: ImpersonateUserInput
-    CreateOrganizationInput: CreateOrganizationInput
+    OrganizationCreateData: CreateOrganizationInput
+    OrganizationUpdateData: UpdateOrganizationInput
+    OrgMemberRemoveData: RemoveOrgMemberInput
+    OrgMemberRoleData: UpdateOrgMemberInput
     // SetActiveOrganizationInput: SetActiveOrganizationInput
   }
 
   interface BuilderSchemaObjects {
     User: User
+    Organization: Organization
+    Member: OrganizationMember
+    Invitation: OrganizationInvitation
   }
 
   interface BuilderAuthScopes {
@@ -92,7 +96,6 @@ declare module '@czo/kit/ioc' {
     'auth:actor': AuthActorService
     'auth:access': AccessService
     'auth:service': AuthService
-    'auth:organizations': OrganizationService
     'auth:accounts': AccountService
     'auth:sessions': SessionService
     'auth:twoFactor': TwoFactorService

@@ -8,18 +8,15 @@ export async function buildAuthContext(request: Request): Promise<AuthContext> {
 
   const [
     instance,
-    organizationService,
     authService,
   ] = await Promise.all([
     container.make('auth'),
-    container.make('auth:organizations'),
     container.make('auth:service'),
   ])
 
   const session = await instance.api.getSession({ headers: request.headers })
 
   return {
-    organizationService,
     authService,
     runtime: useRuntime(),
     session: session ?? null,

@@ -1,59 +1,68 @@
-import { BaseGraphQLError, registerError } from '@czo/kit/graphql'
+import { registerError } from '@czo/kit/graphql'
+import {
+  CannotLeaveAsLastOwner,
+  CannotPromoteToOwner,
+  CannotRemoveLastOwner,
+  InvitationAlreadyExists,
+  InvitationExpired,
+  InvitationLimitReached,
+  InvitationNotFound,
+  MemberAlreadyExists,
+  MemberLimitReached,
+  MemberNotFound,
+  NotAMember,
+  OrganizationLimitReached,
+  OrganizationNotFound,
+  OrganizationSlugTaken,
+  OrgInvalidRole,
+  OrgNoChanges,
+  OrgUserNotFound,
+} from '../../../services/organization'
 
-// ─── Domain errors ────────────────────────────────────────────────────────────
-
-export class CannotLeaveAsLastOwnerError extends BaseGraphQLError {
-  readonly code = 'CANNOT_LEAVE_AS_LAST_OWNER'
-  constructor() {
-    super('You cannot leave the organization as the last owner')
-    this.name = 'CannotLeaveAsLastOwnerError'
-  }
+// Re-export the tagged-error classes so resolvers can list them in
+// `errors: { types: [...] }` without reaching into services/.
+export {
+  CannotLeaveAsLastOwner,
+  CannotPromoteToOwner,
+  CannotRemoveLastOwner,
+  InvitationAlreadyExists,
+  InvitationExpired,
+  InvitationLimitReached,
+  InvitationNotFound,
+  MemberAlreadyExists,
+  MemberLimitReached,
+  MemberNotFound,
+  NotAMember,
+  OrganizationLimitReached,
+  OrganizationNotFound,
+  OrganizationSlugTaken,
+  OrgInvalidRole,
+  OrgNoChanges,
+  OrgUserNotFound,
 }
-
-export class InvitationExpiredError extends BaseGraphQLError {
-  readonly code = 'INVITATION_EXPIRED'
-  constructor(public readonly invitationId: string) {
-    super(`Invitation '${invitationId}' has expired`)
-    this.name = 'InvitationExpiredError'
-  }
-}
-
-export class MembershipAlreadyExistsError extends BaseGraphQLError {
-  readonly code = 'MEMBERSHIP_ALREADY_EXISTS'
-  constructor(public readonly userId: string, public readonly organizationId: string) {
-    super(`User '${userId}' is already a member of organization '${organizationId}'`)
-    this.name = 'MembershipAlreadyExistsError'
-  }
-}
-
-export class SlugAlreadyTakenError extends BaseGraphQLError {
-  readonly code = 'SLUG_ALREADY_TAKEN'
-  constructor(public readonly slug: string) {
-    super(`Organization slug '${slug}' is already taken`)
-    this.name = 'SlugAlreadyTakenError'
-  }
-}
-
-// ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerOrganizationErrors(builder: any): void {
-  registerError(builder, CannotLeaveAsLastOwnerError, { name: 'CannotLeaveAsLastOwnerError' })
-
-  registerError(builder, InvitationExpiredError, {
-    name: 'InvitationExpiredError',
-    fields: t => ({ invitationId: t.exposeString('invitationId') }),
-  })
-
-  registerError(builder, MembershipAlreadyExistsError, {
-    name: 'MembershipAlreadyExistsError',
-    fields: t => ({
-      userId: t.exposeString('userId'),
-      organizationId: t.exposeString('organizationId'),
-    }),
-  })
-
-  registerError(builder, SlugAlreadyTakenError, {
-    name: 'SlugAlreadyTakenError',
+  registerError(builder, OrganizationNotFound, { name: 'OrganizationNotFoundError' })
+  registerError(builder, OrganizationSlugTaken, {
+    name: 'OrganizationSlugTakenError',
     fields: t => ({ slug: t.exposeString('slug') }),
   })
+  registerError(builder, OrganizationLimitReached, { name: 'OrganizationLimitReachedError' })
+  registerError(builder, OrgUserNotFound, { name: 'OrganizationUserNotFoundError' })
+  registerError(builder, NotAMember, { name: 'NotAMemberError' })
+  registerError(builder, MemberNotFound, { name: 'MemberNotFoundError' })
+  registerError(builder, MemberAlreadyExists, { name: 'MemberAlreadyExistsError' })
+  registerError(builder, MemberLimitReached, { name: 'MemberLimitReachedError' })
+  registerError(builder, CannotRemoveLastOwner, { name: 'CannotRemoveLastOwnerError' })
+  registerError(builder, CannotPromoteToOwner, { name: 'CannotPromoteToOwnerError' })
+  registerError(builder, CannotLeaveAsLastOwner, { name: 'CannotLeaveAsLastOwnerError' })
+  registerError(builder, OrgInvalidRole, {
+    name: 'OrganizationInvalidRoleError',
+    fields: t => ({ role: t.exposeString('role') }),
+  })
+  registerError(builder, InvitationNotFound, { name: 'InvitationNotFoundError' })
+  registerError(builder, InvitationExpired, { name: 'InvitationExpiredError' })
+  registerError(builder, InvitationAlreadyExists, { name: 'InvitationAlreadyExistsError' })
+  registerError(builder, InvitationLimitReached, { name: 'InvitationLimitReachedError' })
+  registerError(builder, OrgNoChanges, { name: 'OrganizationNoChangesError' })
 }

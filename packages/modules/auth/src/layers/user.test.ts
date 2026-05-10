@@ -1,7 +1,7 @@
+import { DrizzleDb } from '@czo/kit/db/effect'
+import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect, Layer } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { expectFailure, expectSuccess } from '@czo/kit/effect'
-import { DrizzleDb } from '@czo/kit/db/effect'
 import { BetterAuth } from '../services/better-auth'
 import {
   CannotBanSelf,
@@ -32,18 +32,20 @@ interface UserRow {
   updatedAt: Date
 }
 
-const baseRow = (overrides: Partial<UserRow> = {}): UserRow => ({
-  id: 1,
-  email: 'a@b.test',
-  name: 'Alice',
-  role: 'user',
-  banned: false,
-  banReason: null,
-  banExpires: null,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-01-01'),
-  ...overrides,
-})
+function baseRow(overrides: Partial<UserRow> = {}): UserRow {
+  return {
+    id: 1,
+    email: 'a@b.test',
+    name: 'Alice',
+    role: 'user',
+    banned: false,
+    banReason: null,
+    banExpires: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    ...overrides,
+  }
+}
 
 function makeMockDb(initialRow: UserRow | null) {
   const findFirst = vi.fn().mockResolvedValue(initialRow ?? undefined)

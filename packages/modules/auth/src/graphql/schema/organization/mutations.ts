@@ -1,237 +1,272 @@
-import type { AuthContext } from '@czo/auth/types'
-import type { SchemaBuilder } from '@czo/kit/graphql'
+import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
-import { ForbiddenError, NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-import { CannotLeaveAsLastOwnerError, InvitationExpiredError, MembershipAlreadyExistsError, SlugAlreadyTakenError } from './errors'
-
-interface Ctx { auth: AuthContext, request?: Request }
+import { runEffect } from '@czo/kit/effect'
+import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
+import { Effect } from 'effect'
+import { OrganizationService } from '../../../services/organization'
+import {
+  CannotLeaveAsLastOwner,
+  CannotPromoteToOwner,
+  CannotRemoveLastOwner,
+  InvitationNotFound,
+  MemberNotFound,
+  NotAMember,
+  OrganizationLimitReached,
+  OrganizationNotFound,
+  OrganizationSlugTaken,
+  OrgInvalidRole,
+  OrgNoChanges,
+  OrgUserNotFound,
+} from './errors'
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
-export function registerOrganizationMutations(builder: SchemaBuilder): void {
+export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder): void {
   // ── createOrganization ────────────────────────────────────────────────────
-  builder.mutationField('createOrganization', t =>
-    t.field({
-      type: 'Organization',
-      errors: { types: [ValidationError, SlugAlreadyTakenError] },
-      args: {
-        input: t.arg({ type: 'CreateOrganizationInput', required: true }),
+  builder.relayMutationField(
+    'createOrganization',
+    {
+      inputFields: t => ({
+        data: t.field({ type: 'OrganizationCreateData', required: true }),
+      }),
+    },
+    {
+      errors: {
+        types: [
+          ValidationError,
+          OrgUserNotFound, OrganizationSlugTaken, OrganizationLimitReached,
+        ],
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: { name: string, slug: string, logo?: string, type?: string, keepCurrentActiveOrganization?: boolean } }, ctx: Ctx) => {
+      authScopes: { permission: { resource: 'organization', actions: ['create'] } },
+      resolve: async (_root, { input }, ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const result = await ctx.auth.organizationService.create(
-          { ...args.input, userId: authUser.id },
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.create({ ...input.data, userId: Number(authUser.id) })
+          }),
         )
-        if (!result)
-          throw new NotFoundError('Organization', 'created')
 
         await publishAuthEvent(AUTH_EVENTS.ORG_CREATED, {
-          orgId: result.id,
-          ownerId: authUser.id,
+          orgId: String(result.id),
+          ownerId: String(authUser.id),
           name: result.name,
           type: result.type ?? null,
         })
 
-        return result
+        return { organization: result }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        organization: t.field({ type: 'Organization', resolve: payload => payload.organization }),
+      }),
+    },
+  )
 
   // ── updateOrganization ────────────────────────────────────────────────────
-  builder.mutationField('updateOrganization', t =>
-    t.field({
-      type: 'Organization',
-      errors: { types: [ValidationError, NotFoundError, SlugAlreadyTakenError] },
-      args: {
-        id: t.arg.id({ required: false }),
-        input: t.arg({ type: 'UpdateOrganizationInput', required: true }),
+  builder.relayMutationField(
+    'updateOrganization',
+    {
+      inputFields: t => ({
+        id: t.id({ required: true }),
+        data: t.field({ type: 'OrganizationUpdateData', required: true }),
+      }),
+    },
+    {
+      errors: {
+        types: [
+          ValidationError,
+          OrganizationNotFound, OrganizationSlugTaken, NotAMember, OrgNoChanges,
+        ],
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { id?: string | null, input: { name?: string, slug?: string, logo?: string, type?: string } }, ctx: Ctx) => {
-        const result = await ctx.auth.organizationService.update(
-          {
-            organizationId: args.id ? String(args.id) : undefined,
-            data: args.input,
-          },
+      authScopes: { permission: { resource: 'organization', actions: ['update'] } },
+      resolve: async (_root, { input }, ctx) => {
+        const { id } = decodeGlobalID(input.id)
+        const orgId = Number(id)
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
+
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.update(orgId, input.data as never, actorId)
+          }),
         )
-        if (!result)
-          throw new NotFoundError('Organization', String(args.id ?? 'active'))
-        return result
+
+        return { organization: result }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        organization: t.field({ type: 'Organization', resolve: payload => payload.organization }),
+      }),
+    },
+  )
 
   // ── deleteOrganization ────────────────────────────────────────────────────
-  builder.mutationField('deleteOrganization', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError, ForbiddenError] },
-      args: {
-        id: t.arg.id({ required: true }),
-      },
+  builder.relayMutationField(
+    'deleteOrganization',
+    {
+      inputFields: t => ({
+        id: t.id({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [OrganizationNotFound, NotAMember] },
       authScopes: { permission: { resource: 'organization', actions: ['delete'] } },
-      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
-        await ctx.auth.organizationService.remove(String(args.id))
-        return true
-      },
-    }))
+      resolve: async (_root, { input }, ctx) => {
+        const { id } = decodeGlobalID(input.id)
+        const orgId = Number(id)
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-  // ── inviteMember ──────────────────────────────────────────────────────────
-  builder.mutationField('inviteMember', t =>
-    t.field({
-      type: 'Invitation',
-      errors: { types: [ValidationError, MembershipAlreadyExistsError] },
-      args: {
-        input: t.arg({ type: 'InviteMemberInput', required: true }),
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.remove(orgId, actorId)
+          }),
+        )
+        return { success: true }
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: { email: string, role: string, organizationId?: string, resend?: boolean } }, ctx: Ctx) => {
-        const result = await ctx.auth.organizationService.inviteMember(args.input, ctx.request?.headers ?? new Headers())
-        if (!result)
-          throw new NotFoundError('Invitation', 'created')
-        return result
-      },
-    }))
-
-  // ── acceptInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('acceptInvitation', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError, InvitationExpiredError] },
-      args: {
-        invitationId: t.arg.id({ required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
-        await ctx.auth.organizationService.acceptInvitation(String(args.invitationId), ctx.request?.headers ?? new Headers())
-        return true
-      },
-    }))
-
-  // ── rejectInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('rejectInvitation', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError] },
-      args: {
-        invitationId: t.arg.id({ required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
-        await ctx.auth.organizationService.rejectInvitation(String(args.invitationId))
-        return true
-      },
-    }))
+    },
+    {
+      outputFields: t => ({
+        success: t.boolean({ resolve: payload => payload.success }),
+      }),
+    },
+  )
 
   // ── cancelInvitation ──────────────────────────────────────────────────────
-  builder.mutationField('cancelInvitation', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError] },
-      args: {
-        invitationId: t.arg.id({ required: true }),
+  builder.relayMutationField(
+    'cancelInvitation',
+    {
+      inputFields: t => ({
+        invitationId: t.id({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [InvitationNotFound, NotAMember] },
+      authScopes: { permission: { resource: 'organization', actions: ['invite'] } },
+      resolve: async (_root, { input }, ctx) => {
+        const { id } = decodeGlobalID(input.invitationId)
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.cancelInvitation(Number(id), actorId)
+          }),
+        )
+        return { success: true }
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { invitationId: string }, ctx: Ctx) => {
-        await ctx.auth.organizationService.cancelInvitation(String(args.invitationId))
-        return true
-      },
-    }))
+    },
+    {
+      outputFields: t => ({
+        success: t.boolean({ resolve: payload => payload.success }),
+      }),
+    },
+  )
 
   // ── removeMember ──────────────────────────────────────────────────────────
-  builder.mutationField('removeMember', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError, ForbiddenError] },
-      args: {
-        memberIdOrEmail: t.arg.string({ required: true }),
-        organizationId: t.arg.id({ required: false }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { memberIdOrEmail: string, organizationId?: string | null }, ctx: Ctx) => {
-        await ctx.auth.organizationService.removeMember(
-          {
-            memberIdOrEmail: args.memberIdOrEmail,
-            organizationId: args.organizationId ? String(args.organizationId) : undefined,
-          },
+  builder.relayMutationField(
+    'removeMember',
+    {
+      inputFields: t => ({
+        identifier: t.string({ required: true }),
+        organizationId: t.id({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
+      authScopes: { permission: { resource: 'organization', actions: ['remove-member'] } },
+      resolve: async (_root, { input }, ctx) => {
+        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const identifier = input.identifier.includes('@')
+          ? input.identifier
+          : Number(input.identifier)
+
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.removeMember({
+              identifier: identifier as never,
+              organizationId: Number(orgId),
+            })
+          }),
         )
 
         await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_REMOVED, {
-          orgId: args.organizationId ? String(args.organizationId) : '',
-          userId: args.memberIdOrEmail,
+          orgId: String(orgId),
+          userId: String(input.identifier),
         })
 
-        return true
+        return { success: true }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        success: t.boolean({ resolve: payload => payload.success }),
+      }),
+    },
+  )
 
   // ── updateMemberRole ──────────────────────────────────────────────────────
-  builder.mutationField('updateMemberRole', t =>
-    t.field({
-      type: 'Member',
-      errors: { types: [NotFoundError, ForbiddenError] },
-      args: {
-        memberId: t.arg.id({ required: true }),
-        role: t.arg.string({ required: true }),
-        organizationId: t.arg.id({ required: false }),
+  builder.relayMutationField(
+    'updateMemberRole',
+    {
+      inputFields: t => ({
+        memberId: t.id({ required: true }),
+        organizationId: t.id({ required: true }),
+        role: t.string({ required: true }),
+      }),
+    },
+    {
+      errors: {
+        types: [
+          MemberNotFound, OrgInvalidRole, CannotPromoteToOwner, CannotLeaveAsLastOwner,
+        ],
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { memberId: string, role: string, organizationId?: string | null }, ctx: Ctx) => {
-        const result = await ctx.auth.organizationService.updateMemberRole(
-          {
-            memberId: String(args.memberId),
-            role: args.role,
-            organizationId: args.organizationId ? String(args.organizationId) : undefined,
-          },
+      authScopes: { permission: { resource: 'organization', actions: ['update-member-role'] } },
+      resolve: async (_root, { input }, ctx) => {
+        const { id: memberId } = decodeGlobalID(input.memberId)
+        const { id: orgId } = decodeGlobalID(input.organizationId)
+
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.updateMemberRole({
+              id: Number(memberId),
+              organizationId: Number(orgId),
+              role: input.role,
+            })
+          }),
         )
-        if (!result)
-          throw new NotFoundError('Member', String(args.memberId))
-        return result
-      },
-    }))
 
-  // ── setActiveOrganization ─────────────────────────────────────────────────
-  builder.mutationField('setActiveOrganization', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError] },
-      args: {
-        organizationId: t.arg.id({ required: false }),
-        organizationSlug: t.arg.string({ required: false }),
+        return { member: result }
       },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { organizationId?: string | null, organizationSlug?: string | null }, ctx: Ctx) => {
-        if (!ctx.auth?.user)
-          throw new UnauthenticatedError()
+    },
+    {
+      outputFields: t => ({
+        member: t.field({ type: 'Member', resolve: payload => payload.member }),
+      }),
+    },
+  )
 
-        await ctx.auth.organizationService.setActive(
-          {
-            organizationId: args.organizationId ? String(args.organizationId) : undefined,
-            organizationSlug: args.organizationSlug ?? undefined,
-          },
-          ctx.request?.headers ?? new Headers(),
-        )
-        return true
-      },
-    }))
-
-  // ── leaveOrganization ─────────────────────────────────────────────────────
-  builder.mutationField('leaveOrganization', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError, ForbiddenError, CannotLeaveAsLastOwnerError] },
-      args: {
-        organizationId: t.arg.id({ required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { organizationId: string }, ctx: Ctx) => {
-        if (!ctx.auth?.user)
-          throw new UnauthenticatedError()
-
-        await ctx.auth.organizationService.leave(String(args.organizationId), ctx.request?.headers ?? new Headers())
-        return true
-      },
-    }))
+  // ─── better-auth-backed mutations (phase 2) ────────────────────────────────
+  // The following mutations wrap better-auth's organization plugin API which
+  // requires a session-aware Headers object. They will be re-introduced when
+  // the BetterAuth Tag exposes the request-scoped session context.
+  //
+  // - inviteMember
+  // - acceptInvitation
+  // - rejectInvitation
+  // - setActiveOrganization
+  // - leaveOrganization
 }

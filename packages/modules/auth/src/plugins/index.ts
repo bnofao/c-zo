@@ -17,8 +17,8 @@ import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
 import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
-import { ApiKeyServiceLive, makeUserServiceLive, OrganizationServiceLive } from '@czo/auth/layers'
-import { BetterAuth, createAuthService, createOrganizationService } from '@czo/auth/services'
+import { ApiKeyServiceLive, makeOrganizationServiceLive, makeUserServiceLive } from '@czo/auth/layers'
+import { BetterAuth, createAuthService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
 import { registerSchema as registerDbSchema, registerRelations, registerSeeder, useDatabase } from '@czo/kit/db'
 import { DrizzleDbLive } from '@czo/kit/db/effect'
@@ -174,9 +174,6 @@ export default definePlugin((nitroApp) => {
     container.singleton('auth', () => auth)
     logger.info('Auth instance created and bound to container')
 
-    const organizationService = createOrganizationService(db, auth, roles)
-    container.singleton('auth:organizations', () => organizationService)
-
     // const accountService = createAccountService(db, auth)
     // container.singleton('auth:accounts', () => accountService)
 
@@ -196,9 +193,9 @@ export default definePlugin((nitroApp) => {
     // const appService = createAppService(db, subscribableEvents)
     // container.singleton('auth:apps', () => appService)
 
-    const authService = createAuthService(auth, organizationService, ac, roles)
+    const authService = createAuthService(auth, ac, roles)
     container.singleton('auth:service', () => authService)
-    logger.info('Services bound: auth, organizations, accounts, sessions, twoFactor, apiKeys, apps')
+    logger.info('Services bound: auth, accounts, sessions, twoFactor, apiKeys, apps')
 
     // Build the Effect ManagedRuntime once at boot. Composes the auth-module
     // Layers with the kit's DrizzleDbLive infra. `provideMerge` wires the
@@ -208,6 +205,7 @@ export default definePlugin((nitroApp) => {
     // useRuntime() at request time. Disposed on Nitro close.
     const BetterAuthLive = Layer.succeed(BetterAuth, auth)
     const UserServiceLive = makeUserServiceLive(roles)
+    const OrganizationServiceLive = makeOrganizationServiceLive(roles)
     const AuthModuleLive = Layer.mergeAll(
       ApiKeyServiceLive.pipe(Layer.provideMerge(OrganizationServiceLive)),
       UserServiceLive,

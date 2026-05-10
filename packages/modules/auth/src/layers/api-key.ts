@@ -75,12 +75,17 @@ export const ApiKeyServiceLive = Layer.effect(
       reference: string
       referenceId?: number
       userId: number
-    }): EffectNS.Effect<void, Intrusion> =>
+    }): EffectNS.Effect<void, Intrusion | DbFailed> =>
       Effect.gen(function* () {
         if (scope.reference === 'organization') {
           if (scope.referenceId === undefined)
             return yield* Effect.fail(new Intrusion())
-          const isMember = yield* org.checkMembership(scope.referenceId, scope.userId)
+          // OrganizationService.checkMembership can fail with OrgDbFailed;
+          // map it to api-key's own DbFailed so the error channel stays
+          // module-local.
+          const isMember = yield* org.checkMembership(scope.referenceId, scope.userId).pipe(
+            Effect.mapError(e => new DbFailed({ cause: e })),
+          )
           if (!isMember)
             return yield* Effect.fail(new Intrusion())
           return
@@ -217,7 +222,9 @@ export const ApiKeyServiceLive = Layer.effect(
           }
 
           if (reference === 'organization') {
-            const isMember = yield* org.checkMembership(input.referenceId, opts.session.userId)
+            const isMember = yield* org.checkMembership(input.referenceId, opts.session.userId).pipe(
+              Effect.mapError(e => new DbFailed({ cause: e })),
+            )
             if (!isMember)
               return yield* Effect.fail(new Intrusion())
           }

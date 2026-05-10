@@ -1,8 +1,7 @@
-import { Effect, Layer } from 'effect'
-import { beforeEach, describe, expect, vi } from 'vitest'
-import { it } from 'vitest'
-import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { DrizzleDb } from '@czo/kit/db/effect'
+import { expectFailure, expectSuccess } from '@czo/kit/effect'
+import { Effect, Layer } from 'effect'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiKeyService,
   InvalidApiKey,
@@ -55,36 +54,41 @@ function makeMockDb(initialRow: Partial<ApiKeyRow> | null) {
   return { db, spies: { findFirst, updateReturning, updateWhere, updateSet, update } }
 }
 
+// Only `checkMembership` is exercised by ApiKeyServiceLive — the rest of
+// the OrganizationService surface is stubbed via `as never` to satisfy the
+// (now broader) Tag shape without writing dummies for every method.
 const orgStub = Layer.succeed(OrganizationService, {
   checkMembership: () => Effect.succeed(true),
-})
+} as never)
 
 function makeTestLayer(db: object) {
   const dbLayer = Layer.succeed(DrizzleDb, db as never)
   return ApiKeyServiceLive.pipe(Layer.provide(Layer.mergeAll(dbLayer, orgStub)))
 }
 
-const validRow = (overrides: Partial<ApiKeyRow> = {}): ApiKeyRow => ({
-  id: 1,
-  key: 'hashed-abc',
-  enabled: true,
-  expiresAt: null,
-  permissions: null,
-  rateLimitEnabled: false,
-  rateLimitTimeWindow: null,
-  rateLimitMax: null,
-  requestCount: 0,
-  remaining: null,
-  refillAmount: null,
-  refillInterval: null,
-  lastRequest: null,
-  lastRefillAt: null,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-01-01'),
-  reference: 'user',
-  referenceId: 1,
-  ...overrides,
-})
+function validRow(overrides: Partial<ApiKeyRow> = {}): ApiKeyRow {
+  return {
+    id: 1,
+    key: 'hashed-abc',
+    enabled: true,
+    expiresAt: null,
+    permissions: null,
+    rateLimitEnabled: false,
+    rateLimitTimeWindow: null,
+    rateLimitMax: null,
+    requestCount: 0,
+    remaining: null,
+    refillAmount: null,
+    refillInterval: null,
+    lastRequest: null,
+    lastRefillAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    reference: 'user',
+    referenceId: 1,
+    ...overrides,
+  }
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
@@ -196,7 +200,7 @@ describe('apiKeyServiceLive — verify / validate', () => {
     expect(result.id).toBe(1)
   })
 
-  it('UPDATE returns 0 rows → UsageExceeded', async () => {
+  it('uPDATE returns 0 rows → UsageExceeded', async () => {
     const row = validRow({ remaining: 0 })
     const { db, spies } = makeMockDb(row)
     spies.updateReturning.mockResolvedValue([])

@@ -1,6 +1,6 @@
 import type { AccessRole, Auth } from '@czo/auth/config'
 import type { AccessControl } from 'better-auth/plugins'
-import type { OrganizationService } from './organization.service'
+import { hasPermissionForOrg } from './org-permissions'
 import { hasPermissionForUser } from './user-permissions'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -17,7 +17,6 @@ export type AuthService = ReturnType<typeof createAuthService>
 
 export function createAuthService(
   auth: Auth,
-  organizationService: OrganizationService,
   acc: AccessControl,
   roles?: Record<string, AccessRole>,
 ) {
@@ -55,12 +54,12 @@ export function createAuthService(
       },
     ): Promise<boolean> {
       if (ctx.organizationId && ctx.role) {
-        return organizationService.hasPermission(
-          ctx.organizationId,
+        return hasPermissionForOrg(auth, {
+          orgId: ctx.organizationId,
           permissions,
-          ctx.role,
-          options,
-        )
+          role: ctx.role,
+          ...options,
+        })
       }
 
       return hasPermissionForUser(auth, {
