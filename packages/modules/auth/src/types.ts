@@ -12,8 +12,6 @@ import type { AuthService } from './services/auth.service'
 import type { OrganizationService } from './services/organization.service'
 import type { SessionService } from './services/session.service'
 import type { TwoFactorService } from './services/twoFactor.service'
-
-import type { UserService } from './services/user.service'
 import { apikeys, invitations, members, organizations, users } from '@czo/auth/schema'
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod'
 import { z } from 'zod'
@@ -21,7 +19,6 @@ import { z } from 'zod'
 export type { Relations as AuthRelations } from '@czo/auth/relations'
 
 export interface AuthContext {
-  userService: UserService
   organizationService: OrganizationService
   // accountService: AccountService
   // sessionService: SessionService
@@ -94,7 +91,6 @@ declare module '@czo/kit/ioc' {
     'auth': Auth
     'auth:actor': AuthActorService
     'auth:access': AccessService
-    'auth:users': UserService
     'auth:service': AuthService
     'auth:organizations': OrganizationService
     'auth:accounts': AccountService

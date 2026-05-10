@@ -2,7 +2,6 @@ import type { AccessRole, Auth } from '@czo/auth/config'
 import type { AuthRelations, CancelOrgInvitationInput, CreateOrganizationInput, CreateOrgInvitationInput, CreateOrgMemberInput, Organization, OrganizationInvitation, OrganizationMember, RemoveOrgMemberInput, UpdateOrganizationInput, UpdateOrgMemberInput, User } from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
 import type { OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
-import type { UserService } from './user.service'
 import { and, count, eq, like } from 'drizzle-orm'
 import { invitations, members, organizations } from '../database/schema'
 import { validateRole } from './utils/validate-roles'
@@ -136,7 +135,7 @@ function isValidPermissionsRecord(value: unknown): value is Record<string, strin
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-export function createOrganizationService(db: Database<AuthRelations>, auth: Auth, userService: UserService, roles?: Record<string, AccessRole>) {
+export function createOrganizationService(db: Database<AuthRelations>, auth: Auth, roles?: Record<string, AccessRole>) {
   const checkMembership = async (organizationId: number, userId: number) => {
     const isMember = await db.query.members.findFirst({
       where: {
@@ -225,7 +224,7 @@ export function createOrganizationService(db: Database<AuthRelations>, auth: Aut
 
     async create(input: CreateOrganizationInput, opts?: CreateOrganizationOptions): Promise<Organization & { members: OrganizationMember[] } | null> {
       const { userId, ...orgData } = input
-      const user = await userService.findFirst({ where: { id: userId } })
+      const user = await db.query.users.findFirst({ where: { id: userId } })
 
       if (!user) {
         if (opts?.onUserNotFound)
@@ -425,7 +424,7 @@ export function createOrganizationService(db: Database<AuthRelations>, auth: Aut
     // },
 
     async addMember(input: CreateOrgMemberInput, opts?: AddMemberOptions): Promise<OrganizationMember | null> {
-      const existingUser = await userService.findFirst({ where: { id: input.userId } })
+      const existingUser = await db.query.users.findFirst({ where: { id: input.userId } })
 
       if (!existingUser) {
         if (opts?.onUserNotFound)

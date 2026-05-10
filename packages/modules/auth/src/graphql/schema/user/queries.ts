@@ -1,5 +1,8 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
 import { decodeGlobalID } from '@czo/kit/graphql'
+import { runEffect } from '@czo/kit/effect'
+import { Effect, Exit } from 'effect'
+import { UserService, UserNotFound } from '../../../services/user'
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
@@ -15,7 +18,12 @@ export function registerUserQueries(builder: SchemaBuilder): void {
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (_query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.id)
-        return await ctx.auth.userService.findFirst({ where: { id: Number(id) } })
+        // Treat UserNotFound as null (query semantics) — only DB errors propagate.
+        const program = Effect.gen(function* () {
+          const svc = yield* UserService
+          return yield* svc.findFirst({ where: { id: Number(id) } })
+        }).pipe(Effect.catchTag('UserNotFound', () => Effect.succeed(null)))
+        return runEffect(ctx.auth.runtime, program)
       },
     }))
 
@@ -30,28 +38,16 @@ export function registerUserQueries(builder: SchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query, _root, args, ctx) => {
-        return ctx.auth.userService.findMany(query({
-          where: args.where as any, // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
-          orderBy: args.orderBy
-            ? args.orderBy.map(o => ({ [o.field]: o.direction }))
-            : undefined,
-        }))
+        const program = Effect.gen(function* () {
+          const svc = yield* UserService
+          return yield* svc.findMany(query({
+            where: args.where as any,
+            orderBy: args.orderBy
+              ? args.orderBy.map(o => ({ [o.field]: o.direction }))
+              : undefined,
+          }))
+        })
+        return runEffect(ctx.auth.runtime, program) as any
       },
-      // edgesField: {},
     }))
-
-  // ── userSessions(userId) — admin: list sessions for a user ────────────────
-  // Direct Drizzle since sessions is not in authRelations
-  // builder.queryField('userSessions', t =>
-  //   t.field({
-  //     type: ['Session'],
-  //     args: {
-  //       userId: t.arg.id({ required: true }),
-  //     },
-  //     authScopes: { permission: { resource: 'user', actions: ['read'] } },
-  //     resolve: async (_root: unknown, args: Record<string, unknown>, ctx: Ctx) => {
-  //       const sessions = await ctx.auth.userService.listSessions(String(args.userId))
-  //       return sessions ?? []
-  //     },
-  //   }))
 }

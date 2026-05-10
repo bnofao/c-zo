@@ -1,8 +1,7 @@
 import type { AccessRole, Auth } from '@czo/auth/config'
-import type { AccessControl, AdminOptions } from 'better-auth/plugins'
+import type { AccessControl } from 'better-auth/plugins'
 import type { OrganizationService } from './organization.service'
-import type { UserService } from './user.service'
-import { mapAPIError } from './_internal/map-error'
+import { hasPermissionForUser } from './user-permissions'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -17,7 +16,7 @@ export type AuthService = ReturnType<typeof createAuthService>
 // ─── Factory ─────────────────────────────────────────────────────────
 
 export function createAuthService(
-  userService: UserService,
+  auth: Auth,
   organizationService: OrganizationService,
   acc: AccessControl,
   roles?: Record<string, AccessRole>,
@@ -64,7 +63,7 @@ export function createAuthService(
         )
       }
 
-      return userService.hasPermission({
+      return hasPermissionForUser(auth, {
         userId: ctx.userId,
         permissions,
         role: ctx.role,

@@ -1,13 +1,27 @@
 import type { AuthGraphQLShemaBuilder, User } from '@czo/auth/types'
 import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { createUserSchema, passwordSchema, updateUserSchema } from '@czo/auth/types'
-import { decodeGlobalID, ForbiddenError, NotFoundError, ValidationError } from '@czo/kit/graphql'
-import { CannotBanSelfError, CannotDemoteSelfError, UserAlreadyBannedError, UserNotBannedError } from './errors'
+import { runEffect } from '@czo/kit/effect'
+import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
+import { Effect } from 'effect'
+import { UserService } from '../../../services/user'
+import {
+  CannotBanSelf,
+  CannotDemoteSelf,
+  CannotRemoveSelf,
+  CredentialLinkFailed,
+  InvalidRole,
+  PasswordHashFailed,
+  UserAlreadyBanned,
+  UserAlreadyExists,
+  UserNoChanges,
+  UserNotBanned,
+  UserNotFound,
+} from './errors'
 
 // ─── User Mutations ───────────────────────────────────────────────────────────
 
 export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
-
   // ── updateUser ────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'updateUser',
@@ -18,7 +32,12 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      errors: { types: [ValidationError, NotFoundError, ForbiddenError] },
+      errors: {
+        types: [
+          ValidationError, ForbiddenError,
+          UserNotFound, UserNoChanges, InvalidRole,
+        ],
+      },
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
@@ -32,32 +51,18 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
 
           if (!canSetRole)
             throw new ForbiddenError('You do not have permission to set user roles')
-
-          const roles = Array.isArray(input.data.role) ? input.data.role : [input.data.role]
-
-          for (const role of roles) {
-            if (ctx.auth.authService.roles && !ctx.auth.authService.roles[role]) {
-              throw ValidationError.fromStandardSchema({
-                issues: [{
-                  path: ['role'],
-                  message: 'You are not allowed to set non existed role',
-                }],
-              })
-            }
-          }
         }
 
-        const result = await ctx.auth.userService.update(userId, {
-          ...input.data,
-          name: input.data.name || undefined,
-        }, {
-          onNotFound: async () => {
-            throw new NotFoundError('User', input.id)
-          },
-          onFailed: async () => {
-            throw new Error('Failed to update user')
-          },
-        }) as User
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.update(userId, {
+              ...input.data,
+              name: input.data.name || undefined,
+            })
+          }),
+        )
 
         await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
           userId,
@@ -79,26 +84,26 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
     'createUser',
     {
       inputFields: t => ({
-        data: t.field({ type: 'UserCreateData', required: true, validate: createUserSchema, }),
+        data: t.field({ type: 'UserCreateData', required: true, validate: createUserSchema }),
       }),
     },
     {
-      errors: { types: [ValidationError, NotFoundError] },
+      errors: {
+        types: [
+          ValidationError,
+          UserAlreadyExists, InvalidRole,
+          CredentialLinkFailed, PasswordHashFailed,
+        ],
+      },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
       resolve: async (_root, { input }, ctx) => {
-        const result = await ctx.auth.userService.create(input.data, {
-          onUserExists: async (existing) => {
-            throw ValidationError.fromStandardSchema({
-              issues: [{
-                path: ['email'],
-                message: `User with email ${existing.email} already exists`,
-              }],
-            })
-          },
-          onFailed: async () => {
-            throw new Error('Failed to create user')
-          },
-        }) as User
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.create(input.data)
+          }),
+        )
 
         await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
           userId: result.id,
@@ -121,31 +126,24 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
     {
       inputFields: t => ({
         id: t.id({ required: true }),
-        data: t.field({ type: 'UserBanData', required: true , validate: updateUserSchema}),
+        data: t.field({ type: 'UserBanData', required: true, validate: updateUserSchema }),
       }),
     },
     {
-      errors: { types: [NotFoundError, ForbiddenError, CannotBanSelfError, UserAlreadyBannedError] },
+      errors: { types: [ForbiddenError, UserNotFound, CannotBanSelf, UserAlreadyBanned] },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
         const authUser = ctx.auth?.user as User
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        const result = await ctx.auth.userService.ban(userId, input.data, {
-          onNotFound: async () => {
-            throw new NotFoundError('User', input.id)
-          },
-          onSelfBan: async () => {
-            throw new CannotBanSelfError()
-          },
-          onAlreadyBanned: async () => {
-            throw new UserAlreadyBannedError(input.id)
-          },
-          onFailed: async () => {
-            throw new Error('Failed to ban user')
-          },
-          authUserId: Number(authUser.id),
-        }) as User
+
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.ban(userId, input.data, Number(authUser.id))
+          }),
+        )
 
         publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
           userId,
@@ -173,24 +171,19 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      errors: { types: [NotFoundError] },
+      errors: { types: [UserNotFound, UserNotBanned] },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        const result = await ctx.auth.userService.unban(userId, {
-          onNotFound: async () => {
-            throw new NotFoundError('User', input.id)
-          },
-          onNotBanned: async () => {
-            throw new UserNotBannedError(input.id)
-          },
-          onFailed: async () => {
-            throw new Error('Failed to unban user')
-          },
-        }) as User
-        if (!result)
-          throw new NotFoundError('User', String(input.id))
+
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.unban(userId)
+          }),
+        )
 
         await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
           userId,
@@ -217,34 +210,20 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      errors: { types: [NotFoundError, ForbiddenError, CannotDemoteSelfError] },
+      errors: { types: [ForbiddenError, UserNotFound, InvalidRole, CannotDemoteSelf] },
       authScopes: { permission: { resource: 'user', actions: ['set-role'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-        // TODO: prevent demoting self (e.g. admin setting their own role to non-admin)
-
-        const result = await ctx.auth.userService.setRole(
-          userId,
-          input.role,
-          {
-            onNotFound: async () => {
-              throw new NotFoundError('User', input.id)
-            },
-            onInvalidRole: async () => {
-              throw ValidationError.fromStandardSchema({
-                issues: [{
-                  path: ['role'],
-                  message: 'You are not allowed to set non existed role',
-                }],
-              })
-            },
-            onFailed: async () => {
-              throw new Error('Failed to set user role')
-            },
-          },
-        ) as User
+        const result = await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.setRole(userId, input.role, actorId)
+          }),
+        )
 
         return result
       },
@@ -269,23 +248,20 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      errors: { types: [NotFoundError] },
+      errors: { types: [UserNotFound, PasswordHashFailed] },
       authScopes: { permission: { resource: 'user', actions: ['set-password'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        await ctx.auth.userService.setPassword(
-          userId,
-          input.newPassword,
-          {
-            onNotFound: async () => {
-              throw new NotFoundError('User', input.id)
-            },
-            onFailed: async () => {
-              throw new Error('Failed to set user password')
-            },
-          },
+
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.setPassword(userId, input.newPassword)
+          }),
         )
+
         return { success: true }
       },
     },
@@ -305,28 +281,20 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      errors: { types: [NotFoundError, ValidationError] },
+      errors: { types: [UserNotFound, CannotRemoveSelf] },
       authScopes: { permission: { resource: 'user', actions: ['delete'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        await ctx.auth.userService.remove(userId, {
-          onNotFound: async () => {
-            throw new NotFoundError('User', input.id)
-          },
-          onFailed: async () => {
-            throw new Error('Failed to remove user')
-          },
-          onSelfRemove: async () => {
-            throw ValidationError.fromStandardSchema({
-              issues: [{
-                path: ['id'],
-                message: 'You cannot remove yourself',
-              }],
-            })
-          },
-          authUserId: Number(ctx.auth?.user?.id),
-        })
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
+
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.remove(userId, actorId)
+          }),
+        )
 
         return { success: true }
       },
@@ -347,10 +315,15 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      // errors: { types: [NotFoundError] },
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
       resolve: async (_root, { input }, ctx) => {
-        await ctx.auth.userService.revokeSession(input.sessionToken)
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.revokeSession(input.sessionToken)
+          }),
+        )
         return { success: true }
       },
     },
@@ -370,10 +343,15 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       }),
     },
     {
-      // errors: { types: [NotFoundError] },
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
       resolve: async (_root, { input }, ctx) => {
-        await ctx.auth.userService.revokeSessions(Number(input.id))
+        await runEffect(
+          ctx.auth.runtime,
+          Effect.gen(function* () {
+            const svc = yield* UserService
+            return yield* svc.revokeSessions(Number(input.id))
+          }),
+        )
         return { success: true }
       },
     },
