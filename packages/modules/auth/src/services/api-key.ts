@@ -1,5 +1,5 @@
-import type { ApiKey, AuthRelations, CreateApiKeyInput, UpdateApiKeyInput } from '@czo/auth/types'
-import type { apikeys } from '@czo/auth/schema'
+import type { Relations } from '@czo/auth/relations'
+import type { ApiKeySchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db'
 import type { Awaitable } from 'better-auth'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -76,17 +76,46 @@ export class DbFailed extends Data.TaggedError('DbFailed')<{
   get message() { return 'Database operation failed' }
 }
 
-export type ApiKeyError =
-  | InvalidApiKey | KeyDisabled | KeyExpired | Unauthorized
-  | RateLimited | Misconfigured | UsageExceeded
-  | Intrusion | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
+export type ApiKeyError
+  = | InvalidApiKey | KeyDisabled | KeyExpired | Unauthorized
+    | RateLimited | Misconfigured | UsageExceeded
+    | Intrusion | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
 
 // ─── Types ───────────────────────────────────────────────────────────
+interface CreateApiKeyInput {
+  name: string
+  group: string
+  prefix: string
+  referenceId: number
+  expiresIn?: number | null
+  remaining?: number | null
+  metadata?: any
+  refillAmount?: number
+  refillInterval?: number
+  rateLimitTimeWindow?: number
+  rateLimitMax?: number
+  rateLimitEnabled?: boolean
+  permissions?: Record<string, string[]>
+}
 
-export type ApiKeyRow = InferSelectModel<typeof apikeys>
+interface UpdateApiKeyInput {
+  name?: string
+  enabled?: boolean
+  remaining?: number | null
+  metadata?: any
+  expiresIn?: number | null
+  permissions?: Record<string, string[]> | null
+  refillAmount?: number
+  refillInterval?: number
+  rateLimitEnabled?: boolean
+  rateLimitTimeWindow?: number
+  rateLimitMax?: number
+}
+
+export type ApiKey = InferSelectModel<ApiKeySchema>
 
 export interface KeyGenerator {
-  (options: { length: number, prefix: string | undefined }): Awaitable<string>
+  (options: { length: number, prefix: string }): Awaitable<string>
 }
 
 export interface KeyHasher {
@@ -148,8 +177,8 @@ export interface RemoveApiKeyOptions {
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
-type FindFirstConfig = Parameters<Database<AuthRelations>['query']['apikeys']['findFirst']>[0]
-type FindManyConfig = Parameters<Database<AuthRelations>['query']['apikeys']['findMany']>[0]
+type FindFirstConfig = Parameters<Database<Relations>['query']['apikeys']['findFirst']>[0]
+type FindManyConfig = Parameters<Database<Relations>['query']['apikeys']['findMany']>[0]
 
 export class ApiKeyService extends Context.Tag('@czo/auth/ApiKeyService')<
   ApiKeyService,

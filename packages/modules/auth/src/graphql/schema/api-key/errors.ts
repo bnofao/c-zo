@@ -1,6 +1,7 @@
 import { registerError } from '@czo/kit/graphql'
 import {
   ApiKeyNotFound,
+  Unauthorized as ApiKeyUnauthorized,
   InvalidApiKey,
   KeyDisabled,
   KeyExpired,
@@ -8,7 +9,6 @@ import {
   NoChanges,
   RateLimited,
   RefillPairRequired,
-  Unauthorized as ApiKeyUnauthorized,
   UsageExceeded,
 } from '../../../services/api-key'
 

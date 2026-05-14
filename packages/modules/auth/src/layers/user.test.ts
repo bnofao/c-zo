@@ -2,7 +2,7 @@ import { DrizzleDb } from '@czo/kit/db/effect'
 import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect, Layer } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BetterAuth } from '../services/better-auth'
+import { BetterAuth } from '../services/auth-instance'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -16,6 +16,8 @@ import {
   UserNotFound,
   UserService,
 } from '../services/user'
+import { makeAccessServiceLive } from './access'
+import { UserEventsLive } from './events/user'
 import { makeUserServiceLive } from './user'
 
 // ─── Mocks ───────────────────────────────────────────────────────────
@@ -93,11 +95,26 @@ function makeAuthStub(overrides: {
   } as never
 }
 
-function makeTestLayer(db: object, auth: unknown = makeAuthStub(), roles?: Record<string, any>) {
+// Default access seed for tests: a single provider with `admin` / `user` roles.
+// Tests that exercise InvalidRole pass a different seed (e.g. only `admin`).
+const DEFAULT_ROLE_NAMES = ['admin', 'user'] as const
+
+function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
+  return makeAccessServiceLive(
+    [{
+      name: 'test',
+      statements: {},
+      hierarchy: roleNames.map(name => ({ name, permissions: {} })),
+    }] as any,
+    true,
+  )
+}
+
+function makeTestLayer(db: object, auth: unknown = makeAuthStub(), roleNames?: readonly string[]) {
   const dbLayer = Layer.succeed(DrizzleDb, db as never)
   const authLayer = Layer.succeed(BetterAuth, auth as never)
-  return makeUserServiceLive(roles).pipe(
-    Layer.provide(Layer.mergeAll(dbLayer, authLayer)),
+  return makeUserServiceLive().pipe(
+    Layer.provide(Layer.mergeAll(dbLayer, authLayer, makeAccessLayer(roleNames), UserEventsLive)),
   )
 }
 
@@ -148,7 +165,7 @@ describe('userServiceLive — create', () => {
       return yield* svc.create({ email: 'new@x.test', name: 'n', role: 'ghost' } as any)
     })
     await expectFailure(
-      program.pipe(Effect.provide(makeTestLayer(db, makeAuthStub(), { admin: {} as any, user: {} as any }))),
+      program.pipe(Effect.provide(makeTestLayer(db, makeAuthStub(), ['admin', 'user']))),
       InvalidRole,
     )
   })
@@ -257,7 +274,7 @@ describe('userServiceLive — setRole', () => {
       return yield* svc.setRole(1, 'ghost')
     })
     await expectFailure(
-      program.pipe(Effect.provide(makeTestLayer(db, makeAuthStub(), { admin: {} as any, user: {} as any }))),
+      program.pipe(Effect.provide(makeTestLayer(db, makeAuthStub(), ['admin', 'user']))),
       InvalidRole,
     )
   })

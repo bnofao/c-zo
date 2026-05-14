@@ -89,9 +89,14 @@ migration of remaining modules:
   errors via `registerError`), and input types.
 - **Implementations** live in `packages/modules/<module>/src/layers/<name>.ts`
   — `Layer.effect(Tag, …)`.
-- **Runtime** is built once at boot in the auth Nitro plugin (`czo:boot`),
-  exposed via `useRuntime()` from `@czo/kit/effect`, attached to the GraphQL
-  context as `ctx.auth.runtime`.
+- **Runtime** is a single app-wide `ManagedRuntime`. Each module composes its
+  own `Layer` (providing module-specific deps such as `BetterAuth`, leaving
+  shared infra like `DrizzleDb` in the requirements) and calls
+  `registerEffectLayer(myLayer)` from its `czo:boot` hook. The `@czo/kit` plugin
+  builds the runtime from all registered layers right after `czo:boot`
+  (providing `DrizzleDbLive` once), stores it via `setRuntime`, and disposes it
+  on Nitro `close`. Resolvers reach it via `useRuntime()` from `@czo/kit/effect`,
+  attached to the GraphQL context as `ctx.auth.runtime`.
 - **Resolvers** call `runEffect(ctx.auth.runtime, Effect.gen(function*() { … }))`
   from `@czo/kit/effect`. Tagged errors are rejected as the original `Error`
   instance so Pothos's `errors: { types: [...] }` plugin can route them via

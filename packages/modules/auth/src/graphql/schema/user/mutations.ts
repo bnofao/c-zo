@@ -1,10 +1,10 @@
-import type { AuthGraphQLShemaBuilder, User } from '@czo/auth/types'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
-import { createUserSchema, passwordSchema, updateUserSchema } from '@czo/auth/types'
+import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
+import type { User } from '../../../services'
 import { runEffect } from '@czo/kit/effect'
 import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
-import { UserService } from '../../../services/user'
+import z from 'zod'
+import { AuthService, UserService } from '../../../services'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -19,23 +19,44 @@ import {
   UserNotFound,
 } from './errors'
 
+const passwordSchema = z
+  .string()
+  .min(8, { message: 'Password must be at least 8 characters long' })
+  .max(20, { message: 'Password cannot exceed 20 characters' })
+  .refine(val => /[A-Z]/.test(val), {
+    message: 'Password must contain at least one uppercase letter',
+  })
+  .refine(val => /[a-z]/.test(val), {
+    message: 'Password must contain at least one lowercase letter',
+  })
+  .refine(val => /\d/.test(val), {
+    message: 'Password must contain at least one number',
+  })
+  .refine(val => /[!@#$%^&*]/.test(val), {
+    message: 'Password must contain at least one special character',
+  })
+
 // ─── User Mutations ───────────────────────────────────────────────────────────
 
-export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
+export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
   // ── updateUser ────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'updateUser',
     {
       inputFields: t => ({
         id: t.id({ required: true }),
-        data: t.field({ type: 'UserUpdateData', required: true }),
+        name: t.string({ validate: z.string().max(225).min(1).transform(name => name?.trim()) }),
+        role: t.stringList(),
       }),
     },
     {
       errors: {
         types: [
-          ValidationError, ForbiddenError,
-          UserNotFound, UserNoChanges, InvalidRole,
+          ValidationError,
+          ForbiddenError,
+          UserNotFound,
+          UserNoChanges,
+          InvalidRole,
         ],
       },
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
@@ -43,10 +64,24 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
 
-        if (input.data.role) {
-          const canSetRole = await ctx.auth.authService.hasPermission(
-            { userId: ctx.auth.user?.id, organizationId: ctx.auth.user?.organizationId },
-            { user: ['set-role'] },
+        if (input.role) {
+          const actorId = ctx.auth.user?.id
+          if (!actorId)
+            throw new ForbiddenError('You do not have permission to set user roles')
+
+          const canSetRole = await runEffect(
+            ctx.auth.runtime,
+            Effect.gen(function* () {
+              const svc = yield* AuthService
+              return yield* svc.hasPermission(
+                {
+                  userId: actorId,
+                  organizationId: ctx.auth.session?.activeOrganizationId,
+                  role: ctx.auth.user?.role,
+                },
+                { user: ['set-role'] },
+              )
+            }),
           )
 
           if (!canSetRole)
@@ -58,17 +93,11 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
           Effect.gen(function* () {
             const svc = yield* UserService
             return yield* svc.update(userId, {
-              ...input.data,
-              name: input.data.name || undefined,
+              ...input,
+              name: input.name || undefined,
             })
           }),
         )
-
-        await publishAuthEvent(AUTH_EVENTS.USER_UPDATED, {
-          userId,
-          changes: input.data,
-        })
-
         return { user: result }
       },
     },
@@ -84,15 +113,20 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
     'createUser',
     {
       inputFields: t => ({
-        data: t.field({ type: 'UserCreateData', required: true, validate: createUserSchema }),
+        email: t.string({ required: true, validate: z.email().transform(email => email.toLowerCase()) }),
+        name: t.string({ required: true , validate: z.string().max(225).min(1).transform(name => name.trim())}),
+        password: t.string({ required: true, validate: z.string().min(8).max(128).nullable().optional()}),
+        role: t.stringList(),
       }),
     },
     {
       errors: {
         types: [
           ValidationError,
-          UserAlreadyExists, InvalidRole,
-          CredentialLinkFailed, PasswordHashFailed,
+          UserAlreadyExists,
+          InvalidRole,
+          CredentialLinkFailed,
+          PasswordHashFailed,
         ],
       },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
@@ -101,15 +135,9 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
           ctx.auth.runtime,
           Effect.gen(function* () {
             const svc = yield* UserService
-            return yield* svc.create(input.data)
+            return yield* svc.create(input)
           }),
         )
-
-        await publishAuthEvent(AUTH_EVENTS.USER_REGISTERED, {
-          userId: result.id,
-          email: result.email,
-        })
-
         return result
       },
     },
@@ -126,7 +154,8 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
     {
       inputFields: t => ({
         id: t.id({ required: true }),
-        data: t.field({ type: 'UserBanData', required: true, validate: updateUserSchema }),
+        reason: t.string(),
+        expiresIn: t.int(),
       }),
     },
     {
@@ -141,17 +170,9 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
           ctx.auth.runtime,
           Effect.gen(function* () {
             const svc = yield* UserService
-            return yield* svc.ban(userId, input.data, Number(authUser.id))
+            return yield* svc.ban(userId, input, Number(authUser.id))
           }),
         )
-
-        publishAuthEvent(AUTH_EVENTS.USER_BANNED, {
-          userId,
-          bannedBy: authUser.id,
-          reason: result.banReason,
-          expires: result.banExpires,
-        })
-
         return { user: result }
       },
     },
@@ -176,20 +197,15 @@ export function registerUserMutations(builder: AuthGraphQLShemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
+        const actorId = Number((ctx.auth?.user as User).id)
 
         const result = await runEffect(
           ctx.auth.runtime,
           Effect.gen(function* () {
             const svc = yield* UserService
-            return yield* svc.unban(userId)
+            return yield* svc.unban(userId, actorId)
           }),
         )
-
-        await publishAuthEvent(AUTH_EVENTS.USER_UNBANNED, {
-          userId,
-          unbannedBy: (ctx.auth?.user as User).id,
-        })
-
         return { user: result }
       },
     },

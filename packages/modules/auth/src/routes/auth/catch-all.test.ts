@@ -2,12 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockHandler = vi.hoisted(() => vi.fn())
 
-const mockContainer = vi.hoisted(() => ({
-  make: vi.fn(async () => ({ handler: mockHandler })),
-}))
-
-vi.mock('@czo/kit/ioc', () => ({
-  useContainer: () => mockContainer,
+vi.mock('@czo/kit/effect', () => ({
+  runEffect: vi.fn(async () => ({ handler: mockHandler })),
+  useRuntime: vi.fn(() => ({})),
 }))
 
 vi.mock('nitro/h3', () => ({

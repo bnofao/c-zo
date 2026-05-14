@@ -1,4 +1,4 @@
-import type { AnyRelations, DrizzleConfig, EmptyRelations } from 'drizzle-orm'
+import type { DrizzleConfig } from 'drizzle-orm'
 import type { RelationsEntry, SchemaRegistry } from './schema-registry'
 import process from 'node:process'
 import { useContainer } from '@czo/kit/ioc'

@@ -1,4 +1,15 @@
-import type { ActorConfig, AuthOption } from '@czo/auth/config'
+import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
+import { ApiKeyServiceLive, AuthServiceLive, makeAccessServiceLive, makeAuthActorServiceLive, makeBetterAuthLive, makeOrganizationServiceLive, makeUserServiceLive, OrganizationEventsLive, UserEventBusLive } from '@czo/auth/layers'
+// import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
+import { authRelations } from '@czo/auth/relations'
+import * as authSchema from '@czo/auth/schema'
+import { useLogger } from '@czo/kit'
+import { registerSchema as registerDbSchema, registerRelations, registerSeeder } from '@czo/kit/db'
+import { registerEffectLayer } from '@czo/kit/effect'
+import { registerAuthScopes, registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
+import { useContainer } from '@czo/kit/ioc'
+import { Layer } from 'effect'
+import { definePlugin } from 'nitro'
 import {
   ADMIN_HIERARCHY,
   ADMIN_STATEMENTS,
@@ -6,27 +17,12 @@ import {
   API_KEY_STATEMENTS,
   APPS_HIERARCHY,
   APPS_STATEMENTS,
-  createAuth,
-  DEFAULT_ACTOR_RESTRICTIONS,
   ORGANIZATION_HIERARCHY,
   ORGANIZATION_STATEMENTS,
-  useAccessService,
-  useAuthActorService,
-} from '@czo/auth/config'
-import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
-import { registerAppConsumer, registerWebhookDispatcher } from '@czo/auth/listeners'
-import { authRelations } from '@czo/auth/relations'
-import * as authSchema from '@czo/auth/schema'
-import { ApiKeyServiceLive, makeOrganizationServiceLive, makeUserServiceLive } from '@czo/auth/layers'
-import { BetterAuth, createAuthService } from '@czo/auth/services'
-import { useLogger } from '@czo/kit'
-import { registerSchema as registerDbSchema, registerRelations, registerSeeder, useDatabase } from '@czo/kit/db'
-import { DrizzleDbLive } from '@czo/kit/db/effect'
-import { setRuntime } from '@czo/kit/effect'
-import { registerAuthScopes, registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
-import { Layer, ManagedRuntime } from 'effect'
-import { definePlugin } from 'nitro'
+} from './access'
+import {
+  DEFAULT_ACTOR_RESTRICTIONS,
+} from './actor'
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('auth:plugin')
@@ -46,12 +42,6 @@ export default definePlugin((nitroApp) => {
       logger.error('Auth secret must be at least 32 characters. Auth module will not initialize.')
       return
     }
-
-    const actorService = useAuthActorService()
-    container.singleton('auth:actor', () => actorService)
-
-    const accessService = useAccessService()
-    container.singleton('auth:access', () => accessService)
 
     registerDbSchema(authSchema)
     registerRelations(authRelations)
@@ -102,44 +92,9 @@ export default definePlugin((nitroApp) => {
     })
   })
 
-  nitroApp.hooks.hook('czo:register', async () => {
-    const container = useContainer()
-
-    logger.start('Registering auth domains...')
-
-    const actorService = await container.make('auth:actor')
-    const actorTypes = Object.keys(DEFAULT_ACTOR_RESTRICTIONS)
-    for (const [actorType, config] of Object.entries(DEFAULT_ACTOR_RESTRICTIONS)) {
-      actorService.registerActor(actorType, config as ActorConfig)
-    }
-    logger.info(`Registered ${actorTypes.length} actor types: ${actorTypes.join(', ')}`)
-
-    const accessService = await container.make('auth:access')
-    const domains = ['organization', 'admin', 'api-key', 'apps'] as const
-    accessService.register({
-      name: 'organization',
-      statements: ORGANIZATION_STATEMENTS,
-      hierarchy: ORGANIZATION_HIERARCHY,
-    })
-    accessService.register({
-      name: 'admin',
-      statements: ADMIN_STATEMENTS,
-      hierarchy: ADMIN_HIERARCHY,
-    })
-    accessService.register({
-      name: 'api-key',
-      statements: API_KEY_STATEMENTS,
-      hierarchy: API_KEY_HIERARCHY,
-    })
-    accessService.register({
-      name: 'apps',
-      statements: APPS_STATEMENTS,
-      hierarchy: APPS_HIERARCHY,
-    })
-    logger.info(`Registered ${domains.length} access domains: ${domains.join(', ')}`)
-
-    logger.success('Auth domains registered')
-  })
+  // No `czo:register` hook for auth domains — access providers are seeded
+  // directly into `AccessServiceLive` at layer construction (see czo:boot),
+  // the same pattern as `AuthActorServiceLive`.
 
   nitroApp.hooks.hook('czo:boot', async () => {
     const container = useContainer()
@@ -153,78 +108,62 @@ export default definePlugin((nitroApp) => {
 
     logger.start('Booting auth module...')
 
-    const db = await useDatabase()
-    const accessService = await container.make('auth:access')
-    const { ac, roles } = accessService.buildRoles()
-    const roleNames = Object.keys(roles)
-    logger.info(`Built ${roleNames.length} roles: ${roleNames.join(', ') || '(none)'}`)
-
-    const authOption: AuthOption = {
+    // Compose the auth-module Layers and hand them to the kit, which builds the
+    // single app-wide ManagedRuntime after czo:boot (providing shared infra such
+    // as DrizzleDbLive once). `provideMerge` wires OrganizationService into
+    // ApiKeyService's deps AND keeps it visible at the runtime surface so
+    // resolvers can yield* it. `mergeAll` adds the sibling services. The
+    // BetterAuth instance is materialized lazily by `makeBetterAuthLive`, which
+    // `yield*`s AccessService (seeded with the 4 auth domains and frozen at
+    // construction) and DrizzleDb to call `createAuth(db, { ...opts, ac, roles })`.
+    const accessOptions = [
+      { name: 'organization', statements: ORGANIZATION_STATEMENTS, hierarchy: ORGANIZATION_HIERARCHY },
+      { name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY },
+      { name: 'api-key', statements: API_KEY_STATEMENTS, hierarchy: API_KEY_HIERARCHY },
+      { name: 'apps', statements: APPS_STATEMENTS, hierarchy: APPS_HIERARCHY },
+    ] as const
+    const AccessServiceLive = makeAccessServiceLive(accessOptions as any, true)
+    const BetterAuthLive = makeBetterAuthLive({
       app: config.app,
       secret: authConfig.secret,
-      actorService: await container.make('auth:actor'),
       baseUrl: config.baseUrl,
       socials: authConfig.socials,
       storage: (await container.make('useStorage'))('auth'),
-      ac,
-      roles,
-    }
-
-    const auth = createAuth(db, authOption)
-    container.singleton('auth', () => auth)
-    logger.info('Auth instance created and bound to container')
-
-    // const accountService = createAccountService(db, auth)
-    // container.singleton('auth:accounts', () => accountService)
-
-    // const sessionService = createSessionService(db, auth)
-    // container.singleton('auth:sessions', () => sessionService)
-
-    // const twoFactorService = createTwoFactorService(auth)
-    // container.singleton('auth:twoFactor', () => twoFactorService)
-
-    // const apiKeyService = createApiKeyService(auth)
-    // container.singleton('auth:apikeys', () => apiKeyService)
-
-    // const subscribableEvents = authConfig.app?.subscribableEvents?.length
-    //   ? new Set(authConfig.app.subscribableEvents)
-    //   : new Set([])
-
-    // const appService = createAppService(db, subscribableEvents)
-    // container.singleton('auth:apps', () => appService)
-
-    const authService = createAuthService(auth, ac, roles)
-    container.singleton('auth:service', () => authService)
-    logger.info('Services bound: auth, accounts, sessions, twoFactor, apiKeys, apps')
-
-    // Build the Effect ManagedRuntime once at boot. Composes the auth-module
-    // Layers with the kit's DrizzleDbLive infra. `provideMerge` wires the
-    // OrganizationService into ApiKeyService's deps AND keeps it visible at
-    // the runtime surface so resolvers can yield* it. `mergeAll` adds the
-    // sibling UserService. Exposed via setRuntime() so resolvers can call
-    // useRuntime() at request time. Disposed on Nitro close.
-    const BetterAuthLive = Layer.succeed(BetterAuth, auth)
-    const UserServiceLive = makeUserServiceLive(roles)
-    const OrganizationServiceLive = makeOrganizationServiceLive(roles)
+    })
+    const UserServiceLive = makeUserServiceLive()
+    const OrganizationServiceLive = makeOrganizationServiceLive()
+    // Actor-type registry is seeded from DEFAULT_ACTOR_RESTRICTIONS at layer
+    // construction and frozen immediately — there is no post-boot hook for other
+    // modules to extend it, so freezing eagerly keeps the invariant honest.
+    const AuthActorServiceLive = makeAuthActorServiceLive(DEFAULT_ACTOR_RESTRICTIONS, true)
+    // Each service is paired with its event bus via `provideMerge` so the bus
+    // satisfies the service's `yield* XxxEvents` requirement AND stays visible
+    // at the runtime surface for external subscribers.
     const AuthModuleLive = Layer.mergeAll(
-      ApiKeyServiceLive.pipe(Layer.provideMerge(OrganizationServiceLive)),
-      UserServiceLive,
+      ApiKeyServiceLive.pipe(
+        Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEventsLive))),
+      ),
+      UserServiceLive.pipe(Layer.provideMerge(UserEventBusLive)),
+      AuthServiceLive,
+      AuthActorServiceLive,
     ).pipe(
-      Layer.provide(BetterAuthLive),
-      Layer.provide(DrizzleDbLive),
+      // `provideMerge` (not `provide`) so `BetterAuth` and `AccessService`
+      // stay visible at the runtime surface — request-time consumers (route
+      // handlers, context-factory) need to `runEffect(useRuntime(), BetterAuth)`
+      // without forking a separate inner runtime.
+      Layer.provideMerge(BetterAuthLive),
+      Layer.provideMerge(AccessServiceLive),
     )
-    const runtime = ManagedRuntime.make(AuthModuleLive)
-    setRuntime(runtime)
-    nitroApp.hooks.hook('close', () => runtime.dispose())
-    logger.info('Effect runtime built (ApiKeyService, OrganizationService, UserService, BetterAuth)')
+    registerEffectLayer(AuthModuleLive)
+    logger.info('Auth Effect layer registered (ApiKeyService, OrganizationService, UserService, AuthService, AuthActorService, BetterAuth, AccessService)')
 
-    await registerAppConsumer()
-    await registerWebhookDispatcher()
+    // No IoC binding for `auth` — request-time consumers (context-factory,
+    // catch-all route) read it directly via `runEffect(useRuntime(), BetterAuth)`.
 
-    const actorService = await container.make('auth:actor')
-    actorService.freeze()
-    accessService.freeze()
-    logger.info('Actor and access registries frozen')
+    // await registerAppConsumer()
+    // await registerWebhookDispatcher()
+
+    logger.info(`Actor registry seeded with ${Object.keys(DEFAULT_ACTOR_RESTRICTIONS).length} type(s) and frozen; access registry seeded with ${accessOptions.length} domain(s) and frozen`)
 
     // Register GraphQL schema (Pothos builder contributions) when auth is properly configured
     registerAuthScopes(authScopes)

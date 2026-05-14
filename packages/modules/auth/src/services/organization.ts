@@ -1,15 +1,18 @@
+import type { Relations } from '@czo/auth/relations'
+import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
 import type {
-  AuthRelations,
-  CreateOrganizationInput,
-  CreateOrgMemberInput,
-  Organization,
-  OrganizationInvitation,
-  OrganizationMember,
-  RemoveOrgMemberInput,
-  UpdateOrganizationInput,
-  UpdateOrgMemberInput,
+  // AuthRelations,
+  // CreateOrganizationInput,
+  // CreateOrgMemberInput,
+  // Organization,
+  // OrganizationInvitation,
+  // OrganizationMember,
+  // RemoveOrgMemberInput,
+  // UpdateOrganizationInput,
+  // UpdateOrgMemberInput,
 } from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
+import type { InferSelectModel } from 'drizzle-orm'
 import type { Effect } from 'effect'
 import { Context, Data } from 'effect'
 
@@ -134,11 +137,59 @@ export type OrganizationError
     | OrgDbFailed
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
+export interface CreateOrganizationInput {
+  name: string
+  slug: string
+  logo?: string | null
+  metadata?: string | null
+  type?: string | null
+  userId: number
+}
 
-type OrgFindFirstConfig = Parameters<Database<AuthRelations>['query']['organizations']['findFirst']>[0]
-type OrgFindManyConfig = Parameters<Database<AuthRelations>['query']['organizations']['findMany']>[0]
-type MemberFindManyConfig = Parameters<Database<AuthRelations>['query']['members']['findMany']>[0]
-type InvitationFindManyConfig = Parameters<Database<AuthRelations>['query']['invitations']['findMany']>[0]
+export interface CreateOrgMemberInput {
+  organizationId: number
+  role: string
+  userId: number
+}
+
+export interface OrganizationInvitation {
+  id: number
+  organizationId: number
+  email: string
+  role: string | null
+  status: string
+  expiresAt: Date
+  inviterId: number
+  createdAt: Date
+}
+
+interface RemoveOrgMemberInput {
+  identifier: string | number
+  organizationId: number
+}
+
+export interface UpdateOrganizationInput {
+  name?: string | null
+  slug?: string | null
+  logo?: string | null
+  metadata?: string | null
+  type?: string | null
+}
+
+interface UpdateOrgMemberInput {
+  id: number
+  organizationId: number
+  role: string | string[]
+}
+
+export type OrganizationMember = InferSelectModel<MemberSchema>
+
+export type Organization = InferSelectModel<OrganizationSchema>
+
+type OrgFindFirstConfig = Parameters<Database<Relations>['query']['organizations']['findFirst']>[0]
+type OrgFindManyConfig = Parameters<Database<Relations>['query']['organizations']['findMany']>[0]
+type MemberFindManyConfig = Parameters<Database<Relations>['query']['members']['findMany']>[0]
+type InvitationFindManyConfig = Parameters<Database<Relations>['query']['invitations']['findMany']>[0]
 
 export interface CreateOrgScope {
   /**

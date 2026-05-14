@@ -1,14 +1,9 @@
+import type { Relations } from '@czo/auth/relations'
 import type { sessions, UserSchema } from '@czo/auth/schema'
-import type {
-  AuthRelations,
-  BanUserInput,
-  CreateUserInput,
-  UpdateUserInput,
-  User,
-} from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
+import type { InferSelectModel } from 'drizzle-orm'
 import type { Effect } from 'effect'
-import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
+
 import { Context, Data } from 'effect'
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
@@ -87,24 +82,39 @@ export class UserDbFailed extends Data.TaggedError('UserDbFailed')<{
   get message() { return 'Database operation failed' }
 }
 
-export type UserError =
-  | UserNotFound
-  | UserAlreadyExists
-  | InvalidRole
-  | CannotBanSelf
-  | CannotDemoteSelf
-  | CannotRemoveSelf
-  | UserAlreadyBanned
-  | UserNotBanned
-  | UserNoChanges
-  | PasswordHashFailed
-  | CredentialLinkFailed
-  | UserDbFailed
+export type UserError
+  = | UserNotFound
+    | UserAlreadyExists
+    | InvalidRole
+    | CannotBanSelf
+    | CannotDemoteSelf
+    | CannotRemoveSelf
+    | UserAlreadyBanned
+    | UserNotBanned
+    | UserNoChanges
+    | PasswordHashFailed
+    | CredentialLinkFailed
+    | UserDbFailed
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 export type SessionRow = InferSelectModel<typeof sessions>
-export type UserInsert = Pick<InferInsertModel<UserSchema>, 'email' | 'name' | 'role'> & { password: string }
+export type User = InferSelectModel<UserSchema>
+export interface UpdateUserInput {
+  name?: string | undefined
+  role?: string | string[] | null | undefined
+}
+export interface CreateUserInput {
+  name: string
+  email: string
+  role?: string | string[] | null
+  password?: string | null
+}
+
+export interface BanUserInput {
+  reason?: string | null | undefined
+  expiresIn?: number | null | undefined
+}
 
 export interface ListUsersParams {
   searchValue?: string
@@ -131,8 +141,8 @@ export interface SetUserPasswordInput {
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
-type FindFirstConfig = Parameters<Database<AuthRelations>['query']['users']['findFirst']>[0]
-type FindManyConfig = Parameters<Database<AuthRelations>['query']['users']['findMany']>[0]
+type FindFirstConfig = Parameters<Database<Relations>['query']['users']['findFirst']>[0]
+type FindManyConfig = Parameters<Database<Relations>['query']['users']['findMany']>[0]
 
 export class UserService extends Context.Tag('@czo/auth/UserService')<
   UserService,
@@ -162,6 +172,7 @@ export class UserService extends Context.Tag('@czo/auth/UserService')<
 
     readonly unban: (
       id: number,
+      actorId?: number,
     ) => Effect.Effect<User, UserNotFound | UserNotBanned | UserDbFailed>
 
     readonly setRole: (

@@ -21,11 +21,10 @@ export default defineBuildConfig({
   entries: [
     'src/module',
     'src/types',
-    'src/config/index',
+    // 'src/config/index',
     'src/database/schema',
     'src/database/relations',
-    'src/events/index',
-    'src/listeners/index',
+    // 'src/listeners/index',
     'src/services/index',
     'src/layers/index',
     'src/graphql/index',

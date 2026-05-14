@@ -1,61 +1,38 @@
-import { z } from 'zod'
+import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
+import z from 'zod'
 
-// ─── Zod schemas (exported for service-layer validation) ─────────────────────
-
-export const createOrganizationSchema = z.object({
-  name: z.string().min(1).max(255),
-  slug: z.string().min(1).max(100).regex(/^[\w-]+$/, 'Slug must be URL-safe'),
-  logo: z.string().url().optional(),
-  type: z.string().optional(),
-  keepCurrentActiveOrganization: z.boolean().optional(),
+const slugSchema = z.string().min(3, "Slug must be at least 3 characters").max(50, "Slug is too long").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  message: "Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)",
 })
-
-export const updateOrganizationSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  slug: z.string().min(1).max(100).regex(/^[\w-]+$/, 'Slug must be URL-safe').optional(),
-  logo: z.string().url().optional(),
-  type: z.string().optional(),
-})
-
-export const inviteMemberSchema = z.object({
-  email: z.string().email(),
-  role: z.string(),
-  organizationId: z.string().optional(),
-  resend: z.boolean().optional(),
-})
-
-export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
-export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>
-export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
 
 // ─── Pothos input type registration ──────────────────────────────────────────
 
-export function registerOrganizationInputs(builder: any): void {
-  builder.inputType('CreateOrganizationInput', {
-    validate: { schema: createOrganizationSchema },
-    fields: (t: any) => ({
-      name: t.string({ required: true }),
-      slug: t.string({ required: true }),
-      logo: t.string({ required: false }),
-      type: t.string({ required: false }),
-      keepCurrentActiveOrganization: t.boolean({ required: false }),
+export function registerOrganizationInputs(builder: AuthGraphQLShemaBuilder): void {
+  builder.inputType('OrganizationCreateData', {
+    // validate: createOrganizationSchema,
+    fields: t => ({
+      name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()) }),
+      slug: t.string({ required: true, validate:  slugSchema }),
+      logo: t.string({ validate: z.url() }),
+      type: t.string(),
+      metadata: t.field({ type: 'JSONObject' }),
     }),
   })
 
-  builder.inputType('UpdateOrganizationInput', {
-    validate: { schema: updateOrganizationSchema },
-    fields: (t: any) => ({
-      name: t.string({ required: false }),
-      slug: t.string({ required: false }),
-      logo: t.string({ required: false }),
-      type: t.string({ required: false }),
+  builder.inputType('OrganizationUpdateData', {
+    fields: t => ({
+      name: t.string({ validate: z.string().max(255).nullable().optional() }),
+      slug: t.string({ validate: slugSchema.optional() }),
+      logo: t.string({ validate: z.url().optional() }),
+      type: t.string(),
+      metadata: t.field({ type: 'JSONObject' }),
     }),
   })
 
-  builder.inputType('InviteMemberInput', {
-    validate: { schema: inviteMemberSchema },
-    fields: (t: any) => ({
-      email: t.string({ required: true }),
+  builder.inputType('OrganizationInvitationData', {
+    // validate: createOrgInvitationSchema,
+    fields: t => ({
+      email: t.string({ required: true, validate: z.email() }),
       role: t.string({ required: true }),
       organizationId: t.id({ required: false }),
       resend: t.boolean({ required: false }),

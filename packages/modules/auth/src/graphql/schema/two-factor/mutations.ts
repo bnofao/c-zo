@@ -1,6 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
 import type { SchemaBuilder } from '@czo/kit/graphql'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { BackupCodeInvalidError, TotpVerificationFailedError, TwoFactorNotEnabledError } from './errors'
 
@@ -29,7 +28,7 @@ export function registerTwoFactorMutations(builder: SchemaBuilder): void {
           ctx.request?.headers ?? new Headers(),
         )
 
-        await publishAuthEvent(AUTH_EVENTS.TWO_FA_ENABLED, { userId: ctx.auth.user.id })
+        // TODO(events): publish TwoFAEnabled via TwoFactorEvents.
 
         // Return the TOTP URI (for QR scanning) if present
         return (result as any)?.totpURI ?? (result as any)?.uri ?? null
@@ -51,7 +50,7 @@ export function registerTwoFactorMutations(builder: SchemaBuilder): void {
 
         await ctx.auth.twoFactorService.disable(args.password, ctx.request?.headers ?? new Headers())
 
-        await publishAuthEvent(AUTH_EVENTS.TWO_FA_DISABLED, { userId: ctx.auth.user.id })
+        // TODO(events): publish TwoFADisabled via TwoFactorEvents.
 
         return true
       },

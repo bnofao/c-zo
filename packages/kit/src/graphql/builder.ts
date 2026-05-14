@@ -79,7 +79,15 @@ export function initBuilder<Relations extends RelationsEntry>(
     ],
     drizzle: { client: opts.db as any, getTableConfig: getTableConfig as any },
     relay: { clientMutationId: 'omit', cursorType: 'String' },
-    errors: { unsafelyHandleInputErrors: true },
+    errors: { 
+      unsafelyHandleInputErrors: true,
+      defaultResultOptions: {
+        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Success`,
+      },
+      defaultUnionOptions: {
+        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Result`,
+      },
+    },
     validation: {
       validationError: result => ValidationError.fromStandardSchema(result),
     },
@@ -416,3 +424,8 @@ export const orderDirectionSchema = z.enum({
   ASC: 'asc',
   DESC: 'desc',
 })
+
+export interface OrderByInput<T> {
+  field: T
+  direction: z.infer<typeof orderDirectionSchema>
+}

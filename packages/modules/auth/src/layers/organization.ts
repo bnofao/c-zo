@@ -1,11 +1,11 @@
-import type { AccessRole } from '@czo/auth/config'
-import type { AuthRelations, Organization, OrganizationInvitation, OrganizationMember } from '@czo/auth/types'
+import type { Relations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
 import { invitations, members, organizations } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { and, count, eq, like } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import {
+  AccessService,
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
@@ -14,6 +14,7 @@ import {
   MemberLimitReached,
   MemberNotFound,
   NotAMember,
+  OrganizationEvents,
   OrganizationLimitReached,
   OrganizationNotFound,
   OrganizationService,
@@ -22,20 +23,23 @@ import {
   OrgInvalidRole,
   OrgNoChanges,
   OrgUserNotFound,
-} from '../services/organization'
-import { validateRole } from '../services/utils/validate-roles'
+  validateRole,
+} from '../services'
 
 /**
  * Build the `OrganizationService` Live layer.
  *
- * `roles` is captured by closure (same tri-state semantics as
- * `makeUserServiceLive` — see that file for rationale).
+ * Roles are materialized from `AccessService.buildRoles` at layer build time
+ * (memoized per-runtime by Effect).
  */
-export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) {
+export function makeOrganizationServiceLive() {
   return Layer.effect(
     OrganizationService,
     Effect.gen(function* () {
-      const db = (yield* DrizzleDb) as Database<AuthRelations>
+      const db = (yield* DrizzleDb) as Database<Relations>
+      const access = yield* AccessService
+      const { roles } = yield* access.buildRoles
+      const events = yield* OrganizationEvents
 
       const tryDb = <A>(f: () => Promise<A>) =>
         Effect.tryPromise({ try: f, catch: cause => new OrgDbFailed({ cause }) })
@@ -53,7 +57,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
           const row = yield* tryDb(() => db.query.organizations.findFirst({ where: { id } }))
           if (!row)
             return yield* Effect.fail(new OrganizationNotFound())
-          return row as Organization
+          return row
         })
 
       const findMemberInOrg = (organizationId: number, userId: number) =>
@@ -64,7 +68,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
           const isMember = yield* findMemberInOrg(organizationId, userId)
           if (!isMember)
             return yield* Effect.fail(new NotAMember())
-          return isMember as OrganizationMember
+          return isMember
         })
 
       return OrganizationService.of({
@@ -87,7 +91,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             const row = yield* tryDb(() => db.query.organizations.findFirst(merged))
             if (!row)
               return yield* Effect.fail(new OrganizationNotFound())
-            return row as Organization
+            return row
           }),
 
         findMany: (config, authUserId) =>
@@ -97,7 +101,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
               ? { ...config, where: { ...where, members: { userId: authUserId } } }
               : config
             const rows = yield* tryDb(() => db.query.organizations.findMany(merged))
-            return rows as readonly Organization[]
+            return rows
           }),
 
         // ── Writes ───────────────────────────────────────────────────
@@ -151,7 +155,14 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
 
               return { ...org, members: [member] }
             }))
-            return result as Organization & { members: readonly OrganizationMember[] }
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'OrganizationCreated',
+              orgId: result.id,
+              ownerId: userId,
+              name: result.name,
+              type: result.type ?? null,
+            }))
+            return result
           }),
 
         update: (id, input, actorId) =>
@@ -184,7 +195,12 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             )
             if (!org)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'update returned no row' }))
-            return org as Organization
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'OrganizationUpdated',
+              orgId: id,
+              changes: input as Record<string, unknown>,
+            }))
+            return org
           }),
 
         remove: (id, actorId) =>
@@ -198,7 +214,8 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             )
             if (!org)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'delete returned no row' }))
-            return org as Organization
+            yield* Effect.forkDaemon(events.publish({ _tag: 'OrganizationDeleted', orgId: id }))
+            return org
           }),
 
         // ── Members ──────────────────────────────────────────────────
@@ -207,7 +224,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
           Effect.gen(function* () {
             const merged = { ...config, where: { ...config?.where, organizationId } }
             const rows = yield* tryDb(() => db.query.members.findMany(merged))
-            return rows as readonly OrganizationMember[]
+            return rows
           }),
 
         addMember: (input, memberLimit) =>
@@ -222,7 +239,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
               }),
             )
             if (existingMember)
-              return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember as OrganizationMember }))
+              return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
 
             const org = yield* tryDb(() =>
               db.query.organizations.findFirst({ where: { id: input.organizationId } }),
@@ -247,7 +264,13 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             }).returning())
             if (!member)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member insert returned no row' }))
-            return member as OrganizationMember
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'MemberAdded',
+              orgId: input.organizationId,
+              userId: input.userId,
+              role: validRole,
+            }))
+            return member
           }),
 
         removeMember: (input, scope) =>
@@ -284,7 +307,12 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             )
             if (!removed)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member delete returned no row' }))
-            return removed as OrganizationMember
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'MemberRemoved',
+              orgId: organizationId,
+              userId: (removed).userId as number,
+            }))
+            return removed
           }),
 
         updateMemberRole: (input, scope) =>
@@ -323,7 +351,14 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             )
             if (!member)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member update returned no row' }))
-            return member as OrganizationMember
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'MemberRoleChanged',
+              orgId: input.organizationId,
+              userId: (existing).userId as number,
+              previousRole: existing.role as string,
+              newRole: validatedRole,
+            }))
+            return member
           }),
 
         // ── Invitations ──────────────────────────────────────────────
@@ -333,14 +368,14 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             const row = yield* tryDb(() => db.query.invitations.findFirst({ where: { id } }))
             if (!row)
               return yield* Effect.fail(new InvitationNotFound())
-            return row as OrganizationInvitation
+            return row 
           }),
 
         listInvitations: (organizationId, config) =>
           Effect.gen(function* () {
             const merged = { ...config, where: { ...config?.where, organizationId } }
             const rows = yield* tryDb(() => db.query.invitations.findMany(merged))
-            return rows as readonly OrganizationInvitation[]
+            return rows
           }),
 
         listUserInvitations: email =>
@@ -348,7 +383,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             const rows = yield* tryDb(() =>
               db.query.invitations.findMany({ where: { email, status: 'pending' } }),
             )
-            return rows as readonly OrganizationInvitation[]
+            return rows
           }),
 
         cancelInvitation: (id, actorId) =>
@@ -367,7 +402,7 @@ export function makeOrganizationServiceLive(roles?: Record<string, AccessRole>) 
             )
             if (!invitation)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
-            return invitation as OrganizationInvitation
+            return invitation 
           }),
       })
     }),

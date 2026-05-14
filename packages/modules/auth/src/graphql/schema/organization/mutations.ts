@@ -1,5 +1,4 @@
-import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
+import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { runEffect } from '@czo/kit/effect'
 import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
@@ -18,23 +17,34 @@ import {
   OrgNoChanges,
   OrgUserNotFound,
 } from './errors'
+import z from 'zod'
+
+const slugSchema = z.string().min(3, "Slug must be at least 3 characters").max(50, "Slug is too long").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  message: "Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)",
+})
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
-export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder): void {
+export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder): void {
   // ── createOrganization ────────────────────────────────────────────────────
   builder.relayMutationField(
     'createOrganization',
     {
       inputFields: t => ({
-        data: t.field({ type: 'OrganizationCreateData', required: true }),
+        name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()) }),
+        slug: t.string({ required: true, validate:  slugSchema }),
+        logo: t.string({ validate: z.url() }),
+        type: t.string(),
+        metadata: t.field({ type: 'JSONObject' }),
       }),
     },
     {
       errors: {
         types: [
           ValidationError,
-          OrgUserNotFound, OrganizationSlugTaken, OrganizationLimitReached,
+          OrgUserNotFound,
+          OrganizationSlugTaken,
+          OrganizationLimitReached,
         ],
       },
       authScopes: { permission: { resource: 'organization', actions: ['create'] } },
@@ -47,17 +57,13 @@ export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder):
           ctx.auth.runtime,
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.create({ ...input.data, userId: Number(authUser.id) })
+            return yield* svc.create({
+              ...input,
+              metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
+              userId: Number(authUser.id)
+            })
           }),
         )
-
-        await publishAuthEvent(AUTH_EVENTS.ORG_CREATED, {
-          orgId: String(result.id),
-          ownerId: String(authUser.id),
-          name: result.name,
-          type: result.type ?? null,
-        })
-
         return { organization: result }
       },
     },
@@ -74,14 +80,21 @@ export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder):
     {
       inputFields: t => ({
         id: t.id({ required: true }),
-        data: t.field({ type: 'OrganizationUpdateData', required: true }),
+        name: t.string({ validate: z.string().max(255).nullable().optional() }),
+        slug: t.string({ validate: slugSchema.optional() }),
+        logo: t.string({ validate: z.url().optional() }),
+        type: t.string(),
+        metadata: t.field({ type: 'JSONObject' }),
       }),
     },
     {
       errors: {
         types: [
           ValidationError,
-          OrganizationNotFound, OrganizationSlugTaken, NotAMember, OrgNoChanges,
+          OrganizationNotFound,
+          OrganizationSlugTaken,
+          NotAMember,
+          OrgNoChanges,
         ],
       },
       authScopes: { permission: { resource: 'organization', actions: ['update'] } },
@@ -94,7 +107,10 @@ export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder):
           ctx.auth.runtime,
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.update(orgId, input.data as never, actorId)
+            return yield* svc.update(orgId, {
+              ...input,
+              metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
+            }, actorId)
           }),
         )
 
@@ -200,12 +216,6 @@ export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder):
             })
           }),
         )
-
-        await publishAuthEvent(AUTH_EVENTS.ORG_MEMBER_REMOVED, {
-          orgId: String(orgId),
-          userId: String(input.identifier),
-        })
-
         return { success: true }
       },
     },
@@ -229,7 +239,10 @@ export function registerOrganizationMutations(builder: AuthGraphQLShemaBuilder):
     {
       errors: {
         types: [
-          MemberNotFound, OrgInvalidRole, CannotPromoteToOwner, CannotLeaveAsLastOwner,
+          MemberNotFound,
+          OrgInvalidRole,
+          CannotPromoteToOwner,
+          CannotLeaveAsLastOwner,
         ],
       },
       authScopes: { permission: { resource: 'organization', actions: ['update-member-role'] } },

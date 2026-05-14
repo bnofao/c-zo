@@ -1,13 +1,13 @@
-import type { AccessRole } from '@czo/auth/config'
-import type { AuthRelations, User } from '@czo/auth/types'
+import type { Relations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { parseSessionOutput } from 'better-auth/db'
 import { eq } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
-import { BetterAuth } from '../services/better-auth'
 import {
+  AccessService,
+  BetterAuth,
   CannotBanSelf,
   CannotDemoteSelf,
   CannotRemoveSelf,
@@ -17,28 +17,31 @@ import {
   UserAlreadyBanned,
   UserAlreadyExists,
   UserDbFailed,
+  UserEvents,
   UserNoChanges,
   UserNotBanned,
   UserNotFound,
   UserService,
-} from '../services/user'
-import { validateRole } from '../services/utils/validate-roles'
+  validateRole,
+} from '../services'
 
 /**
  * Build the `UserService` Live layer.
  *
- * `roles` is captured by closure rather than provided via a Tag because
- * `validateRole` distinguishes "no registry → accept all" (legacy behaviour
- * when the plugin booted without an admin config) from "registry empty →
- * reject all". A Tag value can't be `undefined`, so the closure preserves
- * the tri-state semantics cleanly.
+ * Roles are materialized from `AccessService.buildRoles` at layer build time
+ * (memoized per-runtime by Effect). The previous tri-state semantics ("no
+ * registry → accept all") is dropped — AccessService is always present, so
+ * any role passed to `setRole` / `create` is validated against the registry.
  */
-export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
+export function makeUserServiceLive() {
   return Layer.effect(
     UserService,
     Effect.gen(function* () {
-      const db = (yield* DrizzleDb) as Database<AuthRelations>
+      const db = (yield* DrizzleDb) as Database<Relations>
       const auth = yield* BetterAuth
+      const access = yield* AccessService
+      const { roles } = yield* access.buildRoles
+      const events = yield* UserEvents
 
       const tryDb = <A>(f: () => Promise<A>) =>
         Effect.tryPromise({ try: f, catch: cause => new UserDbFailed({ cause }) })
@@ -48,7 +51,7 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
           const row = yield* tryDb(() => db.query.users.findFirst({ where: { id } }))
           if (!row)
             return yield* Effect.fail(new UserNotFound())
-          return row as User
+          return row
         })
 
       const ensureValidRole = (role: string | string[]) =>
@@ -66,13 +69,13 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
           )
           if (!row)
             return yield* Effect.fail(new UserDbFailed({ cause: 'update returned no row' }))
-          return row as User
+          return row
         })
 
       return UserService.of({
         findMany: (config?) =>
           tryDb(() => db.query.users.findMany(config)).pipe(
-            Effect.map(rows => rows as readonly User[]),
+            Effect.map(rows => rows),
           ),
 
         findFirst: (config?) =>
@@ -80,7 +83,7 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
             const row = yield* tryDb(() => db.query.users.findFirst(config))
             if (!row)
               return yield* Effect.fail(new UserNotFound())
-            return row as User
+            return row
           }),
 
         create: input =>
@@ -89,7 +92,7 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
               db.query.users.findFirst({ where: { email: input.email } }),
             )
             if (existing)
-              return yield* Effect.fail(new UserAlreadyExists({ user: existing as User }))
+              return yield* Effect.fail(new UserAlreadyExists({ user: existing }))
 
             let role: string | undefined = input.role as string | undefined
             if (input.role) {
@@ -128,7 +131,8 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
                 return yield* Effect.fail(new CredentialLinkFailed({ cause: linkResult.left.cause }))
             }
 
-            return user as User
+            yield* Effect.forkDaemon(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
+            return user
           }),
 
         update: (id, input) =>
@@ -143,7 +147,9 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
               role = yield* ensureValidRole(input.role)
             }
 
-            return yield* updateUserRow(id, { ...input, role })
+            const row = yield* updateUserRow(id, { ...input, role })
+            yield* Effect.forkDaemon(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
+            return row
           }),
 
         ban: (id, input, actorId) =>
@@ -156,26 +162,36 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
             if (existing.banned)
               return yield* Effect.fail(new UserAlreadyBanned())
 
-            return yield* updateUserRow(id, {
+            const row = yield* updateUserRow(id, {
               banned: true,
               banReason: input.reason ?? 'No reason provided',
               banExpires: typeof input.expiresIn === 'number'
                 ? new Date(Date.now() + input.expiresIn * 1000)
                 : null,
             })
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'UserBanned',
+              userId: id,
+              bannedBy: actorId ?? null,
+              reason: row.banReason,
+              expires: row.banExpires,
+            }))
+            return row
           }),
 
-        unban: id =>
+        unban: (id, actorId) =>
           Effect.gen(function* () {
             const existing = yield* findById(id)
             if (!existing.banned)
               return yield* Effect.fail(new UserNotBanned())
 
-            return yield* updateUserRow(id, {
+            const row = yield* updateUserRow(id, {
               banned: false,
               banReason: null,
               banExpires: null,
             })
+            yield* Effect.forkDaemon(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
+            return row
           }),
 
         setRole: (id, role, actorId) =>
@@ -186,7 +202,15 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
             if (actorId !== undefined && existing.id === actorId)
               return yield* Effect.fail(new CannotDemoteSelf())
 
-            return yield* updateUserRow(id, { role: validRole })
+            const row = yield* updateUserRow(id, { role: validRole })
+            yield* Effect.forkDaemon(events.publish({
+              _tag: 'UserRoleChanged',
+              userId: id,
+              previousRole: existing.role,
+              newRole: validRole,
+              changedBy: actorId ?? null,
+            }))
+            return row
           }),
 
         setPassword: (id, password) =>
@@ -220,6 +244,7 @@ export function makeUserServiceLive(roles?: Record<string, AccessRole>) {
               const ctx = await auth.$context
               await ctx.internalAdapter.deleteUser(String(id))
             })
+            yield* Effect.forkDaemon(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
             return true as const
           }),
 

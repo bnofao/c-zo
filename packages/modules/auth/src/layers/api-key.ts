@@ -1,7 +1,7 @@
-import type { ApiKey, AuthRelations } from '@czo/auth/types'
+import type { Relations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db'
 import type { Context, Effect as EffectNS } from 'effect'
-import type { KeyGenerator } from '../services/api-key'
+import type { KeyGenerator } from '../services'
 import { defaultKeyHasher } from '@better-auth/api-key'
 import { apikeys } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
@@ -19,12 +19,12 @@ import {
   KeyExpired,
   Misconfigured,
   NoChanges,
+  OrganizationService,
   RateLimited,
   RefillPairRequired,
   Unauthorized,
   UsageExceeded,
-} from '../services/api-key'
-import { OrganizationService } from '../services/organization'
+} from '../services'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -41,10 +41,10 @@ export const ApiKeyServiceLive = Layer.effect(
   ApiKeyService,
   Effect.gen(function* () {
     // The kit's DrizzleDb Tag exposes the bare `Database` type. We narrow to
-    // `Database<AuthRelations>` here so RQBv2 query inference (`db.query.apikeys.…`)
+    // `Database<Relations>` here so RQBv2 query inference (`db.query.apikeys.…`)
     // matches the auth schema. The runtime client is the same — only the static
     // type changes.
-    const db = (yield* DrizzleDb) as Database<AuthRelations>
+    const db = (yield* DrizzleDb) as Database<Relations>
     const org = yield* OrganizationService
 
     const tryDb = <A>(f: () => Promise<A>) =>
@@ -266,7 +266,10 @@ export const ApiKeyServiceLive = Layer.effect(
             updatedAt: now,
           }).returning())
 
-          return { ...row, key } as unknown as ApiKey
+          if (!row)
+            return yield* Effect.fail(new DbFailed({ cause: 'insert returned no row' }))
+
+          return { ...row, key }
         }),
 
       update: (id, input, opts) =>

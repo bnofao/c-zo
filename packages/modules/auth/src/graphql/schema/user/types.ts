@@ -16,7 +16,7 @@ import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
 export function registerUserTypes(builder: AuthGraphQLShemaBuilder): void {
   // ── Session type (admin-scoped view) ──────────────────────────────────────
   builder.objectRef('Session').implement({
-    fields: (t) => ({
+    fields: t => ({
       id: t.id({ resolve: (s: any) => s.id }),
       userId: t.string({ resolve: (s: any) => s.userId }),
       expiresAt: t.field({ type: 'DateTime', resolve: (s: any) => s.expiresAt }),
@@ -26,18 +26,18 @@ export function registerUserTypes(builder: AuthGraphQLShemaBuilder): void {
       impersonatedBy: t.string({ resolve: (s: any) => s.impersonatedBy ?? null, nullable: true }),
       actorType: t.string({ resolve: (s: any) => s.actorType }),
     }),
-  });
+  })
 
   // ── User node ─────────────────────────────────────────────────────────────
   builder.drizzleNode('users', {
     name: 'User',
     id: { column: (u: any) => u.id },
-    fields: (t) => ({
+    fields: t => ({
       name: t.exposeString('name'),
       email: t.exposeString('email'),
       emailVerified: t.exposeBoolean('emailVerified'),
       image: t.exposeString('image', { nullable: true }),
-      role: t.string({ resolve: (u) => u.role ?? 'user' }),
+      role: t.string({ resolve: u => u.role ?? 'user' }),
       banned: t.exposeBoolean('banned'),
       banReason: t.exposeString('banReason', { nullable: true }),
       banExpires: t.expose('banExpires', { type: 'DateTime', nullable: true }),

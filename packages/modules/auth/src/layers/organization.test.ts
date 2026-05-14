@@ -17,6 +17,8 @@ import {
   OrgInvalidRole,
   OrgUserNotFound,
 } from '../services/organization'
+import { makeAccessServiceLive } from './access'
+import { OrganizationEventsLive } from './events/organization'
 import { makeOrganizationServiceLive } from './organization'
 
 // ─── Mocks ───────────────────────────────────────────────────────────
@@ -84,9 +86,24 @@ function makeMockDb(state: {
   return { db, spies: { orgFindFirst, userFindFirst, memberFindFirst, invFindFirst, $count, insertReturning, updateReturning, deleteReturning } }
 }
 
-function makeTestLayer(db: object, roles?: Record<string, any>) {
+const DEFAULT_ROLE_NAMES = ['owner', 'admin', 'member'] as const
+
+function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
+  return makeAccessServiceLive(
+    [{
+      name: 'test',
+      statements: {},
+      hierarchy: roleNames.map(name => ({ name, permissions: {} })),
+    }] as any,
+    true,
+  )
+}
+
+function makeTestLayer(db: object, roleNames?: readonly string[]) {
   const dbLayer = Layer.succeed(DrizzleDb, db as never)
-  return makeOrganizationServiceLive(roles).pipe(Layer.provide(dbLayer))
+  return makeOrganizationServiceLive().pipe(
+    Layer.provide(Layer.mergeAll(dbLayer, makeAccessLayer(roleNames), OrganizationEventsLive)),
+  )
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -256,7 +273,7 @@ describe('organizationServiceLive — addMember', () => {
       return yield* svc.addMember({ organizationId: 1, userId: 1, role: 'ghost' } as any)
     })
     await expectFailure(
-      program.pipe(Effect.provide(makeTestLayer(db, { owner: {} as any, member: {} as any }))),
+      program.pipe(Effect.provide(makeTestLayer(db, ['owner', 'member']))),
       OrgInvalidRole,
     )
   })

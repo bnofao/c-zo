@@ -1,8 +1,8 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
-import { decodeGlobalID } from '@czo/kit/graphql'
 import { runEffect } from '@czo/kit/effect'
-import { Effect, Exit } from 'effect'
-import { UserService, UserNotFound } from '../../../services/user'
+import { decodeGlobalID } from '@czo/kit/graphql'
+import { Effect } from 'effect'
+import { UserService } from '../../../services/user'
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 

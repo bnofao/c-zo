@@ -1,118 +1,135 @@
-import type { Auth } from '@czo/auth/config'
-import type { Database } from '@czo/kit/db'
-import { eq } from 'drizzle-orm'
-import { accounts, users } from '../database/schema'
-import { mapAPIError } from './_internal/map-error'
+// ─────────────────────────────────────────────────────────────────────
+// TODO(effect-migration): account service — NOT YET MIGRATED.
+//
+// This module is parked while the Effect-TS migration rolls out
+// module-by-module (done: apiKey, user, organization, auth). The legacy
+// `createAccountService` body below is commented out; the GraphQL `account`
+// schema and its `ctx.auth.accountService` consumers were removed in the
+// same pass. When migrating:
+//   - mirror the apiKey/user pattern: `services/account.ts` (Tag + tagged
+//     errors) + `layers/account.ts` (Layer.effect impl)
+//   - re-register `AccountService` in `types.ts` (BuilderSchemaInputs /
+//     ContainerBindings) and re-add `registerAccountSchema` in
+//     `graphql/schema/index.ts`
+//   - restore the GraphQL resolvers under `graphql/schema/account/` using
+//     `runEffect(ctx.auth.runtime, …)`
+// ─────────────────────────────────────────────────────────────────────
 
-// ─── Types ───────────────────────────────────────────────────────────
+// import type { Auth } from '@czo/auth/config'
+// import type { Database } from '@czo/kit/db'
+// import { eq } from 'drizzle-orm'
+// import { accounts, users } from '../database/schema'
+// import { mapAPIError } from './_internal/map-error'
 
-export interface ChangePasswordInput {
-  currentPassword: string
-  newPassword: string
-  revokeOtherSessions?: boolean
-}
+// // ─── Types ───────────────────────────────────────────────────────────
 
-export interface ChangeEmailInput {
-  newEmail: string
-  callbackURL?: string
-}
+// export interface ChangePasswordInput {
+//   currentPassword: string
+//   newPassword: string
+//   revokeOtherSessions?: boolean
+// }
 
-export interface UpdateProfileInput {
-  name?: string
-  image?: string
-}
+// export interface ChangeEmailInput {
+//   newEmail: string
+//   callbackURL?: string
+// }
 
-export interface DeleteAccountInput {
-  password?: string
-  callbackURL?: string
-}
+// export interface UpdateProfileInput {
+//   name?: string
+//   image?: string
+// }
 
-export interface UnlinkAccountInput {
-  providerId: string
-  accountId?: string
-}
+// export interface DeleteAccountInput {
+//   password?: string
+//   callbackURL?: string
+// }
 
-export type AccountService = ReturnType<typeof createAccountService>
+// export interface UnlinkAccountInput {
+//   providerId: string
+//   accountId?: string
+// }
 
-// ─── Factory ─────────────────────────────────────────────────────────
+// export type AccountService = ReturnType<typeof createAccountService>
 
-export function createAccountService(db: Database, auth: Auth) {
-  return {
-    // ── Reads — Drizzle direct ──
+// // ─── Factory ─────────────────────────────────────────────────────────
 
-    async find(id: string) {
-      const [row] = await db.select().from(accounts).where(eq(accounts.id, id)).limit(1)
-      return row ?? null
-    },
+// export function createAccountService(db: Database, auth: Auth) {
+//   return {
+//     // ── Reads — Drizzle direct ──
 
-    async findByUser(userId: string) {
-      const [row] = await db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1)
-      return row ?? null
-    },
+//     async find(id: string) {
+//       const [row] = await db.select().from(accounts).where(eq(accounts.id, id)).limit(1)
+//       return row ?? null
+//     },
 
-    async listByUser(userId: string) {
-      return db.select().from(accounts).where(eq(accounts.userId, userId))
-    },
+//     async findByUser(userId: string) {
+//       const [row] = await db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1)
+//       return row ?? null
+//     },
 
-    // listAccounts — kept for backwards compat with existing resolvers
-    async listAccounts(headers: Headers) {
-      try {
-        return await (auth.api as any).listUserAccounts({ headers })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
+//     async listByUser(userId: string) {
+//       return db.select().from(accounts).where(eq(accounts.userId, userId))
+//     },
 
-    async accountInfo(headers: Headers) {
-      try {
-        return await (auth.api as any).accountInfo({ headers })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
+//     // listAccounts — kept for backwards compat with existing resolvers
+//     async listAccounts(headers: Headers) {
+//       try {
+//         return await (auth.api as any).listUserAccounts({ headers })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
 
-    // ── Profile write — Drizzle direct ──
+//     async accountInfo(headers: Headers) {
+//       try {
+//         return await (auth.api as any).accountInfo({ headers })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
 
-    async updateProfile(input: UpdateProfileInput, headers: Headers) {
-      // updateProfile is used for name/image on the currently authenticated user.
-      // We keep better-auth wrap here because it needs the session to identify the user.
-      try {
-        return await auth.api.updateUser({ headers, body: input })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
+//     // ── Profile write — Drizzle direct ──
 
-    // ── Account deletion — Drizzle direct ──
+//     async updateProfile(input: UpdateProfileInput, headers: Headers) {
+//       // updateProfile is used for name/image on the currently authenticated user.
+//       // We keep better-auth wrap here because it needs the session to identify the user.
+//       try {
+//         return await auth.api.updateUser({ headers, body: input })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
 
-    async deleteAccount(userId: string) {
-      // Delete accounts + users (cascade handles sessions/etc via FK)
-      await db.delete(accounts).where(eq(accounts.userId, userId))
-      await db.delete(users).where(eq(users.id, userId))
-      return { success: true }
-    },
+//     // ── Account deletion — Drizzle direct ──
 
-    // ── Verification/OAuth flows — keep as better-auth wrappers ──
+//     async deleteAccount(userId: string) {
+//       // Delete accounts + users (cascade handles sessions/etc via FK)
+//       await db.delete(accounts).where(eq(accounts.userId, userId))
+//       await db.delete(users).where(eq(users.id, userId))
+//       return { success: true }
+//     },
 
-    // changeEmail triggers verification email send — better-auth's domain
-    async changeEmail(input: ChangeEmailInput, headers: Headers) {
-      try {
-        return await auth.api.changeEmail({ headers, body: input })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
+//     // ── Verification/OAuth flows — keep as better-auth wrappers ──
 
-    // changePassword validates current password — better-auth's domain
-    async changePassword(input: ChangePasswordInput, headers: Headers) {
-      try {
-        return await auth.api.changePassword({ headers, body: input })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
+//     // changeEmail triggers verification email send — better-auth's domain
+//     async changeEmail(input: ChangeEmailInput, headers: Headers) {
+//       try {
+//         return await auth.api.changeEmail({ headers, body: input })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
 
-    // unlinkAccount handles OAuth provider state — better-auth's domain
-    async unlinkAccount(input: UnlinkAccountInput, headers: Headers) {
-      try {
-        return await auth.api.unlinkAccount({ headers, body: input })
-      }
-      catch (err) { mapAPIError(err, 'Account') }
-    },
-  }
-}
+//     // changePassword validates current password — better-auth's domain
+//     async changePassword(input: ChangePasswordInput, headers: Headers) {
+//       try {
+//         return await auth.api.changePassword({ headers, body: input })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
+
+//     // unlinkAccount handles OAuth provider state — better-auth's domain
+//     async unlinkAccount(input: UnlinkAccountInput, headers: Headers) {
+//       try {
+//         return await auth.api.unlinkAccount({ headers, body: input })
+//       }
+//       catch (err) { mapAPIError(err, 'Account') }
+//     },
+//   }
+// }

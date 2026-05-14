@@ -17,7 +17,7 @@ import {
   OrgInvalidRole,
   OrgNoChanges,
   OrgUserNotFound,
-} from '../../../services/organization'
+} from '../../../services'
 
 // Re-export the tagged-error classes so resolvers can list them in
 // `errors: { types: [...] }` without reaching into services/.

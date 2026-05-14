@@ -1,6 +1,5 @@
 import type { AuthContext } from '@czo/auth/types'
 import type { SchemaBuilder } from '@czo/kit/graphql'
-import { AUTH_EVENTS, publishAuthEvent } from '@czo/auth/events'
 import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 
 interface Ctx { auth: AuthContext, request?: Request }
@@ -30,12 +29,8 @@ export function registerApiKeyMutations(builder: SchemaBuilder): void {
         if (!result)
           throw new NotFoundError('ApiKey', 'created')
 
-        await publishAuthEvent(AUTH_EVENTS.API_KEY_CREATED, {
-          apiKeyId: result.id,
-          userId: authUser.id,
-          name: (result as any).name ?? null,
-          prefix: (result as any).prefix ?? null,
-        })
+        // TODO(events): publish ApiKeyCreated via ApiKeyEvents when the
+        // domain bus exists.
 
         // Return the full key string (only available at creation time)
         return (result as any).key ?? result.id
