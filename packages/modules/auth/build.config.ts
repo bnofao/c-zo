@@ -11,16 +11,22 @@ const dirImport = {
 }
 
 export default defineBuildConfig({
-  declaration: 'node16',
+  // `.d.ts` generation disabled: `package.json` `exports.types` points
+  // directly to `src/*.ts`, so consumers never read dist declarations.
+  // Generating them via rollup-plugin-dts blows past 4 GB of heap because
+  // each entry rebuilds a fresh TS program over the full
+  // better-auth + drizzle + effect + pothos type graph (~13 entries × huge
+  // graph = quadratic memory). See investigation in commit message.
+  declaration: false,
   entries: [
     'src/module',
     'src/types',
-    'src/config/index',
+    // 'src/config/index',
     'src/database/schema',
     'src/database/relations',
-    'src/events/index',
-    'src/listeners/index',
+    // 'src/listeners/index',
     'src/services/index',
+    'src/layers/index',
     'src/graphql/index',
     {
       input: 'src/plugins/',
@@ -50,6 +56,8 @@ export default defineBuildConfig({
     '@czo/kit',
     '@czo/kit/nitro',
     '@czo/kit/db',
+    '@czo/kit/db/effect',
+    '@czo/kit/effect',
     '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',
@@ -60,5 +68,10 @@ export default defineBuildConfig({
     'graphql',
     'graphql-scalars',
     '@graphql-tools/resolvers-composition',
+    // Effect's type graph is huge — inlining its `.d.ts` across all entries
+    // drives unbuild's rollup-plugin-dts pass past 4 GB of heap. Consumers
+    // (mazo, kit) already depend on `effect` directly, so externalising here
+    // doesn't break them.
+    'effect',
   ],
 })

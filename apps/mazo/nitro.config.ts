@@ -42,7 +42,7 @@ export default defineNitroConfig({
   plugins: [],
   modules: [
     '@czo/auth',
-    '@czo/stock-location',
+    // '@czo/stock-location',
     // @ts-ignore 
     kitModule,
   ],

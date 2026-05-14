@@ -1,2 +1,10 @@
-export { createStockLocationAddressService, createStockLocationService } from './stock-location.service'
-export type { StockLocationAddressRow, StockLocationAddressService, StockLocationRow, StockLocationService } from './stock-location.service'
+export {
+  createStockLocationService,
+  generateHandle,
+} from './stock-location.service'
+export type {
+  CreateStockLocationAddressInput,
+  CreateStockLocationInput,
+  StockLocationService,
+  UpdateStockLocationInput,
+} from './stock-location.service'

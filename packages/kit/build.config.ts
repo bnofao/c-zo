@@ -17,6 +17,8 @@ export default defineBuildConfig({
     'src/module/index',
     'src/graphql/index',
     'src/db/index',
+    'src/db/effect',
+    'src/effect/index',
     'src/ioc/index',
     'src/cache/index',
     'src/event-bus/index',
@@ -24,6 +26,7 @@ export default defineBuildConfig({
     'src/queue/index',
     'src/nitro/index',
     'src/plugins/index',
+    'src/testing/index',
   ],
   externals: [
     'nitropack',

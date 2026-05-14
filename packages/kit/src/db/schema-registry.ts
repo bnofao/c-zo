@@ -1,6 +1,8 @@
-export interface SchemaRegistry {}
+import type { TablesRelationalConfig } from 'drizzle-orm'
 
-export type RelationsEntry = Record<string, unknown>
+export interface SchemaRegistry extends Record<string, unknown> {}
+
+export type RelationsEntry = TablesRelationalConfig
 export type RelationsFactory = (schema: SchemaRegistry) => RelationsEntry
 
 const schemas: Record<string, unknown>[] = []

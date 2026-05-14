@@ -19,13 +19,10 @@
     "nitro": "catalog:dev"
   },
   "dependencies": {
-    "@envelop/graphql-middleware": "catalog:common",
-    "@graphql-tools/merge": "catalog:common",
-    "@graphql-tools/schema": "catalog:",
     "graphql": "catalog:common",
-    "graphql-middleware": "catalog:common",
     "graphql-scalars": "catalog:common",
     "graphql-yoga": "catalog:common",
-    "kysely": "catalog:common"
+    "kysely": "catalog:common",
+    "pg": "catalog:common"
   }
 }

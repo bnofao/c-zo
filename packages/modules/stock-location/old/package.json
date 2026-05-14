@@ -1,0 +1,80 @@
+{
+  "name": "@czo/stock-location",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Stock location module for c-zo — physical inventory locations",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bnofao/czo.git",
+    "directory": "packages/modules/stock-location"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/module.ts",
+      "default": "./dist/module.mjs"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "default": "./dist/types.mjs"
+    },
+    "./schema": {
+      "types": "./src/database/schema.ts",
+      "default": "./dist/database/schema.mjs"
+    },
+    "./relations": {
+      "types": "./src/database/relations.ts",
+      "default": "./dist/database/relations.mjs"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "default": "./dist/services/index.mjs"
+    },
+    "./graphql": {
+      "types": "./src/graphql/index.ts",
+      "default": "./dist/graphql/index.mjs"
+    },
+    "./events": {
+      "types": "./src/events/index.ts",
+      "default": "./dist/events/index.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "types": "./src/module.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "graphql:generate": "graphql-codegen --config codegen.ts",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:latest": "drizzle-kit migrate",
+    "migrate:status": "drizzle-kit check",
+    "check-types": "pnpm tsc --noEmit"
+  },
+  "dependencies": {
+    "@czo/kit": "workspace:*",
+    "@graphql-tools/utils": "catalog:common",
+    "@paralleldrive/cuid2": "catalog:",
+    "drizzle-orm": "catalog:common",
+    "graphql": "catalog:common",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "catalog:testing",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "drizzle-kit": "catalog:dev",
+    "graphql-scalars": "catalog:common",
+    "nitro": "catalog:dev",
+    "vitest": "catalog:testing"
+  }
+}

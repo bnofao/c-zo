@@ -1,3 +1,5 @@
+import { BetterAuth } from '@czo/auth/services'
+import { runEffect, useRuntime } from '@czo/kit/effect'
 import { defineHandler, getRequestURL } from 'nitro/h3'
 
 interface OpenAPISpec {
@@ -15,7 +17,7 @@ export default defineHandler(async (event) => {
   //   return cachedSpec
   // }
 
-  const auth = await useContainer().make('auth')
+  const auth = await runEffect(useRuntime(), BetterAuth)
 
   const origin = getRequestURL(event).origin
   const [nitroRes, betterAuthSpec] = await Promise.all([

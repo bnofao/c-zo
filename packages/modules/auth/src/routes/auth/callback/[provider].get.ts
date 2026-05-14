@@ -1,4 +1,4 @@
-import type { Auth } from '../../../config/auth'
+import type { Auth } from '../../../layers/better-auth'
 import { defineHandler } from 'nitro/h3'
 import { defineRouteMeta } from '../_openapi'
 

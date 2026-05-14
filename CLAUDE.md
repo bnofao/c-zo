@@ -79,6 +79,34 @@ export default defineNitroModule({
 
 Modules are registered in `apps/mazo/nitro.config.ts`.
 
+### Effect-TS pattern (pilot: `auth/apiKey`)
+
+`auth/apiKey` uses Effect-TS for DI and error modeling, as a pilot for full
+migration of remaining modules:
+
+- **Contracts** live in `packages/modules/<module>/src/services/<name>.ts` —
+  `Context.Tag`, interface, tagged errors (which double as Pothos GraphQL
+  errors via `registerError`), and input types.
+- **Implementations** live in `packages/modules/<module>/src/layers/<name>.ts`
+  — `Layer.effect(Tag, …)`.
+- **Runtime** is a single app-wide `ManagedRuntime`. Each module composes its
+  own `Layer` (providing module-specific deps such as `BetterAuth`, leaving
+  shared infra like `DrizzleDb` in the requirements) and calls
+  `registerEffectLayer(myLayer)` from its `czo:boot` hook. The `@czo/kit` plugin
+  builds the runtime from all registered layers right after `czo:boot`
+  (providing `DrizzleDbLive` once), stores it via `setRuntime`, and disposes it
+  on Nitro `close`. Resolvers reach it via `useRuntime()` from `@czo/kit/effect`,
+  attached to the GraphQL context as `ctx.auth.runtime`.
+- **Resolvers** call `runEffect(ctx.auth.runtime, Effect.gen(function*() { … }))`
+  from `@czo/kit/effect`. Tagged errors are rejected as the original `Error`
+  instance so Pothos's `errors: { types: [...] }` plugin can route them via
+  `instanceof`.
+- **Tests** use `expectFailure(effect, Tag)` / `expectSuccess(effect)` from
+  `@czo/kit/effect` and a mocked `DrizzleDb` Layer.
+
+Other modules still use the legacy `useContainer()` IoC + `BaseGraphQLError`
+pattern. Migration to Effect lands module-by-module in subsequent PRs.
+
 ### Database Layer
 
 - Uses **Drizzle ORM** for type-safe SQL queries

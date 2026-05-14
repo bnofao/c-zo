@@ -1,26 +1,21 @@
-import type { AnyRelations, DrizzleConfig, EmptyRelations } from 'drizzle-orm'
+import type { DrizzleConfig } from 'drizzle-orm'
+import type { RelationsEntry, SchemaRegistry } from './schema-registry'
 import process from 'node:process'
 import { useContainer } from '@czo/kit/ioc'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { withReplicas } from 'drizzle-orm/pg-core'
 import { registeredRelations } from './schema-registry'
 
-export type Database<
-  TSchema extends Record<string, unknown> = Record<string, never>,
-  TRelationConfigs extends AnyRelations = EmptyRelations,
-> = Awaited<ReturnType<typeof createDatabase<TSchema, TRelationConfigs>>>
+export type Database<Relations extends RelationsEntry = RelationsEntry> = Awaited<ReturnType<typeof createDatabase<Relations>>>
 
-export async function useDatabase<
-  TSchema extends Record<string, unknown> = Record<string, never>,
-  TRelationConfigs extends AnyRelations = EmptyRelations,
->(config?: DrizzleConfig<TSchema, TRelationConfigs>): Promise<Database<TSchema, TRelationConfigs>> {
+export async function useDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistry, Relations>)/* : Promise<Database<TSchema, TRelationConfigs>> */ {
   if (config) {
-    return ((useDatabase as any).__instance__ = await createDatabase<TSchema, TRelationConfigs>(config))
+    return ((useDatabase as any).__instance__ = await createDatabase(config))
   }
-  return ((useDatabase as any).__instance__ ??= await createDatabase<TSchema, TRelationConfigs>(autoSchemaConfig<TSchema, TRelationConfigs>()))
+  return ((useDatabase as any).__instance__ ??= await createDatabase(autoSchemaConfig/* <TSchema, TRelationConfigs> */()))
 }
 
-function autoSchemaConfig<TSchema extends Record<string, unknown>, TRelationConfigs extends AnyRelations = EmptyRelations>(): DrizzleConfig<TSchema, TRelationConfigs> | undefined {
+function autoSchemaConfig/* <TSchema extends Record<string, unknown>, TRelationConfigs extends AnyRelations = EmptyRelations> */()/* : DrizzleConfig<TSchema, TRelationConfigs> | undefined  */ {
   const mergedRelations = registeredRelations()
   const hasRelations = Object.keys(mergedRelations).length > 0
 
@@ -31,7 +26,7 @@ function autoSchemaConfig<TSchema extends Record<string, unknown>, TRelationConf
   // Schemas are still registered (for drizzle-kit) but not passed to drizzle().
   return {
     relations: mergedRelations,
-  } as DrizzleConfig<TSchema, TRelationConfigs>
+  } /* as DrizzleConfig<TSchema, TRelationConfigs> */
 }
 
 async function getDatabaseUrl() {
@@ -54,17 +49,14 @@ async function getDatabaseUrl() {
   )
 }
 
-async function createDatabase<
-  TSchema extends Record<string, unknown> = Record<string, never>,
-  TRelationConfigs extends AnyRelations = EmptyRelations,
->(config?: DrizzleConfig<TSchema, TRelationConfigs>) {
+async function createDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistry, Relations>) {
   const databaseUrl = await getDatabaseUrl()
   const connections = databaseUrl?.split(',') ?? []
   const master = connections[0] as string
   const replicas = connections.slice(1)
 
   const connect = (url: string) =>
-    config ? drizzleNodePg(url, config) : drizzleNodePg(url)
+    config ? drizzleNodePg(url, config) : drizzleNodePg(url, {} as DrizzleConfig<SchemaRegistry, Relations>)
 
   const masterDb = connect(master)
 

@@ -47,3 +47,4 @@ logs
 *.tgz
 lib-cov
 temp
+.worktrees/

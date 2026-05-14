@@ -30,6 +30,14 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
+    "./db/effect": {
+      "types": "./src/db/effect.ts",
+      "default": "./dist/db/effect.mjs"
+    },
+    "./effect": {
+      "types": "./src/effect/index.ts",
+      "default": "./dist/effect/index.mjs"
+    },
     "./ioc": {
       "types": "./src/ioc/index.ts",
       "default": "./dist/ioc/index.mjs"
@@ -49,6 +57,10 @@
     "./telemetry": {
       "types": "./src/telemetry/index.ts",
       "default": "./dist/telemetry/index.mjs"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./dist/testing/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -76,6 +88,7 @@
     "@opentelemetry/sdk-metrics": "^1.30.0",
     "@opentelemetry/sdk-trace-node": "^1.30.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "@pothos/core": "catalog:",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
     "graphql-middleware": "^6.0.0",
@@ -121,11 +134,19 @@
     "@adonisjs/fold": "catalog:common",
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
+    "@pothos/core": "catalog:",
+    "@pothos/plugin-drizzle": "catalog:",
+    "@pothos/plugin-errors": "catalog:",
+    "@pothos/plugin-relay": "catalog:",
+    "@pothos/plugin-scope-auth": "catalog:",
+    "@pothos/plugin-tracing": "catalog:",
+    "@pothos/plugin-validation": "catalog:",
     "change-case": "catalog:common",
     "citty": "catalog:common",
     "consola": "catalog:common",
     "drizzle-orm": "catalog:common",
     "drizzle-seed": "catalog:common",
+    "effect": "catalog:",
     "exsolve": "catalog:common",
     "graphql-scalars": "catalog:common",
     "hookable": "catalog:dev",
@@ -137,14 +158,12 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
-    "@graphql-tools/schema": "catalog:",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
-    "graphql-middleware": "catalog:common",
     "nitro": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"

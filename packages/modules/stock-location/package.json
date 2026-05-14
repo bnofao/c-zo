@@ -54,7 +54,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "graphql:generate": "graphql-codegen --config codegen.ts",
     "migrate:generate": "drizzle-kit generate",
     "migrate:latest": "drizzle-kit migrate",
     "migrate:status": "drizzle-kit check",
@@ -66,7 +65,7 @@
     "@paralleldrive/cuid2": "catalog:",
     "drizzle-orm": "catalog:common",
     "graphql": "catalog:common",
-    "zod": "catalog:"
+    "zod": "catalog:common"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "catalog:testing",
