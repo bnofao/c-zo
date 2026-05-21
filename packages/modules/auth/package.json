@@ -74,6 +74,7 @@
     "@better-auth/api-key": "catalog:common",
     "@czo/kit": "workspace:*",
     "@graphql-tools/utils": "catalog:common",
+    "@node-rs/argon2": "catalog:common",
     "better-auth": "catalog:common",
     "drizzle-orm": "catalog:common",
     "effect": "catalog:",
@@ -81,7 +82,10 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@pothos/core": "catalog:",
+    "@testcontainers/postgresql": "catalog:dev",
+    "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
@@ -89,6 +93,7 @@
     "graphql-scalars": "catalog:common",
     "h3": "^2.0.1-rc.20",
     "nitro": "catalog:dev",
+    "pg": "catalog:common",
     "vitest": "catalog:testing"
   }
 }

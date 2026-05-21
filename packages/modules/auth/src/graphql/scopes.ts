@@ -15,9 +15,9 @@ export function authScopes(ctx: GraphQLContextMap) {
           const svc = yield* AuthService
           return yield* svc.hasPermission(
             {
-              userId,
-              organizationId: auth.session?.activeOrganizationId,
-              role: auth.user?.role,
+              userId: String(userId),
+              organizationId: auth.session?.activeOrganizationId ?? undefined,
+              role: auth.user?.role ?? undefined,
             },
             { [resource]: actions },
           )

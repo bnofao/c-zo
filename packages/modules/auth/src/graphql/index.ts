@@ -1,17 +1,15 @@
 import type { Relations } from '@czo/auth/relations'
 import type { Organization, OrganizationInvitation, OrganizationMember, User } from '@czo/auth/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
-// import './context-factory'
+import type { ResolvedSession } from '../services/session'
 
 export { registerAuthSchema } from './schema'
 export { authScopes } from './scopes'
 
 export type AuthGraphQLSchemaBuilder = SchemaBuilder<Relations>
 export interface AuthContext {
-  /** better-auth session — narrowed when needed */
-  session: any
-  /** better-auth user — narrowed when needed */
-  user?: any
+  session: ResolvedSession['session'] | null
+  user?: ResolvedSession['user']
 }
 
 declare module '@czo/kit/graphql' {

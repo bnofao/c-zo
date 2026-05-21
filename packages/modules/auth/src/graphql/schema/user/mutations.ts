@@ -73,9 +73,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
               const svc = yield* AuthService
               return yield* svc.hasPermission(
                 {
-                  userId: actorId,
-                  organizationId: ctx.auth.session?.activeOrganizationId,
-                  role: ctx.auth.user?.role,
+                  userId: String(actorId),
+                  organizationId: ctx.auth.session?.activeOrganizationId ?? undefined,
+                  role: ctx.auth.user?.role ?? undefined,
                 },
                 { user: ['set-role'] },
               )

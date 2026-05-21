@@ -33,6 +33,14 @@ import * as authSchema from '@czo/auth/schema'
 import { AccessService, OrganizationService } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
 import { Effect, Layer } from 'effect'
+import { makeSessionContextContributor } from './graphql/session-context'
+import { signInHandler } from './http/sign-in'
+import { signOutHandler } from './http/sign-out'
+import { signUpHandler } from './http/sign-up'
+import * as AuthEvents from './services/events/auth'
+import * as Cookie from './services/cookie'
+import * as Password from './services/password'
+import * as Session from './services/session'
 import {
   ADMIN_HIERARCHY,
   ADMIN_STATEMENTS,
@@ -150,6 +158,17 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
   // extension path. Eager freeze keeps the invariant honest.
   const AuthActorServiceLive = makeAuthActorServiceLive(DEFAULT_ACTOR_RESTRICTIONS, true)
 
+  // CookieService config — `Cookie.layerConfigService` builds CookieService
+  // from the env-backed `Config.Wrap` routed through `CookieConfigService`.
+  // All cookie tuning now lives in `services/cookie.ts`.
+  const cookieLayer = Cookie.layerConfigService
+
+  // SessionService requires DrizzleDb + Persistence — shared infra provided at
+  // the app surface by buildApp (deferred, see Notes). CookieService is
+  // module-local, provided here (`layerConfigService`'s `ConfigError` is
+  // absorbed by the `AuthModuleLive` cast).
+  const sessionLayer = Session.layer.pipe(Layer.provide(cookieLayer))
+
   const AuthModuleLive = Layer.mergeAll(
     ApiKeyServiceLive.pipe(
       Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEventsLive))),
@@ -157,6 +176,9 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     UserServiceLive.pipe(Layer.provideMerge(UserEventBusLive)),
     AuthServiceLive,
     AuthActorServiceLive,
+    Password.layer,
+    AuthEvents.layer,
+    sessionLayer,
   ).pipe(
     // `provideMerge` so `BetterAuth` and `AccessService` stay visible at
     // the runtime surface — request-time consumers reach them via
@@ -177,8 +199,12 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     graphql: {
       contribution: builder => registerAuthSchema(builder),
       authScope: authScopes,
+      contexts: makeSessionContextContributor(),
     },
     http: (app) => {
+      app.post('/api/auth/sign-up', signUpHandler)
+      app.post('/api/auth/sign-in', signInHandler)
+      app.post('/api/auth/sign-out', signOutHandler)
       // Mount better-auth's catch-all on `/api/auth/**`. The handler
       // pulls `BetterAuth` per-request via `event.context.runEffect`
       // (injected by the kit) — singleton lookup is cheap and avoids

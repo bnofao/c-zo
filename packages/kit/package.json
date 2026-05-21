@@ -176,6 +176,7 @@
     "zod": "catalog:common"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",

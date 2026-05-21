@@ -103,9 +103,9 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   )
 
   // 3. GraphQL contributions — flat-map keeps O(n) and skips undefined.
-  const graphQLContributions = options.modules.flatMap(m => m.graphql?.contribution ?? [])
-  const authScopes = options.modules.flatMap(m => m.graphql?.authScope ?? [])
-  const graphQLContexts = options.modules.flatMap(m => m.graphql?.contexts ?? [])
+  const graphQLContributions = options.modules.flatMap(m => m.graphql?.contribution ? [m.graphql.contribution] : [])
+  const authScopes = options.modules.flatMap(m => m.graphql?.authScope ? [m.graphql.authScope] : [])
+  const graphQLContexts = options.modules.flatMap(m => m.graphql?.contexts ? [m.graphql.contexts] : [])
 
   // 4. Infrastructure layers.
   const SchemaRegistryLayer = buildSchemaRegistryLayer(dbSchemas, relations)

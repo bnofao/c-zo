@@ -1,6 +1,9 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { _resetBuilderState, buildSchema, initBuilder, registerSchema } from './builder'
+import { it as itEffect } from '@effect/vitest'
+import { Effect } from 'effect'
+import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
 
 const db = drizzle.mock()
 const relations = {} as any
@@ -59,4 +62,18 @@ describe('registerSchema + buildSchema', () => {
     buildSchema(builder)
     expect(() => buildSchema(builder)).toThrow('Schema already built')
   })
+})
+
+describe('makeGraphQLBuilder — Effect contexts contributors', () => {
+  itEffect.effect('buildContext composes async (Effect) contributors', () =>
+    Effect.gen(function* () {
+      const builder = yield* GraphQLBuilder
+      const ctx = yield* builder.buildContext({ request: new Request('http://x') })
+      expect((ctx as any).auth).toEqual({ session: null })
+    }).pipe(Effect.provide(makeGraphQLBuilder(
+      [],
+      [() => Effect.succeed({ auth: { session: null } } as never)],
+      [],
+      {} as never,
+    ))))
 })

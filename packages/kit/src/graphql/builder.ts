@@ -75,13 +75,13 @@ let built = false
 export class GraphQLBuilder extends Context.Service<GraphQLBuilder, {
   // readonly contributions: Effect.Effect<ReadonlyArray<(builder: SchemaBuilder) => void>>
   // readonly authScope: Effect.Effect<ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>>
-  readonly buildContext: (systemContext: unknown) => Effect.Effect<GraphQLContextMap, never, never>
+  readonly buildContext: (systemContext: unknown) => Effect.Effect<GraphQLContextMap, unknown, any>
   readonly buildSchema: () => Effect.Effect<GraphQLSchema, never, DrizzleDb>
 }>()('@czo/kit/GraphQLBuilder') {}
 
 export function makeGraphQLBuilder(
   contributions: ReadonlyArray<(builder: SchemaBuilder) => void>,
-  contexts: ReadonlyArray<(systemContext: unknown) => Partial<GraphQLContextMap>>,
+  contexts: ReadonlyArray<(systemContext: unknown) => Effect.Effect<Partial<GraphQLContextMap>, unknown, any>>,
   authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
   relations: RelationsEntry,
 ) {
@@ -92,7 +92,8 @@ export function makeGraphQLBuilder(
         // contributions: Effect.succeed(contributions ?? []),
         // authScope: Effect.succeed(authScope ?? []),
         buildContext: (systemContext: unknown) => Effect.gen(function* () {
-          return Object.assign({}, ...contexts.map(ctx => ctx(systemContext)))
+          const parts = yield* Effect.all(contexts.map(ctx => ctx(systemContext)), { concurrency: 'unbounded' })
+          return Object.assign({}, ...parts)
         }),
         buildSchema: () =>
           Effect.gen(function* () {

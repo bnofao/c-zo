@@ -15,3 +15,10 @@ export * from './utils/validate-roles'
 // legacy aliases.
 // export * from './session.service'
 // export * from './twoFactor.service'
+
+// SP1 namespace re-exports — each file exports its own `layer`,
+// so flat re-exports would collide. Use namespace imports.
+export * as Cookie from './cookie'
+export * as Password from './password'
+export * as Session from './session'
+export * as AuthEvents from './events/auth'
