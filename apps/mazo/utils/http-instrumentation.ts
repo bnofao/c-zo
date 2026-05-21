@@ -7,8 +7,9 @@
  * 3. Propagates TelemetryContext via AsyncLocalStorage
  * 4. Records HTTP metrics (count, duration, active requests)
  */
-import type { Counter, Histogram, Meter, Telemetry, UpDownCounter } from '@czo/kit/telemetry'
-import { runWithContext, useTelemetrySync } from '@czo/kit/telemetry'
+import type { Counter, Histogram, Meter, Tracer, UpDownCounter } from '@opentelemetry/api'
+import { runWithContext } from '@czo/kit/telemetry'
+import { metrics, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 /* ─── HTTP Metrics ──────────────────────────── */
 
@@ -22,7 +23,7 @@ export interface HttpMetrics {
 }
 
 export function createHttpMetrics(meter?: Meter): HttpMetrics {
-  const m = meter ?? useTelemetrySync().meter('czo.http')
+  const m = meter ?? metrics.getMeter('czo.http')
   return {
     requestCount: m.createCounter('http.server.request.count', {
       description: 'Total number of HTTP requests received',
@@ -42,7 +43,7 @@ export function createHttpMetrics(meter?: Meter): HttpMetrics {
 /* ─── Instrumentation Options ───────────────── */
 
 export interface HttpInstrumentationOptions {
-  telemetry?: Telemetry
+  tracer?: Tracer
   metrics?: HttpMetrics
   /** Header name for correlation ID (default: "x-correlation-id") */
   correlationIdHeader?: string
@@ -60,21 +61,10 @@ export interface OutgoingResponse {
 
 /**
  * Create an HTTP instrumentation handler.
- *
- * In Nitro, this can be used as a server middleware:
- * ```ts
- * const instrument = createHttpInstrumentation()
- * export default defineEventHandler(async (event) => {
- *   return instrument(event.node.req, event.node.res, async () => {
- *     // handler logic runs inside TelemetryContext
- *   })
- * })
- * ```
  */
 export function createHttpInstrumentation(options?: HttpInstrumentationOptions) {
-  const telemetry = options?.telemetry ?? useTelemetrySync()
-  const tracer = telemetry.tracer('czo.http')
-  const metrics = options?.metrics ?? createHttpMetrics()
+  const tracer = options?.tracer ?? trace.getTracer('czo.http')
+  const metricsBundle = options?.metrics ?? createHttpMetrics()
   const headerName = options?.correlationIdHeader ?? 'x-correlation-id'
 
   return async function instrumentRequest<T>(
@@ -86,13 +76,13 @@ export function createHttpInstrumentation(options?: HttpInstrumentationOptions) 
     const url = req.url ?? '/'
     const correlationId = extractHeader(req.headers, headerName) ?? crypto.randomUUID()
 
-    metrics.activeRequests.add(1, { 'http.method': method })
+    metricsBundle.activeRequests.add(1, { 'http.method': method })
     const start = Date.now()
 
     return tracer.startActiveSpan(
       `${method} ${url}`,
       {
-        kind: 'SERVER',
+        kind: SpanKind.SERVER,
         attributes: {
           'http.method': method,
           'http.url': url,
@@ -100,26 +90,27 @@ export function createHttpInstrumentation(options?: HttpInstrumentationOptions) 
         },
       },
       async (span) => {
+        const { traceId, spanId } = span.spanContext()
         return runWithContext(
-          { correlationId, traceId: span.traceId, parentSpanId: span.spanId },
+          { correlationId, traceId, parentSpanId: spanId },
           async () => {
             try {
               const result = await handler()
               const statusCode = res.statusCode ?? 200
               span.setAttribute('http.status_code', statusCode)
-              span.setStatus(statusCode < 400 ? 'OK' : 'ERROR')
-              metrics.requestCount.add(1, { 'http.method': method, 'http.status_code': statusCode })
+              span.setStatus({ code: statusCode < 400 ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+              metricsBundle.requestCount.add(1, { 'http.method': method, 'http.status_code': statusCode })
               return result
             }
             catch (error) {
-              span.setStatus('ERROR', (error as Error).message)
+              span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message })
               span.recordException(error as Error)
-              metrics.requestCount.add(1, { 'http.method': method, 'http.status_code': 500 })
+              metricsBundle.requestCount.add(1, { 'http.method': method, 'http.status_code': 500 })
               throw error
             }
             finally {
-              metrics.requestDuration.record(Date.now() - start, { 'http.method': method })
-              metrics.activeRequests.add(-1, { 'http.method': method })
+              metricsBundle.requestDuration.record(Date.now() - start, { 'http.method': method })
+              metricsBundle.activeRequests.add(-1, { 'http.method': method })
               span.end()
             }
           },

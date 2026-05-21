@@ -115,7 +115,7 @@ export function makeUserServiceLive() {
             // whether to compensate; we don't silently leave a credential-less
             // user any more.
             if (input.password) {
-              const linkResult = yield* Effect.either(
+              const linkResult = yield* Effect.result(
                 tryDb(async () => {
                   const ctx = await auth.$context
                   const hashedPassword = await ctx.password.hash(input.password!)
@@ -127,11 +127,11 @@ export function makeUserServiceLive() {
                   })
                 }),
               )
-              if (linkResult._tag === 'Left')
-                return yield* Effect.fail(new CredentialLinkFailed({ cause: linkResult.left.cause }))
+              if (linkResult._tag === 'Failure')
+                return yield* Effect.fail(new CredentialLinkFailed({ cause: linkResult.failure.cause }))
             }
 
-            yield* Effect.forkDaemon(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
+            yield* Effect.forkDetach(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
             return user
           }),
 
@@ -148,7 +148,7 @@ export function makeUserServiceLive() {
             }
 
             const row = yield* updateUserRow(id, { ...input, role })
-            yield* Effect.forkDaemon(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
+            yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
             return row
           }),
 
@@ -169,7 +169,7 @@ export function makeUserServiceLive() {
                 ? new Date(Date.now() + input.expiresIn * 1000)
                 : null,
             })
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'UserBanned',
               userId: id,
               bannedBy: actorId ?? null,
@@ -190,7 +190,7 @@ export function makeUserServiceLive() {
               banReason: null,
               banExpires: null,
             })
-            yield* Effect.forkDaemon(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
+            yield* Effect.forkDetach(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
             return row
           }),
 
@@ -203,7 +203,7 @@ export function makeUserServiceLive() {
               return yield* Effect.fail(new CannotDemoteSelf())
 
             const row = yield* updateUserRow(id, { role: validRole })
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'UserRoleChanged',
               userId: id,
               previousRole: existing.role,
@@ -217,7 +217,7 @@ export function makeUserServiceLive() {
           Effect.gen(function* () {
             yield* findById(id)
 
-            const result = yield* Effect.either(
+            const result = yield* Effect.result(
               Effect.tryPromise({
                 try: async () => {
                   const ctx = await auth.$context
@@ -228,8 +228,8 @@ export function makeUserServiceLive() {
                 catch: cause => new PasswordHashFailed({ cause }),
               }),
             )
-            if (result._tag === 'Left')
-              return yield* Effect.fail(result.left)
+            if (result._tag === 'Failure')
+              return yield* Effect.fail(result.failure)
             return true as const
           }),
 
@@ -244,7 +244,7 @@ export function makeUserServiceLive() {
               const ctx = await auth.$context
               await ctx.internalAdapter.deleteUser(String(id))
             })
-            yield* Effect.forkDaemon(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
+            yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
             return true as const
           }),
 

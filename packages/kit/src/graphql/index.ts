@@ -1,7 +1,4 @@
 export * from './builder'
-export * from './context'
 export * from './errors'
-export * from './scalars'
 export * from './sdl'
 export * from './subscription'
-export * from './types'

@@ -1,5 +1,5 @@
 import type { DrizzleConfig } from 'drizzle-orm'
-import type { RelationsEntry, SchemaRegistry } from './schema-registry'
+import type { RelationsEntry, SchemaRegistryShape } from './schema-registry'
 import process from 'node:process'
 import { useContainer } from '@czo/kit/ioc'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
@@ -8,7 +8,7 @@ import { registeredRelations } from './schema-registry'
 
 export type Database<Relations extends RelationsEntry = RelationsEntry> = Awaited<ReturnType<typeof createDatabase<Relations>>>
 
-export async function useDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistry, Relations>)/* : Promise<Database<TSchema, TRelationConfigs>> */ {
+export async function useDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistryShape, Relations>)/* : Promise<Database<TSchema, TRelationConfigs>> */ {
   if (config) {
     return ((useDatabase as any).__instance__ = await createDatabase(config))
   }
@@ -49,14 +49,14 @@ async function getDatabaseUrl() {
   )
 }
 
-async function createDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistry, Relations>) {
+async function createDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistryShape, Relations>) {
   const databaseUrl = await getDatabaseUrl()
   const connections = databaseUrl?.split(',') ?? []
   const master = connections[0] as string
   const replicas = connections.slice(1)
 
   const connect = (url: string) =>
-    config ? drizzleNodePg(url, config) : drizzleNodePg(url, {} as DrizzleConfig<SchemaRegistry, Relations>)
+    config ? drizzleNodePg(url, config) : drizzleNodePg(url, {} as DrizzleConfig<SchemaRegistryShape, Relations>)
 
   const masterDb = connect(master)
 

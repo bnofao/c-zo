@@ -1,4 +1,4 @@
-import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
+import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 
 // User sub-module — Pothos type definitions
 //
@@ -13,7 +13,7 @@ import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
 // managed by better-auth and have no defineRelationsPart entries. Therefore
 // t.relation('sessions') and t.relation('accounts') are NOT used here.
 
-export function registerUserTypes(builder: AuthGraphQLShemaBuilder): void {
+export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
   // ── Session type (admin-scoped view) ──────────────────────────────────────
   builder.objectRef('Session').implement({
     fields: t => ({

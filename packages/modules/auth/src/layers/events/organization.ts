@@ -8,7 +8,7 @@ import { OrganizationEvents } from '../../services/events/organization'
  * + explicit finalizer + `Effect.fn` spans. See `UserEventsLive` for the full
  * rationale on `dropping` vs `bounded`.
  */
-export const OrganizationEventsLive = Layer.scoped(
+export const OrganizationEventsLive = Layer.effect(
   OrganizationEvents,
   Effect.gen(function* () {
     const pubsub = yield* PubSub.dropping<OrganizationEvent>({ capacity: 256 })

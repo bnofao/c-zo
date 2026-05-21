@@ -1,12 +1,25 @@
+import type { HierarchyLevel } from '@czo/auth/services'
+import { AccessService } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
-import { registerSchema as registerDbSchema, registerRelations, useDatabase } from '@czo/kit/db'
+import { registerSchema as registerDbSchema, registerRelations } from '@czo/kit/db'
+import { registerEffectLayer, runEffect, useRuntime } from '@czo/kit/effect'
 import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
 import { registerStockLocationSchema } from '@czo/stock-location/graphql'
+import { StockLocationModuleLive } from '@czo/stock-location/layers'
 import { stockLocationRelations } from '@czo/stock-location/relations'
 import * as stockLocationSchema from '@czo/stock-location/schema'
-import { createStockLocationService } from '@czo/stock-location/services'
+import { Effect } from 'effect'
 import { definePlugin } from 'nitro'
+
+const STOCK_LOCATION_STATEMENTS = {
+  'stock-location': ['create', 'read', 'update', 'delete'],
+} as const
+
+const STOCK_LOCATION_HIERARCHY: HierarchyLevel<typeof STOCK_LOCATION_STATEMENTS>[] = [
+  { name: 'member', permissions: { 'stock-location': ['read'] } },
+  { name: 'manager', permissions: { 'stock-location': ['create', 'read', 'update'] } },
+  { name: 'owner', permissions: { 'stock-location': ['create', 'read', 'update', 'delete'] } },
+]
 
 export default definePlugin((nitroApp) => {
   const logger = useLogger('stock-location:plugin')
@@ -14,54 +27,31 @@ export default definePlugin((nitroApp) => {
   nitroApp.hooks.hook('czo:init', async () => {
     registerDbSchema(stockLocationSchema)
     registerRelations(stockLocationRelations)
-    logger.info('Schema and relations registered')
+    registerEffectLayer(StockLocationModuleLive)
+    registerGraphQLSchema(registerStockLocationSchema)
+    logger.info('Schema, relations, Effect layer and GraphQL schema registered')
   })
 
   nitroApp.hooks.hook('czo:register', async () => {
-    const container = useContainer()
-    const accessService = await container.make('auth:access') as {
-      register: (opt: {
-        name: string
-        statements: Record<string, readonly string[]>
-        hierarchy: Array<{ name: string, permissions: Record<string, readonly string[]> }>
-      }) => void
-    }
-
-    accessService.register({
-      name: 'stock-location',
-      statements: {
-        'stock-location': ['create', 'read', 'update', 'delete'] as const,
-      },
-      hierarchy: [
-        {
-          name: 'member',
-          permissions: { 'stock-location': ['read'] },
-        },
-        {
-          name: 'manager',
-          permissions: { 'stock-location': ['create', 'read', 'update'] },
-        },
-        {
-          name: 'owner',
-          permissions: { 'stock-location': ['create', 'read', 'update', 'delete'] },
-        },
-      ],
-    })
-
-    logger.info('Access domain registered')
+    // Runtime is built by @czo/kit between czo:init and czo:register, so we
+    // can yield AccessService here. Auth's registry is still mutable
+    // (freezeOnInit=false in auth/plugins/index.ts); it will be frozen in
+    // auth's czo:boot.
+    await runEffect(
+      useRuntime(),
+      Effect.gen(function* () {
+        const access = yield* AccessService
+        yield* access.register({
+          name: 'stock-location',
+          statements: STOCK_LOCATION_STATEMENTS,
+          hierarchy: STOCK_LOCATION_HIERARCHY,
+        })
+      }),
+    )
+    logger.info('Access domain registered via AccessService')
   })
 
   nitroApp.hooks.hook('czo:boot', async () => {
-    const container = useContainer()
-    const db = await useDatabase()
-
-    const stockLocationService = createStockLocationService(db)
-    container.singleton('stockLocation:service', () => stockLocationService)
-    logger.info('Service bound to container')
-
-    registerGraphQLSchema(registerStockLocationSchema)
-    logger.info('GraphQL schema registered')
-
     logger.success('Stock location module booted')
   })
 })

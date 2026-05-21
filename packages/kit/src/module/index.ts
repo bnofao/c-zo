@@ -1,38 +1,38 @@
-import { addImportsSources, addPlugin, createResolver, defineNitroModule } from '@czo/kit/nitro'
+// import { addImportsSources, defineNitroModule } from '@czo/kit/nitro'
 
-export default defineNitroModule({
-  setup: (nitro) => {
-    const resolver = createResolver(import.meta.url)
+/* ─── Module contract (Effect-native, phase 2) ─────────────────────── */
+export type { Module, Module as CzoModule } from './contract'
+export { defineModule } from './contract'
+export type { BuildAppOptions, BuiltApp } from './app'
+export { buildApp, runApp } from './app'
 
-    // addTemplate({
-    //   id: '#czo/kit/config',
-    //   getContents() {
-    //     return `import { runtimeConfig } from "#nitro/virtual/runtime-config";
-    //     import { useContainer } from "@czo/kit/ioc";
+/* ─── Legacy Nitro module (phase 3 will remove) ────────────────────── */
 
-    //     console.log('OKOKOKOKOK');
-
-    //     useContainer().bindValue('config', useRuntimeConfig())`
-    //   },
-    // }, nitro)
-
-    addImportsSources({
-      from: '@czo/kit/db',
-      imports: ['useDatabase'],
-    }, nitro)
-    addImportsSources({
-      from: '@czo/kit/ioc',
-      imports: ['useContainer'],
-    }, nitro)
-    addImportsSources({
-      from: '@czo/kit',
-      imports: ['useLogger'],
-    }, nitro)
-    addImportsSources({
-      from: '@czo/kit/graphql',
-      imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory', 'registerDirective', 'registeredDirectiveTypeDefs', 'applyDirectives'],
-    }, nitro)
-    // addScanDir(resolver.resolve('../'), nitro)
-    addPlugin(resolver.resolve('../plugins/index'), nitro)
-  },
-})
+/**
+ * Legacy Nitro module — injects auto-imports for ergonomics
+ * (`useDatabase()`, `useLogger()`, etc.). No more plugin registration:
+ * the kit no longer owns any boot lifecycle. App composition happens
+ * in `apps/<app>/server.ts` via `composeApp(modules)`.
+ *
+ * Phase 3 will remove this file entirely.
+ */
+// export default defineNitroModule({
+//   setup: (nitro) => {
+//     addImportsSources({
+//       from: '@czo/kit/db',
+//       imports: ['useDatabase'],
+//     }, nitro)
+//     addImportsSources({
+//       from: '@czo/kit/ioc',
+//       imports: ['useContainer'],
+//     }, nitro)
+//     addImportsSources({
+//       from: '@czo/kit',
+//       imports: ['useLogger'],
+//     }, nitro)
+//     addImportsSources({
+//       from: '@czo/kit/graphql',
+//       imports: ['registeredTypeDefs', 'registeredResolvers', 'buildGraphQLContext', 'registerContextFactory', 'registerDirective', 'registeredDirectiveTypeDefs', 'applyDirectives'],
+//     }, nitro)
+//   },
+// })

@@ -5,9 +5,9 @@
  * Uses the decorator pattern — returns a new object that proxies
  * all calls through tracing, preserving the original immutably.
  */
-import type { Counter, Histogram, Meter, Telemetry } from '@czo/kit/telemetry'
+import type { Counter, Histogram, Meter, Tracer } from '@opentelemetry/api'
 import type { DomainEvent, DomainEventHandler, EventBus, Unsubscribe } from './types'
-import { useTelemetrySync } from '@czo/kit/telemetry'
+import { metrics as otelMetrics, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 /* ─── EventBus Metrics ──────────────────────── */
 
@@ -27,7 +27,7 @@ export interface EventBusMetrics {
 }
 
 export function createEventBusMetrics(meter?: Meter): EventBusMetrics {
-  const m = meter ?? useTelemetrySync().meter('czo.event-bus')
+  const m = meter ?? otelMetrics.getMeter('czo.event-bus')
   return {
     publishCount: m.createCounter('event_bus.publish.count', {
       description: 'Total events published',
@@ -59,7 +59,7 @@ export function createEventBusMetrics(meter?: Meter): EventBusMetrics {
 /* ─── Instrumentation Options ───────────────── */
 
 export interface InstrumentEventBusOptions {
-  telemetry?: Telemetry
+  tracer?: Tracer
   metrics?: EventBusMetrics
 }
 
@@ -69,8 +69,7 @@ export interface InstrumentEventBusOptions {
  * and CONSUMER spans on handler invocations.
  */
 export function instrumentEventBus(bus: EventBus, options?: InstrumentEventBusOptions): EventBus {
-  const telemetry = options?.telemetry ?? useTelemetrySync()
-  const tracer = telemetry.tracer('czo.event-bus')
+  const tracer = options?.tracer ?? trace.getTracer('czo.event-bus')
   const metrics = options?.metrics ?? createEventBusMetrics()
 
   return {
@@ -79,16 +78,16 @@ export function instrumentEventBus(bus: EventBus, options?: InstrumentEventBusOp
 
       return tracer.startActiveSpan(
         `event_bus.publish ${event.type}`,
-        { kind: 'PRODUCER', attributes: { 'messaging.event.type': event.type, 'messaging.event.id': event.id } },
+        { kind: SpanKind.PRODUCER, attributes: { 'messaging.event.type': event.type, 'messaging.event.id': event.id } },
         async (span) => {
           try {
             const result = await bus.publish(event)
-            span.setStatus('OK')
+            span.setStatus({ code: SpanStatusCode.OK })
             metrics.publishCount.add(1, { 'event.type': event.type })
             return result
           }
           catch (error) {
-            span.setStatus('ERROR', (error as Error).message)
+            span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message })
             span.recordException(error as Error)
             metrics.publishErrors.add(1, { 'event.type': event.type })
             throw error
@@ -107,15 +106,15 @@ export function instrumentEventBus(bus: EventBus, options?: InstrumentEventBusOp
 
         return tracer.startActiveSpan(
           `event_bus.consume ${event.type}`,
-          { kind: 'CONSUMER', attributes: { 'messaging.event.type': event.type, 'messaging.event.id': event.id } },
+          { kind: SpanKind.CONSUMER, attributes: { 'messaging.event.type': event.type, 'messaging.event.id': event.id } },
           async (span) => {
             try {
               await handler(event)
-              span.setStatus('OK')
+              span.setStatus({ code: SpanStatusCode.OK })
               metrics.consumeCount.add(1, { 'event.type': event.type })
             }
             catch (error) {
-              span.setStatus('ERROR', (error as Error).message)
+              span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message })
               span.recordException(error as Error)
               metrics.handleErrors.add(1, { 'event.type': event.type })
               throw error

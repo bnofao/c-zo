@@ -1,5 +1,4 @@
 import type { GraphQLContextMap } from '@czo/kit/graphql'
-import { runEffect } from '@czo/kit/effect'
 import { Effect } from 'effect'
 import { AuthService } from '../services/auth'
 
@@ -11,8 +10,7 @@ export function authScopes(ctx: GraphQLContextMap) {
       if (!auth || !userId)
         return false
 
-      return runEffect(
-        auth.runtime,
+      return ctx.runEffect(
         Effect.gen(function* () {
           const svc = yield* AuthService
           return yield* svc.hasPermission(

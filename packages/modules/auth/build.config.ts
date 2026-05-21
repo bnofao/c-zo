@@ -57,7 +57,6 @@ export default defineBuildConfig({
     '@czo/kit/nitro',
     '@czo/kit/db',
     '@czo/kit/db/effect',
-    '@czo/kit/effect',
     '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',

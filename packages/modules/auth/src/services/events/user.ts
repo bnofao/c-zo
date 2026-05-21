@@ -60,11 +60,11 @@ export type UserEvent
  *   `PubSub.unbounded`. Subscribers acquire their own queue via the stream
  *   operator; multiple subscribers each get every event.
  */
-export class UserEvents extends Context.Tag('@czo/auth/UserEvents')<
+export class UserEvents extends Context.Service<
   UserEvents,
   {
     readonly publish: (event: UserEvent) => Effect.Effect<void>
     readonly publishAll: (events: ReadonlyArray<UserEvent>) => Effect.Effect<void>
     readonly subscribe: Stream.Stream<UserEvent>
   }
->() {}
+>()('@czo/auth/UserEvents') {}

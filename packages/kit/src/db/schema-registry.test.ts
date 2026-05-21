@@ -1,4 +1,11 @@
+import { Cause, Effect, Exit } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  makeSchemaRegistryLive,
+  SchemaRegistry,
+  SchemaRegistryAlreadyFrozen,
+  SchemaRegistryFrozen,
+} from './schema-registry'
 
 describe('schema-registry', () => {
   beforeEach(() => {
@@ -93,5 +100,104 @@ describe('schema-registry', () => {
     registerRelations(() => ({ apps: 'v2' }))
 
     expect(registeredRelations()).toEqual({ apps: 'v2' })
+  })
+
+  // ─── SchemaRegistry Service (Effect) ────────────────────────────────
+
+  describe('schemaRegistry service', () => {
+    const provide = <A, E>(eff: Effect.Effect<A, E, SchemaRegistry>) =>
+      Effect.provide(eff, makeSchemaRegistryLive())
+
+    it('starts empty', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        return {
+          schemas: yield* registry.schemas,
+          relations: yield* registry.relations,
+        }
+      })
+      const result = await Effect.runPromise(provide(program))
+      expect(result.schemas).toEqual({})
+      expect(result.relations).toEqual({})
+    })
+
+    it('merges registered schemas', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        yield* registry.registerSchema({ users: 'usersTable' })
+        yield* registry.registerSchema({ posts: 'postsTable' })
+        return yield* registry.schemas
+      })
+      const result = await Effect.runPromise(provide(program))
+      expect(result).toEqual({ users: 'usersTable', posts: 'postsTable' })
+    })
+
+    it('invokes relation factories with merged schemas', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        yield* registry.registerSchema({ users: 'usersTable' })
+        yield* registry.registerRelations(s => ({ rel: `rel-to-${(s as Record<string, unknown>).users}` } as any))
+        return yield* registry.relations
+      })
+      const result = await Effect.runPromise(provide(program))
+      expect(result).toEqual({ rel: 'rel-to-usersTable' })
+    })
+
+    it('uses initial pre-population', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        return yield* registry.schemas
+      })
+      const layer = makeSchemaRegistryLive({ schemas: [{ a: 1 }, { b: 2 }] })
+      const result = await Effect.runPromise(Effect.provide(program, layer))
+      expect(result).toEqual({ a: 1, b: 2 })
+    })
+
+    it('fails registerSchema after freeze with SchemaRegistryFrozen', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        yield* registry.freeze
+        yield* registry.registerSchema({ x: 1 })
+      })
+      const exit = await Effect.runPromiseExit(provide(program))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const found = Cause.findErrorOption(exit.cause)
+        const err = found._tag === 'Some' ? found.value : null
+        expect(err).toBeInstanceOf(SchemaRegistryFrozen)
+        expect(err.attempted).toBe('schema')
+      }
+    })
+
+    it('fails registerRelations after freeze with SchemaRegistryFrozen', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        yield* registry.freeze
+        yield* registry.registerRelations(() => ({} as any))
+      })
+      const exit = await Effect.runPromiseExit(provide(program))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const found = Cause.findErrorOption(exit.cause)
+        const err = found._tag === 'Some' ? found.value : null
+        expect(err).toBeInstanceOf(SchemaRegistryFrozen)
+        expect(err.attempted).toBe('relations')
+      }
+    })
+
+    it('fails second freeze with SchemaRegistryAlreadyFrozen', async () => {
+      const program = Effect.gen(function* () {
+        const registry = yield* SchemaRegistry
+        yield* registry.freeze
+        yield* registry.freeze
+      })
+      const exit = await Effect.runPromiseExit(provide(program))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const found = Cause.findErrorOption(exit.cause)
+        const err = found._tag === 'Some' ? found.value : null
+        expect(err).toBeInstanceOf(SchemaRegistryAlreadyFrozen)
+      }
+    })
   })
 })

@@ -58,10 +58,16 @@ catalog:
   cmdk: ^0.2.0
   copy-to-clipboard: ^3.3.3
   date-fns: ^3.6.0
-  effect: ^3.21.2
+  # Effect 4 beta — all @effect/* packages MUST match this exact version (lockstep).
+  effect: 4.0.0-beta.66
+  '@effect/opentelemetry': 4.0.0-beta.66
+  '@effect/platform': 4.0.0-beta.66
+  '@effect/platform-node': 4.0.0-beta.66
+  '@effect/vitest': 4.0.0-beta.66
   errx: ^0.1.0
   exsolve: ^1.0.7
   graphql-scalars: ^1.25.0
+  h3: ^2.0.1-rc.20
   hookable: 5.5.3
   i18next: 23.7.11
   i18next-browser-languagedetector: 7.2.0

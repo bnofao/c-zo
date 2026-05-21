@@ -155,7 +155,7 @@ export function makeOrganizationServiceLive() {
 
               return { ...org, members: [member] }
             }))
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'OrganizationCreated',
               orgId: result.id,
               ownerId: userId,
@@ -195,7 +195,7 @@ export function makeOrganizationServiceLive() {
             )
             if (!org)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'update returned no row' }))
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'OrganizationUpdated',
               orgId: id,
               changes: input as Record<string, unknown>,
@@ -214,7 +214,7 @@ export function makeOrganizationServiceLive() {
             )
             if (!org)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'delete returned no row' }))
-            yield* Effect.forkDaemon(events.publish({ _tag: 'OrganizationDeleted', orgId: id }))
+            yield* Effect.forkDetach(events.publish({ _tag: 'OrganizationDeleted', orgId: id }))
             return org
           }),
 
@@ -264,7 +264,7 @@ export function makeOrganizationServiceLive() {
             }).returning())
             if (!member)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member insert returned no row' }))
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'MemberAdded',
               orgId: input.organizationId,
               userId: input.userId,
@@ -307,7 +307,7 @@ export function makeOrganizationServiceLive() {
             )
             if (!removed)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member delete returned no row' }))
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'MemberRemoved',
               orgId: organizationId,
               userId: (removed).userId as number,
@@ -351,7 +351,7 @@ export function makeOrganizationServiceLive() {
             )
             if (!member)
               return yield* Effect.fail(new OrgDbFailed({ cause: 'member update returned no row' }))
-            yield* Effect.forkDaemon(events.publish({
+            yield* Effect.forkDetach(events.publish({
               _tag: 'MemberRoleChanged',
               orgId: input.organizationId,
               userId: (existing).userId as number,

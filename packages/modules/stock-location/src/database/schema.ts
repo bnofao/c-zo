@@ -5,7 +5,7 @@ export const stockLocations = pgTable('stock_locations', {
     startWith: 1, // Optional: customize sequence start
     increment: 1, // Optional: customize increment amount
   }),
-  organizationId: text('organization_id').notNull(),
+  organizationId: integer('organization_id').notNull(),
   handle: text('handle').notNull(),
   name: text('name').notNull(),
   isDefault: boolean('is_default').notNull().default(false),

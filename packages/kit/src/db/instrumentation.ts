@@ -4,8 +4,8 @@
  * Provides a `withSpan()` helper for tracing database operations.
  * Designed to replace commented Sentry span code in the Repository base class.
  */
-import type { Counter, Histogram, Meter, Span, Telemetry } from '@czo/kit/telemetry'
-import { useTelemetrySync } from '@czo/kit/telemetry'
+import type { Counter, Histogram, Meter, Span, Tracer } from '@opentelemetry/api'
+import { metrics, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 
 /* ─── Database Metrics ──────────────────────── */
 
@@ -19,7 +19,7 @@ export interface DbMetrics {
 }
 
 export function createDbMetrics(meter?: Meter): DbMetrics {
-  const m = meter ?? useTelemetrySync().meter('czo.db')
+  const m = meter ?? metrics.getMeter('czo.db')
   return {
     queryCount: m.createCounter('db.client.operation.count', {
       description: 'Total database queries executed',
@@ -39,7 +39,7 @@ export function createDbMetrics(meter?: Meter): DbMetrics {
 /* ─── Instrumentation Options ───────────────── */
 
 export interface RepositoryInstrumentationOptions {
-  telemetry?: Telemetry
+  tracer?: Tracer
   metrics?: DbMetrics
   /** Name prefix for spans (e.g., "ProductRepository") */
   name: string
@@ -58,9 +58,8 @@ export interface RepositoryInstrumentationOptions {
  * ```
  */
 export function createRepositoryInstrumentation(options: RepositoryInstrumentationOptions) {
-  const telemetry = options.telemetry ?? useTelemetrySync()
-  const tracer = telemetry.tracer('czo.db')
-  const metrics = options.metrics ?? createDbMetrics()
+  const tracer = options.tracer ?? trace.getTracer('czo.db')
+  const metricsBundle = options.metrics ?? createDbMetrics()
   const prefix = options.name
 
   async function withSpan<T>(operation: string, fn: (span: Span) => Promise<T>): Promise<T> {
@@ -69,7 +68,7 @@ export function createRepositoryInstrumentation(options: RepositoryInstrumentati
     return tracer.startActiveSpan(
       `${prefix}.${operation}`,
       {
-        kind: 'CLIENT',
+        kind: SpanKind.CLIENT,
         attributes: {
           'db.system': 'postgresql',
           'db.operation.name': operation,
@@ -79,18 +78,18 @@ export function createRepositoryInstrumentation(options: RepositoryInstrumentati
       async (span) => {
         try {
           const result = await fn(span)
-          span.setStatus('OK')
-          metrics.queryCount.add(1, { 'db.operation': operation })
+          span.setStatus({ code: SpanStatusCode.OK })
+          metricsBundle.queryCount.add(1, { 'db.operation': operation })
           return result
         }
         catch (error) {
-          span.setStatus('ERROR', (error as Error).message)
+          span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message })
           span.recordException(error as Error)
-          metrics.queryErrors.add(1, { 'db.operation': operation })
+          metricsBundle.queryErrors.add(1, { 'db.operation': operation })
           throw error
         }
         finally {
-          metrics.queryDuration.record(Date.now() - start, { 'db.operation': operation })
+          metricsBundle.queryDuration.record(Date.now() - start, { 'db.operation': operation })
           span.end()
         }
       },

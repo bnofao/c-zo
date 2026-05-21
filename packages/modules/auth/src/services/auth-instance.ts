@@ -14,4 +14,4 @@ import { Context } from 'effect'
  * ReturnType<typeof createAuth>` is structural, and TS erases the import at
  * build time, so there is no runtime services→layers dependency.
  */
-export class BetterAuth extends Context.Tag('@czo/auth/BetterAuth')<BetterAuth, Auth>() {}
+export class BetterAuth extends Context.Service<BetterAuth, Auth>()('@czo/auth/BetterAuth') {}

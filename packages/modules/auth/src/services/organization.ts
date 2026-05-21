@@ -1,16 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
 import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
-import type {
-  // AuthRelations,
-  // CreateOrganizationInput,
-  // CreateOrgMemberInput,
-  // Organization,
-  // OrganizationInvitation,
-  // OrganizationMember,
-  // RemoveOrgMemberInput,
-  // UpdateOrganizationInput,
-  // UpdateOrgMemberInput,
-} from '@czo/auth/types'
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Effect } from 'effect'
@@ -209,7 +198,7 @@ export interface MemberScope {
   creatorRole?: string
 }
 
-export class OrganizationService extends Context.Tag('@czo/auth/OrganizationService')<
+export class OrganizationService extends Context.Service<
   OrganizationService,
   {
     // ── Reads ────────────────────────────────────────────────────────
@@ -306,4 +295,4 @@ export class OrganizationService extends Context.Tag('@czo/auth/OrganizationServ
       actorId?: number,
     ) => Effect.Effect<OrganizationInvitation, InvitationNotFound | NotAMember | OrgDbFailed>
   }
->() {}
+>()('@czo/auth/OrganizationService') {}

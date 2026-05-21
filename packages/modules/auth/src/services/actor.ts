@@ -75,7 +75,7 @@ export type ActorError
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
-export class AuthActorService extends Context.Tag('@czo/auth/AuthActorService')<
+export class AuthActorService extends Context.Service<
   AuthActorService,
   {
     readonly registerActor: (
@@ -99,4 +99,4 @@ export class AuthActorService extends Context.Tag('@czo/auth/AuthActorService')<
 
     readonly isFrozen: Effect.Effect<boolean>
   }
->() {}
+>()('@czo/auth/AuthActorService') {}

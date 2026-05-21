@@ -55,11 +55,11 @@ export type OrganizationEvent
  * - `subscribe` — `Stream<OrganizationEvent>` fanning out from the
  *   `PubSub.bounded` provided by `OrganizationEventsLive`.
  */
-export class OrganizationEvents extends Context.Tag('@czo/auth/OrganizationEvents')<
+export class OrganizationEvents extends Context.Service<
   OrganizationEvents,
   {
     readonly publish: (event: OrganizationEvent) => Effect.Effect<void>
     readonly publishAll: (events: ReadonlyArray<OrganizationEvent>) => Effect.Effect<void>
     readonly subscribe: Stream.Stream<OrganizationEvent>
   }
->() {}
+>()('@czo/auth/OrganizationEvents') {}

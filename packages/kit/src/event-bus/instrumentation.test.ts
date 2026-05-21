@@ -1,7 +1,6 @@
 import type { EventBusMetrics } from './instrumentation'
 import type { DomainEvent, EventBus } from './types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NoopTelemetry } from '../telemetry/noop'
 import { instrumentEventBus } from './instrumentation'
 
 function createMockBus(): EventBus {
@@ -20,7 +19,7 @@ function createMockMetrics(): EventBusMetrics {
     handleDuration: { record: vi.fn() },
     publishErrors: { add: vi.fn() },
     handleErrors: { add: vi.fn() },
-  }
+  } as unknown as EventBusMetrics
 }
 
 const testEvent: DomainEvent = {
@@ -43,10 +42,10 @@ describe('instrumentEventBus', () => {
   beforeEach(() => {
     bus = createMockBus()
     metrics = createMockMetrics()
-    instrumented = instrumentEventBus(bus, {
-      telemetry: new NoopTelemetry(),
-      metrics,
-    })
+    // OTel's default ProxyTracer is a noop when no provider is registered —
+    // good enough for these unit tests. Metrics are injected because the
+    // noop Tracer doesn't observe our counter calls.
+    instrumented = instrumentEventBus(bus, { metrics })
   })
 
   describe('publish', () => {

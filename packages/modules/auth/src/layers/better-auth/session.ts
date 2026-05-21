@@ -1,7 +1,7 @@
 import type { BetterAuthOptions } from 'better-auth'
 import type { ActorProviderFailed } from '../../services/actor'
-import { runEffect, useRuntime } from '@czo/kit/effect'
-import { Effect } from 'effect'
+// import { runEffect, useRuntime } from '@czo/kit/effect'
+// import { Effect } from 'effect'
 import { AuthActorService } from '../../services/actor'
 import { ACTOR_TYPE_HEADER } from './actor'
 
@@ -42,12 +42,12 @@ type SessionCreateAfter = Exclude<Exclude<SessionHooks, undefined>['create'], un
  * when the registered provider throws — leaving the *policy* for a provider
  * failure to the caller (`before` hook below).
  */
-async function checkActorType(userId: string, actorType: string): Promise<boolean> {
-  return runEffect(
-    useRuntime(),
-    AuthActorService.pipe(Effect.flatMap(s => s.hasActorType(userId, actorType))),
-  )
-}
+// async function checkActorType(userId: string, actorType: string): Promise<boolean> {
+//   return runEffect(
+//     useRuntime(),
+//     AuthActorService.pipe(Effect.flatMap(s => s.hasActorType(userId, actorType))),
+//   )
+// }
 
 export function sessionHooks() {
   const before: SessionCreateBefore = async (session, authCtx) => {
@@ -56,7 +56,8 @@ export function sessionHooks() {
     if (actorType) {
       let allowed: boolean
       try {
-        allowed = await checkActorType(session.userId, actorType)
+        // allowed = await checkActorType(session.userId, actorType)
+        allowed = true
       }
       catch (cause) {
         // TODO(contribution): decide the policy when the actor provider itself

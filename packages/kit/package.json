@@ -14,10 +14,6 @@
       "types": "./src/index.ts",
       "default": "./dist/index.mjs"
     },
-    "./nitro": {
-      "types": "./src/nitro/index.ts",
-      "default": "./dist/nitro/index.mjs"
-    },
     "./module": {
       "types": "./src/module/index.ts",
       "default": "./dist/module/index.mjs"
@@ -33,10 +29,6 @@
     "./db/effect": {
       "types": "./src/db/effect.ts",
       "default": "./dist/db/effect.mjs"
-    },
-    "./effect": {
-      "types": "./src/effect/index.ts",
-      "default": "./dist/effect/index.mjs"
     },
     "./ioc": {
       "types": "./src/ioc/index.ts",
@@ -82,16 +74,22 @@
     "check-types": "pnpm tsc --noEmit"
   },
   "peerDependencies": {
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
-    "@opentelemetry/resources": "^1.30.0",
-    "@opentelemetry/sdk-metrics": "^1.30.0",
-    "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/instrumentation": "^0.218.0",
+    "@opentelemetry/instrumentation-http": "^0.218.0",
+    "@opentelemetry/instrumentation-pg": "^0.70.0",
+    "@opentelemetry/resources": "^2.0.0",
+    "@opentelemetry/sdk-metrics": "^2.0.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
+    "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@pothos/core": "catalog:",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
-    "graphql-middleware": "^6.0.0",
+    "graphql": "catalog:common",
+    "graphql-yoga": "catalog:common",
+    "h3": "^2.0.0-rc.0",
     "ioredis": "^5.0.0",
     "nitro": "^2.0.0 || ^3.0.0"
   },
@@ -102,10 +100,22 @@
     "@opentelemetry/exporter-trace-otlp-http": {
       "optional": true
     },
+    "@opentelemetry/instrumentation": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation-http": {
+      "optional": true
+    },
+    "@opentelemetry/instrumentation-pg": {
+      "optional": true
+    },
     "@opentelemetry/resources": {
       "optional": true
     },
     "@opentelemetry/sdk-metrics": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-base": {
       "optional": true
     },
     "@opentelemetry/sdk-trace-node": {
@@ -120,7 +130,13 @@
     "bullmq": {
       "optional": true
     },
-    "graphql-middleware": {
+    "graphql": {
+      "optional": true
+    },
+    "graphql-yoga": {
+      "optional": true
+    },
+    "h3": {
       "optional": true
     },
     "ioredis": {
@@ -132,6 +148,8 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
+    "@effect/opentelemetry": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
     "@pothos/core": "catalog:",
@@ -164,6 +182,8 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "graphql": "catalog:common",
+    "graphql-yoga": "catalog:common",
+    "h3": "catalog:",
     "nitro": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"

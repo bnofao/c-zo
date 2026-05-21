@@ -20,7 +20,8 @@ export * from './optimistic'
 export { registeredRelations, registeredSchemas, registerRelations, registerSchema } from './schema-registry'
 // NB: repository.ts a été déplacé dans old/ — plus exporté
 
-export type { RelationsEntry, RelationsFactory, SchemaRegistry } from './schema-registry'
+export { SchemaRegistry } from './schema-registry'
+export type { RelationsEntry, RelationsFactory, SchemaRegistryShape } from './schema-registry'
 export * from './scope'
 
 // Seeder registry for module-level database seeding

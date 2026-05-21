@@ -180,7 +180,7 @@ export interface RemoveApiKeyOptions {
 type FindFirstConfig = Parameters<Database<Relations>['query']['apikeys']['findFirst']>[0]
 type FindManyConfig = Parameters<Database<Relations>['query']['apikeys']['findMany']>[0]
 
-export class ApiKeyService extends Context.Tag('@czo/auth/ApiKeyService')<
+export class ApiKeyService extends Context.Service<
   ApiKeyService,
   {
     readonly findFirst: (
@@ -227,4 +227,4 @@ export class ApiKeyService extends Context.Tag('@czo/auth/ApiKeyService')<
       opts: RemoveApiKeyOptions,
     ) => Effect.Effect<boolean, ApiKeyNotFound | Intrusion | DbFailed>
   }
->() {}
+>()('@czo/auth/ApiKeyService') {}

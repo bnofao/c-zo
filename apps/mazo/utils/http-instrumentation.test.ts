@@ -1,6 +1,6 @@
 import type { HttpMetrics } from './http-instrumentation'
+import { getContext } from '@czo/kit/telemetry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getContext, NoopTelemetry } from '@czo/kit/telemetry'
 import { createHttpInstrumentation } from './http-instrumentation'
 
 function createMockMetrics(): HttpMetrics {
@@ -8,7 +8,7 @@ function createMockMetrics(): HttpMetrics {
     requestCount: { add: vi.fn() },
     requestDuration: { record: vi.fn() },
     activeRequests: { add: vi.fn() },
-  }
+  } as unknown as HttpMetrics
 }
 
 describe('createHttpInstrumentation', () => {
@@ -17,10 +17,12 @@ describe('createHttpInstrumentation', () => {
 
   beforeEach(() => {
     metrics = createMockMetrics()
-    instrument = createHttpInstrumentation({
-      telemetry: new NoopTelemetry(),
-      metrics,
-    })
+    // No `tracer` override — the global OTel API resolves to its built-in
+    // ProxyTracer which forwards to a noop unless a real provider is
+    // registered. That's what we want for these unit tests: real span
+    // structure (so `runWithContext` receives proper trace/span IDs) without
+    // touching an exporter.
+    instrument = createHttpInstrumentation({ metrics })
   })
 
   it('runs handler and returns its result', async () => {

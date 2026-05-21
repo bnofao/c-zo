@@ -1,5 +1,4 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import { runEffect } from '@czo/kit/effect'
 import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { OrganizationService } from '../../../services/organization'
@@ -53,9 +52,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         if (!authUser)
           throw new UnauthenticatedError()
 
-        const result = await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        const result = await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.create({
               ...input,
@@ -103,9 +101,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         const orgId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-        const result = await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        const result = await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.update(orgId, {
               ...input,
@@ -140,9 +137,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         const orgId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-        await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.remove(orgId, actorId)
           }),
@@ -171,9 +167,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.invitationId)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
-        await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.cancelInvitation(Number(id), actorId)
           }),
@@ -206,9 +201,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           ? input.identifier
           : Number(input.identifier)
 
-        await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.removeMember({
               identifier: identifier as never,
@@ -250,9 +244,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         const { id: memberId } = decodeGlobalID(input.memberId)
         const { id: orgId } = decodeGlobalID(input.organizationId)
 
-        const result = await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        const result = await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.updateMemberRole({
               id: Number(memberId),

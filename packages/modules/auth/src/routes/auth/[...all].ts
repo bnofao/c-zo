@@ -1,5 +1,5 @@
 import { BetterAuth } from '@czo/auth/services'
-import { runEffect, useRuntime } from '@czo/kit/effect'
+// import { runEffect, useRuntime } from '@czo/kit/effect'
 import { defineHandler } from 'nitro/h3'
 import { defineRouteMeta } from './_openapi'
 
@@ -17,6 +17,6 @@ defineRouteMeta({
 })
 
 export default defineHandler(async (event) => {
-  const auth = await runEffect(useRuntime(), BetterAuth)
-  return auth.handler(event.req)
+  // const auth = await runEffect(useRuntime(), BetterAuth)
+  // return auth.handler(event.req)
 })

@@ -14,6 +14,10 @@
       "types": "./src/module.ts",
       "default": "./dist/module.mjs"
     },
+    "./module": {
+      "types": "./src/module.ts",
+      "default": "./dist/module.mjs"
+    },
     "./types": {
       "types": "./src/types.ts",
       "default": "./dist/types.mjs"
@@ -60,7 +64,11 @@
     "check-types": "pnpm tsc --noEmit"
   },
   "peerDependencies": {
-    "@pothos/core": "catalog:"
+    "@pothos/core": "catalog:",
+    "h3": "^2.0.0-rc.0"
+  },
+  "peerDependenciesMeta": {
+    "h3": { "optional": true }
   },
   "dependencies": {
     "@better-auth/api-key": "catalog:common",
@@ -79,6 +87,7 @@
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "catalog:dev",
     "graphql-scalars": "catalog:common",
+    "h3": "^2.0.1-rc.20",
     "nitro": "catalog:dev",
     "vitest": "catalog:testing"
   }

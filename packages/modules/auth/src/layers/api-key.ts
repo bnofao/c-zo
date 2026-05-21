@@ -35,7 +35,7 @@ const defaultKeyGenerator: KeyGenerator = ({ length, prefix }) => {
 
 // ─── Layer ───────────────────────────────────────────────────────────
 
-type ApiKeyServiceImpl = Context.Tag.Service<typeof ApiKeyService>
+type ApiKeyServiceImpl = Context.Service.Shape<typeof ApiKeyService>
 
 export const ApiKeyServiceLive = Layer.effect(
   ApiKeyService,

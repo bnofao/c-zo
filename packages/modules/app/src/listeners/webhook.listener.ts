@@ -2,7 +2,8 @@ import type { AppManifest, AppRow, AppService } from '@czo/auth/services'
 import { createHmac } from 'node:crypto'
 import * as schema from '@czo/auth/schema'
 import { useLogger } from '@czo/kit'
-import { useDatabase } from '@czo/kit/db'
+import { DrizzleDb } from '@czo/kit/db/effect'
+import { runEffect, useRuntime } from '@czo/kit/effect'
 import { useHookable } from '@czo/kit/event-bus'
 import { useContainer } from '@czo/kit/ioc'
 import { useQueue, useWorker } from '@czo/kit/queue'
@@ -98,7 +99,7 @@ async function deliverSyncWebhook(
   payload: unknown,
   logger: ReturnType<typeof useLogger>,
 ): Promise<SyncWebhookResponse> {
-  const db = await useDatabase()
+  const db = await runEffect(useRuntime(), DrizzleDb)
   const payloadStr = buildPayloadStr(webhook, payload)
   const deliveryId = crypto.randomUUID()
 
@@ -167,7 +168,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
 
   const worker = await useWorker<WebhookDeliveryJob>(QUEUE_NAME, async (job) => {
     const { deliveryId, appId, targetUrl, event } = job.data
-    const db = await useDatabase()
+    const db = await runEffect(useRuntime(), DrizzleDb)
 
     const result = await deliverWebhook(job.data)
 
@@ -194,7 +195,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
     if (!job)
       return
     const { deliveryId, appId } = job.data as WebhookDeliveryJob
-    const db = await useDatabase()
+    const db = await runEffect(useRuntime(), DrizzleDb)
 
     await db.update(schema.webhookDeliveries)
       .set({
@@ -216,7 +217,7 @@ export async function registerWebhookDispatcher(): Promise<void> {
     if (matchedApps.length === 0)
       return
 
-    const db = await useDatabase()
+    const db = await runEffect(useRuntime(), DrizzleDb)
     const queue = await useQueue<WebhookDeliveryJob>(QUEUE_NAME)
 
     for (const app of matchedApps) {

@@ -144,7 +144,7 @@ export interface SetUserPasswordInput {
 type FindFirstConfig = Parameters<Database<Relations>['query']['users']['findFirst']>[0]
 type FindManyConfig = Parameters<Database<Relations>['query']['users']['findMany']>[0]
 
-export class UserService extends Context.Tag('@czo/auth/UserService')<
+export class UserService extends Context.Service<
   UserService,
   {
     readonly findMany: (
@@ -203,4 +203,4 @@ export class UserService extends Context.Tag('@czo/auth/UserService')<
       id: number,
     ) => Effect.Effect<true, UserDbFailed>
   }
->() {}
+>()('@czo/auth/UserService') {}

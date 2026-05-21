@@ -22,7 +22,7 @@ import { UserEvents } from '../../services/events/user'
  * `UserEvents.publish` / `UserEvents.publishAll` show up in any active
  * observability backend.
  */
-export const UserEventsLive = Layer.scoped(
+export const UserEventsLive = Layer.effect(
   UserEvents,
   Effect.gen(function* () {
     const pubsub = yield* PubSub.dropping<UserEvent>({ capacity: 256 })

@@ -36,7 +36,26 @@ export default defineNitroConfig({
     },
     queue: {
       storage: 'redis'
-    }
+    },
+    telemetry: {
+      // SDK init lives in `./server.ts` (it owns the global TracerProvider).
+      // This `enabled` flag drives the kit's *Effect ↔ OTel bridge layer*:
+      // when `true`, `Effect.fn(name)` / `Effect.withSpan(...)` produce spans
+      // against the global provider set up by server.ts. When `false`, the
+      // bridge isn't installed and Effect spans no-op.
+      enabled: process.env.OTEL_ENABLED !== 'false',
+      serviceName: process.env.OTEL_SERVICE_NAME ?? 'czo-mazo',
+      serviceVersion: process.env.OTEL_SERVICE_VERSION ?? '0.1.0',
+      exporter: (process.env.OTEL_EXPORTER ?? 'console') as 'console' | 'otlp',
+      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318',
+      protocol: 'http' as const,
+      samplingRatio: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      logBridge: false,
+      instrumentations: {
+        http: true,
+        pg: true,
+      },
+    },
   },
 
   plugins: [],

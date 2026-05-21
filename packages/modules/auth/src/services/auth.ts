@@ -25,7 +25,7 @@ export interface PermissionCheckOptions {
  * formerly in `services/{user,org}-permissions.ts` are colocated with the
  * layer impl since they have no other consumers).
  */
-export class AuthService extends Context.Tag('@czo/auth/AuthService')<
+export class AuthService extends Context.Service<
   AuthService,
   {
     readonly hasPermission: (
@@ -34,4 +34,4 @@ export class AuthService extends Context.Tag('@czo/auth/AuthService')<
       options?: PermissionCheckOptions,
     ) => Effect.Effect<boolean, never>
   }
->() {}
+>()('@czo/auth/AuthService') {}

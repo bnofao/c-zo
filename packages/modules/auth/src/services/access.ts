@@ -135,7 +135,7 @@ export interface BuiltRoles {
   readonly roles: Record<string, AccessRole>
 }
 
-export class AccessService extends Context.Tag('@czo/auth/AccessService')<
+export class AccessService extends Context.Service<
   AccessService,
   {
     readonly register: <S extends Statements>(
@@ -158,4 +158,4 @@ export class AccessService extends Context.Tag('@czo/auth/AccessService')<
      */
     readonly buildRoles: Effect.Effect<BuiltRoles>
   }
->() {}
+>()('@czo/auth/AccessService') {}

@@ -1,10 +1,19 @@
+// Effect-TS contracts (Tag, errors, inputs)
+export { StockLocationEvents } from './events/stock-location'
+export type { StockLocationEvent } from './events/stock-location'
 export {
-  createStockLocationService,
   generateHandle,
-} from './stock-location.service'
+  HandleTaken,
+  StockLocationDbFailed,
+  StockLocationNoChanges,
+  StockLocationNotFound,
+  StockLocationService,
+} from './stock-location'
+
 export type {
   CreateStockLocationAddressInput,
   CreateStockLocationInput,
-  StockLocationService,
+  StockLocation,
+  StockLocationError,
   UpdateStockLocationInput,
-} from './stock-location.service'
+} from './stock-location'

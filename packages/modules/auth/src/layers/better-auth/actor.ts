@@ -1,9 +1,9 @@
 import type { BetterAuthPlugin } from 'better-auth'
 import type { AuthMethod } from '../../services/actor'
-import { useRuntime } from '@czo/kit/effect'
+// import { useRuntime } from '@czo/kit/effect'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
-import { Effect } from 'effect'
-import { AuthActorService } from '../../services/actor'
+// import { Effect } from 'effect'
+// import { AuthActorService } from '../../services/actor'
 
 export const ACTOR_TYPE_HEADER = 'x-czo-actor'
 
@@ -17,21 +17,21 @@ export const ACTOR_TYPE_HEADER = 'x-czo-actor'
 // The boot runtime provides `AuthActorService` but its type is erased to
 // `<never, never>` (see `@czo/kit/effect`), so we cast the requirement away —
 // same trick `runEffect` uses for resolvers.
-function runSync<A>(effect: Effect.Effect<A, never, AuthActorService>): A {
-  return useRuntime().runSync(effect as Effect.Effect<A, never>)
-}
+// function runSync<A>(effect: Effect.Effect<A, never, AuthActorService>): A {
+//   return useRuntime().runSync(effect as Effect.Effect<A, never>)
+// }
 
-function registeredActors(): readonly string[] {
-  return runSync(AuthActorService.pipe(Effect.flatMap(s => s.registeredActors)))
-}
+// function registeredActors(): readonly string[] {
+//   return runSync(AuthActorService.pipe(Effect.flatMap(s => s.registeredActors)))
+// }
 
-function actorRestrictionConfig(type: string) {
-  return runSync(AuthActorService.pipe(Effect.flatMap(s => s.actorRestrictionConfig(type))))
-}
+// function actorRestrictionConfig(type: string) {
+//   return runSync(AuthActorService.pipe(Effect.flatMap(s => s.actorRestrictionConfig(type))))
+// }
 
-function isMethodAllowedForActor(type: string, method: AuthMethod): boolean {
-  return runSync(AuthActorService.pipe(Effect.flatMap(s => s.isMethodAllowedForActor(type, method))))
-}
+// function isMethodAllowedForActor(type: string, method: AuthMethod): boolean {
+//   return runSync(AuthActorService.pipe(Effect.flatMap(s => s.isMethodAllowedForActor(type, method))))
+// }
 
 export function actorType(): BetterAuthPlugin {
   return {
@@ -42,17 +42,17 @@ export function actorType(): BetterAuthPlugin {
       if (!actor)
         return
 
-      const actors = registeredActors()
-      if (!actors.includes(actor)) {
-        return {
-          response: new Response(
-            JSON.stringify({
-              error: `Invalid actor: ${actor}. Must be one of: ${actors.join(', ')}`,
-            }),
-            { status: 400, headers: { 'content-type': 'application/json' } },
-          ),
-        }
-      }
+      // const actors = registeredActors()
+      // if (!actors.includes(actor)) {
+      //   return {
+      //     response: new Response(
+      //       JSON.stringify({
+      //         error: `Invalid actor: ${actor}. Must be one of: ${actors.join(', ')}`,
+      //       }),
+      //       { status: 400, headers: { 'content-type': 'application/json' } },
+      //     ),
+      //   }
+      // }
     },
 
     hooks: {
@@ -86,12 +86,12 @@ export function actorType(): BetterAuthPlugin {
               return
             }
 
-            const actor = stateData.actor as string | undefined
+            // const actor = stateData.actor as string | undefined
 
-            if (!actor || !registeredActors().includes(actor))
-              return
+            // if (!actor || !registeredActors().includes(actor))
+            //   return
 
-            ctx.setHeader(ACTOR_TYPE_HEADER, actor)
+            // ctx.setHeader(ACTOR_TYPE_HEADER, actor)
           }),
         },
         {
@@ -107,29 +107,29 @@ export function actorType(): BetterAuthPlugin {
             if (!actor)
               return
 
-            const actors = registeredActors()
-            if (!actors.includes(actor)) {
-              throw new APIError('BAD_REQUEST', {
-                message: `Invalid actor: ${actor}. Must be one of: ${actors.join(', ')}`,
-              })
-            }
+            // const actors = registeredActors()
+            // if (!actors.includes(actor)) {
+            //   throw new APIError('BAD_REQUEST', {
+            //     message: `Invalid actor: ${actor}. Must be one of: ${actors.join(', ')}`,
+            //   })
+            // }
 
-            const actorConfig = actorRestrictionConfig(actor)
+            // const actorConfig = actorRestrictionConfig(actor)
 
-            if (ctx.path.startsWith('/sign-up') && actorConfig.enableRegistration === false) {
-              throw new APIError('FORBIDDEN', {
-                message: `Registration is not allowed for actor: ${actor}`,
-              })
-            }
+            // if (ctx.path.startsWith('/sign-up') && actorConfig.enableRegistration === false) {
+            //   throw new APIError('FORBIDDEN', {
+            //     message: `Registration is not allowed for actor: ${actor}`,
+            //   })
+            // }
 
             const body = ctx.context.body as { provider?: string, additionalData?: Record<string, unknown> } | undefined
             const method = (body?.provider ? `oauth:${body.provider}` : ctx.path.split('/').pop() ?? 'email') as AuthMethod
 
-            if (!isMethodAllowedForActor(actor, method)) {
-              throw new APIError('BAD_REQUEST', {
-                message: `Auth method "${method}" is not allowed for actor type "${actor}".`,
-              })
-            }
+            // if (!isMethodAllowedForActor(actor, method)) {
+            //   throw new APIError('BAD_REQUEST', {
+            //     message: `Auth method "${method}" is not allowed for actor type "${actor}".`,
+            //   })
+            // }
 
             // Inject actor into additionalData for better-auth's OAuth state
             if (body) {

@@ -1,0 +1,34 @@
+{
+  "name": "@czo/life",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development node --import ./src/register-otel.mjs --import tsx --watch src/main.ts",
+    "start": "node --import ./src/register-otel.mjs --import tsx src/main.ts",
+    "check-types": "pnpm tsc --noEmit"
+  },
+  "dependencies": {
+    "@czo/auth": "workspace:*",
+    "@czo/kit": "workspace:*",
+    "@effect/opentelemetry": "catalog:",
+    "@opentelemetry/api": "catalog:common",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/instrumentation": "^0.218.0",
+    "@opentelemetry/instrumentation-http": "^0.218.0",
+    "@opentelemetry/sdk-metrics": "^2.0.0",
+    "@opentelemetry/sdk-node": "0.218.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
+    "drizzle-orm": "catalog:common",
+    "effect": "catalog:",
+    "graphql": "catalog:common",
+    "graphql-yoga": "catalog:common",
+    "h3": "^2.0.1-rc.20",
+    "srvx": "^0.11.15"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:types",
+    "tsx": "catalog:cli",
+    "typescript": "catalog:dev"
+  }
+}

@@ -1,4 +1,6 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
+import { DrizzleDb } from '@czo/kit/db/effect'
+import { runEffect, useRuntime } from '@czo/kit/effect'
 
 // ─── App Queries ──────────────────────────────────────────────────────────────
 
@@ -13,8 +15,7 @@ export function registerAppQueries(builder: SchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query, _root: unknown, args: Record<string, unknown>) => {
-        const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        const db = await runEffect(useRuntime(), DrizzleDb) as any // db.query.* shape not available without full schema generic threading
         // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
         return db.query.apps.findFirst(query({ where: (a: any, { eq }: any) => eq(a.id, String(args.id)) } as any))
       },
@@ -30,8 +31,7 @@ export function registerAppQueries(builder: SchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query, _root: unknown, args: any) => { // Pothos drizzleConnection with AppWhereInput args: complex inferred type requires any here
-        const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        const db = await runEffect(useRuntime(), DrizzleDb) as any // db.query.* shape not available without full schema generic threading
         const where = args.where as { status?: string | null } | null | undefined
         // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
         return db.query.apps.findMany(query({
@@ -53,8 +53,7 @@ export function registerAppQueries(builder: SchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'apps', actions: ['read'] } },
       resolve: async (query, _root: unknown, args: Record<string, unknown>) => {
-        const { useDatabase } = await import('@czo/kit/db')
-        const db = await useDatabase() as any // db.query.* shape not available without full schema generic threading
+        const db = await runEffect(useRuntime(), DrizzleDb) as any // db.query.* shape not available without full schema generic threading
         // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
         return db.query.apps.findFirst(query({ where: (a: any, { eq }: any) => eq(a.appId, args.slug) } as any))
       },

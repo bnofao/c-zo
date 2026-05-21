@@ -1,12 +1,8 @@
-import type { AuthContext } from '@czo/auth/types'
-import type { SchemaBuilder } from '@czo/kit/graphql'
-import { runEffect } from '@czo/kit/effect'
+import type { GraphQLContextMap, SchemaBuilder } from '@czo/kit/graphql'
 import { decodeGlobalID, UnauthenticatedError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { OrganizationService } from '../../../services/organization'
 import { InvitationNotFound, OrganizationNotFound } from './errors'
-
-interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Queries ─────────────────────────────────────────────────────
 
@@ -20,13 +16,13 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_query, _root, args, ctx: Ctx) => {
+      resolve: async (_query, _root, args, ctx: GraphQLContextMap) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findFirst({ where: { id: Number(id) } })
         }).pipe(Effect.catchTag('OrganizationNotFound', () => Effect.succeed(null)))
-        return runEffect(ctx.auth.runtime, program)
+        return ctx.runEffect(program)
       },
     }))
 
@@ -38,7 +34,7 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         search: t.arg.string({ required: false }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query, _root, args, ctx: Ctx) => {
+      resolve: async (query, _root, args, ctx: GraphQLContextMap) => {
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findMany(query({
@@ -48,7 +44,7 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
               : undefined,
           }))
         })
-        return runEffect(ctx.auth.runtime, program) as any
+        return ctx.runEffect(program) as any
       },
       edgesField: {},
     }))
@@ -61,10 +57,9 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         slug: t.arg.string({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
-        return runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+      resolve: async (_root, args, ctx: GraphQLContextMap) => {
+        return ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.checkSlug(args.slug)
           }),
@@ -80,11 +75,10 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      resolve: async (_root, args, ctx: GraphQLContextMap) => {
         const { id } = decodeGlobalID(args.organizationId)
-        return await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        return await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.listMembers(Number(id))
           }),
@@ -102,13 +96,13 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         id: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      resolve: async (_root, args, ctx: GraphQLContextMap) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.getInvitation(Number(id))
         }).pipe(Effect.catchTag('InvitationNotFound', () => Effect.succeed(null)))
-        return runEffect(ctx.auth.runtime, program) as any
+        return ctx.runEffect(program) as any
       },
     }))
 
@@ -120,11 +114,10 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         organizationId: t.arg.id({ required: true }),
       },
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      resolve: async (_root, args, ctx: GraphQLContextMap) => {
         const { id } = decodeGlobalID(args.organizationId)
-        return await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        return await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.listInvitations(Number(id))
           }),
@@ -137,14 +130,13 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
     t.field({
       type: ['Invitation'],
       authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, _args, ctx: Ctx) => {
+      resolve: async (_root, _args, ctx: GraphQLContextMap) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        return await runEffect(
-          ctx.auth.runtime,
-          Effect.gen(function* () {
+        return await ctx.runEffect(
+Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.listUserInvitations(authUser.email)
           }),

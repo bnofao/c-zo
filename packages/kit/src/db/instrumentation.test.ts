@@ -1,5 +1,4 @@
 import type { DbMetrics } from './instrumentation'
-import { NoopTelemetry } from '@czo/kit/telemetry'
 import { describe, expect, it, vi } from 'vitest'
 import { createRepositoryInstrumentation } from './instrumentation'
 
@@ -8,15 +7,19 @@ function createMockMetrics(): DbMetrics {
     queryCount: { add: vi.fn() },
     queryDuration: { record: vi.fn() },
     queryErrors: { add: vi.fn() },
-  }
+  } as unknown as DbMetrics
 }
+
+// The OTel API's default ProxyTracer is a no-op when no provider is
+// registered — so we don't need to inject a fake. `metrics` IS injected
+// because the noop Tracer doesn't observe our counters; we want to assert
+// on them directly.
 
 describe('createRepositoryInstrumentation', () => {
   it('runs fn and returns its result', async () => {
     const metrics = createMockMetrics()
     const { withSpan } = createRepositoryInstrumentation({
       name: 'ProductRepository',
-      telemetry: new NoopTelemetry(),
       metrics,
     })
 
@@ -31,7 +34,6 @@ describe('createRepositoryInstrumentation', () => {
     const metrics = createMockMetrics()
     const { withSpan } = createRepositoryInstrumentation({
       name: 'ProductRepository',
-      telemetry: new NoopTelemetry(),
       metrics,
     })
 
@@ -48,7 +50,6 @@ describe('createRepositoryInstrumentation', () => {
     const metrics = createMockMetrics()
     const { withSpan } = createRepositoryInstrumentation({
       name: 'OrderRepository',
-      telemetry: new NoopTelemetry(),
       metrics,
     })
 
@@ -66,7 +67,6 @@ describe('createRepositoryInstrumentation', () => {
     const metrics = createMockMetrics()
     const { withSpan } = createRepositoryInstrumentation({
       name: 'ProductRepository',
-      telemetry: new NoopTelemetry(),
       metrics,
     })
 
