@@ -1,13 +1,13 @@
-import type { Database } from '@czo/kit/db'
 import type { Relations } from '@czo/auth/relations'
+import type { Database } from '@czo/kit/db/effect'
 import type { ActorProviderFailed } from '../services/actor'
+import type * as Cookie from '../services/cookie'
+import type { PasswordHashFailed } from '../services/user'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { Data, Effect } from 'effect'
 import { accounts, users } from '../database/schema'
 import { AuthActorService } from '../services/actor'
-import { PasswordHashFailed } from '../services/user'
 import * as AuthEvents from '../services/events/auth'
-import * as Cookie from '../services/cookie'
 import * as Password from '../services/password'
 import * as Session from '../services/session'
 
@@ -41,9 +41,9 @@ export class CredentialDbFailed extends Data.TaggedError('CredentialDbFailed')<{
   get message() { return 'Credential database operation failed' }
 }
 
-/** Wrap a DB promise — any failure becomes `CredentialDbFailed`. */
-const tryDb = <A>(f: () => Promise<A>) =>
-  Effect.tryPromise({ try: f, catch: cause => new CredentialDbFailed({ cause }) })
+/** Wrap a DB Effect — any failure becomes `CredentialDbFailed`. */
+const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+  eff.pipe(Effect.mapError(cause => new CredentialDbFailed({ cause })))
 
 // ─── Inputs ──────────────────────────────────────────────────────────────
 
@@ -65,9 +65,9 @@ export type CredentialResult = Session.ResolvedSession & {
   readonly cookie: Cookie.Cookie
 }
 
-type CredentialError =
-  | EmailAlreadyRegistered | InvalidCredentials | ActorTypeNotAllowed
-  | PasswordHashFailed | ActorProviderFailed | Session.SessionStoreFailed | CredentialDbFailed
+type CredentialError
+  = | EmailAlreadyRegistered | InvalidCredentials | ActorTypeNotAllowed
+    | PasswordHashFailed | ActorProviderFailed | Session.SessionStoreFailed | CredentialDbFailed
 
 // ─── Helper: actor-type validation (unregistered type → allowed) ─────────
 
@@ -87,7 +87,8 @@ function assertActorType(userId: number, actorType: string) {
 // ─── signUp ──────────────────────────────────────────────────────────────
 
 export function signUp(input: SignUpInput): Effect.Effect<
-  CredentialResult, CredentialError,
+  CredentialResult,
+  CredentialError,
   Password.PasswordService | Session.SessionService | AuthActorService | DrizzleDb | AuthEvents.AuthEvents
 > {
   return Effect.gen(function* () {
@@ -99,7 +100,7 @@ export function signUp(input: SignUpInput): Effect.Effect<
     // expensive) Argon2 hash. The `users.email` unique constraint is still the
     // race-proof backstop in the transaction's `catch` below — this pre-check
     // is an optimisation + clean control flow, not a substitute for it.
-    const existing = yield* tryDb(() => db.query.users.findFirst({ where: { email: input.email } }))
+    const existing = yield* dbErr(db.query.users.findFirst({ where: { email: input.email } }))
     if (existing)
       return yield* Effect.fail(new EmailAlreadyRegistered({ email: input.email }))
 
@@ -109,20 +110,29 @@ export function signUp(input: SignUpInput): Effect.Effect<
     // under a concurrent same-email race is guaranteed by the `users.email`
     // unique constraint (the insert is rejected, the txn rolls back); the
     // pre-check above maps the normal "email taken" case to EmailAlreadyRegistered.
-    const user = yield* tryDb(() => db.transaction(async (tx) => {
-      const now = new Date()
-      const [u] = await tx.insert(users).values({
-        name: input.name, email: input.email, emailVerified: false,
-        createdAt: now, updatedAt: now,
-      }).returning()
-      if (!u)
-        throw new Error('user insert returned no row')
-      await tx.insert(accounts).values({
-        userId: u.id, accountId: String(u.id), providerId: CREDENTIAL_PROVIDER,
-        password: passwordHash, createdAt: now, updatedAt: now,
-      })
-      return u
-    }))
+    const user = yield* dbErr(db.transaction(tx =>
+      Effect.gen(function* () {
+        const now = new Date()
+        const [u] = yield* tx.insert(users).values({
+          name: input.name,
+          email: input.email,
+          emailVerified: false,
+          createdAt: now,
+          updatedAt: now,
+        }).returning()
+        if (!u)
+          return yield* Effect.fail(new Error('user insert returned no row'))
+        yield* tx.insert(accounts).values({
+          userId: u.id,
+          accountId: String(u.id),
+          providerId: CREDENTIAL_PROVIDER,
+          password: passwordHash,
+          createdAt: now,
+          updatedAt: now,
+        })
+        return u
+      }),
+    ))
 
     // Membership is checked ONLY when the caller explicitly requested an actor
     // type — a fresh sign-up with no actorType has nothing to validate, and the
@@ -142,7 +152,10 @@ export function signUp(input: SignUpInput): Effect.Effect<
     // `actorType` is read off the persisted row (`SessionService` defaults it).
     const events = yield* AuthEvents.AuthEvents
     yield* Effect.forkDetach(events.publish({
-      _tag: 'SignedUp', userId: user.id, email: user.email, actorType: sessionRow.actorType,
+      _tag: 'SignedUp',
+      userId: user.id,
+      email: user.email,
+      actorType: sessionRow.actorType,
     }))
 
     return { session: sessionRow, user, token, cookie }
@@ -152,7 +165,8 @@ export function signUp(input: SignUpInput): Effect.Effect<
 // ─── signIn ──────────────────────────────────────────────────────────────
 
 export function signIn(input: SignInInput): Effect.Effect<
-  CredentialResult, CredentialError,
+  CredentialResult,
+  CredentialError,
   Password.PasswordService | Session.SessionService | AuthActorService | DrizzleDb
 > {
   return Effect.gen(function* () {
@@ -160,13 +174,13 @@ export function signIn(input: SignInInput): Effect.Effect<
     const password = yield* Password.PasswordService
     const session = yield* Session.SessionService
 
-    const user = yield* tryDb(() => db.query.users.findFirst({ where: { email: input.email } }))
+    const user = yield* dbErr(db.query.users.findFirst({ where: { email: input.email } }))
     if (!user)
       return yield* Effect.fail(new InvalidCredentials())
 
     // RQBv2 — the `where` object filters by userId AND providerId, so the
     // credential row is already scoped (no post-query narrowing needed).
-    const credential = yield* tryDb(() => db.query.accounts.findFirst({
+    const credential = yield* dbErr(db.query.accounts.findFirst({
       where: { userId: user.id, providerId: CREDENTIAL_PROVIDER },
     }))
     if (!credential?.password)

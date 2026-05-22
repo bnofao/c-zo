@@ -1,18 +1,18 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { describe, expect, it, layer } from '@effect/vitest'
+import { expect, layer } from '@effect/vitest'
 import { Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, users } from '../database/schema'
 import { makeAuthActorServiceLive } from '../layers/actor'
 import { DEFAULT_ACTOR_RESTRICTIONS } from '../plugins/actor'
-import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
-import { EmailAlreadyRegistered, InvalidCredentials, signIn, signUp } from './credential'
-import * as AuthEvents from '../services/events/auth'
 import * as Cookie from '../services/cookie'
+import * as AuthEvents from '../services/events/auth'
 import * as Password from '../services/password'
 import * as Session from '../services/session'
+import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
+import { EmailAlreadyRegistered, InvalidCredentials, signIn, signUp } from './credential'
 
 const cookieLayer = Cookie.layer({
   name: 'czo.session',
@@ -35,7 +35,7 @@ layer(TestLayer, { timeout: 120_000 })('credential signUp/signIn', (it) => {
       expect(result.cookie.name).toBe('czo.session')
       expect(result.cookie.value).not.toBe('')
       const db = (yield* DrizzleDb) as Database<Relations>
-      const accts = yield* Effect.promise(() => db.select().from(accounts))
+      const accts = yield* db.select().from(accounts)
       expect(accts).toHaveLength(1)
       expect((accts[0] as { providerId: string }).providerId).toBe('credential')
     }))
@@ -66,7 +66,7 @@ layer(TestLayer, { timeout: 120_000 })('credential signUp/signIn', (it) => {
         .pipe(Effect.flip)
       expect(err).toBeInstanceOf(EmailAlreadyRegistered)
       const db = (yield* DrizzleDb) as Database<Relations>
-      expect(yield* Effect.promise(() => db.select().from(users))).toHaveLength(1)
+      expect(yield* db.select().from(users)).toHaveLength(1)
     }))
 
   it.effect('signIn with the correct password succeeds', () =>

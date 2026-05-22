@@ -1,5 +1,6 @@
-import type { Database, RelationsEntry } from '@czo/kit/db'
+import type { RelationsEntry } from '@czo/kit/db'
 import type { GraphQLSchema } from 'graphql'
+import type { Database } from '../db/effect'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
 import DrizzlePlugin from '@pothos/plugin-drizzle'

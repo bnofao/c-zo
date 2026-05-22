@@ -1,5 +1,5 @@
-import type { Database } from '@czo/kit/db'
 import type { Relations } from '@czo/auth/relations'
+import type { Database } from '@czo/kit/db/effect'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
@@ -46,7 +46,8 @@ export class SessionStoreFailed extends Data.TaggedError('SessionStoreFailed')<{
 
 export class SessionService extends Context.Service<SessionService, {
   readonly create: (input: CreateSessionInput) => Effect.Effect<
-    { token: string, session: SessionRow }, SessionStoreFailed
+    { token: string, session: SessionRow },
+    SessionStoreFailed
   >
   readonly resolve: (token: string) => Effect.Effect<ResolvedSession | null, SessionStoreFailed>
   readonly revoke: (token: string) => Effect.Effect<void, SessionStoreFailed>
@@ -86,8 +87,8 @@ const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const cookies = yield* Cookie.CookieService
 
-  const tryDb = <A>(f: () => Promise<A>) =>
-    Effect.tryPromise({ try: f, catch: cause => new SessionStoreFailed({ cause }) })
+  const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+    eff.pipe(Effect.mapError(cause => new SessionStoreFailed({ cause })))
 
   /**
    * L3 — source of truth: read `sessions ⋈ users` via a SQL join, honour
@@ -101,25 +102,23 @@ const make = Effect.gen(function* () {
    */
   const lookup = (key: SessionKey): Effect.Effect<ResolvedSession | null> =>
     Effect.gen(function* () {
-      const rows = yield* tryDb(() =>
-        db
-          .select()
-          .from(sessions)
-          .innerJoin(users, eq(sessions.userId, users.id))
-          .where(eq(sessions.token, key.token))
-          .limit(1),
-      ).pipe(Effect.orDie)
+      const rows = yield* db
+        .select()
+        .from(sessions)
+        .innerJoin(users, eq(sessions.userId, users.id))
+        .where(eq(sessions.token, key.token))
+        .limit(1)
+        .pipe(Effect.orDie)
 
       const row = rows[0]
-      if (!row) return null
+      if (!row)
+        return null
 
       const session = row.sessions
       const user = row.users
 
       if (session.expiresAt.getTime() <= Date.now()) {
-        yield* tryDb(() =>
-          db.delete(sessions).where(eq(sessions.token, key.token)),
-        ).pipe(Effect.orDie)
+        yield* db.delete(sessions).where(eq(sessions.token, key.token)).pipe(Effect.orDie)
         return null
       }
 
@@ -149,7 +148,7 @@ const make = Effect.gen(function* () {
         const token = randomBytes(32).toString('base64url')
         const now = new Date()
         const ttl = input.expiresIn ?? SESSION_DURATION
-        const [session] = yield* tryDb(() =>
+        const [session] = yield* dbErr(
           db.insert(sessions).values({
             userId: input.userId,
             token,
@@ -170,9 +169,7 @@ const make = Effect.gen(function* () {
         Effect.mapError(cause => new SessionStoreFailed({ cause })),
       ),
     revoke: token =>
-      tryDb(() =>
-        db.delete(sessions).where(eq(sessions.token, token)),
-      ).pipe(
+      dbErr(db.delete(sessions).where(eq(sessions.token, token))).pipe(
         Effect.andThen(
           cache.invalidate(new SessionKey({ token })).pipe(
             Effect.mapError(cause => new SessionStoreFailed({ cause })),
@@ -182,9 +179,8 @@ const make = Effect.gen(function* () {
     revokeAllForUser: userId =>
       // Delete every session row AND invalidate its cache entry — otherwise
       // bulk-revoked sessions keep resolving as valid from L1/L2 until TTL.
-      tryDb(() =>
-        db.delete(sessions).where(eq(sessions.userId, userId))
-          .returning({ token: sessions.token }),
+      dbErr(
+        db.delete(sessions).where(eq(sessions.userId, userId)).returning({ token: sessions.token }),
       ).pipe(
         Effect.flatMap(rows =>
           Effect.forEach(
@@ -198,12 +194,11 @@ const make = Effect.gen(function* () {
         ),
       ),
     purgeExpired: () =>
-      tryDb(async () => {
-        const deleted = await db.delete(sessions)
+      dbErr(
+        db.delete(sessions)
           .where(lt(sessions.expiresAt, new Date()))
-          .returning({ id: sessions.id })
-        return deleted.length
-      }),
+          .returning({ id: sessions.id }),
+      ).pipe(Effect.map(deleted => deleted.length)),
     setCookie: token => cookies.create(token),
     readSessionToken: header => cookies.parse(header)[cookies.name] ?? null,
   })

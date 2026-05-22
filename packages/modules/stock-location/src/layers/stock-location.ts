@@ -1,4 +1,4 @@
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import type { Context, Effect as EffectNS } from 'effect'
 import type { Relations } from '../database/relations'
 import type { StockLocationEvent } from '../services/events/stock-location'
@@ -30,19 +30,18 @@ export const StockLocationServiceLive = Layer.effect(
     const events = yield* StockLocationEvents
     const org = yield* OrganizationService
 
-    /** Wrap a promise-returning function, mapping any error to StockLocationDbFailed. */
-    const tryDb = <A>(f: () => Promise<A>) =>
-      Effect.tryPromise({ try: f, catch: cause => new StockLocationDbFailed({ cause }) })
+    /** Map any DB-layer error to StockLocationDbFailed. */
+    const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+      eff.pipe(Effect.mapError(cause => new StockLocationDbFailed({ cause })))
 
     /**
-     * Wrap an optimisticUpdate-style call: preserves `OptimisticLockError`
-     * as-is in the error channel, maps anything else to StockLocationDbFailed.
+     * Map a DB-layer error, but preserve `OptimisticLockError` as-is in the
+     * error channel so the GraphQL layer can route it correctly.
      */
-    const tryOptimistic = <A>(f: () => Promise<A>) =>
-      Effect.tryPromise({
-        try: f,
-        catch: e => e instanceof OptimisticLockError ? e : new StockLocationDbFailed({ cause: e }),
-      })
+    const dbErrOptimistic = <A, E>(eff: Effect.Effect<A, E>) =>
+      eff.pipe(
+        Effect.mapError(e => e instanceof OptimisticLockError ? e : new StockLocationDbFailed({ cause: e })),
+      )
 
     /** Publish a single domain event. PubSub.dropping never blocks. */
     const publish = (event: StockLocationEvent) => events.publish(event)
@@ -69,7 +68,7 @@ export const StockLocationServiceLive = Layer.effect(
     // the other methods get contextual typing from the `.of({...})` literal.
     const findFirst: StockLocationServiceImpl['findFirst'] = config =>
       Effect.gen(function* () {
-        const row = yield* tryDb(() => db.query.stockLocations.findFirst({
+        const row = yield* dbErr(db.query.stockLocations.findFirst({
           ...config,
           where: { ...config?.where, deletedAt: { isNull: true } },
         }))
@@ -94,7 +93,7 @@ export const StockLocationServiceLive = Layer.effect(
       findFirst,
 
       findMany: config =>
-        tryDb(() => db.query.stockLocations.findMany({
+        dbErr(db.query.stockLocations.findMany({
           ...config,
           where: { ...config?.where, deletedAt: { isNull: true } },
         })),
@@ -107,7 +106,7 @@ export const StockLocationServiceLive = Layer.effect(
           // have a composite unique constraint, so we enforce it here. This is
           // racy under concurrent inserts; the optimistic-lock window is the
           // GraphQL caller's responsibility.
-          const existing = yield* tryDb(() => db.query.stockLocations.findFirst({
+          const existing = yield* dbErr(db.query.stockLocations.findFirst({
             columns: { id: true },
             where: {
               organizationId: input.organizationId,
@@ -118,28 +117,29 @@ export const StockLocationServiceLive = Layer.effect(
           if (existing)
             return yield* Effect.fail(new HandleTaken({ handle: input.handle }))
 
-          const location = yield* tryDb(() => db.transaction(async (tx) => {
-            const rows = await tx
-              .insert(stockLocations)
-              .values({
-                organizationId: input.organizationId,
-                name: input.name,
-                handle: input.handle,
-                isDefault: input.isDefault ?? false,
-                isActive: input.isActive ?? true,
-                metadata: input.metadata ?? null,
-              })
-              .returning()
-            const created = rows[0]!
+          const location = yield* dbErr(db.transaction(tx =>
+            Effect.gen(function* () {
+              const [created] = yield* tx
+                .insert(stockLocations)
+                .values({
+                  organizationId: input.organizationId,
+                  name: input.name,
+                  handle: input.handle,
+                  isDefault: input.isDefault ?? false,
+                  isActive: input.isActive ?? true,
+                  metadata: input.metadata ?? null,
+                })
+                .returning()
 
-            if (input.address) {
-              await tx.insert(stockLocationAddresses).values({
-                stockLocationId: created.id,
-                ...input.address,
-              })
-            }
-            return created
-          }))
+              if (input.address) {
+                yield* tx.insert(stockLocationAddresses).values({
+                  stockLocationId: created!.id,
+                  ...input.address,
+                })
+              }
+              return created!
+            }),
+          ))
 
           yield* publish({
             _tag: 'StockLocationCreated',
@@ -156,20 +156,16 @@ export const StockLocationServiceLive = Layer.effect(
         Effect.gen(function* () {
           yield* fetchScoped(id, scope.actorId)
 
-          const updated = yield* tryOptimistic(() => optimisticUpdate({
-            db,
-            table: stockLocations,
-            id,
-            expectedVersion,
-            values: input,
-          }))
+          const updated = yield* dbErrOptimistic(
+            optimisticUpdate({ db, table: stockLocations, id, expectedVersion, values: input }),
+          )
 
           if (input.address) {
             // Address upsert requires a full row — Partial fields would
             // violate NOT NULL columns. Callers performing a partial address
             // update should read-modify-write at the GraphQL layer.
             const addr = input.address as Required<Pick<typeof input.address, 'addressLine1' | 'city' | 'countryCode'>> & typeof input.address
-            yield* tryDb(() => db
+            yield* dbErr(db
               .insert(stockLocationAddresses)
               .values({ stockLocationId: id, ...addr })
               .onConflictDoUpdate({
@@ -191,13 +187,9 @@ export const StockLocationServiceLive = Layer.effect(
       softDelete: (id, expectedVersion, scope) =>
         Effect.gen(function* () {
           yield* fetchScoped(id, scope.actorId)
-          const deleted = yield* tryOptimistic(() => optimisticUpdate({
-            db,
-            table: stockLocations,
-            id,
-            expectedVersion,
-            values: { deletedAt: sql`NOW()` as any },
-          }))
+          const deleted = yield* dbErrOptimistic(
+            optimisticUpdate({ db, table: stockLocations, id, expectedVersion, values: { deletedAt: sql`NOW()` as any } }),
+          )
 
           yield* publish({
             _tag: 'StockLocationDeleted',
@@ -216,24 +208,26 @@ export const StockLocationServiceLive = Layer.effect(
           // Mirrors `optimisticUpdate`: a single DELETE gated on version. If
           // nothing was returned, we resolve the actual version (or null if
           // the row is gone) and throw an OptimisticLockError.
-          const deleted = yield* tryOptimistic(() => db.transaction(async (tx) => {
-            const [row] = await tx
-              .delete(stockLocations)
-              .where(and(
-                eq(stockLocations.id, id),
-                eq(stockLocations.version, expectedVersion),
-              ))
-              .returning()
+          const deleted = yield* dbErrOptimistic(db.transaction(tx =>
+            Effect.gen(function* () {
+              const [row] = yield* tx
+                .delete(stockLocations)
+                .where(and(
+                  eq(stockLocations.id, id),
+                  eq(stockLocations.version, expectedVersion),
+                ))
+                .returning()
 
-            if (row)
-              return row
+              if (row)
+                return row
 
-            const current = await tx.query.stockLocations.findFirst({
-              columns: { version: true },
-              where: { id },
-            })
-            throw new OptimisticLockError(id, expectedVersion, current?.version ?? null)
-          }))
+              const current = yield* tx.query.stockLocations.findFirst({
+                columns: { version: true },
+                where: { id },
+              })
+              return yield* Effect.fail(new OptimisticLockError(id, expectedVersion, current?.version ?? null))
+            }),
+          ))
 
           yield* publish({
             _tag: 'StockLocationDeleted',
@@ -249,13 +243,9 @@ export const StockLocationServiceLive = Layer.effect(
       setStatus: (id, expectedVersion, isActive, scope) =>
         Effect.gen(function* () {
           yield* fetchScoped(id, scope.actorId)
-          const updated = yield* tryOptimistic(() => optimisticUpdate({
-            db,
-            table: stockLocations,
-            id,
-            expectedVersion,
-            values: { isActive },
-          }))
+          const updated = yield* dbErrOptimistic(
+            optimisticUpdate({ db, table: stockLocations, id, expectedVersion, values: { isActive } }),
+          )
 
           yield* publish({
             _tag: 'StockLocationStatusChanged',
@@ -270,46 +260,42 @@ export const StockLocationServiceLive = Layer.effect(
       setDefault: (id, expectedVersion, scope) =>
         Effect.gen(function* () {
           yield* fetchScoped(id, scope.actorId)
-          // The whole transaction stays in one tryPromise — Effect can't compose
-          // inside Drizzle's tx callback. OptimisticLockError thrown inside is
-          // preserved by tryOptimistic so the GraphQL layer can route it.
-          const result = yield* tryOptimistic(() => db.transaction(async (tx) => {
-            // Row lock via `for: 'update'`. RQBv2 currently rejects this option
-            // in its config type, so the lock stays on the QueryBuilder API.
-            const [target] = await tx
-              .select({ organizationId: stockLocations.organizationId })
-              .from(stockLocations)
-              .where(and(eq(stockLocations.id, id), eq(stockLocations.version, expectedVersion)))
-              .for('update')
-              .limit(1)
+          // The whole transaction stays in one Effect.gen — inner queries are
+          // yield*-ed. OptimisticLockError thrown inside is preserved by
+          // dbErrOptimistic so the GraphQL layer can route it.
+          const result = yield* dbErrOptimistic(db.transaction(tx =>
+            Effect.gen(function* () {
+              // Row lock via `for: 'update'`. RQBv2 currently rejects this option
+              // in its config type, so the lock stays on the QueryBuilder API.
+              const [target] = yield* tx
+                .select({ organizationId: stockLocations.organizationId })
+                .from(stockLocations)
+                .where(and(eq(stockLocations.id, id), eq(stockLocations.version, expectedVersion)))
+                .for('update')
+                .limit(1)
 
-            if (!target) {
-              const current = await tx.query.stockLocations.findFirst({
-                columns: { version: true },
-                where: { id },
-              })
-              throw new OptimisticLockError(id, expectedVersion, current?.version ?? null)
-            }
+              if (!target) {
+                const current = yield* tx.query.stockLocations.findFirst({
+                  columns: { version: true },
+                  where: { id },
+                })
+                return yield* Effect.fail(new OptimisticLockError(id, expectedVersion, current?.version ?? null))
+              }
 
-            const [previousDefault] = await tx
-              .update(stockLocations)
-              .set({ isDefault: false })
-              .where(and(
-                eq(stockLocations.organizationId, target.organizationId),
-                eq(stockLocations.isDefault, true),
-              ))
-              .returning({ id: stockLocations.id })
+              const [previousDefault] = yield* tx
+                .update(stockLocations)
+                .set({ isDefault: false })
+                .where(and(
+                  eq(stockLocations.organizationId, target.organizationId),
+                  eq(stockLocations.isDefault, true),
+                ))
+                .returning({ id: stockLocations.id })
 
-            const updated = await optimisticUpdate({
-              db: tx,
-              table: stockLocations,
-              id,
-              expectedVersion,
-              values: { isDefault: true },
-            })
+              const updated = yield* optimisticUpdate({ db: tx, table: stockLocations, id, expectedVersion, values: { isDefault: true } })
 
-            return { updated, previousDefaultId: previousDefault?.id ?? null }
-          }))
+              return { updated, previousDefaultId: previousDefault?.id ?? null }
+            }),
+          ))
 
           yield* publish({
             _tag: 'StockLocationDefaultChanged',

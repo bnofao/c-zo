@@ -68,6 +68,7 @@
   },
   "dependencies": {
     "@czo/kit": "workspace:*",
+    "@effect/sql-pg": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@paralleldrive/cuid2": "catalog:",
     "drizzle-orm": "catalog:common",

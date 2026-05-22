@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import * as PgDrizzle from 'drizzle-orm/effect-postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createTestDb, truncate } from '../testing'
+import { Effect, Redacted } from 'effect'
+import { makePgClientLayer } from './effect'
 import { OptimisticLockError } from './errors'
 import { optimisticUpdate } from './optimistic'
 
@@ -13,58 +15,82 @@ const things = pgTable('things_opt_test', {
 })
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only env var, not a build-pipeline input
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
+  ?? 'postgresql://postgres:postgres@localhost:5432/czo_test'
+
+// eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only env var, not a build-pipeline input
 describe.runIf(process.env.TEST_DATABASE_URL)('optimisticUpdate', () => {
-  const db = createTestDb()
+  // Build a one-shot effect-postgres db for the test suite. The PgClient pool
+  // is not explicitly closed in afterAll — acceptable for short-lived test
+  // suites that exit the process when done.
+  const dbEffect = PgDrizzle.makeWithDefaults().pipe(
+    Effect.provide(makePgClientLayer(Redacted.make(TEST_DATABASE_URL))),
+  )
+
+  let db: Awaited<ReturnType<typeof Effect.runPromise<PgDrizzle.EffectPgDatabase, never>>>
 
   beforeAll(async () => {
-    await db.execute(sql`DROP TABLE IF EXISTS things_opt_test`)
-    await db.execute(sql`
-      CREATE TABLE things_opt_test (
-        id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-        name TEXT NOT NULL,
-        version INTEGER NOT NULL DEFAULT 1,
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `)
+    db = await Effect.runPromise(dbEffect)
+    await Effect.runPromise(
+      db.execute(sql`DROP TABLE IF EXISTS things_opt_test`).pipe(Effect.orDie),
+    )
+    await Effect.runPromise(
+      db.execute(sql`
+        CREATE TABLE things_opt_test (
+          id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+          name TEXT NOT NULL,
+          version INTEGER NOT NULL DEFAULT 1,
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `).pipe(Effect.orDie),
+    )
   })
 
-  beforeEach(() => truncate(db, things))
+  beforeEach(async () => {
+    await Effect.runPromise(
+      db.execute(sql`TRUNCATE TABLE things_opt_test RESTART IDENTITY CASCADE`).pipe(Effect.orDie),
+    )
+  })
 
   afterAll(async () => {
-    await db.execute(sql`DROP TABLE IF EXISTS things_opt_test`)
+    await Effect.runPromise(
+      db.execute(sql`DROP TABLE IF EXISTS things_opt_test`).pipe(Effect.orDie),
+    )
   })
 
   it('increments version on successful update', async () => {
-    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await Effect.runPromise(
+      db.insert(things).values({ name: 'a' }).returning().pipe(Effect.orDie),
+    )
     const row = rows[0]!
-    const updated = await optimisticUpdate({
-      db,
-      table: things,
-      id: row.id,
-      expectedVersion: 1,
-      values: { name: 'b' },
-    })
+    const updated = await Effect.runPromise(
+      optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 1, values: { name: 'b' } }).pipe(Effect.orDie),
+    )
     expect(updated.version).toBe(2)
     expect(updated.name).toBe('b')
   })
 
   it('throws OptimisticLockError on version mismatch', async () => {
-    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await Effect.runPromise(
+      db.insert(things).values({ name: 'a' }).returning().pipe(Effect.orDie),
+    )
     const row = rows[0]!
-    await expect(optimisticUpdate({
-      db,
-      table: things,
-      id: row.id,
-      expectedVersion: 999,
-      values: { name: 'b' },
-    })).rejects.toBeInstanceOf(OptimisticLockError)
+    await expect(
+      Effect.runPromise(
+        optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 999, values: { name: 'b' } }),
+      ),
+    ).rejects.toBeInstanceOf(OptimisticLockError)
   })
 
   it('optimisticLockError reports actualVersion for an existing row', async () => {
-    const rows = await db.insert(things).values({ name: 'a' }).returning()
+    const rows = await Effect.runPromise(
+      db.insert(things).values({ name: 'a' }).returning().pipe(Effect.orDie),
+    )
     const row = rows[0]!
     try {
-      await optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 999, values: { name: 'b' } })
+      await Effect.runPromise(
+        optimisticUpdate({ db, table: things, id: row.id, expectedVersion: 999, values: { name: 'b' } }),
+      )
       throw new Error('should have thrown')
     }
     catch (err) {
@@ -76,7 +102,9 @@ describe.runIf(process.env.TEST_DATABASE_URL)('optimisticUpdate', () => {
 
   it('optimisticLockError reports null actualVersion for a missing row', async () => {
     try {
-      await optimisticUpdate({ db, table: things, id: 99999, expectedVersion: 1, values: { name: 'x' } })
+      await Effect.runPromise(
+        optimisticUpdate({ db, table: things, id: 99999, expectedVersion: 1, values: { name: 'x' } }),
+      )
       throw new Error('should have thrown')
     }
     catch (err) {

@@ -1,5 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { parseSessionOutput } from 'better-auth/db'
@@ -43,12 +43,12 @@ export function makeUserServiceLive() {
       const { roles } = yield* access.buildRoles
       const events = yield* UserEvents
 
-      const tryDb = <A>(f: () => Promise<A>) =>
-        Effect.tryPromise({ try: f, catch: cause => new UserDbFailed({ cause }) })
+      const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+        eff.pipe(Effect.mapError(cause => new UserDbFailed({ cause })))
 
       const findById = (id: number) =>
         Effect.gen(function* () {
-          const row = yield* tryDb(() => db.query.users.findFirst({ where: { id } }))
+          const row = yield* dbErr(db.query.users.findFirst({ where: { id } }))
           if (!row)
             return yield* Effect.fail(new UserNotFound())
           return row
@@ -64,7 +64,7 @@ export function makeUserServiceLive() {
 
       const updateUserRow = (id: number, patch: Record<string, unknown>) =>
         Effect.gen(function* () {
-          const [row] = yield* tryDb(() =>
+          const [row] = yield* dbErr(
             db.update(users).set({ ...patch, updatedAt: new Date() }).where(eq(users.id, id)).returning(),
           )
           if (!row)
@@ -74,13 +74,13 @@ export function makeUserServiceLive() {
 
       return UserService.of({
         findMany: (config?) =>
-          tryDb(() => db.query.users.findMany(config)).pipe(
+          dbErr(db.query.users.findMany(config)).pipe(
             Effect.map(rows => rows),
           ),
 
         findFirst: (config?) =>
           Effect.gen(function* () {
-            const row = yield* tryDb(() => db.query.users.findFirst(config))
+            const row = yield* dbErr(db.query.users.findFirst(config))
             if (!row)
               return yield* Effect.fail(new UserNotFound())
             return row
@@ -88,7 +88,7 @@ export function makeUserServiceLive() {
 
         create: input =>
           Effect.gen(function* () {
-            const existing = yield* tryDb(() =>
+            const existing = yield* dbErr(
               db.query.users.findFirst({ where: { email: input.email } }),
             )
             if (existing)
@@ -99,7 +99,7 @@ export function makeUserServiceLive() {
               role = yield* ensureValidRole(input.role)
             }
 
-            const [user] = yield* tryDb(() =>
+            const [user] = yield* dbErr(
               db.insert(users).values({
                 ...input,
                 role: role ?? 'user',
@@ -116,15 +116,18 @@ export function makeUserServiceLive() {
             // user any more.
             if (input.password) {
               const linkResult = yield* Effect.result(
-                tryDb(async () => {
-                  const ctx = await auth.$context
-                  const hashedPassword = await ctx.password.hash(input.password!)
-                  await ctx.internalAdapter.linkAccount({
-                    accountId: String(user.id),
-                    providerId: 'credential',
-                    userId: String(user.id),
-                    password: hashedPassword,
-                  })
+                Effect.tryPromise({
+                  try: async () => {
+                    const ctx = await auth.$context
+                    const hashedPassword = await ctx.password.hash(input.password!)
+                    await ctx.internalAdapter.linkAccount({
+                      accountId: String(user.id),
+                      providerId: 'credential',
+                      userId: String(user.id),
+                      password: hashedPassword,
+                    })
+                  },
+                  catch: cause => new CredentialLinkFailed({ cause }),
                 }),
               )
               if (linkResult._tag === 'Failure')
@@ -240,33 +243,45 @@ export function makeUserServiceLive() {
             if (actorId !== undefined && existing.id === actorId)
               return yield* Effect.fail(new CannotRemoveSelf())
 
-            yield* tryDb(async () => {
-              const ctx = await auth.$context
-              await ctx.internalAdapter.deleteUser(String(id))
+            yield* Effect.tryPromise({
+              try: async () => {
+                const ctx = await auth.$context
+                await ctx.internalAdapter.deleteUser(String(id))
+              },
+              catch: cause => new UserDbFailed({ cause }),
             })
             yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
             return true as const
           }),
 
         listSessions: id =>
-          tryDb(async () => {
-            const ctx = await auth.$context
-            const list = await ctx.internalAdapter.listSessions(String(id))
-            return list.map(s => parseSessionOutput(ctx.options, s)) as never
+          Effect.tryPromise({
+            try: async () => {
+              const ctx = await auth.$context
+              const list = await ctx.internalAdapter.listSessions(String(id))
+              return list.map(s => parseSessionOutput(ctx.options, s)) as never
+            },
+            catch: cause => new UserDbFailed({ cause }),
           }),
 
         revokeSession: token =>
-          tryDb(async () => {
-            const ctx = await auth.$context
-            await ctx.internalAdapter.deleteSessions(token)
-            return true as const
+          Effect.tryPromise({
+            try: async () => {
+              const ctx = await auth.$context
+              await ctx.internalAdapter.deleteSessions(token)
+              return true as const
+            },
+            catch: cause => new UserDbFailed({ cause }),
           }),
 
         revokeSessions: id =>
-          tryDb(async () => {
-            const ctx = await auth.$context
-            await ctx.internalAdapter.deleteSessions(String(id))
-            return true as const
+          Effect.tryPromise({
+            try: async () => {
+              const ctx = await auth.$context
+              await ctx.internalAdapter.deleteSessions(String(id))
+              return true as const
+            },
+            catch: cause => new UserDbFailed({ cause }),
           }),
       })
     }),

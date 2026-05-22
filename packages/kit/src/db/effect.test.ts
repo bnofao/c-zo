@@ -1,44 +1,98 @@
-import { Layer, Effect, Redacted } from 'effect'
-import { describe, expect, it, vi } from 'vitest'
+import { ConfigProvider, Effect, Layer, Redacted } from 'effect'
+import { describe, expect, it } from 'vitest'
 
-// Mock pg so the test doesn't need an actual database — `pg.Pool` and the
-// drizzle adapter just see a no-op client.
-vi.mock('pg', () => {
-  const fakePool = { end: vi.fn().mockResolvedValue(undefined) }
-  return { default: { Pool: vi.fn().mockReturnValue(fakePool) } }
+// ── DatabaseConfigFromEnv parsing tests (kept verbatim) ─────────────────────
+
+describe('databaseConfigFromEnv', () => {
+  it('parses a single DATABASE_URL into url + empty replicas', async () => {
+    const { DatabaseConfig, DatabaseConfigFromEnv } = await import('./effect')
+
+    const program = Effect.gen(function* () {
+      const cfg = yield* DatabaseConfig
+      return {
+        url: Redacted.value(cfg.url),
+        replicas: cfg.replicas.length,
+        poolMax: cfg.poolMax,
+      }
+    })
+
+    const result = await Effect.runPromise(
+      program.pipe(
+        Effect.provide(DatabaseConfigFromEnv),
+        Effect.provide(
+          ConfigProvider.layer(ConfigProvider.fromUnknown({ DATABASE_URL: 'postgres://host/db' })),
+        ),
+      ),
+    )
+
+    expect(result).toEqual({ url: 'postgres://host/db', replicas: 0, poolMax: 10 })
+  })
+
+  it('parses comma-separated DATABASE_URL into master + replicas', async () => {
+    const { DatabaseConfig, DatabaseConfigFromEnv } = await import('./effect')
+
+    const program = Effect.gen(function* () {
+      const cfg = yield* DatabaseConfig
+      return {
+        url: Redacted.value(cfg.url),
+        replicas: cfg.replicas.map(r => Redacted.value(r)),
+      }
+    })
+
+    const result = await Effect.runPromise(
+      program.pipe(
+        Effect.provide(DatabaseConfigFromEnv),
+        Effect.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromUnknown({
+              DATABASE_URL: 'postgres://master/db, postgres://replica/db',
+            }),
+          ),
+        ),
+      ),
+    )
+
+    expect(result).toEqual({
+      url: 'postgres://master/db',
+      replicas: ['postgres://replica/db'],
+    })
+  })
 })
 
-// Mock drizzleNodePg to bypass the real adapter and return a sentinel we
-// can read back through the Tag.
-vi.mock('drizzle-orm/node-postgres', () => ({
-  drizzle: vi.fn(() => ({ __mock: true })),
-}))
+// ── DrizzleDb live layer test ────────────────────────────────────────────────
 
-describe('drizzleDbLive', () => {
-  it('exposes a drizzle instance via the DrizzleDb tag when DatabaseConfig is provided', async () => {
-    const { DrizzleDb, DrizzleDbLayer: DrizzleDbLive, DatabaseConfig } = await import('./effect')
-    const { SchemaRegistryLayer: SchemaRegistryLive } = await import('./schema-registry')
+const testDbUrl = process.env.TEST_DATABASE_URL
+
+describe('drizzleDbLayer', () => {
+  it.skipIf(!testDbUrl)('builds DrizzleDb and executes a trivial query via PgClient', async () => {
+    const { DrizzleDb, DrizzleDbLayer, DatabaseConfig } = await import('./effect')
+    const { buildSchemaRegistryLayer } = await import('./schema-registry')
+    const { sql } = await import('drizzle-orm')
 
     const TestConfig = Layer.succeed(DatabaseConfig, {
-      url: Redacted.make('postgres://test'),
+      url: Redacted.make(testDbUrl!),
       replicas: [],
-      poolMax: 10,
+      poolMax: 2,
     })
+
+    const SchemaRegistryLive = buildSchemaRegistryLayer({}, {})
 
     const program = Effect.gen(function* () {
       const db = yield* DrizzleDb
-      return (db as any).__mock
+      const rows = yield* db.execute<{ n: number }>(sql`select 1 as n`)
+      return rows[0]?.n
     })
 
     const result = await Effect.runPromise(
       program.pipe(
         Effect.provide(
-          DrizzleDbLive.pipe(
+          DrizzleDbLayer.pipe(
             Layer.provide(Layer.mergeAll(TestConfig, SchemaRegistryLive)),
           ),
         ),
       ),
     )
-    expect(result).toBe(true)
+
+    expect(result).toBe(1)
   })
 })

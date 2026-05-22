@@ -71,7 +71,7 @@ export interface Module<Name extends string = string, R = never> {
     readonly contribution?: (builder: SchemaBuilder) => void
     readonly authScope?: (ctx: GraphQLContextMap) => Record<string, unknown>
     readonly contexts?: (systemContext: unknown) =>
-      Effect.Effect<Partial<GraphQLContextMap>, unknown, any>
+    Effect.Effect<Partial<GraphQLContextMap>, unknown, any>
   }
 
   /**

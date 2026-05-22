@@ -1,5 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { describe, expect, it, layer } from '@effect/vitest'
 import { Duration, Effect, Layer } from 'effect'
@@ -24,10 +24,13 @@ const TestLayer = Session.layer.pipe(
 const seedUser = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const now = new Date()
-  const rows = yield* Effect.promise(() => db.insert(users).values({
-    name: 'Ada', email: `ada-${Math.random()}@example.com`,
-    emailVerified: false, createdAt: now, updatedAt: now,
-  }).returning())
+  const rows = yield* db.insert(users).values({
+    name: 'Ada',
+    email: `ada-${Math.random()}@example.com`,
+    emailVerified: false,
+    createdAt: now,
+    updatedAt: now,
+  }).returning()
   return (rows[0] as { id: number }).id
 })
 
@@ -85,7 +88,13 @@ describe('sessionService — infra failure', () => {
         .pipe(Effect.flip)
       expect(err).toBeInstanceOf(Session.SessionStoreFailed)
     }).pipe(Effect.provide(Session.layer.pipe(Layer.provide(Layer.mergeAll(
-      Layer.succeed(DrizzleDb, { insert: () => { throw new Error('db down') } } as never),
+      Layer.succeed(DrizzleDb, {
+        insert: () => ({
+          values: () => ({
+            returning: () => Effect.fail(new Error('db down')),
+          }),
+        }),
+      } as never),
       Persistence.layerMemory,
       cookieLayer,
     ))))))

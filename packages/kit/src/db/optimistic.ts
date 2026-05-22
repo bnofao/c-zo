@@ -1,27 +1,37 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type { EffectPgDatabase } from 'drizzle-orm/effect-postgres'
+import type { AnyRelations } from 'drizzle-orm/relations'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import { and, eq, sql } from 'drizzle-orm'
+import { Effect } from 'effect'
 import { OptimisticLockError } from './errors'
 
-type TableWithVersion = PgTable & {
-  id: any
-  version: any
-  updatedAt: any
-}
+type TableWithVersion = PgTable & { id: any; version: any; updatedAt: any }
+
+/**
+ * Accepts both `EffectPgDatabase` and `EffectPgTransaction` (which extends
+ * the same `PgEffectDatabase` base class). Using the widest-possible relations
+ * generic so callers need no type cast.
+ */
+type EffectDb = EffectPgDatabase<AnyRelations>
 
 export interface OptimisticUpdateParams<T extends TableWithVersion> {
-  db: NodePgDatabase<any, any>
+  db: EffectDb
   table: T
   id: number | string
   expectedVersion: number
   values: Partial<InferInsertModel<T>>
 }
 
-export async function optimisticUpdate<T extends TableWithVersion>(
+export function optimisticUpdate<T extends TableWithVersion>(
   { db, table, id, expectedVersion, values }: OptimisticUpdateParams<T>,
-): Promise<InferSelectModel<T>> {
-  const updated = await (db as any)
+): Effect.Effect<InferSelectModel<T>, OptimisticLockError | Error> {
+  // Internal casts: drizzle's update/select query-builder overloads do not
+  // accept the generic `PgTable` — same pattern as the previous async impl.
+  // We cast the query-builder results to `Effect.Effect<unknown[]>` to avoid
+  // a dual-declaration TS2719 that arises when `yield*` receives an Effect
+  // returned via an `any`-typed query-builder call.
+  const runUpdate = (db as any)
     .update(table)
     .set({
       ...values,
@@ -29,18 +39,23 @@ export async function optimisticUpdate<T extends TableWithVersion>(
       updatedAt: sql`NOW()`,
     })
     .where(and(eq(table.id, id), eq(table.version, expectedVersion)))
-    .returning() as unknown[]
+    .returning() as Effect.Effect<unknown[], Error>
 
-  if (updated.length === 0) {
-    const rows = await (db as any)
-      .select({ version: table.version })
-      .from(table)
-      .where(eq(table.id, id))
-      .limit(1) as Array<{ version: number }>
+  const runSelect = (db as any)
+    .select({ version: table.version })
+    .from(table)
+    .where(eq(table.id, id))
+    .limit(1) as Effect.Effect<Array<{ version: number }>, Error>
 
-    const current = rows[0]
-    throw new OptimisticLockError(id, expectedVersion, current?.version ?? null)
-  }
+  return Effect.gen(function* () {
+    const updated = yield* runUpdate
 
-  return updated[0] as InferSelectModel<T>
+    if (updated.length === 0) {
+      const rows = yield* runSelect
+      const current = rows[0]
+      return yield* Effect.fail(new OptimisticLockError(id, expectedVersion, current?.version ?? null))
+    }
+
+    return updated[0] as InferSelectModel<T>
+  })
 }

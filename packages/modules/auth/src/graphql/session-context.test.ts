@@ -1,13 +1,13 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { describe, expect, it, layer } from '@effect/vitest'
+import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
-import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Cookie from '../services/cookie'
 import * as Session from '../services/session'
+import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import { makeSessionContextContributor } from './session-context'
 
 const cookieLayer = Cookie.layer({
@@ -34,9 +34,13 @@ layer(TestLayer, { timeout: 120_000 })('session-context contributor', (it) => {
       yield* truncateAuth
       const db = (yield* DrizzleDb) as Database<Relations>
       const now = new Date()
-      const [u] = yield* Effect.promise(() => db.insert(users).values({
-        name: 'Ada', email: 'ada@example.com', emailVerified: false, createdAt: now, updatedAt: now,
-      }).returning())
+      const [u] = yield* db.insert(users).values({
+        name: 'Ada',
+        email: 'ada@example.com',
+        emailVerified: false,
+        createdAt: now,
+        updatedAt: now,
+      }).returning()
       const { token } = yield* (yield* Session.SessionService).create({ userId: (u as any).id, actorType: 'user' })
       const ctx = yield* contribute({
         request: new Request('http://x', { headers: { cookie: `czo.session=${token}` } }),

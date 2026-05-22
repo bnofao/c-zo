@@ -73,6 +73,7 @@
   "dependencies": {
     "@better-auth/api-key": "catalog:common",
     "@czo/kit": "workspace:*",
+    "@effect/sql-pg": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@node-rs/argon2": "catalog:common",
     "better-auth": "catalog:common",
@@ -91,7 +92,7 @@
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "catalog:dev",
     "graphql-scalars": "catalog:common",
-    "h3": "^2.0.1-rc.20",
+    "h3": "catalog:",
     "nitro": "catalog:dev",
     "pg": "catalog:common",
     "vitest": "catalog:testing"

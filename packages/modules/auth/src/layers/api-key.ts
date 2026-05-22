@@ -1,5 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db'
+import type { Database } from '@czo/kit/db/effect'
 import type { Context, Effect as EffectNS } from 'effect'
 import type { KeyGenerator } from '../services'
 import { defaultKeyHasher } from '@better-auth/api-key'
@@ -47,8 +47,8 @@ export const ApiKeyServiceLive = Layer.effect(
     const db = (yield* DrizzleDb) as Database<Relations>
     const org = yield* OrganizationService
 
-    const tryDb = <A>(f: () => Promise<A>) =>
-      Effect.tryPromise({ try: f, catch: cause => new DbFailed({ cause }) })
+    const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+      eff.pipe(Effect.mapError(cause => new DbFailed({ cause })))
 
     /**
      * Extract `reference` / `referenceId` from a Drizzle RQBv2 `where` clause.
@@ -104,7 +104,7 @@ export const ApiKeyServiceLive = Layer.effect(
     // from the `ApiKeyService.of({ ... })` literal below.
     const validate: ApiKeyServiceImpl['validate'] = (hashedKey, opts) =>
       Effect.gen(function* () {
-        const apiKey = yield* tryDb(() => db.query.apikeys.findFirst({ where: { key: hashedKey } }))
+        const apiKey = yield* dbErr(db.query.apikeys.findFirst({ where: { key: hashedKey } }))
         if (!apiKey)
           return yield* Effect.fail(new InvalidApiKey())
 
@@ -147,7 +147,7 @@ export const ApiKeyServiceLive = Layer.effect(
           AND EXTRACT(EPOCH FROM (${nowDate}::timestamptz - COALESCE(${apikeys.lastRefillAt}, ${apikeys.createdAt}))) * 1000 > ${apikeys.refillInterval}
         )`
 
-        const [updated] = yield* tryDb(() => db.update(apikeys)
+        const [updated] = yield* dbErr(db.update(apikeys)
           .set({
             remaining: sql`CASE
               WHEN ${apikeys.remaining} IS NULL THEN NULL
@@ -191,7 +191,7 @@ export const ApiKeyServiceLive = Layer.effect(
         Effect.gen(function* () {
           const scope = extractScope(config?.where, opts.session.userId)
           yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
-          const data = yield* tryDb(() => db.query.apikeys.findFirst({
+          const data = yield* dbErr(db.query.apikeys.findFirst({
             ...config,
             where: { ...config?.where, ...scope },
           }))
@@ -204,7 +204,7 @@ export const ApiKeyServiceLive = Layer.effect(
         Effect.gen(function* () {
           const scope = extractScope(config?.where, opts.session.userId)
           yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
-          const rows = yield* tryDb(() => db.query.apikeys.findMany({
+          const rows = yield* dbErr(db.query.apikeys.findMany({
             ...config,
             where: { ...config?.where, ...scope },
           }))
@@ -245,7 +245,7 @@ export const ApiKeyServiceLive = Layer.effect(
           const remaining = input.remaining ?? input.refillAmount ?? null
           const now = new Date()
 
-          const [row] = yield* tryDb(() => db.insert(apikeys).values({
+          const [row] = yield* dbErr(db.insert(apikeys).values({
             configId: input.group,
             name: input.name,
             prefix: input.prefix,
@@ -297,7 +297,7 @@ export const ApiKeyServiceLive = Layer.effect(
 
           patch.updatedAt = new Date()
 
-          const [updated] = yield* tryDb(() => db.update(apikeys)
+          const [updated] = yield* dbErr(db.update(apikeys)
             .set(patch as Partial<typeof apikeys.$inferInsert>)
             .where(and(
               eq(apikeys.id, id),
@@ -328,7 +328,7 @@ export const ApiKeyServiceLive = Layer.effect(
           const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
           yield* assertScopeAllowed({ reference, referenceId, userId: opts.session.userId })
 
-          const [deleted] = yield* tryDb(() => db.delete(apikeys)
+          const [deleted] = yield* dbErr(db.delete(apikeys)
             .where(and(
               eq(apikeys.id, id),
               eq(apikeys.reference, reference),

@@ -150,6 +150,7 @@
     "@adonisjs/fold": "catalog:common",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@effect/sql-pg": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
     "@pothos/core": "catalog:",

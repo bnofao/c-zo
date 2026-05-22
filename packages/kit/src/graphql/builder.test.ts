@@ -1,9 +1,8 @@
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { _resetBuilderState, buildSchema, initBuilder, registerSchema } from './builder'
 import { it as itEffect } from '@effect/vitest'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { Effect } from 'effect'
-import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { _resetBuilderState, buildSchema, GraphQLBuilder, initBuilder, makeGraphQLBuilder, registerSchema } from './builder'
 
 const db = drizzle.mock()
 const relations = {} as any
