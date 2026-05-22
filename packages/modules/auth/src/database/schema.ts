@@ -1,4 +1,5 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({
@@ -115,7 +116,11 @@ export const invitations = pgTable('invitations', {
   expiresAt: timestamp('expires_at', { precision: 6, withTimezone: true }).notNull(),
   inviterId: integer('inviter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
-})
+}, table => [
+  uniqueIndex('invitations_org_email_pending_uniq')
+    .on(table.organizationId, table.email)
+    .where(sql`${table.status} = 'pending'`),
+])
 
 export const twoFactor = pgTable('two_factors', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({

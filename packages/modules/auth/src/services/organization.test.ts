@@ -197,7 +197,7 @@ describe('organizationServiceLive — update / remove', () => {
     const { db } = makeMockDb({ org: { id: 1, slug: 's', name: 'A' }, member: null })
     const program = Effect.gen(function* () {
       const svc = yield* OrganizationService
-      return yield* svc.update(1, { name: 'B' } as any, 99)
+      return yield* svc.update(1, { name: 'B' } as any)
     })
     await expectFailure(program.pipe(Effect.provide(makeTestLayer(db))), NotAMember)
   })
@@ -356,7 +356,7 @@ describe('organizationServiceLive — invitations', () => {
     })
     const program = Effect.gen(function* () {
       const svc = yield* OrganizationService
-      return yield* svc.cancelInvitation(5, 99)
+      return yield* svc.cancelInvitation(5)
     })
     await expectFailure(program.pipe(Effect.provide(makeTestLayer(db))), NotAMember)
   })

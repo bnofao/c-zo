@@ -9,3 +9,10 @@ import { Duration } from 'effect'
  * for the cookie `Max-Age`.
  */
 export const SESSION_DURATION: Duration.Duration = Duration.days(7)
+
+/**
+ * Lifetime of a pending organization invitation. Drives the `invitations`
+ * row `expiresAt` (`now + INVITATION_DURATION`). Convert at the boundary
+ * with `Duration.toMillis`.
+ */
+export const INVITATION_DURATION: Duration.Duration = Duration.days(7)

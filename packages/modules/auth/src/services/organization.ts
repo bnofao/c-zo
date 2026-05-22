@@ -1,11 +1,12 @@
 import type { Relations } from '@czo/auth/relations'
 import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
+import type { InferSelectModel } from 'drizzle-orm'
 import { invitations, members, organizations } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { and, count, eq, like } from 'drizzle-orm'
-import type { InferSelectModel } from 'drizzle-orm'
-import { Context, Data, Effect, Layer } from 'effect'
+import { Context, Data, Duration, Effect, Layer } from 'effect'
+import { INVITATION_DURATION } from '../constants'
 import { AccessService } from './access'
 import { OrganizationEvents } from './events/organization'
 import { validateRole } from './utils/validate-roles'
@@ -98,6 +99,16 @@ export class InvitationLimitReached extends Data.TaggedError('InvitationLimitRea
   get message() { return 'Invitation limit reached for this organization' }
 }
 
+export class InvitationNotPending extends Data.TaggedError('InvitationNotPending') {
+  readonly code = 'INVITATION_NOT_PENDING'
+  get message() { return 'This invitation is no longer pending' }
+}
+
+export class InvitationEmailMismatch extends Data.TaggedError('InvitationEmailMismatch') {
+  readonly code = 'INVITATION_EMAIL_MISMATCH'
+  get message() { return 'Invitation email does not match the authenticated user' }
+}
+
 export class OrgNoChanges extends Data.TaggedError('OrgNoChanges') {
   readonly code = 'ORG_NO_CHANGES'
   get message() { return 'No changes provided' }
@@ -127,6 +138,8 @@ export type OrganizationError
     | InvitationExpired
     | InvitationAlreadyExists
     | InvitationLimitReached
+    | InvitationNotPending
+    | InvitationEmailMismatch
     | OrgNoChanges
     | OrgDbFailed
 
@@ -158,7 +171,7 @@ export interface OrganizationInvitation {
 }
 
 interface RemoveOrgMemberInput {
-  identifier: string | number
+  memberId: number
   organizationId: number
 }
 
@@ -183,6 +196,7 @@ export type Organization = InferSelectModel<OrganizationSchema>
 type OrgFindFirstConfig = Parameters<Database<Relations>['query']['organizations']['findFirst']>[0]
 type OrgFindManyConfig = Parameters<Database<Relations>['query']['organizations']['findMany']>[0]
 type MemberFindManyConfig = Parameters<Database<Relations>['query']['members']['findMany']>[0]
+type MemberFindFirstConfig = Parameters<Database<Relations>['query']['members']['findFirst']>[0]
 type InvitationFindManyConfig = Parameters<Database<Relations>['query']['invitations']['findMany']>[0]
 
 export interface CreateOrgScope {
@@ -238,22 +252,25 @@ export class OrganizationService extends Context.Service<
     readonly update: (
       id: number,
       input: UpdateOrganizationInput,
-      actorId?: number,
     ) => Effect.Effect<
       Organization,
-      OrganizationNotFound | OrganizationSlugTaken | NotAMember | OrgNoChanges | OrgDbFailed
+      OrganizationNotFound | OrganizationSlugTaken | OrgNoChanges | OrgDbFailed
     >
 
     readonly remove: (
       id: number,
-      actorId?: number,
-    ) => Effect.Effect<Organization, OrganizationNotFound | NotAMember | OrgDbFailed>
+    ) => Effect.Effect<Organization, OrganizationNotFound | OrgDbFailed>
 
     // ── Members ──────────────────────────────────────────────────────
     readonly listMembers: (
       organizationId: number,
       config?: MemberFindManyConfig,
     ) => Effect.Effect<readonly OrganizationMember[], OrgDbFailed>
+
+    readonly findFirstMember: (
+      organizationId: number,
+      config?: MemberFindFirstConfig,
+    ) => Effect.Effect<OrganizationMember, MemberNotFound | OrgDbFailed>
 
     readonly addMember: (
       input: CreateOrgMemberInput,
@@ -278,7 +295,7 @@ export class OrganizationService extends Context.Service<
     ) => Effect.Effect<
       OrganizationMember,
       MemberNotFound | OrgInvalidRole | CannotPromoteToOwner
-      | CannotLeaveAsLastOwner | NotAMember | OrgDbFailed
+      | CannotLeaveAsLastOwner | OrgDbFailed
     >
 
     // ── Invitations ──────────────────────────────────────────────────
@@ -297,8 +314,42 @@ export class OrganizationService extends Context.Service<
 
     readonly cancelInvitation: (
       id: number,
-      actorId?: number,
-    ) => Effect.Effect<OrganizationInvitation, InvitationNotFound | NotAMember | OrgDbFailed>
+    ) => Effect.Effect<OrganizationInvitation, InvitationNotFound | OrgDbFailed>
+
+    readonly createInvitation: (input: {
+      readonly organizationId: number
+      readonly email: string
+      readonly role: string
+      readonly inviterId: number
+      /**
+       * When a pending invite already exists: false/omitted -> fail
+       *  `InvitationAlreadyExists`; true -> re-publish `InvitationCreated`
+       *  for the existing invite and return it (idempotent re-notify).
+       */
+      readonly resend?: boolean
+    }) => Effect.Effect<
+      OrganizationInvitation,
+      OrganizationNotFound | OrgInvalidRole | MemberAlreadyExists
+      | InvitationAlreadyExists | OrgDbFailed
+    >
+
+    readonly acceptInvitation: (
+      invitationId: number,
+      userId: number,
+    ) => Effect.Effect<
+      { readonly invitation: OrganizationInvitation, readonly member: OrganizationMember },
+      InvitationNotFound | InvitationNotPending | InvitationExpired
+      | InvitationEmailMismatch | OrgUserNotFound | MemberAlreadyExists | OrgDbFailed
+    >
+
+    readonly rejectInvitation: (
+      invitationId: number,
+      userId: number,
+    ) => Effect.Effect<
+      OrganizationInvitation,
+      InvitationNotFound | InvitationNotPending | InvitationEmailMismatch
+      | OrgUserNotFound | OrgDbFailed
+    >
   }
 >()('@czo/auth/OrganizationService') {}
 
@@ -329,22 +380,22 @@ const make = Effect.gen(function* () {
       return row
     })
 
-  const findMemberInOrg = (organizationId: number, userId: number) =>
-    dbErr(db.query.members.findFirst({ where: { organizationId, userId } }))
-
-  const requireMembership = (organizationId: number, userId: number) =>
+  const findFirstMember = (organizationId: number, config?: MemberFindFirstConfig) =>
     Effect.gen(function* () {
-      const isMember = yield* findMemberInOrg(organizationId, userId)
-      if (!isMember)
-        return yield* Effect.fail(new NotAMember())
-      return isMember
+      const merged = { ...config, where: { ...config?.where, organizationId } }
+      const row = yield* dbErr(db.query.members.findFirst(merged))
+      if (!row)
+        return yield* Effect.fail(new MemberNotFound())
+      return row
     })
 
   return OrganizationService.of({
     // ── Reads ────────────────────────────────────────────────────────
-
     checkMembership: (organizationId, userId) =>
-      findMemberInOrg(organizationId, userId).pipe(Effect.map(m => !!m)),
+      findFirstMember(organizationId, { where: { userId } }).pipe(
+        Effect.map(() => true),
+        Effect.catchTag('MemberNotFound', () => Effect.succeed(false)),
+      ),
 
     checkSlug: slug =>
       dbErr(db.query.organizations.findFirst({ where: { slug } })).pipe(
@@ -436,12 +487,9 @@ const make = Effect.gen(function* () {
         return result
       }),
 
-    update: (id, input, actorId) =>
+    update: (id, input) =>
       Effect.gen(function* () {
         yield* findOrgById(id)
-
-        if (actorId !== undefined)
-          yield* requireMembership(id, actorId)
 
         if (input.slug) {
           const conflict = yield* dbErr(
@@ -474,11 +522,9 @@ const make = Effect.gen(function* () {
         return org
       }),
 
-    remove: (id, actorId) =>
+    remove: id =>
       Effect.gen(function* () {
         yield* findOrgById(id)
-        if (actorId !== undefined)
-          yield* requireMembership(id, actorId)
 
         const [org] = yield* dbErr(
           db.delete(organizations).where(eq(organizations.id, id)).returning(),
@@ -497,6 +543,8 @@ const make = Effect.gen(function* () {
         const rows = yield* dbErr(db.query.members.findMany(merged))
         return rows
       }),
+
+    findFirstMember,
 
     addMember: (input, memberLimit) =>
       Effect.gen(function* () {
@@ -546,15 +594,10 @@ const make = Effect.gen(function* () {
 
     removeMember: (input, scope) =>
       Effect.gen(function* () {
-        const { identifier, organizationId } = input
+        const { memberId, organizationId } = input
 
-        const isEmail = typeof identifier === 'string' && identifier.includes('@')
         const member = yield* dbErr(
-          db.query.members.findFirst({
-            where: isEmail
-              ? { organizationId, user: { email: identifier as string } }
-              : { organizationId, OR: [{ id: identifier as number }, { user: { id: identifier as number } }] },
-          }),
+          db.query.members.findFirst({ where: { id: memberId, organizationId } }),
         )
         if (!member)
           return yield* Effect.fail(new MemberNotFound())
@@ -657,7 +700,7 @@ const make = Effect.gen(function* () {
         return rows
       }),
 
-    cancelInvitation: (id, actorId) =>
+    cancelInvitation: id =>
       Effect.gen(function* () {
         const existing = yield* dbErr(
           db.query.invitations.findFirst({ where: { id } }),
@@ -665,15 +708,159 @@ const make = Effect.gen(function* () {
         if (!existing)
           return yield* Effect.fail(new InvitationNotFound())
 
-        if (actorId !== undefined)
-          yield* requireMembership(existing.organizationId as number, actorId)
-
         const [invitation] = yield* dbErr(
           db.update(invitations).set({ status: 'cancelled' }).where(eq(invitations.id, id)).returning(),
         )
         if (!invitation)
           return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
         return invitation
+      }),
+
+    createInvitation: input =>
+      Effect.gen(function* () {
+        yield* findOrgById(input.organizationId)
+        const validRole = yield* ensureValidRole(input.role)
+
+        const existingMember = yield* dbErr(db.query.members.findFirst({
+          where: { organizationId: input.organizationId, user: { email: input.email } },
+        }))
+        if (existingMember)
+          return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
+
+        const pending = yield* dbErr(db.query.invitations.findFirst({
+          where: { organizationId: input.organizationId, email: input.email, status: 'pending' },
+        }))
+        if (pending) {
+          if (!input.resend)
+            return yield* Effect.fail(new InvitationAlreadyExists())
+          // resend: refresh the expiry window on the EXISTING invitation, then
+          // re-publish `InvitationCreated` for it. No other column changes.
+          const [refreshed] = yield* dbErr(db.update(invitations)
+            .set({ expiresAt: new Date(Date.now() + Duration.toMillis(INVITATION_DURATION)) })
+            .where(eq(invitations.id, pending.id))
+            .returning())
+          if (!refreshed)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation resend update returned no row' }))
+          // `role` is always set at insert time; the `??` only satisfies the column's `string | null` type.
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'InvitationCreated',
+            invitationId: refreshed.id,
+            orgId: input.organizationId,
+            email: input.email,
+            role: refreshed.role ?? (validRole as string),
+            inviterId: refreshed.inviterId,
+          }))
+          return refreshed
+        }
+
+        const now = new Date()
+        const [invitation] = yield* dbErr(db.insert(invitations).values({
+          organizationId: input.organizationId,
+          email: input.email,
+          role: validRole as string,
+          status: 'pending',
+          inviterId: input.inviterId,
+          expiresAt: new Date(now.getTime() + Duration.toMillis(INVITATION_DURATION)),
+          createdAt: now,
+        }).returning())
+        if (!invitation)
+          return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation insert returned no row' }))
+
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'InvitationCreated',
+          invitationId: invitation.id,
+          orgId: input.organizationId,
+          email: input.email,
+          role: validRole as string,
+          inviterId: input.inviterId,
+        }))
+        return invitation
+      }),
+
+    acceptInvitation: (invitationId, userId) =>
+      Effect.gen(function* () {
+        const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
+        if (!inv)
+          return yield* Effect.fail(new InvitationNotFound())
+        if (inv.status !== 'pending')
+          return yield* Effect.fail(new InvitationNotPending())
+        if (inv.expiresAt.getTime() <= Date.now())
+          return yield* Effect.fail(new InvitationExpired())
+
+        const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+        if (!user)
+          return yield* Effect.fail(new OrgUserNotFound())
+        if (user.email !== inv.email)
+          return yield* Effect.fail(new InvitationEmailMismatch())
+
+        const existing = yield* dbErr(db.query.members.findFirst({
+          where: { organizationId: inv.organizationId, userId },
+        }))
+        if (existing)
+          return yield* Effect.fail(new MemberAlreadyExists({ member: existing }))
+
+        const result = yield* dbErr(db.transaction(tx =>
+          Effect.gen(function* () {
+            const [m] = yield* tx.insert(members).values({
+              organizationId: inv.organizationId,
+              userId,
+              role: inv.role ?? 'org:member',
+              createdAt: new Date(),
+            }).returning()
+            if (!m)
+              return yield* Effect.fail(new Error('member insert returned no row'))
+            const [accepted] = yield* tx.update(invitations)
+              .set({ status: 'accepted' })
+              .where(eq(invitations.id, invitationId))
+              .returning()
+            if (!accepted)
+              return yield* Effect.fail(new Error('invitation update returned no row'))
+            return { member: m, invitation: accepted }
+          }),
+        ))
+
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'MemberAdded',
+          orgId: inv.organizationId,
+          userId,
+          role: result.member.role,
+        }))
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'InvitationAccepted',
+          invitationId,
+          orgId: inv.organizationId,
+          userId,
+        }))
+        return result
+      }),
+
+    rejectInvitation: (invitationId, userId) =>
+      Effect.gen(function* () {
+        const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
+        if (!inv)
+          return yield* Effect.fail(new InvitationNotFound())
+        if (inv.status !== 'pending')
+          return yield* Effect.fail(new InvitationNotPending())
+
+        // Note: expiry is not enforced on rejection — a user may reject a lapsed invite.
+        const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+        if (!user)
+          return yield* Effect.fail(new OrgUserNotFound())
+        if (user.email !== inv.email)
+          return yield* Effect.fail(new InvitationEmailMismatch())
+
+        const [rejected] = yield* dbErr(db.update(invitations)
+          .set({ status: 'rejected' })
+          .where(eq(invitations.id, invitationId))
+          .returning())
+        if (!rejected)
+          return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'InvitationRejected',
+          invitationId,
+          orgId: inv.organizationId,
+        }))
+        return rejected
       }),
   })
 })

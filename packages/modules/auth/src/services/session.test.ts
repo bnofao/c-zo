@@ -77,6 +77,17 @@ layer(TestLayer, { timeout: 120_000 })('sessionService', (it) => {
       const cookie = svc.setCookie('tok-roundtrip')
       expect(svc.readSessionToken(`${cookie.name}=${cookie.value}`)).toBe('tok-roundtrip')
     }))
+
+  it.effect('update patches a session field and the next resolve sees it', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const { token } = yield* svc.create({ userId })
+      yield* svc.update(token, { activeOrganizationId: '42' })
+      const resolved = yield* svc.resolve(token)
+      expect(resolved?.session.activeOrganizationId).toBe('42')
+    }))
 })
 
 // A broken DB → SessionStoreFailed (separate suite — no container needed).

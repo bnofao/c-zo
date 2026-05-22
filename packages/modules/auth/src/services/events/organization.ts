@@ -5,8 +5,8 @@ import { Context, Effect, Layer, PubSub, Stream } from 'effect'
  * convention — works with `Match`, `Data.TaggedEnum`, etc.).
  *
  * Scope: organization lifecycle + membership management. Invitation lifecycle
- * events (created, cancelled, accepted, rejected) will land in a separate
- * `InvitationEvents` bus when invitation workflows are migrated.
+ * events (created, accepted, rejected) are part of `OrganizationEvent` —
+ * no separate bus is used.
  *
  * Payload fields are inlined per variant.
  */
@@ -44,6 +44,25 @@ export type OrganizationEvent
     readonly userId: number
     readonly previousRole: string
     readonly newRole: string
+  }
+  | {
+    readonly _tag: 'InvitationCreated'
+    readonly invitationId: number
+    readonly orgId: number
+    readonly email: string
+    readonly role: string
+    readonly inviterId: number
+  }
+  | {
+    readonly _tag: 'InvitationAccepted'
+    readonly invitationId: number
+    readonly orgId: number
+    readonly userId: number
+  }
+  | {
+    readonly _tag: 'InvitationRejected'
+    readonly invitationId: number
+    readonly orgId: number
   }
 
 /**

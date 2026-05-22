@@ -1,12 +1,19 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
+import z from 'zod'
 import { OrganizationService } from '../../../services/organization'
+import { SessionService } from '../../../services/session'
 import {
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
+  InvitationAlreadyExists,
+  InvitationEmailMismatch,
+  InvitationExpired,
   InvitationNotFound,
+  InvitationNotPending,
+  MemberAlreadyExists,
   MemberNotFound,
   NotAMember,
   OrganizationLimitReached,
@@ -16,7 +23,6 @@ import {
   OrgNoChanges,
   OrgUserNotFound,
 } from './errors'
-import z from 'zod'
 
 const slugSchema = z.string().min(3, "Slug must be at least 3 characters").max(50, "Slug is too long").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
   message: "Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)",
@@ -91,15 +97,19 @@ Effect.gen(function* () {
           ValidationError,
           OrganizationNotFound,
           OrganizationSlugTaken,
-          NotAMember,
           OrgNoChanges,
         ],
       },
-      authScopes: { permission: { resource: 'organization', actions: ['update'] } },
+      authScopes: (_parent, args, _ctx) => ({
+        permission: {
+          resource: 'organization',
+          actions: ['update'],
+          organization: Number(decodeGlobalID(args.input.id).id),
+        },
+      }),
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const orgId = Number(id)
-        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
         const result = await ctx.runEffect(
 Effect.gen(function* () {
@@ -107,7 +117,7 @@ Effect.gen(function* () {
             return yield* svc.update(orgId, {
               ...input,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
-            }, actorId)
+            })
           }),
         )
 
@@ -130,17 +140,22 @@ Effect.gen(function* () {
       }),
     },
     {
-      errors: { types: [OrganizationNotFound, NotAMember] },
-      authScopes: { permission: { resource: 'organization', actions: ['delete'] } },
+      errors: { types: [OrganizationNotFound] },
+      authScopes: (_parent, args, _ctx) => ({
+        permission: {
+          resource: 'organization',
+          actions: ['delete'],
+          organization: Number(decodeGlobalID(args.input.id).id),
+        },
+      }),
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const orgId = Number(id)
-        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
         await ctx.runEffect(
 Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.remove(orgId, actorId)
+            return yield* svc.remove(orgId)
           }),
         )
         return { success: true }
@@ -149,6 +164,108 @@ Effect.gen(function* () {
     {
       outputFields: t => ({
         success: t.boolean({ resolve: payload => payload.success }),
+      }),
+    },
+  )
+
+  // ── inviteMember ──────────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'inviteMember',
+    {
+      inputFields: t => ({
+        organizationId: t.id({ required: true }),
+        email: t.string({ required: true }),
+        role: t.string({ required: true }),
+        resend: t.boolean({ required: false }),
+      }),
+    },
+    {
+      errors: { types: [OrganizationNotFound, OrgInvalidRole, MemberAlreadyExists, InvitationAlreadyExists] },
+      authScopes: (_parent, args, _ctx) => ({
+        permission: {
+          resource: 'invitation',
+          actions: ['create'],
+          organization: Number(decodeGlobalID(args.input.organizationId).id),
+        },
+      }),
+      resolve: async (_root, { input }, ctx) => {
+        // The `permission` authScope (Task 6) rejects anonymous requests,
+        // non-members, and members lacking `invitation:create` in THIS org
+        // before `resolve` runs — so `ctx.auth!.user!` is sound.
+        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const invitation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.createInvitation({
+              organizationId: Number(orgId),
+              email: input.email,
+              role: input.role,
+              inviterId: Number(ctx.auth!.user!.id),
+              resend: input.resend ?? undefined,
+            })
+          }),
+        )
+        return { invitation }
+      },
+    },
+    {
+      outputFields: t => ({
+        invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
+      }),
+    },
+  )
+
+  // ── acceptInvitation ──────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'acceptInvitation',
+    { inputFields: t => ({ invitationId: t.id({ required: true }) }) },
+    {
+      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationExpired, InvitationEmailMismatch, MemberAlreadyExists, OrgUserNotFound] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        // `auth` authScope (Task 6) rejects anonymous requests before
+        // `resolve` runs, so `ctx.auth!.user!` below is sound.
+        const { id: invitationId } = decodeGlobalID(input.invitationId)
+        const { invitation, member } = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.acceptInvitation(Number(invitationId), Number(ctx.auth!.user!.id))
+          }),
+        )
+        return { invitation, member }
+      },
+    },
+    {
+      outputFields: t => ({
+        invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
+        member: t.field({ type: 'Member', resolve: p => p.member }),
+      }),
+    },
+  )
+
+  // ── rejectInvitation ──────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'rejectInvitation',
+    { inputFields: t => ({ invitationId: t.id({ required: true }) }) },
+    {
+      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationEmailMismatch, OrgUserNotFound] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        // `auth` authScope (Task 6) rejects anonymous requests before
+        // `resolve` runs, so `ctx.auth!.user!` below is sound.
+        const { id: invitationId } = decodeGlobalID(input.invitationId)
+        const invitation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            return yield* svc.rejectInvitation(Number(invitationId), Number(ctx.auth!.user!.id))
+          }),
+        )
+        return { invitation }
+      },
+    },
+    {
+      outputFields: t => ({
+        invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
       }),
     },
   )
@@ -162,15 +279,14 @@ Effect.gen(function* () {
       }),
     },
     {
-      errors: { types: [InvitationNotFound, NotAMember] },
+      errors: { types: [InvitationNotFound] },
       authScopes: { permission: { resource: 'organization', actions: ['invite'] } },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.invitationId)
-        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
         await ctx.runEffect(
 Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.cancelInvitation(Number(id), actorId)
+            return yield* svc.cancelInvitation(Number(id))
           }),
         )
         return { success: true }
@@ -183,29 +299,98 @@ Effect.gen(function* () {
     },
   )
 
+  // ── leaveOrganization ────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'leaveOrganization',
+    { inputFields: t => ({ organizationId: t.id({ required: true }) }) },
+    {
+      errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        // `auth` authScope (Task 6) rejects anonymous requests before
+        // `resolve` runs, so `ctx.auth!.user!` below is sound.
+        const { id: orgId } = decodeGlobalID(input.organizationId)
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const membership = yield* svc.findFirstMember(Number(orgId), {
+              where: { userId: Number(ctx.auth!.user!.id) },
+            })
+            return yield* svc.removeMember({
+              memberId: membership.id,
+              organizationId: Number(orgId),
+            })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
+  // ── setActiveOrganization ─────────────────────────────────────────────────
+  builder.relayMutationField(
+    'setActiveOrganization',
+    { inputFields: t => ({ organizationId: t.id({ required: false }) }) },
+    {
+      errors: { types: [NotAMember] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        const orgId = input.organizationId
+          ? Number(decodeGlobalID(input.organizationId).id)
+          : null
+        // `auth` authScope guarantees ctx.auth.user; the session-context contributor
+        // populates ctx.auth from one `ResolvedSession`, so when `user` is present
+        // `session` is too — `ctx.auth!.session!.token` is sound.
+        const token = ctx.auth!.session!.token
+        const userId = Number(ctx.auth!.user!.id)
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            if (orgId !== null) {
+              const org = yield* OrganizationService
+              const isMember = yield* org.checkMembership(orgId, userId)
+              if (!isMember)
+                return yield* Effect.fail(new NotAMember())
+            }
+            const session = yield* SessionService
+            yield* session.update(token, {
+              activeOrganizationId: orgId === null ? null : String(orgId),
+            })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
   // ── removeMember ──────────────────────────────────────────────────────────
   builder.relayMutationField(
     'removeMember',
     {
       inputFields: t => ({
-        identifier: t.string({ required: true }),
+        memberId: t.id({ required: true }),
         organizationId: t.id({ required: true }),
       }),
     },
     {
       errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
-      authScopes: { permission: { resource: 'organization', actions: ['remove-member'] } },
+      authScopes: (_parent, args, _ctx) => ({
+        permission: {
+          resource: 'organization',
+          actions: ['remove-member'],
+          organization: Number(decodeGlobalID(args.input.organizationId).id),
+        },
+      }),
       resolve: async (_root, { input }, ctx) => {
+        const { id: memberId } = decodeGlobalID(input.memberId)
         const { id: orgId } = decodeGlobalID(input.organizationId)
-        const identifier = input.identifier.includes('@')
-          ? input.identifier
-          : Number(input.identifier)
 
         await ctx.runEffect(
 Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.removeMember({
-              identifier: identifier as never,
+              memberId: Number(memberId),
               organizationId: Number(orgId),
             })
           }),
@@ -239,7 +424,13 @@ Effect.gen(function* () {
           CannotLeaveAsLastOwner,
         ],
       },
-      authScopes: { permission: { resource: 'organization', actions: ['update-member-role'] } },
+      authScopes: (_parent, args, _ctx) => ({
+        permission: {
+          resource: 'organization',
+          actions: ['update-member-role'],
+          organization: Number(decodeGlobalID(args.input.organizationId).id),
+        },
+      }),
       resolve: async (_root, { input }, ctx) => {
         const { id: memberId } = decodeGlobalID(input.memberId)
         const { id: orgId } = decodeGlobalID(input.organizationId)
@@ -265,14 +456,4 @@ Effect.gen(function* () {
     },
   )
 
-  // ─── better-auth-backed mutations (phase 2) ────────────────────────────────
-  // The following mutations wrap better-auth's organization plugin API which
-  // requires a session-aware Headers object. They will be re-introduced when
-  // the BetterAuth Tag exposes the request-scoped session context.
-  //
-  // - inviteMember
-  // - acceptInvitation
-  // - rejectInvitation
-  // - setActiveOrganization
-  // - leaveOrganization
 }

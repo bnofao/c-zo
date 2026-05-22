@@ -30,9 +30,11 @@ declare module '@czo/kit/graphql' {
   }
 
   interface BuilderAuthScopes {
+    auth: boolean
     permission: {
       resource: string
       actions: string[]
+      organization?: number
     }
   }
 

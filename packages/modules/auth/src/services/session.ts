@@ -52,6 +52,10 @@ export class SessionService extends Context.Service<SessionService, {
   readonly resolve: (token: string) => Effect.Effect<ResolvedSession | null, SessionStoreFailed>
   readonly revoke: (token: string) => Effect.Effect<void, SessionStoreFailed>
   readonly revokeAllForUser: (userId: number) => Effect.Effect<void, SessionStoreFailed>
+  readonly update: (
+    token: string,
+    patch: Partial<Omit<SessionRow, 'id' | 'token' | 'userId' | 'createdAt'>>,
+  ) => Effect.Effect<void, SessionStoreFailed>
   readonly purgeExpired: () => Effect.Effect<number, SessionStoreFailed>
   readonly setCookie: (token: string) => Cookie.Cookie
   readonly readSessionToken: (cookieHeader: string) => string | null
@@ -167,6 +171,14 @@ const make = Effect.gen(function* () {
     resolve: token =>
       cache.get(new SessionKey({ token })).pipe(
         Effect.mapError(cause => new SessionStoreFailed({ cause })),
+      ),
+    update: (token, patch) =>
+      dbErr(db.update(sessions).set({ ...patch, updatedAt: new Date() }).where(eq(sessions.token, token))).pipe(
+        Effect.andThen(
+          cache.invalidate(new SessionKey({ token })).pipe(
+            Effect.mapError(cause => new SessionStoreFailed({ cause })),
+          ),
+        ),
       ),
     revoke: token =>
       dbErr(db.delete(sessions).where(eq(sessions.token, token))).pipe(
