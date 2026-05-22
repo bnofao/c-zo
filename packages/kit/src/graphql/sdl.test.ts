@@ -2,14 +2,13 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { _resetBuilderState, buildSchema, initBuilder } from './builder'
+import { afterEach, describe, expect, it } from 'vitest'
+import { buildSchema, initBuilder } from './builder'
 import { emitSDL, verifySDL } from './sdl'
 
 const db = drizzle.mock()
 const tmpFile = join(tmpdir(), `kit-sdl-test-${process.pid}.graphqls`)
 
-beforeEach(() => _resetBuilderState())
 afterEach(() => {
   if (existsSync(tmpFile))
     rmSync(tmpFile)
@@ -34,7 +33,6 @@ describe('emitSDL', () => {
     emitSDL({ schema, outputPath: tmpFile })
 
     const first = readFileSync(tmpFile, 'utf-8')
-    _resetBuilderState()
     const builder2 = initBuilder({ db, relations: {} })
     const schema2 = buildSchema(builder2)
     emitSDL({ schema: schema2, outputPath: tmpFile })

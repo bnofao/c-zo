@@ -1,13 +1,11 @@
 import { it as itEffect } from '@effect/vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Effect } from 'effect'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { _resetBuilderState, buildSchema, GraphQLBuilder, initBuilder, makeGraphQLBuilder, registerSchema } from './builder'
+import { describe, expect, it } from 'vitest'
+import { buildSchema, GraphQLBuilder, initBuilder, makeGraphQLBuilder, registerSchema } from './builder'
 
 const db = drizzle.mock()
 const relations = {} as any
-
-beforeEach(() => _resetBuilderState())
 
 describe('initBuilder', () => {
   it('returns a Pothos SchemaBuilder', () => {

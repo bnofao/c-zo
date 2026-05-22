@@ -68,11 +68,6 @@ export interface BuilderSchemaInputs {
 // the signatures remain stable for when consumers provide concrete types in follow-up PRs.
 export type SchemaBuilder<Relations extends RelationsEntry = RelationsEntry> = ReturnType<typeof setupBuilder<Relations>>
 
-// Module-level state — single contribution registry.
-const authScopeContributions: Array<(builder: any) => Record<string, any>> = []
-const contributions: Array<(builder: any) => void> = []
-let built = false
-
 export class GraphQLBuilder extends Context.Service<GraphQLBuilder, {
   // readonly contributions: Effect.Effect<ReadonlyArray<(builder: SchemaBuilder) => void>>
   // readonly authScope: Effect.Effect<ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>>
@@ -468,12 +463,6 @@ function idFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuild
     }),
   })
   return ref
-}
-
-// For testing only — resets module state so tests can build multiple times.
-export function _resetBuilderState(): void {
-  contributions.length = 0
-  built = false
 }
 
 export const orderDirectionSchema = z.enum({
