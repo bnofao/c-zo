@@ -1,11 +1,10 @@
-import type { HierarchyLevel } from '@czo/auth/services'
-import { AccessService } from '@czo/auth/services'
+import { Access } from '@czo/auth/services'
 import { useLogger } from '@czo/kit'
 import { registerSchema as registerDbSchema, registerRelations } from '@czo/kit/db'
 import { registerEffectLayer, runEffect, useRuntime } from '@czo/kit/effect'
 import { registerSchema as registerGraphQLSchema } from '@czo/kit/graphql'
 import { registerStockLocationSchema } from '@czo/stock-location/graphql'
-import { StockLocationModuleLive } from '@czo/stock-location/layers'
+import { StockLocationModuleLive } from '@czo/stock-location/services'
 import { stockLocationRelations } from '@czo/stock-location/relations'
 import * as stockLocationSchema from '@czo/stock-location/schema'
 import { Effect } from 'effect'
@@ -15,7 +14,7 @@ const STOCK_LOCATION_STATEMENTS = {
   'stock-location': ['create', 'read', 'update', 'delete'],
 } as const
 
-const STOCK_LOCATION_HIERARCHY: HierarchyLevel<typeof STOCK_LOCATION_STATEMENTS>[] = [
+const STOCK_LOCATION_HIERARCHY: Access.HierarchyLevel<typeof STOCK_LOCATION_STATEMENTS>[] = [
   { name: 'member', permissions: { 'stock-location': ['read'] } },
   { name: 'manager', permissions: { 'stock-location': ['create', 'read', 'update'] } },
   { name: 'owner', permissions: { 'stock-location': ['create', 'read', 'update', 'delete'] } },
@@ -40,7 +39,7 @@ export default definePlugin((nitroApp) => {
     await runEffect(
       useRuntime(),
       Effect.gen(function* () {
-        const access = yield* AccessService
+        const access = yield* Access.AccessService
         yield* access.register({
           name: 'stock-location',
           statements: STOCK_LOCATION_STATEMENTS,

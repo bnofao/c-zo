@@ -5,7 +5,7 @@ import { expect, layer } from '@effect/vitest'
 import { Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, users } from '../database/schema'
-import { makeAuthActorServiceLive } from '../layers/actor'
+import * as Actor from '../services/actor'
 import { DEFAULT_ACTOR_RESTRICTIONS } from '../plugins/actor'
 import * as Cookie from '../services/cookie'
 import * as AuthEvents from '../services/events/auth'
@@ -22,7 +22,7 @@ const cookieLayer = Cookie.layer({
 const TestLayer = Layer.mergeAll(
   Password.layer,
   Session.layer.pipe(Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer))),
-  makeAuthActorServiceLive(DEFAULT_ACTOR_RESTRICTIONS, true),
+  Actor.makeLayer(DEFAULT_ACTOR_RESTRICTIONS, true),
   AuthEvents.layer,
 ).pipe(Layer.provideMerge(AuthPostgresLayer))
 

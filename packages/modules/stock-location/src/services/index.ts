@@ -1,19 +1,14 @@
-// Effect-TS contracts (Tag, errors, inputs)
-export { StockLocationEvents } from './events/stock-location'
-export type { StockLocationEvent } from './events/stock-location'
-export {
-  generateHandle,
-  HandleTaken,
-  StockLocationDbFailed,
-  StockLocationNoChanges,
-  StockLocationNotFound,
-  StockLocationService,
-} from './stock-location'
+import { Layer } from 'effect'
+import * as StockLocation from './stock-location'
+import * as StockLocationEvents from './events/stock-location'
 
-export type {
-  CreateStockLocationAddressInput,
-  CreateStockLocationInput,
-  StockLocation,
-  StockLocationError,
-  UpdateStockLocationInput,
-} from './stock-location'
+export { StockLocation, StockLocationEvents }
+
+/**
+ * Composite layer for the whole stock-location module. `provideMerge` keeps
+ * `StockLocationEvents` visible at the runtime surface so external subscribers
+ * can `yield* StockLocationEvents` and call `.subscribe`.
+ */
+export const StockLocationModuleLive = StockLocation.layer.pipe(
+  Layer.provideMerge(StockLocationEvents.layer),
+)

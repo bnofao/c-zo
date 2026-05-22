@@ -6,7 +6,7 @@ import z from 'zod'
 import {
   generateHandle,
   StockLocationService,
-} from '../../../services'
+} from '../../../services/stock-location'
 import { HandleTaken, StockLocationNotFound } from './errors'
 
 const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {

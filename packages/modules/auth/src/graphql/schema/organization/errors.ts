@@ -1,5 +1,7 @@
 import { registerError } from '@czo/kit/graphql'
-import {
+import { Organization } from '../../../services'
+
+const {
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
@@ -17,7 +19,7 @@ import {
   OrgInvalidRole,
   OrgNoChanges,
   OrgUserNotFound,
-} from '../../../services'
+} = Organization
 
 // Re-export the tagged-error classes so resolvers can list them in
 // `errors: { types: [...] }` without reaching into services/.

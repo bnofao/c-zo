@@ -1,9 +1,8 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import type { User } from '../../../services'
 import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
-import { AuthService, UserService } from '../../../services'
+import { AuthService, User } from '../../../services'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -88,7 +87,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.update(userId, {
               ...input,
               name: input.name || undefined,
@@ -130,7 +129,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.create(input)
           }),
         )
@@ -158,13 +157,13 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       errors: { types: [ForbiddenError, UserNotFound, CannotBanSelf, UserAlreadyBanned] },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
-        const authUser = ctx.auth?.user as User
+        const authUser = ctx.auth?.user as User.User
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.ban(userId, input, Number(authUser.id))
           }),
         )
@@ -192,11 +191,11 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        const actorId = Number((ctx.auth?.user as User).id)
+        const actorId = Number((ctx.auth?.user as User.User).id)
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.unban(userId, actorId)
           }),
         )
@@ -229,7 +228,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.setRole(userId, input.role, actorId)
           }),
         )
@@ -265,7 +264,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
 
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.setPassword(userId, input.newPassword)
           }),
         )
@@ -298,7 +297,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
 
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.remove(userId, actorId)
           }),
         )
@@ -326,7 +325,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.revokeSession(input.sessionToken)
           }),
         )
@@ -353,7 +352,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.revokeSessions(Number(input.id))
           }),
         )

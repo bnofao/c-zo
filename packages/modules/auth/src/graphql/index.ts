@@ -1,5 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Organization, OrganizationInvitation, OrganizationMember, User } from '@czo/auth/services'
+import type { Organization, User } from '@czo/auth/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { ResolvedSession } from '../services/session'
 
@@ -23,10 +23,10 @@ declare module '@czo/kit/graphql' {
   }
 
   interface BuilderSchemaObjects {
-    User: User
-    Organization: Organization
-    Member: OrganizationMember
-    Invitation: OrganizationInvitation
+    User: User.User
+    Organization: Organization.Organization
+    Member: Organization.OrganizationMember
+    Invitation: Organization.OrganizationInvitation
   }
 
   interface BuilderAuthScopes {

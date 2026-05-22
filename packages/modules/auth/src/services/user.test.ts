@@ -2,7 +2,7 @@ import { DrizzleDb } from '@czo/kit/db/effect'
 import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect, Layer } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { BetterAuth } from '../services/auth-instance'
+import { BetterAuth } from './auth-instance'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -15,10 +15,10 @@ import {
   UserNotBanned,
   UserNotFound,
   UserService,
-} from '../services/user'
-import { makeAccessServiceLive } from './access'
-import { UserEventsLive } from './events/user'
-import { makeUserServiceLive } from './user'
+} from './user'
+import * as Access from './access'
+import * as UserEvents from './events/user'
+import * as User from './user'
 
 // ─── Mocks ───────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ function makeAuthStub(overrides: {
 const DEFAULT_ROLE_NAMES = ['admin', 'user'] as const
 
 function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
-  return makeAccessServiceLive(
+  return Access.makeLayer(
     [{
       name: 'test',
       statements: {},
@@ -113,8 +113,8 @@ function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
 function makeTestLayer(db: object, auth: unknown = makeAuthStub(), roleNames?: readonly string[]) {
   const dbLayer = Layer.succeed(DrizzleDb, db as never)
   const authLayer = Layer.succeed(BetterAuth, auth as never)
-  return makeUserServiceLive().pipe(
-    Layer.provide(Layer.mergeAll(dbLayer, authLayer, makeAccessLayer(roleNames), UserEventsLive)),
+  return User.layer.pipe(
+    Layer.provide(Layer.mergeAll(dbLayer, authLayer, makeAccessLayer(roleNames), UserEvents.layer)),
   )
 }
 

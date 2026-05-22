@@ -1,6 +1,6 @@
 import type { BooleanFilter, DateTimeFilter, IntFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { Relations } from '@czo/stock-location/relations'
-import type { CreateStockLocationAddressInput, StockLocation } from '@czo/stock-location/services'
+import type { CreateStockLocationAddressInput, StockLocation } from '../services/stock-location'
 // Pull in auth's module augmentation so cross-module ctx slices (`ctx.auth`)
 // and object refs (`'Organization'`) resolve against the shared interfaces.
 import '@czo/auth/graphql'

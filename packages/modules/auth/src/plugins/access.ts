@@ -1,4 +1,4 @@
-import type { HierarchyLevel } from '@czo/auth/services'
+import type { HierarchyLevel } from '../services/access'
 
 export const ORGANIZATION_STATEMENTS = {
   organization: ['read', 'update', 'delete'],

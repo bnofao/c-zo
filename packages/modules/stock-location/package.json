@@ -30,10 +30,6 @@
       "types": "./src/services/index.ts",
       "default": "./dist/services/index.mjs"
     },
-    "./layers": {
-      "types": "./src/layers/index.ts",
-      "default": "./dist/layers/index.mjs"
-    },
     "./graphql": {
       "types": "./src/graphql/index.ts",
       "default": "./dist/graphql/index.mjs"

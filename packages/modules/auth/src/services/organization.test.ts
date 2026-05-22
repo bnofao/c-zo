@@ -2,7 +2,11 @@ import { DrizzleDb } from '@czo/kit/db/effect'
 import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect, Layer } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
+import * as Organization from './organization'
+import * as Access from './access'
+import * as OrganizationEventsNS from './events/organization'
+
+const {
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
   InvitationNotFound,
@@ -16,10 +20,7 @@ import {
   OrganizationSlugTaken,
   OrgInvalidRole,
   OrgUserNotFound,
-} from '../services/organization'
-import { makeAccessServiceLive } from './access'
-import { OrganizationEventsLive } from './events/organization'
-import { makeOrganizationServiceLive } from './organization'
+} = Organization
 
 // ─── Mocks ───────────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ function makeMockDb(state: {
 const DEFAULT_ROLE_NAMES = ['owner', 'admin', 'member'] as const
 
 function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
-  return makeAccessServiceLive(
+  return Access.makeLayer(
     [{
       name: 'test',
       statements: {},
@@ -101,8 +102,8 @@ function makeAccessLayer(roleNames: readonly string[] = DEFAULT_ROLE_NAMES) {
 
 function makeTestLayer(db: object, roleNames?: readonly string[]) {
   const dbLayer = Layer.succeed(DrizzleDb, db as never)
-  return makeOrganizationServiceLive().pipe(
-    Layer.provide(Layer.mergeAll(dbLayer, makeAccessLayer(roleNames), OrganizationEventsLive)),
+  return Organization.layer.pipe(
+    Layer.provide(Layer.mergeAll(dbLayer, makeAccessLayer(roleNames), OrganizationEventsNS.layer)),
   )
 }
 

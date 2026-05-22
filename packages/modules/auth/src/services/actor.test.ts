@@ -2,37 +2,30 @@ import type { Effect as EffectT } from 'effect'
 import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  ActorProviderAlreadyRegistered,
-  ActorRegistryFrozen,
-  ActorTypeAlreadyRegistered,
-  AuthActorService,
-  DEFAULT_RESTRICTION_CONFIG,
-} from '../services/actor'
-import { AuthActorServiceLive } from './actor'
+import * as Actor from './actor'
 
-// Each `run*` call builds a fresh `AuthActorServiceLive` (Layer.sync), giving
+// Each `run*` call builds a fresh `Actor.layer` (Layer.sync), giving
 // every test an isolated registry — equivalent to the old
 // `createAuthActorService()` per `beforeEach`.
 
-function runSuccess<A>(fn: (svc: typeof AuthActorService.Service) => EffectT.Effect<A, any>) {
+function runSuccess<A>(fn: (svc: typeof Actor.AuthActorService.Service) => EffectT.Effect<A, any>) {
   return expectSuccess(
     Effect.gen(function* () {
-      const svc = yield* AuthActorService
+      const svc = yield* Actor.AuthActorService
       return yield* fn(svc)
-    }).pipe(Effect.provide(AuthActorServiceLive)),
+    }).pipe(Effect.provide(Actor.layer)),
   )
 }
 
 function runFailure<T>(
-  fn: (svc: typeof AuthActorService.Service) => EffectT.Effect<unknown, any>,
+  fn: (svc: typeof Actor.AuthActorService.Service) => EffectT.Effect<unknown, any>,
   Tag: { new (...args: any[]): T },
 ) {
   return expectFailure(
     Effect.gen(function* () {
-      const svc = yield* AuthActorService
+      const svc = yield* Actor.AuthActorService
       return yield* fn(svc)
-    }).pipe(Effect.provide(AuthActorServiceLive)),
+    }).pipe(Effect.provide(Actor.layer)),
     Tag,
   )
 }
@@ -54,7 +47,7 @@ describe('authActorService layer', () => {
         Effect.gen(function* () {
           yield* svc.registerActor('customer', { allowedMethods: ['email'] })
           yield* svc.registerActor('customer', { allowedMethods: ['email'] })
-        }), ActorTypeAlreadyRegistered)
+        }), Actor.ActorTypeAlreadyRegistered)
       expect(err.message).toContain('"customer" is already registered')
     })
 
@@ -63,7 +56,7 @@ describe('authActorService layer', () => {
         Effect.gen(function* () {
           yield* svc.freeze
           yield* svc.registerActor('customer', { allowedMethods: ['email'] })
-        }), ActorRegistryFrozen)
+        }), Actor.ActorRegistryFrozen)
       expect(err.message).toContain('registry is frozen')
     })
   })
@@ -84,7 +77,7 @@ describe('authActorService layer', () => {
         Effect.gen(function* () {
           yield* svc.registerProvider({ type: 'customer', hasActorType: vi.fn() })
           yield* svc.registerProvider({ type: 'customer', hasActorType: vi.fn() })
-        }), ActorProviderAlreadyRegistered)
+        }), Actor.ActorProviderAlreadyRegistered)
       expect(err.message).toContain('Provider for actor type "customer"')
     })
 
@@ -93,7 +86,7 @@ describe('authActorService layer', () => {
         Effect.gen(function* () {
           yield* svc.freeze
           yield* svc.registerProvider({ type: 'customer', hasActorType: vi.fn() })
-        }), ActorRegistryFrozen)
+        }), Actor.ActorRegistryFrozen)
     })
   })
 
@@ -110,7 +103,7 @@ describe('authActorService layer', () => {
 
     it('returns DEFAULT_RESTRICTION_CONFIG for unknown actor types', async () => {
       const config = await runSuccess(svc => svc.actorRestrictionConfig('unknown'))
-      expect(config).toBe(DEFAULT_RESTRICTION_CONFIG)
+      expect(config).toBe(Actor.DEFAULT_RESTRICTION_CONFIG)
     })
   })
 

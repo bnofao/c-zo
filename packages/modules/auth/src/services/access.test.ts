@@ -2,14 +2,15 @@ import type { Effect as EffectT } from 'effect'
 import { expectFailure, expectSuccess } from '@czo/kit/effect'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
-import {
+import * as Access from './access'
+
+const {
   AccessRegistryFrozen,
   AccessService,
   RolesHierarchyAlreadyRegistered,
   StatementProviderAlreadyRegistered,
   StatementResourceAlreadyRegistered,
-} from '../services/access'
-import { AccessServiceLive } from './access'
+} = Access
 
 const ORG = {
   organization: ['read', 'update'],
@@ -36,7 +37,7 @@ function runSuccess<A>(fn: (svc: typeof AccessService.Service) => EffectT.Effect
     Effect.gen(function* () {
       const svc = yield* AccessService
       return yield* fn(svc)
-    }).pipe(Effect.provide(AccessServiceLive)),
+    }).pipe(Effect.provide(Access.layer)),
   )
 }
 
@@ -48,7 +49,7 @@ function runFailure<T>(
     Effect.gen(function* () {
       const svc = yield* AccessService
       return yield* fn(svc)
-    }).pipe(Effect.provide(AccessServiceLive)),
+    }).pipe(Effect.provide(Access.layer)),
     Tag,
   )
 }

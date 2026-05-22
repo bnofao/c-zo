@@ -15,32 +15,17 @@
 import type { CzoModule } from '@czo/kit/module'
 import type { SocialProviders } from 'better-auth/social-providers'
 import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
-import { BetterAuth } from '@czo/auth/services'
-import { defineHandler } from 'h3'
-import {
-  ApiKeyServiceLive,
-  AuthServiceLive,
-  makeAccessServiceLive,
-  makeAuthActorServiceLive,
-  makeBetterAuthLive,
-  makeOrganizationServiceLive,
-  makeUserServiceLive,
-  OrganizationEventsLive,
-  UserEventBusLive,
-} from '@czo/auth/layers'
+import { AuthServiceLive, makeBetterAuthLive } from '@czo/auth/layers'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
-import { AccessService, OrganizationService } from '@czo/auth/services'
+import { Access, Actor, ApiKey, BetterAuth, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
 import { Effect, Layer } from 'effect'
+import { defineHandler } from 'h3'
 import { makeSessionContextContributor } from './graphql/session-context'
 import { signInHandler } from './http/sign-in'
 import { signOutHandler } from './http/sign-out'
 import { signUpHandler } from './http/sign-up'
-import * as AuthEvents from './services/events/auth'
-import * as Cookie from './services/cookie'
-import * as Password from './services/password'
-import * as Session from './services/session'
 import {
   ADMIN_HIERARCHY,
   ADMIN_STATEMENTS,
@@ -52,6 +37,10 @@ import {
   ORGANIZATION_STATEMENTS,
 } from './plugins/access'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './plugins/actor'
+import * as Cookie from './services/cookie'
+import * as AuthEvents from './services/events/auth'
+import * as Password from './services/password'
+import * as Session from './services/session'
 // `Storage` from unstorage isn't a direct dep of @czo/auth — kept as
 // an unknown structural placeholder so the host app can pass through
 // whatever storage shape `better-auth` expects without coupling us to
@@ -142,7 +131,7 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     { name: 'api-key', statements: API_KEY_STATEMENTS, hierarchy: API_KEY_HIERARCHY },
     { name: 'apps', statements: APPS_STATEMENTS, hierarchy: APPS_HIERARCHY },
   ] as const
-  const AccessServiceLive = makeAccessServiceLive(accessOptions as never, false)
+  const AccessServiceLive = Access.makeLayer(accessOptions as never, false)
 
   const BetterAuthLive = makeBetterAuthLive({
     app: config.app,
@@ -152,11 +141,11 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     storage: config.storage as never,
   })
 
-  const UserServiceLive = makeUserServiceLive()
-  const OrganizationServiceLive = makeOrganizationServiceLive()
+  const UserServiceLive = User.layer
+  const OrganizationServiceLive = Organization.layer
   // AuthActorService's registry is closed at construction — no post-boot
   // extension path. Eager freeze keeps the invariant honest.
-  const AuthActorServiceLive = makeAuthActorServiceLive(DEFAULT_ACTOR_RESTRICTIONS, true)
+  const AuthActorServiceLive = Actor.makeLayer(DEFAULT_ACTOR_RESTRICTIONS, true)
 
   // CookieService config — `Cookie.layerConfigService` builds CookieService
   // from the env-backed `Config.Wrap` routed through `CookieConfigService`.
@@ -170,10 +159,10 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
   const sessionLayer = Session.layer.pipe(Layer.provide(cookieLayer))
 
   const AuthModuleLive = Layer.mergeAll(
-    ApiKeyServiceLive.pipe(
-      Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEventsLive))),
+    ApiKey.layer.pipe(
+      Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEvents.layer))),
     ),
-    UserServiceLive.pipe(Layer.provideMerge(UserEventBusLive)),
+    UserServiceLive.pipe(Layer.provideMerge(UserEvents.layer)),
     AuthServiceLive,
     AuthActorServiceLive,
     Password.layer,
@@ -216,11 +205,11 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
       return Effect.void
     },
     onStart: Effect.gen(function* () {
-      const access = yield* AccessService
+      const access = yield* Access.AccessService
       yield* access.freeze
       // Warm OrganizationService so a broken Layer composition fails at
       // boot rather than at first request.
-      yield* OrganizationService
+      yield* Organization.OrganizationService
     }) as unknown as Effect.Effect<void, never, never>,
   })
 }

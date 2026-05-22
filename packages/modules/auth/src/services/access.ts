@@ -1,6 +1,6 @@
-import type { createAccessControl, Role, Subset } from 'better-auth/plugins/access'
-import type { Effect } from 'effect'
-import { Context, Data } from 'effect'
+import type { Role, Subset } from 'better-auth/plugins/access'
+import { createAccessControl } from 'better-auth/plugins/access'
+import { Context, Data, Effect, Layer } from 'effect'
 
 // ─── Core types ──────────────────────────────────────────────────────
 
@@ -159,3 +159,108 @@ export class AccessService extends Context.Service<
     readonly buildRoles: Effect.Effect<BuiltRoles>
   }
 >()('@czo/auth/AccessService') {}
+
+// ─── Layer ───────────────────────────────────────────────────────────
+
+/** Initial access provider options the registry is seeded with at construction. */
+export type InitialAccessOptions = readonly AccessProviderOption<Statements>[]
+
+/**
+ * Parameterized layer — seed the access registry and optionally freeze it at
+ * boot.
+ */
+export function makeLayer(
+  initialOptions: InitialAccessOptions = [],
+  freezeOnInit = false,
+): Layer.Layer<AccessService> {
+  return Layer.sync(AccessService, () => {
+    const _statements = new Map<string, readonly string[]>()
+    const _hierarchies = new Map<string, AccessHierarchyProvider>()
+    const _providers = new Map<string, AccessStatementProvider>()
+
+    // Seed from initialOptions. Duplicate detection mirrors the runtime
+    // `register` checks: same provider name, same hierarchy name, or same
+    // statement resource across providers all throw — these are boot-time
+    // configuration errors, so failing fast at construction is correct.
+    for (const option of initialOptions) {
+      if (_hierarchies.has(option.name))
+        throw new Error(`Roles hierarchy for "${option.name}" is already registered`)
+      for (const resource of Object.keys(option.statements)) {
+        if (_statements.has(resource))
+          throw new Error(`Statement resource "${resource}" is already registered`)
+      }
+      for (const [resource, permissions] of Object.entries(option.statements))
+        _statements.set(resource, permissions as readonly string[])
+      _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
+    }
+
+    let frozen = freezeOnInit
+
+    return AccessService.of({
+      register: option =>
+        Effect.gen(function* () {
+          if (frozen)
+            return yield* Effect.fail(new AccessRegistryFrozen({ subject: `statements "${option.name}"` }))
+          if (_providers.has(option.name))
+            return yield* Effect.fail(new StatementProviderAlreadyRegistered({ providerName: option.name }))
+          if (_hierarchies.has(option.name))
+            return yield* Effect.fail(new RolesHierarchyAlreadyRegistered({ providerName: option.name }))
+
+          for (const resource of Object.keys(option.statements)) {
+            if (_statements.has(resource))
+              return yield* Effect.fail(new StatementResourceAlreadyRegistered({ resource }))
+          }
+
+          for (const [resource, permissions] of Object.entries(option.statements))
+            _statements.set(resource, permissions as readonly string[])
+
+          _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
+        }),
+
+      providers: Effect.sync(() => [..._providers.values()]),
+
+      hierarchies: Effect.sync(() => [..._hierarchies.values()]),
+
+      role: name =>
+        Effect.sync(() => {
+          for (const provider of _providers.values()) {
+            if (name in provider.roles)
+              return provider.roles[name]
+          }
+          return undefined
+        }),
+
+      roles: Effect.sync(() => {
+        const map: Record<string, AccessRole> = {}
+        for (const provider of _providers.values()) {
+          for (const [roleName, role] of Object.entries(provider.roles))
+            map[roleName] = role
+        }
+        return map
+      }),
+
+      statements: Effect.sync(() => Object.fromEntries(_statements.entries())),
+
+      freeze: Effect.sync(() => {
+        frozen = true
+      }),
+
+      isFrozen: Effect.sync(() => frozen),
+
+      buildRoles: Effect.sync((): BuiltRoles => {
+        const ac = createAccessControl(Object.fromEntries(_statements.entries()))
+        const builder = roleBuilder(ac)
+        let roles: Record<string, AccessRole> = {}
+        for (const [name, hierarchy] of _hierarchies.entries()) {
+          const _roles = builder.createHierarchy(hierarchy.hierarchy as any)
+          roles = Object.assign(roles, _roles)
+          _providers.set(name, { name, roles: _roles })
+        }
+        return { ac, roles }
+      }),
+    })
+  })
+}
+
+/** Default layer — empty, unfrozen registry. */
+export const layer = makeLayer()
