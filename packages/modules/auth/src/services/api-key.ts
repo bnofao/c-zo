@@ -1,16 +1,15 @@
 import type { Relations } from '@czo/auth/relations'
 import type { ApiKeySchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
-import type { Awaitable } from 'better-auth'
 import type { InferSelectModel } from 'drizzle-orm'
-import { defaultKeyHasher } from '@better-auth/api-key'
 import { apikeys } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { generateRandomString } from 'better-auth/crypto'
-import { role } from 'better-auth/plugins'
 import { and, eq, sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
-import { OrganizationService } from './organization'
+import { AccessService } from './access'
+import { randomString, sha256Hex } from './utils/crypto'
+
+type Awaitable<T> = T | Promise<T>
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
 
@@ -55,11 +54,6 @@ export class UsageExceeded extends Data.TaggedError('UsageExceeded') {
   get message() { return 'API key usage quota exceeded' }
 }
 
-export class Intrusion extends Data.TaggedError('Intrusion') {
-  readonly code = 'INTRUSION'
-  get message() { return 'Access denied: caller is not allowed to operate on this resource' }
-}
-
 export class ApiKeyNotFound extends Data.TaggedError('ApiKeyNotFound') {
   readonly code = 'API_KEY_NOT_FOUND'
   get message() { return 'API key not found' }
@@ -85,7 +79,7 @@ export class DbFailed extends Data.TaggedError('DbFailed')<{
 export type ApiKeyError
   = | InvalidApiKey | KeyDisabled | KeyExpired | Unauthorized
     | RateLimited | Misconfigured | UsageExceeded
-    | Intrusion | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
+    | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface CreateApiKeyInput {
@@ -105,17 +99,17 @@ interface CreateApiKeyInput {
 }
 
 interface UpdateApiKeyInput {
-  name?: string
-  enabled?: boolean
+  name?: string | null
+  enabled?: boolean | null
   remaining?: number | null
   metadata?: any
   expiresIn?: number | null
   permissions?: Record<string, string[]> | null
-  refillAmount?: number
-  refillInterval?: number
-  rateLimitEnabled?: boolean
-  rateLimitTimeWindow?: number
-  rateLimitMax?: number
+  refillAmount?: number | null
+  refillInterval?: number | null
+  rateLimitEnabled?: boolean | null
+  rateLimitTimeWindow?: number | null
+  rateLimitMax?: number | null
 }
 
 export type ApiKey = InferSelectModel<ApiKeySchema>
@@ -129,9 +123,9 @@ export interface KeyHasher {
 }
 
 export interface CreateApiKeyOptions {
-  /** Custom key generator. Defaults to a length-based random hex string. */
+  /** Custom key generator. Defaults to a length-based random alphanumeric string. */
   keyGenerator?: KeyGenerator
-  /** Custom hasher. Defaults to better-auth's `defaultKeyHasher` (sha256). */
+  /** Custom hasher. Defaults to `sha256Hex` from `./utils/crypto`. */
   keyHasher?: KeyHasher
   rateLimit?: {
     maxRequests?: number
@@ -141,44 +135,13 @@ export interface CreateApiKeyOptions {
   keyLength?: number
   reference?: string
   startCharsLength?: number
-  session: {
-    userId: number
-  }
-}
-
-export interface FindOneOptions {
-  session: {
-    userId: number
-  }
-}
-
-export interface FindManyOptions {
-  session: {
-    userId: number
-  }
-}
-
-export interface UpdateApiKeyOptions {
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
 }
 
 export interface VerifyApiKeyOptions {
   /** Required permissions, e.g. `{ users: ['read', 'write'] }`. Subset check against `apiKey.permissions`. */
   permissions?: Record<string, string[]>
-  /** Custom hasher for `verify` (plain → hashed). Defaults to better-auth's `defaultKeyHasher` (sha256). */
+  /** Custom hasher for `verify` (plain → hashed). Defaults to `sha256Hex` from `./utils/crypto`. */
   keyHasher?: KeyHasher
-}
-
-export interface RemoveApiKeyOptions {
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
 }
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
@@ -190,25 +153,22 @@ export class ApiKeyService extends Context.Service<
   ApiKeyService,
   {
     readonly findFirst: (
-      opts: FindOneOptions,
       config?: FindFirstConfig,
-    ) => Effect.Effect<ApiKey, ApiKeyNotFound | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, ApiKeyNotFound | DbFailed>
 
     readonly findMany: (
-      opts: FindManyOptions,
       config?: FindManyConfig,
-    ) => Effect.Effect<readonly ApiKey[], Intrusion | DbFailed>
+    ) => Effect.Effect<readonly ApiKey[], DbFailed>
 
     readonly create: (
       input: CreateApiKeyInput,
       opts: CreateApiKeyOptions,
-    ) => Effect.Effect<ApiKey, RefillPairRequired | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, RefillPairRequired | DbFailed>
 
     readonly update: (
       id: number,
       input: UpdateApiKeyInput,
-      opts: UpdateApiKeyOptions,
-    ) => Effect.Effect<ApiKey, ApiKeyNotFound | NoChanges | RefillPairRequired | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed>
 
     readonly validate: (
       hashedKey: string,
@@ -230,17 +190,18 @@ export class ApiKeyService extends Context.Service<
 
     readonly remove: (
       id: number,
-      opts: RemoveApiKeyOptions,
-    ) => Effect.Effect<boolean, ApiKeyNotFound | Intrusion | DbFailed>
+    ) => Effect.Effect<boolean, ApiKeyNotFound | DbFailed>
   }
 >()('@czo/auth/ApiKeyService') {}
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 const defaultKeyGenerator: KeyGenerator = ({ length, prefix }) => {
-  const hex = generateRandomString(length, 'a-z', 'A-Z')
+  const hex = randomString(length, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
   return prefix ? `${prefix}_${hex}` : hex
 }
+
+const defaultKeyHasher: KeyHasher = (key: string) => sha256Hex(key)
 
 // ─── Layer ───────────────────────────────────────────────────────────
 
@@ -252,59 +213,10 @@ const make = Effect.gen(function* () {
   // matches the auth schema. The runtime client is the same — only the static
   // type changes.
   const db = (yield* DrizzleDb) as Database<Relations>
-  const org = yield* OrganizationService
+  const access = yield* AccessService
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
     eff.pipe(Effect.mapError(cause => new DbFailed({ cause })))
-
-  /**
-   * Extract `reference` / `referenceId` from a Drizzle RQBv2 `where` clause.
-   * RQBv2's static type doesn't expose these as plain props, but callers
-   * pass them as literal fields — hence the local cast in one place.
-   */
-  const extractScope = (
-    where: unknown,
-    defaultUserId: number,
-  ): { reference: string, referenceId: number } => {
-    const w = (where ?? {}) as { reference?: string, referenceId?: number }
-    return {
-      reference: w.reference ?? 'user',
-      referenceId: w.referenceId ?? defaultUserId,
-    }
-  }
-
-  /**
-   * Verify the session caller is allowed to access keys belonging to (reference, referenceId).
-   * - `user`: caller must BE the referenced user.
-   * - `organization`: caller must be a member of the referenced organization.
-   */
-  const assertScopeAllowed = (scope: {
-    reference: string
-    referenceId?: number
-    userId: number
-  }): Effect.Effect<void, Intrusion | DbFailed> =>
-    Effect.gen(function* () {
-      if (scope.reference === 'organization') {
-        if (scope.referenceId === undefined)
-          return yield* Effect.fail(new Intrusion())
-        // OrganizationService.checkMembership can fail with OrgDbFailed;
-        // map it to api-key's own DbFailed so the error channel stays
-        // module-local.
-        const isMember = yield* org.checkMembership(scope.referenceId, scope.userId).pipe(
-          Effect.mapError(e => new DbFailed({ cause: e })),
-        )
-        if (!isMember)
-          return yield* Effect.fail(new Intrusion())
-        return
-      }
-      if (scope.reference === 'user') {
-        const refId = scope.referenceId ?? scope.userId
-        if (scope.userId !== refId)
-          return yield* Effect.fail(new Intrusion())
-        return
-      }
-      return yield* Effect.fail(new Intrusion())
-    })
 
   // `validate` is a closure const so `verify` can call it. Typed once via
   // `ApiKeyServiceImpl['validate']`; the other methods get contextual typing
@@ -325,9 +237,9 @@ const make = Effect.gen(function* () {
         return yield* Effect.fail(new KeyExpired({ keyId: apiKey.id }))
 
       if (opts?.permissions) {
-        const granted = apiKey.permissions ?? {}
-        const allowed = role(granted).authorize(opts.permissions)
-        if (!allowed.success)
+        const granted = (apiKey.permissions ?? {}) as Record<string, string[]>
+        const allowed = yield* access.authorize(granted, opts.permissions)
+        if (!allowed)
           return yield* Effect.fail(new Unauthorized())
       }
 
@@ -394,27 +306,17 @@ const make = Effect.gen(function* () {
     })
 
   return ApiKeyService.of({
-    findFirst: (opts, config) =>
+    findFirst: (config) =>
       Effect.gen(function* () {
-        const scope = extractScope(config?.where, opts.session.userId)
-        yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
-        const data = yield* dbErr(db.query.apikeys.findFirst({
-          ...config,
-          where: { ...config?.where, ...scope },
-        }))
+        const data = yield* dbErr(db.query.apikeys.findFirst(config))
         if (!data)
           return yield* Effect.fail(new ApiKeyNotFound())
         return data
       }),
 
-    findMany: (opts, config) =>
+    findMany: (config) =>
       Effect.gen(function* () {
-        const scope = extractScope(config?.where, opts.session.userId)
-        yield* assertScopeAllowed({ ...scope, userId: opts.session.userId })
-        const rows = yield* dbErr(db.query.apikeys.findMany({
-          ...config,
-          where: { ...config?.where, ...scope },
-        }))
+        const rows = yield* dbErr(db.query.apikeys.findMany(config))
         return rows
       }),
 
@@ -426,17 +328,6 @@ const make = Effect.gen(function* () {
         const rateLimit = opts.rateLimit ?? {
           maxRequests: 10,
           timeWindow: 1000 * 60 * 60 * 24,
-        }
-
-        if (reference === 'organization') {
-          const isMember = yield* org.checkMembership(input.referenceId, opts.session.userId).pipe(
-            Effect.mapError(e => new DbFailed({ cause: e })),
-          )
-          if (!isMember)
-            return yield* Effect.fail(new Intrusion())
-        }
-        else if (reference === 'user' && opts.session.userId !== input.referenceId) {
-          return yield* Effect.fail(new Intrusion())
         }
 
         if ((input.refillAmount && !input.refillInterval) || (input.refillInterval && !input.refillAmount))
@@ -479,11 +370,15 @@ const make = Effect.gen(function* () {
         return { ...row, key }
       }),
 
-    update: (id, input, opts) =>
+    update: (id, input) =>
       Effect.gen(function* () {
-        const reference = opts.reference ?? 'user'
-        const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
-        yield* assertScopeAllowed({ reference, referenceId, userId: opts.session.userId })
+        // Fetch key first to derive reference/referenceId for the DB-level
+        // integrity .where clause below — not an auth check.
+        const existing = yield* dbErr(db.query.apikeys.findFirst({ where: { id } }))
+        if (!existing)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        const reference = existing.reference
+        const referenceId = existing.referenceId
 
         if ((input.refillAmount !== undefined && input.refillInterval === undefined)
           || (input.refillInterval !== undefined && input.refillAmount === undefined)) {
@@ -509,7 +404,7 @@ const make = Effect.gen(function* () {
           .where(and(
             eq(apikeys.id, id),
             eq(apikeys.reference, reference),
-            eq(apikeys.referenceId, referenceId!),
+            eq(apikeys.referenceId, referenceId),
           ))
           .returning())
 
@@ -529,17 +424,21 @@ const make = Effect.gen(function* () {
         return yield* validate(hashed, opts)
       }),
 
-    remove: (id, opts) =>
+    remove: (id) =>
       Effect.gen(function* () {
-        const reference = opts.reference ?? 'user'
-        const referenceId = opts.referenceId ?? (reference === 'user' ? opts.session.userId : undefined)
-        yield* assertScopeAllowed({ reference, referenceId, userId: opts.session.userId })
+        // Fetch key first to derive reference/referenceId for the DB-level
+        // integrity .where clause below — not an auth check.
+        const existing = yield* dbErr(db.query.apikeys.findFirst({ where: { id } }))
+        if (!existing)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        const reference = existing.reference
+        const referenceId = existing.referenceId
 
         const [deleted] = yield* dbErr(db.delete(apikeys)
           .where(and(
             eq(apikeys.id, id),
             eq(apikeys.reference, reference),
-            eq(apikeys.referenceId, referenceId!),
+            eq(apikeys.referenceId, referenceId),
           ))
           .returning({ id: apikeys.id }))
 

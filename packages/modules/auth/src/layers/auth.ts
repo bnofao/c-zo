@@ -22,7 +22,6 @@ function checkUserPermission(auth: Auth, input: UserPermissionInput): boolean {
 
   const adminOptions = (auth.options.plugins?.find(
     p => p.id === 'admin',
-    // @ts-expect-error admin plugin options type is not exported by better-auth
   ))?.options as AdminOptions | undefined
 
   if (adminOptions?.adminUserIds?.includes(userId))
@@ -83,7 +82,6 @@ async function checkOrgPermission(auth: Auth, input: OrgPermissionInput): Promis
 
   const orgOptions = auth.options?.plugins?.find(
     (p: { id: string }) => p.id === 'organization',
-    // @ts-expect-error organization plugin options type is not exported by better-auth
   )?.options as OrganizationOptions | undefined
 
   let acRoles: { [x: string]: Role<Record<string, string[]>> | undefined } = {

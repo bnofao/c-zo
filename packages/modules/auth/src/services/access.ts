@@ -157,6 +157,24 @@ export class AccessService extends Context.Service<
      * effect — calling twice rebuilds from the current statements/hierarchies.
      */
     readonly buildRoles: Effect.Effect<BuiltRoles>
+
+    /**
+     * Ad-hoc role-permission check: does `granted` cover `required`?
+     *
+     * Implementation forked from better-auth's `role(granted).authorize(required, connector)`
+     * (better-auth/plugins/access, MIT). Same set-inclusion algorithm — we own
+     * the impl to drop the runtime dep and to allow future extensions (denials,
+     * resource hierarchies, etc.) without coupling to better-auth.
+     *
+     * The registered roles/hierarchies surface (`role(name)`, `roles`,
+     * `buildRoles`) still uses better-auth's `createAccessControl` — separate,
+     * larger fork sprint.
+     */
+    readonly authorize: (
+      granted: RolePermissions<Statements> | null | undefined,
+      required: RolePermissions<Statements>,
+      connector?: 'AND' | 'OR',
+    ) => Effect.Effect<boolean>
   }
 >()('@czo/auth/AccessService') {}
 
@@ -258,6 +276,20 @@ export function makeLayer(
         }
         return { ac, roles }
       }),
+
+      authorize: (granted, required, connector = 'AND') =>
+        Effect.sync(() => {
+          if (!granted) return false
+          for (const [resource, actions] of Object.entries(required) as [string, string[]][]) {
+            const grantedActions = (granted as Record<string, string[]>)[resource]
+            if (!grantedActions) return false
+            const hasAll = actions.every(a => grantedActions.includes(a))
+            const hasAny = actions.some(a => grantedActions.includes(a))
+            if (connector === 'AND' && !hasAll) return false
+            if (connector === 'OR' && !hasAny) return false
+          }
+          return true
+        }),
     })
   })
 }

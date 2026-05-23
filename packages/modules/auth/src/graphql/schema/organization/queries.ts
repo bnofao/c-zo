@@ -46,7 +46,6 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
         })
         return ctx.runEffect(program) as any
       },
-      edgesField: {},
     }))
 
   // ── checkSlug(slug) — verify organization slug availability ───────────────

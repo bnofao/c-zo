@@ -1,11 +1,14 @@
-import type { GraphQLContextMap, SchemaBuilder } from '@czo/kit/graphql'
-import { DrizzleDb } from '@czo/kit/db/effect'
-import { UnauthenticatedError } from '@czo/kit/graphql'
+import type { GraphQLContextMap } from '@czo/kit/graphql'
+import type { AuthGraphQLSchemaBuilder } from '../../index'
+import { ApiKeyService } from '@czo/auth/services/api-key'
+import { OrganizationService } from '@czo/auth/services/organization'
+import { decodeGlobalID, UnauthenticatedError } from '@czo/kit/graphql'
+import { Effect } from 'effect'
 
 // ─── API Key Queries ──────────────────────────────────────────────────────────
 
-export function registerApiKeyQueries(builder: SchemaBuilder): void {
-  // ── apiKey(id) — single API key by ID ────────────────────────────────────
+export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
+  // ── apiKey(id) — single API key, ownership-OR-membership guarded ─────────
   builder.queryField('apiKey', t =>
     t.drizzleField({
       type: 'apikeys',
@@ -13,30 +16,76 @@ export function registerApiKeyQueries(builder: SchemaBuilder): void {
       args: {
         id: t.arg.id({ required: true }),
       },
-      authScopes: { loggedIn: true },
-      resolve: async (query, _root: unknown, args: Record<string, unknown>, ctx: GraphQLContextMap) => {
-        if (!ctx.auth?.user)
+      authScopes: { auth: true },
+      resolve: async (_query, _root, args, ctx: GraphQLContextMap) => {
+        const user = ctx.auth?.user
+        if (!user)
           throw new UnauthenticatedError()
 
-        const db = await ctx.runEffect(DrizzleDb) as any
-        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
-        return db.query.apikeys.findFirst(query({ where: (k: any, { eq }: any) => eq(k.id, String(args.id)) } as any))
+        const keyId = Number(decodeGlobalID(String(args.id)).id)
+        const program = Effect.gen(function* () {
+          const svc = yield* ApiKeyService
+          const key = yield* svc.findFirst({ where: { id: keyId } }).pipe(
+            Effect.catchTag('ApiKeyNotFound', () => Effect.succeed(null)),
+          )
+          if (!key)
+            return null
+
+          // Ownership-OR-membership guard.
+          if (key.reference === 'user')
+            return String(key.referenceId) === String(user.id) ? key : null
+
+          const org = yield* OrganizationService
+          const isMember = yield* org.checkMembership(key.referenceId, Number(user.id))
+          return isMember ? key : null
+        })
+        return ctx.runEffect(program)
       },
     }))
 
-  // ── myApiKeys — all API keys for the current user ─────────────────────────
+  // ── myApiKeys — all keys owned by the calling user ────────────────────────
   builder.queryField('myApiKeys', t =>
     t.drizzleField({
       type: ['apikeys'],
-      authScopes: { loggedIn: true },
-      resolve: async (query, _root: unknown, _args: unknown, ctx: GraphQLContextMap) => {
-        const authUser = ctx.auth?.user
-        if (!authUser)
+      authScopes: { auth: true },
+      resolve: async (_query, _root, _args, ctx: GraphQLContextMap) => {
+        const user = ctx.auth?.user
+        if (!user)
           throw new UnauthenticatedError()
 
-        const db = await ctx.runEffect(DrizzleDb) as any
-        // Drizzle RQBv2: filter callback type (`TableFilter`) not publicly exported; cast required
-        return db.query.apikeys.findMany(query({ where: (k: any, { eq }: any) => eq(k.userId, String(authUser.id)) } as any))
+        const program = Effect.gen(function* () {
+          const svc = yield* ApiKeyService
+          return yield* svc.findMany({
+            where: { reference: 'user', referenceId: Number(user.id) },
+          })
+        })
+        return ctx.runEffect(program)
+      },
+    }))
+
+  // ── organizationApiKeys — all keys owned by a given organization ──────────
+  builder.queryField('organizationApiKeys', t =>
+    t.drizzleField({
+      type: ['apikeys'],
+      args: {
+        organizationId: t.arg.id({ required: true }),
+      },
+      authScopes: (_parent: unknown, args: any) => ({
+        permission: {
+          resource: 'api-key',
+          actions: ['read'],
+          organization: Number(decodeGlobalID(args.organizationId).id),
+        },
+      }),
+      resolve: async (_query, _root, args, ctx: GraphQLContextMap) => {
+        const orgId = Number(decodeGlobalID(String(args.organizationId)).id)
+        const program = Effect.gen(function* () {
+          const svc = yield* ApiKeyService
+          return yield* svc.findMany({
+            where: { reference: 'organization', referenceId: orgId },
+          })
+        })
+        return ctx.runEffect(program)
       },
     }))
 }

@@ -11,7 +11,6 @@ import { AccessService } from '../../services/access'
 import { accountConfig } from './account'
 import { actorType } from './actor'
 import { adminConfig } from './admin'
-import { apiKeyConfig, apiKeyHooks } from './apikey'
 import { databaseConfig } from './database'
 import { organizationConfig } from './organization'
 import { advancedConfig, emailAndPasswordConfig, emailVerificationConfig, rateLimitConfig, secondaryStorageConfig } from './others'
@@ -36,7 +35,6 @@ export type Auth = ReturnType<typeof createAuth>
 
 function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions & { databaseHooks?: Record<string, unknown> }  */ {
   const cookiePrefix = option.app.replace(/[^a-z0-9]/gi, '').toLowerCase()
-  const apiKeyPrefix = `${cookiePrefix}_`
 
   return {
     secret: option.secret,
@@ -50,7 +48,6 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     databaseHooks: {
       user: userHooks(),
       session: sessionHooks(),
-      apikey: apiKeyHooks(),
     },
     session: sessionConfig(),
     secondaryStorage: secondaryStorageConfig(option.storage),
@@ -65,7 +62,6 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       // twoFactorConfig({ issuer: option.app }),
       openAPI({ disableDefaultReference: true }),
       actorType(),
-      apiKeyConfig({ defaultPrefix: apiKeyPrefix }),
       organizationConfig({ ac: option.ac, roles: option.roles, /*  {
         //   viewer: viewerRole,
         //   ...(options.accessRegistry?.roles() ?? {}),
