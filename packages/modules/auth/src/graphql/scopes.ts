@@ -1,8 +1,8 @@
 import type { GraphQLContextMap } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { ApiKeyService } from '../services/api-key'
-import { AuthService } from '../services/auth'
 import { OrganizationService } from '../services/organization'
+import { UserService } from '../services/user'
 
 export function authScopes(ctx: GraphQLContextMap) {
   return {
@@ -26,22 +26,19 @@ export function authScopes(ctx: GraphQLContextMap) {
             }).pipe(Effect.catchTag('MemberNotFound', () => Effect.succeed(null)))
             if (!membership?.role)
               return false
-            const authSvc = yield* AuthService
-            return yield* authSvc.hasPermission(
-              { userId: String(userId), organizationId: String(organization), role: membership.role },
-              { [resource]: actions },
-            )
+            const orgPerm = yield* OrganizationService
+            return yield* orgPerm.hasPermission({
+              orgId: String(organization),
+              role: membership.role,
+              permissions: { [resource]: actions },
+            })
           }
-          // No org context — unchanged session-based check.
-          const authSvc = yield* AuthService
-          return yield* authSvc.hasPermission(
-            {
-              userId: String(userId),
-              organizationId: ctx.auth?.session?.activeOrganizationId ?? undefined,
-              role: ctx.auth?.user?.role ?? undefined,
-            },
-            { [resource]: actions },
-          )
+          // No org context — session-based check via UserService.
+          const users = yield* UserService
+          return yield* users.hasPermission({
+            role: ctx.auth?.user?.role ?? undefined,
+            permissions: { [resource]: actions },
+          })
         }),
       )
     },
@@ -92,11 +89,12 @@ export function authScopes(ctx: GraphQLContextMap) {
           }).pipe(Effect.catchTag('MemberNotFound', () => Effect.succeed(null)))
           if (!membership?.role)
             return false
-          const authSvc = yield* AuthService
-          return yield* authSvc.hasPermission(
-            { userId: String(userId), organizationId: String(ownerId), role: membership.role },
-            { 'api-key': [input.action] },
-          )
+          const orgPerm = yield* OrganizationService
+          return yield* orgPerm.hasPermission({
+            orgId: String(ownerId),
+            role: membership.role,
+            permissions: { 'api-key': [input.action] },
+          })
         }),
       )
     },

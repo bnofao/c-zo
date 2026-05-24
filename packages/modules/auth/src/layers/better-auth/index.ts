@@ -1,6 +1,5 @@
 import type { Awaitable, SocialProviders } from 'better-auth'
-import type { AccessControl } from 'better-auth/plugins'
-import type { AccessRole } from '../../services/access'
+import type { AccessControl, Role as BetterAuthAccessRole } from 'better-auth/plugins'
 import type { Storage } from './others'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { betterAuth } from 'better-auth'
@@ -27,7 +26,7 @@ export interface AuthOption {
   socials?: SocialProviders
   adminRoles?: readonly string[]
   ac?: AccessControl
-  roles?: Record<string, AccessRole>
+  roles?: Record<string, BetterAuthAccessRole>
   trustedOrigins?: (string[] | ((request?: Request | undefined) => Awaitable<(string | undefined | null)[]>)) | undefined
 }
 
@@ -164,7 +163,13 @@ export function makeBetterAuthLive(opts: Omit<AuthOption, 'ac' | 'roles'>) {
       const db = yield* DrizzleDb
       const access = yield* AccessService
       const { ac, roles } = yield* access.buildRoles
-      return createAuth(db, { ...opts, ac, roles })
+      // Local AccessControl/Role fork is structurally identical to better-auth's
+      // — cast at the boundary where we hand off to better-auth.
+      return createAuth(db, {
+        ...opts,
+        ac: ac as unknown as AccessControl,
+        roles: roles as unknown as Record<string, BetterAuthAccessRole>,
+      })
     }),
   )
 }

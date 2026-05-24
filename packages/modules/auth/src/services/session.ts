@@ -3,13 +3,14 @@ import type { Database } from '@czo/kit/db/effect'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { eq, lt } from 'drizzle-orm'
+import { and, desc, eq, gt, lt } from 'drizzle-orm'
 import { createSelectSchema } from 'drizzle-orm/effect-schema'
-import { Context, Data, Duration, Effect, Layer, Schema } from 'effect'
+import { Context, Data, Duration, Effect, Layer, Schema, Stream } from 'effect'
 import { Persistable, PersistedCache } from 'effect/unstable/persistence'
 import { SESSION_DURATION } from '../constants'
 import { sessions, users } from '../database/schema'
 import * as Cookie from './cookie'
+import { type UserEvent, UserEvents } from './events/user'
 
 /**
  * The canonical session lifetime now lives in `../constants` (a `Duration`,
@@ -52,6 +53,8 @@ export class SessionService extends Context.Service<SessionService, {
   readonly resolve: (token: string) => Effect.Effect<ResolvedSession | null, SessionStoreFailed>
   readonly revoke: (token: string) => Effect.Effect<void, SessionStoreFailed>
   readonly revokeAllForUser: (userId: number) => Effect.Effect<void, SessionStoreFailed>
+  readonly listForUser: (userId: number) => Effect.Effect<readonly SessionRow[], SessionStoreFailed>
+  readonly invalidateCacheForUser: (userId: number) => Effect.Effect<void, SessionStoreFailed>
   readonly update: (
     token: string,
     patch: Partial<Omit<SessionRow, 'id' | 'token' | 'userId' | 'createdAt'>>,
@@ -146,6 +149,13 @@ const make = Effect.gen(function* () {
     inMemoryCapacity: 10_000,
   })
 
+  /** Drop the L1+L2 cache entry for one token. Shared by `revoke`,
+   * `revokeAllForUser`, and `invalidateCacheForUser`. */
+  const invalidateCacheForToken = (token: string) =>
+    cache.invalidate(new SessionKey({ token })).pipe(
+      Effect.mapError(cause => new SessionStoreFailed({ cause })),
+    )
+
   return SessionService.of({
     create: input =>
       Effect.gen(function* () {
@@ -182,11 +192,7 @@ const make = Effect.gen(function* () {
       ),
     revoke: token =>
       dbErr(db.delete(sessions).where(eq(sessions.token, token))).pipe(
-        Effect.andThen(
-          cache.invalidate(new SessionKey({ token })).pipe(
-            Effect.mapError(cause => new SessionStoreFailed({ cause })),
-          ),
-        ),
+        Effect.andThen(invalidateCacheForToken(token)),
       ),
     revokeAllForUser: userId =>
       // Delete every session row AND invalidate its cache entry — otherwise
@@ -197,10 +203,25 @@ const make = Effect.gen(function* () {
         Effect.flatMap(rows =>
           Effect.forEach(
             rows,
-            ({ token }) =>
-              cache.invalidate(new SessionKey({ token })).pipe(
-                Effect.mapError(cause => new SessionStoreFailed({ cause })),
-              ),
+            ({ token }) => invalidateCacheForToken(token),
+            { discard: true, concurrency: 'unbounded' },
+          ),
+        ),
+      ),
+    listForUser: userId =>
+      dbErr(
+        db.select().from(sessions)
+          .where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, new Date())))
+          .orderBy(desc(sessions.createdAt)),
+      ).pipe(Effect.map(rows => rows as readonly SessionRow[])),
+    invalidateCacheForUser: userId =>
+      dbErr(
+        db.select({ token: sessions.token }).from(sessions).where(eq(sessions.userId, userId)),
+      ).pipe(
+        Effect.flatMap(rows =>
+          Effect.forEach(
+            rows,
+            ({ token }) => invalidateCacheForToken(token),
             { discard: true, concurrency: 'unbounded' },
           ),
         ),
@@ -222,3 +243,60 @@ const make = Effect.gen(function* () {
  * inside the scope provided by the layer's own Scope.
  */
 export const layer = Layer.effect(SessionService, make)
+
+// ─── Subscribers ─────────────────────────────────────────────────────────
+
+/**
+ * Auto-revoke all sessions when a user is banned. The session domain owns
+ * this side-effect (not `UserService`) so that banning logic stays free of
+ * session knowledge and the wiring is a pure layer composition.
+ */
+const onUserBanned = Effect.fn('sessions.subscribers.user-banned')(
+  function* (e: Extract<UserEvent, { _tag: 'UserBanned' }>) {
+    const sessions = yield* SessionService
+    yield* sessions.revokeAllForUser(e.userId)
+  },
+)
+
+/**
+ * Drop session cache entries on a role change in either direction — the
+ * cached `ResolvedSession` carries the user's role, so it's stale regardless
+ * of whether the role was upgraded or downgraded.
+ */
+const onUserRoleChanged = Effect.fn('sessions.subscribers.user-role-changed')(
+  function* (e: Extract<UserEvent, { _tag: 'UserRoleChanged' }>) {
+    const sessions = yield* SessionService
+    yield* sessions.invalidateCacheForUser(e.userId)
+  },
+)
+
+/**
+ * Background subscriber that bridges `UserEvents` → `SessionService` side
+ * effects. The layer's own internal Scope owns the forked fiber via
+ * `Effect.forkScoped` — closed cleanly on runtime disposal (Nitro `close`).
+ * Effect 4 beta.70 has no `Layer.scopedDiscard`; `Layer.effectDiscard` is the
+ * equivalent.
+ *
+ * Each handler is wrapped in `Effect.catchAllCause` so a transient
+ * `SessionStoreFailed` (or any other defect) does NOT terminate the stream —
+ * losing the bridge silently would be a security-relevant regression for the
+ * ban path. Failures are logged and the stream continues processing.
+ */
+export const subscribersLayer = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const events = yield* UserEvents
+    yield* Effect.forkScoped(
+      Stream.runForEach(events.subscribe, (e) => {
+        const handle = e._tag === 'UserBanned'
+          ? onUserBanned(e)
+          : e._tag === 'UserRoleChanged'
+            ? onUserRoleChanged(e)
+            : Effect.void
+        return handle.pipe(
+          Effect.catchCause(cause =>
+            Effect.logError(`session subscriber failed for ${e._tag}`, cause)),
+        )
+      }),
+    )
+  }),
+)

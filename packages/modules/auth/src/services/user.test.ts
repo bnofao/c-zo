@@ -74,8 +74,6 @@ function makeAuthStub(overrides: {
   linkAccount?: (...args: any[]) => Promise<unknown>
   updatePassword?: (...args: any[]) => Promise<unknown>
   deleteUser?: (...args: any[]) => Promise<unknown>
-  deleteSessions?: (...args: any[]) => Promise<unknown>
-  listSessions?: (...args: any[]) => Promise<unknown[]>
 } = {}) {
   return {
     options: {},
@@ -88,8 +86,6 @@ function makeAuthStub(overrides: {
         linkAccount: overrides.linkAccount ?? (async () => ({})),
         updatePassword: overrides.updatePassword ?? (async () => ({})),
         deleteUser: overrides.deleteUser ?? (async () => ({})),
-        deleteSessions: overrides.deleteSessions ?? (async () => ({})),
-        listSessions: overrides.listSessions ?? (async () => []),
       },
     }),
   } as never
@@ -309,5 +305,86 @@ describe('userServiceLive — remove', () => {
     })
     const result = await expectSuccess(program.pipe(Effect.provide(makeTestLayer(db))))
     expect(result).toBe(true)
+  })
+})
+
+// ─── hasPermission ───────────────────────────────────────────────────
+
+// Access seed for hasPermission tests: admin role inherits user-role perms
+// (self-read only) and adds full user-management actions, mirroring the
+// real ADMIN_HIERARCHY shape but with simple `user` / `admin` role names.
+function makeHasPermissionAccessLayer() {
+  return Access.makeLayer(
+    [{
+      name: 'test',
+      statements: { user: ['create', 'read', 'update', 'ban', 'set-role'] },
+      hierarchy: [
+        { name: 'user', permissions: { user: ['read'] } },
+        { name: 'admin', permissions: { user: ['create', 'update', 'ban', 'set-role'] } },
+      ],
+    }] as any,
+    true,
+  )
+}
+
+function makeHasPermissionLayer(db: object) {
+  const dbLayer = Layer.succeed(DrizzleDb, db as never)
+  const authLayer = Layer.succeed(BetterAuth, makeAuthStub())
+  return User.layer.pipe(
+    Layer.provide(Layer.mergeAll(dbLayer, authLayer, makeHasPermissionAccessLayer(), UserEvents.layer)),
+  )
+}
+
+describe('userServiceLive — hasPermission', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns true when role grants the required permission (AND)', async () => {
+    const { db } = makeMockDb(null)
+    const program = Effect.gen(function* () {
+      const svc = yield* UserService
+      return yield* svc.hasPermission({ role: 'admin', permissions: { user: ['create'] } })
+    })
+    const ok = await expectSuccess(program.pipe(Effect.provide(makeHasPermissionLayer(db))))
+    expect(ok).toBe(true)
+  })
+
+  it('returns false when role lacks the required permission', async () => {
+    const { db } = makeMockDb(null)
+    const program = Effect.gen(function* () {
+      const svc = yield* UserService
+      return yield* svc.hasPermission({ role: 'user', permissions: { user: ['ban'] } })
+    })
+    const ok = await expectSuccess(program.pipe(Effect.provide(makeHasPermissionLayer(db))))
+    expect(ok).toBe(false)
+  })
+
+  it('returns false when role is unknown', async () => {
+    const { db } = makeMockDb(null)
+    const program = Effect.gen(function* () {
+      const svc = yield* UserService
+      return yield* svc.hasPermission({ role: 'martian', permissions: { user: ['create'] } })
+    })
+    const ok = await expectSuccess(program.pipe(Effect.provide(makeHasPermissionLayer(db))))
+    expect(ok).toBe(false)
+  })
+
+  it('multi-role string ("admin,user") returns true if any role authorizes', async () => {
+    const { db } = makeMockDb(null)
+    const program = Effect.gen(function* () {
+      const svc = yield* UserService
+      return yield* svc.hasPermission({ role: 'admin,user', permissions: { user: ['ban'] } })
+    })
+    const ok = await expectSuccess(program.pipe(Effect.provide(makeHasPermissionLayer(db))))
+    expect(ok).toBe(true)
+  })
+
+  it('defaults to "user" role when role param is undefined', async () => {
+    const { db } = makeMockDb(null)
+    const program = Effect.gen(function* () {
+      const svc = yield* UserService
+      return yield* svc.hasPermission({ permissions: { user: ['ban'] } })
+    })
+    const ok = await expectSuccess(program.pipe(Effect.provide(makeHasPermissionLayer(db))))
+    expect(ok).toBe(false)
   })
 })

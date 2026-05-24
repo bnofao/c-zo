@@ -15,7 +15,7 @@
 import type { CzoModule } from '@czo/kit/module'
 import type { SocialProviders } from 'better-auth/social-providers'
 import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
-import { AuthServiceLive, makeBetterAuthLive } from '@czo/auth/layers'
+import { makeBetterAuthLive } from '@czo/auth/layers'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, BetterAuth, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
@@ -162,13 +162,19 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     ApiKey.layer.pipe(
       Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEvents.layer))),
     ),
-    UserServiceLive.pipe(Layer.provideMerge(UserEvents.layer)),
-    AuthServiceLive,
+    UserServiceLive,
     AuthActorServiceLive,
     Password.layer,
     AuthEvents.layer,
     sessionLayer,
+    // Subscribers fiber bridging UserEvents → SessionService.revokeAllForUser /
+    // invalidateCacheForUser. Forked into the layer's Scope; dies on runtime
+    // disposal.
+    Session.subscribersLayer,
   ).pipe(
+    // Factor `UserEvents.layer` out so both `UserServiceLive` (publisher) and
+    // `Session.subscribersLayer` (consumer) share the same `PubSub` instance.
+    Layer.provideMerge(UserEvents.layer),
     // `provideMerge` so `BetterAuth` and `AccessService` stay visible at
     // the runtime surface — request-time consumers reach them via
     // `runEffect(rt, BetterAuth)` without composing an inner runtime.

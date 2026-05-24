@@ -3,7 +3,6 @@ import type { sessions, UserSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { parseSessionOutput } from 'better-auth/db'
 import { eq } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -197,17 +196,11 @@ export class UserService extends Context.Service<
       actorId?: number,
     ) => Effect.Effect<true, UserNotFound | CannotRemoveSelf | UserDbFailed>
 
-    readonly listSessions: (
-      id: number,
-    ) => Effect.Effect<readonly SessionRow[], UserDbFailed>
-
-    readonly revokeSession: (
-      token: string,
-    ) => Effect.Effect<true, UserDbFailed>
-
-    readonly revokeSessions: (
-      id: number,
-    ) => Effect.Effect<true, UserDbFailed>
+    readonly hasPermission: (input: {
+      role?: string
+      permissions: Record<string, string[]>
+      connector?: 'AND' | 'OR'
+    }) => Effect.Effect<boolean>
   }
 >()('@czo/auth/UserService') {}
 
@@ -431,34 +424,18 @@ const make = Effect.gen(function* () {
         return true as const
       }),
 
-    listSessions: id =>
-      Effect.tryPromise({
-        try: async () => {
-          const ctx = await auth.$context
-          const list = await ctx.internalAdapter.listSessions(String(id))
-          return list.map(s => parseSessionOutput(ctx.options, s)) as never
-        },
-        catch: cause => new UserDbFailed({ cause }),
-      }),
-
-    revokeSession: token =>
-      Effect.tryPromise({
-        try: async () => {
-          const ctx = await auth.$context
-          await ctx.internalAdapter.deleteSessions(token)
-          return true as const
-        },
-        catch: cause => new UserDbFailed({ cause }),
-      }),
-
-    revokeSessions: id =>
-      Effect.tryPromise({
-        try: async () => {
-          const ctx = await auth.$context
-          await ctx.internalAdapter.deleteSessions(String(id))
-          return true as const
-        },
-        catch: cause => new UserDbFailed({ cause }),
+    hasPermission: input =>
+      Effect.gen(function* () {
+        const { permissions, role, connector = 'AND' } = input
+        if (!permissions) return false
+        const roleNames = (role || 'user').split(',')
+        for (const r of roleNames) {
+          const acRole = yield* access.role(r)
+          if (!acRole) continue
+          const ok = yield* access.authorize(acRole.statements, permissions, connector)
+          if (ok) return true
+        }
+        return false
       }),
   })
 })

@@ -2,7 +2,7 @@ import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
-import { AuthService, User } from '../../../services'
+import { Session, User } from '../../../services'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -69,15 +69,11 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
 
           const canSetRole = await ctx.runEffect(
             Effect.gen(function* () {
-              const svc = yield* AuthService
-              return yield* svc.hasPermission(
-                {
-                  userId: String(actorId),
-                  organizationId: ctx.auth.session?.activeOrganizationId ?? undefined,
-                  role: ctx.auth.user?.role ?? undefined,
-                },
-                { user: ['set-role'] },
-              )
+              const svc = yield* User.UserService
+              return yield* svc.hasPermission({
+                role: ctx.auth.user?.role ?? undefined,
+                permissions: { user: ['set-role'] },
+              })
             }),
           )
 
@@ -325,8 +321,8 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* User.UserService
-            return yield* svc.revokeSession(input.sessionToken)
+            const svc = yield* Session.SessionService
+            yield* svc.revoke(input.sessionToken)
           }),
         )
         return { success: true }
@@ -352,8 +348,8 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* User.UserService
-            return yield* svc.revokeSessions(Number(input.id))
+            const svc = yield* Session.SessionService
+            yield* svc.revokeAllForUser(Number(input.id))
           }),
         )
         return { success: true }

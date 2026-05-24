@@ -1,5 +1,4 @@
 // export * from './app.service'
-export * from './auth'
 export * from './auth-instance'
 export * from './utils/validate-roles'
 

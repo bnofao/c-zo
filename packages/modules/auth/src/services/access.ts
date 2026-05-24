@@ -1,5 +1,3 @@
-import type { Role, Subset } from 'better-auth/plugins/access'
-import { createAccessControl } from 'better-auth/plugins/access'
 import { Context, Data, Effect, Layer } from 'effect'
 
 // ─── Core types ──────────────────────────────────────────────────────
@@ -42,7 +40,7 @@ export interface AccessHierarchyProvider<
 
 export interface RoleBuilder<S extends Statements> {
   statements: S
-  ac: ReturnType<typeof createAccessControl<S>>
+  ac: AccessControl<S>
   createHierarchy: <const N extends string>(
     hierarchy: { name: N, permissions: RolePermissions<S> }[],
   ) => Record<N, AccessRole<S>>
@@ -64,8 +62,55 @@ export function mergePermissions<S extends Statements>(
   return merged as { [K in keyof S]?: S[K][number][] }
 }
 
+// ─── Forked from better-auth/plugins/access (drop-in surface) ────────
+
+export type AuthorizeResult = { success: boolean, error: string | null }
+
+function authorizePermissions<S extends Statements>(
+  granted: RolePermissions<S> | null | undefined,
+  required: RolePermissions<S>,
+  connector: 'AND' | 'OR' = 'AND',
+): AuthorizeResult {
+  if (!granted) return { success: false, error: 'No permissions granted' }
+  for (const [resource, actions] of Object.entries(required) as [string, string[]][]) {
+    const grantedActions = (granted as Record<string, string[]>)[resource]
+    if (!grantedActions) return { success: false, error: `Missing resource: ${resource}` }
+    const hasAll = actions.every(a => grantedActions.includes(a))
+    const hasAny = actions.some(a => grantedActions.includes(a))
+    if (connector === 'AND' && !hasAll) return { success: false, error: `Missing actions on ${resource}` }
+    if (connector === 'OR' && !hasAny) return { success: false, error: `No matching action on ${resource}` }
+  }
+  return { success: true, error: null }
+}
+
+export interface Role<S extends Statements = Statements> {
+  readonly statements: RolePermissions<S>
+  readonly authorize: (
+    required: RolePermissions<S>,
+    connector?: 'AND' | 'OR',
+  ) => AuthorizeResult
+}
+
+export interface AccessControl<S extends Statements> {
+  readonly statements: S
+  readonly newRole: (permissions: RolePermissions<S>) => Role<S>
+}
+
+export function createAccessControl<const S extends Statements>(
+  statements: S,
+): AccessControl<S> {
+  return {
+    statements,
+    newRole: permissions => ({
+      statements: permissions,
+      authorize: (required, connector = 'AND') =>
+        authorizePermissions(permissions, required, connector),
+    }),
+  }
+}
+
 export function roleBuilder<const S extends Statements>(
-  ac: ReturnType<typeof createAccessControl<S>>,
+  ac: AccessControl<S>,
 ): RoleBuilder<S> {
   return {
     statements: ac.statements,
@@ -75,9 +120,7 @@ export function roleBuilder<const S extends Statements>(
       let accumulated: RolePermissions<S> = {}
       for (const level of hierarchy) {
         accumulated = mergePermissions<S>(accumulated, level.permissions)
-        // Subset<keyof S, S> is structurally equivalent to S at instantiation,
-        // but TS can't prove it at the generic level — safe to cast.
-        roles[level.name] = ac.newRole(accumulated as Subset<keyof S, S>) as unknown as AccessRole<S>
+        roles[level.name] = ac.newRole(accumulated)
       }
       return roles
     },
@@ -131,7 +174,7 @@ export type AccessRegistryError
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
 export interface BuiltRoles {
-  readonly ac: ReturnType<typeof createAccessControl<Statements>>
+  readonly ac: AccessControl<Statements>
   readonly roles: Record<string, AccessRole>
 }
 
@@ -161,14 +204,11 @@ export class AccessService extends Context.Service<
     /**
      * Ad-hoc role-permission check: does `granted` cover `required`?
      *
-     * Implementation forked from better-auth's `role(granted).authorize(required, connector)`
-     * (better-auth/plugins/access, MIT). Same set-inclusion algorithm — we own
-     * the impl to drop the runtime dep and to allow future extensions (denials,
-     * resource hierarchies, etc.) without coupling to better-auth.
-     *
-     * The registered roles/hierarchies surface (`role(name)`, `roles`,
-     * `buildRoles`) still uses better-auth's `createAccessControl` — separate,
-     * larger fork sprint.
+     * Delegates to the local `authorizePermissions` helper (forked from
+     * better-auth's `role(granted).authorize(...)` set-inclusion algorithm,
+     * MIT). The full registered roles/hierarchies surface (`role`, `roles`,
+     * `buildRoles`) also uses the local fork — `@czo/auth` no longer depends
+     * on `better-auth/plugins/access` at runtime.
      */
     readonly authorize: (
       granted: RolePermissions<Statements> | null | undefined,
@@ -278,18 +318,7 @@ export function makeLayer(
       }),
 
       authorize: (granted, required, connector = 'AND') =>
-        Effect.sync(() => {
-          if (!granted) return false
-          for (const [resource, actions] of Object.entries(required) as [string, string[]][]) {
-            const grantedActions = (granted as Record<string, string[]>)[resource]
-            if (!grantedActions) return false
-            const hasAll = actions.every(a => grantedActions.includes(a))
-            const hasAny = actions.some(a => grantedActions.includes(a))
-            if (connector === 'AND' && !hasAll) return false
-            if (connector === 'OR' && !hasAny) return false
-          }
-          return true
-        }),
+        Effect.sync(() => authorizePermissions(granted, required, connector).success),
     })
   })
 }

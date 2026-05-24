@@ -7,6 +7,7 @@ import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Cookie from './cookie'
+import * as UserEventsMod from './events/user'
 import * as Session from './session'
 
 const cookieLayer = Cookie.layer({
@@ -34,7 +35,11 @@ const seedUser = Effect.gen(function* () {
   return (rows[0] as { id: number }).id
 })
 
-layer(TestLayer, { timeout: 120_000 })('sessionService', (it) => {
+// `excludeTestServices: true` so we run against the real wall clock — the
+// `listForUser` ordering test relies on `Effect.sleep` producing distinct
+// `createdAt` timestamps, which requires real time. No test in this suite
+// needs `TestClock`.
+layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionService', (it) => {
   it.effect('create → resolve round-trips the session + user', () =>
     Effect.gen(function* () {
       yield* truncateAuth
@@ -87,6 +92,141 @@ layer(TestLayer, { timeout: 120_000 })('sessionService', (it) => {
       yield* svc.update(token, { activeOrganizationId: '42' })
       const resolved = yield* svc.resolve(token)
       expect(resolved?.session.activeOrganizationId).toBe('42')
+    }))
+
+  it.effect('listForUser returns active sessions ordered by createdAt desc', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const first = yield* svc.create({ userId, actorType: 'user' })
+      yield* Effect.sleep(Duration.millis(50))
+      const second = yield* svc.create({ userId, actorType: 'user' })
+      const list = yield* svc.listForUser(userId)
+      expect(list).toHaveLength(2)
+      expect(list[0]?.token).toBe(second.token)
+      expect(list[1]?.token).toBe(first.token)
+    }))
+
+  it.effect('listForUser excludes expired sessions', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      yield* svc.create({ userId, actorType: 'user' })
+      yield* svc.create({ userId, actorType: 'user', expiresIn: Duration.seconds(-1) })
+      const list = yield* svc.listForUser(userId)
+      expect(list).toHaveLength(1)
+    }))
+
+  it.effect('listForUser returns empty array when user has no sessions', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const list = yield* svc.listForUser(userId)
+      expect(list).toEqual([])
+    }))
+
+  it.effect('invalidateCacheForUser drops cache entries but keeps DB sessions', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const created = yield* svc.create({ userId, actorType: 'user' })
+      const before = yield* svc.resolve(created.token)
+      expect(before).not.toBeNull()
+
+      yield* svc.invalidateCacheForUser(userId)
+
+      expect(yield* svc.listForUser(userId)).toHaveLength(1)
+      const after = yield* svc.resolve(created.token)
+      expect(after).not.toBeNull()
+      expect(after?.session.token).toBe(created.token)
+    }))
+
+  it.effect('invalidateCacheForUser is a no-op for users with no sessions', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      yield* svc.invalidateCacheForUser(userId)
+    }))
+})
+
+// ─── subscribersLayer ───────────────────────────────────────────────────
+
+const TestLayerWithSubscribers = Session.subscribersLayer.pipe(
+  Layer.provideMerge(UserEventsMod.layer),
+  Layer.provideMerge(TestLayer),
+)
+
+layer(TestLayerWithSubscribers, { timeout: 120_000, excludeTestServices: true })('subscribersLayer', (it) => {
+  it.effect('revokes all sessions on UserBanned event', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const events = yield* UserEventsMod.UserEvents
+
+      yield* svc.create({ userId, actorType: 'user' })
+      expect(yield* svc.listForUser(userId)).toHaveLength(1)
+
+      yield* events.publish({
+        _tag: 'UserBanned',
+        userId,
+        bannedBy: null,
+        reason: 'test',
+        expires: null,
+      })
+      yield* Effect.sleep(Duration.millis(200))
+
+      expect(yield* svc.listForUser(userId)).toHaveLength(0)
+    }))
+
+  it.effect('invalidates session cache on UserRoleChanged (downgrade)', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const events = yield* UserEventsMod.UserEvents
+
+      const created = yield* svc.create({ userId, actorType: 'user' })
+      yield* svc.resolve(created.token) // warm cache
+
+      yield* events.publish({
+        _tag: 'UserRoleChanged',
+        userId,
+        previousRole: 'admin',
+        newRole: 'user',
+        changedBy: null,
+      })
+      yield* Effect.sleep(Duration.millis(200))
+
+      expect(yield* svc.listForUser(userId)).toHaveLength(1)
+      const after = yield* svc.resolve(created.token)
+      expect(after).not.toBeNull()
+    }))
+
+  it.effect('invalidates cache on UserRoleChanged (upgrade direction too)', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+      const events = yield* UserEventsMod.UserEvents
+
+      yield* svc.create({ userId, actorType: 'user' })
+
+      yield* events.publish({
+        _tag: 'UserRoleChanged',
+        userId,
+        previousRole: 'user',
+        newRole: 'admin',
+        changedBy: null,
+      })
+      yield* Effect.sleep(Duration.millis(200))
+
+      expect(yield* svc.listForUser(userId)).toHaveLength(1)
     }))
 })
 
