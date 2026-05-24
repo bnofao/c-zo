@@ -55,6 +55,7 @@ layer(TestLayer, { timeout: 120_000 })('credential signUp/signIn', (it) => {
       const collected = yield* Fiber.join(collector)
       const event = collected[0]!
       expect(event._tag).toBe('SignedUp')
+      if (event._tag !== 'SignedUp') throw new Error('expected SignedUp')
       expect(event.email).toBe('evt@example.com')
     }))
 

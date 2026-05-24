@@ -6,12 +6,27 @@ import { Context, Effect, Layer, PubSub, Stream } from 'effect'
  * (user lifecycle): `SignedUp` is the *self-registration act*. A discriminated
  * union on `_tag`, ready to grow (`SignedIn`, `SignedOut`, …).
  */
-export type AuthEvent = {
-  readonly _tag: 'SignedUp'
-  readonly userId: number
-  readonly email: string
-  readonly actorType: string
-}
+export type AuthEvent
+  = | {
+    readonly _tag: 'SignedUp'
+    readonly userId: number
+    readonly email: string
+    readonly actorType: string
+  }
+  | {
+    readonly _tag: 'ImpersonationStarted'
+    readonly adminId: number
+    readonly targetUserId: number
+    readonly sessionToken: string
+    readonly reason: string | null
+    readonly expiresAt: Date
+  }
+  | {
+    readonly _tag: 'ImpersonationStopped'
+    readonly adminId: number
+    readonly targetUserId: number
+    readonly sessionToken: string
+  }
 
 export class AuthEvents extends Context.Service<AuthEvents, {
   readonly publish: (event: AuthEvent) => EffectNS.Effect<void>

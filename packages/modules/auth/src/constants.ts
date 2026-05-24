@@ -16,3 +16,12 @@ export const SESSION_DURATION: Duration.Duration = Duration.days(7)
  * with `Duration.toMillis`.
  */
 export const INVITATION_DURATION: Duration.Duration = Duration.days(7)
+
+/**
+ * Impersonation session TTL defaults. `IMPERSONATION_DEFAULT_TTL` is the
+ * fallback when an admin doesn't request an explicit duration;
+ * `IMPERSONATION_MAX_TTL` is the upper bound enforced by `AuthService`.
+ * Host apps can override via `AuthModuleConfig.impersonation`.
+ */
+export const IMPERSONATION_DEFAULT_TTL: Duration.Duration = Duration.hours(1)
+export const IMPERSONATION_MAX_TTL: Duration.Duration = Duration.hours(4)

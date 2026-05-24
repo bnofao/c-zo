@@ -14,6 +14,7 @@
  */
 import type { CzoModule } from '@czo/kit/module'
 import type { SocialProviders } from 'better-auth/social-providers'
+import type { Duration } from 'effect'
 import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
 import { makeBetterAuthLive } from '@czo/auth/layers'
 import { authRelations } from '@czo/auth/relations'
@@ -39,6 +40,7 @@ import {
 import { DEFAULT_ACTOR_RESTRICTIONS } from './plugins/actor'
 import * as Cookie from './services/cookie'
 import * as AuthEvents from './services/events/auth'
+import * as Impersonation from './services/impersonation'
 import * as Password from './services/password'
 import * as Session from './services/session'
 // `Storage` from unstorage isn't a direct dep of @czo/auth — kept as
@@ -58,6 +60,12 @@ export interface AuthModuleConfig {
   readonly socials?: SocialProviders
   /** unstorage instance for session/state storage. */
   readonly storage?: Storage
+  /** Impersonation tunables (Task 6 wires the live config). */
+  readonly impersonation?: {
+    readonly defaultTtl?: Duration.Duration
+    readonly maxTtl?: Duration.Duration
+    readonly allowImpersonateAdmin?: boolean
+  }
 }
 
 const DB_SEEDERS = [
@@ -158,6 +166,8 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
   // absorbed by the `AuthModuleLive` cast).
   const sessionLayer = Session.layer.pipe(Layer.provide(cookieLayer))
 
+  const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer(config.impersonation)
+
   const AuthModuleLive = Layer.mergeAll(
     ApiKey.layer.pipe(
       Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEvents.layer))),
@@ -171,6 +181,7 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     // invalidateCacheForUser. Forked into the layer's Scope; dies on runtime
     // disposal.
     Session.subscribersLayer,
+    Impersonation.layer,
   ).pipe(
     // Factor `UserEvents.layer` out so both `UserServiceLive` (publisher) and
     // `Session.subscribersLayer` (consumer) share the same `PubSub` instance.
@@ -180,6 +191,7 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     // `runEffect(rt, BetterAuth)` without composing an inner runtime.
     Layer.provideMerge(BetterAuthLive),
     Layer.provideMerge(AccessServiceLive),
+    Layer.provideMerge(ImpersonationConfigLive),
   )
 
   return defineModule({

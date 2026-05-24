@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
@@ -42,11 +43,19 @@ export const sessions = pgTable('sessions', {
 
   // Uuser impersonation
   impersonatedBy: text('impersonated_by'),
+  parentToken: text('parent_token').references(
+    (): AnyPgColumn => sessions.token,
+    { onDelete: 'cascade' },
+  ),
 
   expiresAt: timestamp('expires_at', { precision: 6, withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { precision: 6, withTimezone: true }).notNull(),
-})
+}, table => [
+  index('idx_sessions_parent_token')
+    .on(table.parentToken)
+    .where(sql`${table.parentToken} IS NOT NULL`),
+])
 
 export const accounts = pgTable('accounts', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({

@@ -1,5 +1,6 @@
 import type { RelationsEntry } from '@czo/kit/db'
 import type { GraphQLSchema } from 'graphql'
+import type { H3Event } from 'h3'
 import type { Database } from '../db/effect'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
@@ -43,6 +44,8 @@ export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Pa
 export interface GraphQLContextMap {
   request: Request
   runEffect: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A>
+  /** The h3 request event (set when the GraphQL request is served via h3). */
+  event?: H3Event
 }
 
 export interface BuilderSchemaObjects {

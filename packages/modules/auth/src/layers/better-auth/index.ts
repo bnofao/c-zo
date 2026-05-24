@@ -9,7 +9,6 @@ import { BetterAuth } from '../../services'
 import { AccessService } from '../../services/access'
 import { accountConfig } from './account'
 import { actorType } from './actor'
-import { adminConfig } from './admin'
 import { databaseConfig } from './database'
 import { organizationConfig } from './organization'
 import { advancedConfig, emailAndPasswordConfig, emailVerificationConfig, rateLimitConfig, secondaryStorageConfig } from './others'
@@ -57,7 +56,9 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     advanced: advancedConfig({ cookiePrefix, disableOriginCheck: true }),
     plugins: [
       bearer(),
-      adminConfig({ ac: option.ac, roles: option.roles }),
+      // SP4b dropped better-auth's admin plugin entirely (impersonation +
+      // ban/setRole/listSessions/etc. are now native GraphQL via
+      // ImpersonationService / UserService / SessionService).
       // twoFactorConfig({ issuer: option.app }),
       openAPI({ disableDefaultReference: true }),
       actorType(),
@@ -67,22 +68,6 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       } */ }),
     ],
     disabledPaths: [
-      // ─── Admin (covered by user/session GraphQL resolvers) ─────────
-      '/admin/list-users',
-      '/admin/get-user',
-      '/admin/list-user-sessions',
-      '/admin/create-user',
-      '/admin/update-user',
-      // '/admin/impersonate-user',
-      // '/admin/stop-impersonating',
-      '/admin/ban-user',
-      '/admin/unban-user',
-      '/admin/set-role',
-      '/admin/remove-user',
-      '/admin/revoke-user-session',
-      '/admin/revoke-user-sessions',
-      '/admin/set-user-password',
-      '/admin/has-permission',
       // ─── Organization (covered by organization GraphQL resolvers) ──
       '/organization/list',
       '/organization/get-full-organization',

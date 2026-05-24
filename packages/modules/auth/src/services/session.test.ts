@@ -152,6 +152,67 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionServic
       const svc = yield* Session.SessionService
       yield* svc.invalidateCacheForUser(userId)
     }))
+
+  // ─── SP4b: impersonation parent/child linkage ──────────────────────────
+  it.effect('resolve returns null while a child session exists (suspended parent)', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser
+      const targetId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      const admin = yield* svc.create({ userId: adminId, actorType: 'user' })
+      expect(yield* svc.resolve(admin.token)).not.toBeNull()
+
+      yield* svc.create({
+        userId: targetId,
+        actorType: 'user',
+        impersonatedBy: adminId,
+        parentToken: admin.token,
+      })
+
+      yield* svc.invalidateCacheForUser(adminId)
+      expect(yield* svc.resolve(admin.token)).toBeNull()
+    }))
+
+  it.effect('resolve restores the parent after the child is revoked', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser
+      const targetId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      const admin = yield* svc.create({ userId: adminId, actorType: 'user' })
+      const child = yield* svc.create({
+        userId: targetId,
+        actorType: 'user',
+        impersonatedBy: adminId,
+        parentToken: admin.token,
+      })
+      yield* svc.revoke(child.token)
+      yield* svc.invalidateCacheForUser(adminId)
+      expect(yield* svc.resolve(admin.token)).not.toBeNull()
+    }))
+
+  it.effect('FK cascade: revoking admin token deletes child impersonation session', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser
+      const targetId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      const admin = yield* svc.create({ userId: adminId, actorType: 'user' })
+      const child = yield* svc.create({
+        userId: targetId,
+        actorType: 'user',
+        impersonatedBy: adminId,
+        parentToken: admin.token,
+      })
+
+      yield* svc.revoke(admin.token)
+      expect(yield* svc.listForUser(targetId)).toHaveLength(0)
+      expect(yield* svc.resolve(child.token)).toBeNull()
+    }))
 })
 
 // ─── subscribersLayer ───────────────────────────────────────────────────

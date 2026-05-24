@@ -3,7 +3,7 @@ import type { Database } from '@czo/kit/db/effect'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { and, desc, eq, gt, lt } from 'drizzle-orm'
+import { and, desc, eq, gt, lt, sql } from 'drizzle-orm'
 import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import { Context, Data, Duration, Effect, Layer, Schema, Stream } from 'effect'
 import { Persistable, PersistedCache } from 'effect/unstable/persistence'
@@ -35,6 +35,11 @@ export interface CreateSessionInput {
   readonly userAgent?: string
   /** Override the 7-day default — tests only (a negative `Duration` → already-expired). */
   readonly expiresIn?: Duration.Duration
+  // ── SP4b: impersonation linkage ──
+  /** Numeric user id of the admin impersonating; persisted as text in DB. */
+  readonly impersonatedBy?: number
+  /** Parent (admin) session token — FK cascade target. */
+  readonly parentToken?: string
 }
 
 /** Single tagged error for ANY session-store infrastructure failure (L2/L3). */
@@ -109,11 +114,17 @@ const make = Effect.gen(function* () {
    */
   const lookup = (key: SessionKey): Effect.Effect<ResolvedSession | null> =>
     Effect.gen(function* () {
+      // SP4b: suspend the admin session while a child (impersonation) session
+      // points at it via `parent_token`. The NOT EXISTS subquery hides the row
+      // from `resolve` until the child is revoked (or cascade-deleted).
       const rows = yield* db
         .select()
         .from(sessions)
         .innerJoin(users, eq(sessions.userId, users.id))
-        .where(eq(sessions.token, key.token))
+        .where(and(
+          eq(sessions.token, key.token),
+          sql`NOT EXISTS (SELECT 1 FROM ${sessions} c WHERE c.parent_token = ${sessions.token})`,
+        ))
         .limit(1)
         .pipe(Effect.orDie)
 
@@ -159,6 +170,8 @@ const make = Effect.gen(function* () {
   return SessionService.of({
     create: input =>
       Effect.gen(function* () {
+        if ((input.impersonatedBy != null) !== (input.parentToken != null))
+          return yield* Effect.die(new Error('SessionService.create: impersonatedBy and parentToken must both be set or both be undefined'))
         const token = randomBytes(32).toString('base64url')
         const now = new Date()
         const ttl = input.expiresIn ?? SESSION_DURATION
@@ -169,6 +182,10 @@ const make = Effect.gen(function* () {
             ipAddress: input.ipAddress ?? null,
             userAgent: input.userAgent ?? null,
             actorType: input.actorType ?? 'user',
+            // `impersonated_by` is a text column (legacy from better-auth admin plugin);
+            // cast the numeric admin id at the persistence boundary.
+            impersonatedBy: input.impersonatedBy != null ? String(input.impersonatedBy) : null,
+            parentToken: input.parentToken ?? null,
             expiresAt: new Date(now.getTime() + Duration.toMillis(ttl)),
             createdAt: now,
             updatedAt: now,

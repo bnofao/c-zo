@@ -27,7 +27,7 @@ import { GraphQLBuilder, makeGraphQLBuilder } from '@czo/kit/graphql'
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
 import { ConfigProvider, Effect, Layer } from 'effect'
 import { createYoga } from 'graphql-yoga'
-import { fromNodeHandler, H3, serve } from 'h3'
+import { defineHandler, H3, serve } from 'h3'
 import { buildSchemaRegistryLayer } from '../db/schema-registry'
 
 declare module 'h3' {
@@ -176,15 +176,17 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
       event.context.runEffect = runEffect
     })
 
-    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<GraphQLContextMap>({
+    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ event?: import('h3').H3Event }, GraphQLContextMap>({
       schema: gqlSchema,
       context: async (initialContext) => {
         const userCtx = await runEffect(graphQLBuilder.buildContext(initialContext))
-        return { ...userCtx, runEffect }
+        return { ...userCtx, runEffect, event: initialContext.event }
       },
     })
 
-    httpApp.all(yoga.graphqlEndpoint, fromNodeHandler(yoga))
+    httpApp.all(yoga.graphqlEndpoint, defineHandler(async event =>
+      yoga.handle(event.req, { event }),
+    ))
 
     // Modules register their own routes / middlewares.
     for (const m of options.modules) {

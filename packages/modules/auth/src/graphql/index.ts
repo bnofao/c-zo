@@ -1,5 +1,6 @@
 import type { Relations } from '@czo/auth/relations'
 import type { ApiKey, Organization, User } from '@czo/auth/services'
+import type { SessionRow } from '../services/user'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { ResolvedSession } from '../services/session'
 import type { ApiKeyOwnerInput } from './schema/api-key/inputs'
@@ -30,6 +31,7 @@ declare module '@czo/kit/graphql' {
     Member: Organization.OrganizationMember
     Invitation: Organization.OrganizationInvitation
     ApiKey: ApiKey.ApiKey
+    Session: SessionRow
   }
 
   interface BuilderAuthScopes {
