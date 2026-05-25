@@ -58,6 +58,6 @@ export const AuthPostgresLayer: Layer.Layer<DrizzleDb, SqlError> = Layer.unwrap(
 export const truncateAuth: Effect.Effect<void, never, DrizzleDb> = Effect.gen(function* () {
   const db = yield* DrizzleDb
   yield* db.execute(
-    sql`TRUNCATE TABLE ${authSchema.accounts}, ${authSchema.sessions}, ${authSchema.users} RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE ${authSchema.accounts}, ${authSchema.sessions}, ${authSchema.users}, ${authSchema.verifications} RESTART IDENTITY CASCADE`,
   ).pipe(Effect.orDie)
 })

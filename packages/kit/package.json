@@ -30,6 +30,10 @@
       "types": "./src/db/effect.ts",
       "default": "./dist/db/effect.mjs"
     },
+    "./email": {
+      "types": "./src/email/index.ts",
+      "default": "./dist/email/index.mjs"
+    },
     "./ioc": {
       "types": "./src/ioc/index.ts",
       "default": "./dist/ioc/index.mjs"

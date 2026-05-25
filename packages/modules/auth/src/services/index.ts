@@ -6,6 +6,7 @@ export * from './utils/validate-roles'
 // SP1 namespace re-exports — each file exports its own `layer`,
 // so flat re-exports would collide. Use namespace imports.
 export * as Access from './access'
+export * as Account from './account'
 export * as Actor from './actor'
 export * as ApiKey from './api-key'
 export * as Cookie from './cookie'

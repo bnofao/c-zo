@@ -3,7 +3,7 @@ import type { Database } from '@czo/kit/db/effect'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { and, desc, eq, gt, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, lt, ne, sql } from 'drizzle-orm'
 import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import { Context, Data, Duration, Effect, Layer, Schema, Stream } from 'effect'
 import { Persistable, PersistedCache } from 'effect/unstable/persistence'
@@ -58,6 +58,10 @@ export class SessionService extends Context.Service<SessionService, {
   readonly resolve: (token: string) => Effect.Effect<ResolvedSession | null, SessionStoreFailed>
   readonly revoke: (token: string) => Effect.Effect<void, SessionStoreFailed>
   readonly revokeAllForUser: (userId: number) => Effect.Effect<void, SessionStoreFailed>
+  readonly revokeAllForUserExcept: (
+    userId: number,
+    exceptToken: string,
+  ) => Effect.Effect<void, SessionStoreFailed>
   readonly listForUser: (userId: number) => Effect.Effect<readonly SessionRow[], SessionStoreFailed>
   readonly invalidateCacheForUser: (userId: number) => Effect.Effect<void, SessionStoreFailed>
   readonly update: (
@@ -216,6 +220,20 @@ const make = Effect.gen(function* () {
       // bulk-revoked sessions keep resolving as valid from L1/L2 until TTL.
       dbErr(
         db.delete(sessions).where(eq(sessions.userId, userId)).returning({ token: sessions.token }),
+      ).pipe(
+        Effect.flatMap(rows =>
+          Effect.forEach(
+            rows,
+            ({ token }) => invalidateCacheForToken(token),
+            { discard: true, concurrency: 'unbounded' },
+          ),
+        ),
+      ),
+    revokeAllForUserExcept: (userId, exceptToken) =>
+      dbErr(
+        db.delete(sessions)
+          .where(and(eq(sessions.userId, userId), ne(sessions.token, exceptToken)))
+          .returning({ token: sessions.token }),
       ).pipe(
         Effect.flatMap(rows =>
           Effect.forEach(

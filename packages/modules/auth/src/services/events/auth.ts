@@ -27,6 +27,30 @@ export type AuthEvent
     readonly targetUserId: number
     readonly sessionToken: string
   }
+  | {
+    readonly _tag: 'PasswordResetRequested'
+    readonly userId: number
+    readonly email: string
+    /** Raw token (for the email body). Never stored in DB raw — only sha256(token) is. */
+    readonly token: string
+    readonly expiresAt: Date
+  }
+  | {
+    readonly _tag: 'EmailVerificationRequested'
+    readonly userId: number
+    readonly email: string
+    readonly token: string
+    readonly expiresAt: Date
+  }
+  | {
+    readonly _tag: 'PasswordChanged'
+    readonly userId: number
+    readonly reason: 'reset' | 'self-change'
+  }
+  | {
+    readonly _tag: 'EmailVerified'
+    readonly userId: number
+  }
 
 export class AuthEvents extends Context.Service<AuthEvents, {
   readonly publish: (event: AuthEvent) => EffectNS.Effect<void>

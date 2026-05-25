@@ -3,6 +3,7 @@ import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphq
 import { Effect } from 'effect'
 import z from 'zod'
 import { Session, User } from '../../../services'
+import { passwordSchema } from '../../../services/utils/password-schema'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -16,23 +17,6 @@ import {
   UserNotBanned,
   UserNotFound,
 } from './errors'
-
-const passwordSchema = z
-  .string()
-  .min(8, { message: 'Password must be at least 8 characters long' })
-  .max(20, { message: 'Password cannot exceed 20 characters' })
-  .refine(val => /[A-Z]/.test(val), {
-    message: 'Password must contain at least one uppercase letter',
-  })
-  .refine(val => /[a-z]/.test(val), {
-    message: 'Password must contain at least one lowercase letter',
-  })
-  .refine(val => /\d/.test(val), {
-    message: 'Password must contain at least one number',
-  })
-  .refine(val => /[!@#$%^&*]/.test(val), {
-    message: 'Password must contain at least one special character',
-  })
 
 // ─── User Mutations ───────────────────────────────────────────────────────────
 

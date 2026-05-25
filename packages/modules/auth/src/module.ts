@@ -1,3 +1,4 @@
+import type { EmailService } from '@czo/kit/email'
 /**
  * @czo/auth module — defines the auth `CzoModule` contract, replacing
  * the legacy Nitro plugin wiring (`plugins/index.ts`).
@@ -20,6 +21,7 @@ import { makeBetterAuthLive } from '@czo/auth/layers'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, BetterAuth, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
+import * as Email from '@czo/kit/email'
 import { defineModule } from '@czo/kit/module'
 import { Effect, Layer } from 'effect'
 import { defineHandler } from 'h3'
@@ -38,6 +40,7 @@ import {
   ORGANIZATION_STATEMENTS,
 } from './plugins/access'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './plugins/actor'
+import * as Account from './services/account'
 import * as Cookie from './services/cookie'
 import * as AuthEvents from './services/events/auth'
 import * as Impersonation from './services/impersonation'
@@ -65,6 +68,20 @@ export interface AuthModuleConfig {
     readonly defaultTtl?: Duration.Duration
     readonly maxTtl?: Duration.Duration
     readonly allowImpersonateAdmin?: boolean
+  }
+  /** Gate sign-in on user.emailVerified. Default false. */
+  readonly requireEmailVerification?: boolean
+  /** Auto-send verification email after sign-up. Default true. */
+  readonly sendVerificationOnSignUp?: boolean
+  /** Account flow tunables. */
+  readonly account?: {
+    readonly passwordResetTtl?: Duration.Duration // default 1h
+    readonly emailVerificationTtl?: Duration.Duration // default 24h
+  }
+  /** Override the default LoggingEmailLive (dev stub). */
+  readonly email?: {
+    readonly layer?: Layer.Layer<EmailService>
+    readonly from?: string
   }
 }
 
@@ -147,6 +164,7 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     baseUrl: config.baseUrl,
     socials: config.socials,
     storage: config.storage as never,
+    requireEmailVerification: config.requireEmailVerification,
   })
 
   const UserServiceLive = User.layer
@@ -168,6 +186,20 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
 
   const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer(config.impersonation)
 
+  const baseUrl = config.baseUrl
+  if (!baseUrl)
+    throw new Error('AuthModuleConfig.baseUrl is required (SP5 account flows need it for email URLs)')
+
+  const AccountConfigLive = Account.makeAccountConfigLayer({
+    baseUrl,
+    requireEmailVerification: config.requireEmailVerification,
+    sendVerificationOnSignUp: config.sendVerificationOnSignUp,
+    passwordResetTtl: config.account?.passwordResetTtl,
+    emailVerificationTtl: config.account?.emailVerificationTtl,
+  })
+
+  const EmailLive = config.email?.layer ?? Email.loggingLayer
+
   const AuthModuleLive = Layer.mergeAll(
     ApiKey.layer.pipe(
       Layer.provideMerge(OrganizationServiceLive.pipe(Layer.provideMerge(OrganizationEvents.layer))),
@@ -182,6 +214,8 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     // disposal.
     Session.subscribersLayer,
     Impersonation.layer,
+    Account.layer,
+    Account.subscribersLayer,
   ).pipe(
     // Factor `UserEvents.layer` out so both `UserServiceLive` (publisher) and
     // `Session.subscribersLayer` (consumer) share the same `PubSub` instance.
@@ -192,6 +226,8 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     Layer.provideMerge(BetterAuthLive),
     Layer.provideMerge(AccessServiceLive),
     Layer.provideMerge(ImpersonationConfigLive),
+    Layer.provideMerge(AccountConfigLive),
+    Layer.provideMerge(EmailLive),
   )
 
   return defineModule({

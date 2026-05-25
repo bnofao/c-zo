@@ -16,6 +16,7 @@ export default defineConfig({
       '@czo/auth/schema': resolve(__dirname, 'src/database/schema.ts'),
       '@czo/auth/relations': resolve(__dirname, 'src/database/relations.ts'),
       '@czo/auth/types': resolve(__dirname, 'src/types.ts'),
+      '@czo/kit/email': resolve(__dirname, '../../../packages/kit/src/email/index.ts'),
     },
   },
   test: {

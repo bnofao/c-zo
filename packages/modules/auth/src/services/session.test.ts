@@ -289,6 +289,49 @@ layer(TestLayerWithSubscribers, { timeout: 120_000, excludeTestServices: true })
 
       expect(yield* svc.listForUser(userId)).toHaveLength(1)
     }))
+
+  it.effect('revokeAllForUserExcept revokes all sessions except the specified token', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      const _s1 = yield* svc.create({ userId, actorType: 'user' })
+      const s2 = yield* svc.create({ userId, actorType: 'user' })
+      const _s3 = yield* svc.create({ userId, actorType: 'user' })
+      expect(yield* svc.listForUser(userId)).toHaveLength(3)
+
+      yield* svc.revokeAllForUserExcept(userId, s2.token)
+
+      const remaining = yield* svc.listForUser(userId)
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0]?.token).toBe(s2.token)
+    }))
+
+  it.effect('revokeAllForUserExcept with non-existent exceptToken revokes all sessions', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      yield* svc.create({ userId, actorType: 'user' })
+      yield* svc.create({ userId, actorType: 'user' })
+      yield* svc.revokeAllForUserExcept(userId, 'this-token-does-not-exist')
+      expect(yield* svc.listForUser(userId)).toHaveLength(0)
+    }))
+
+  it.effect('revokeAllForUserExcept with user having only the exceptToken is a no-op', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const userId = yield* seedUser
+      const svc = yield* Session.SessionService
+
+      const only = yield* svc.create({ userId, actorType: 'user' })
+      yield* svc.revokeAllForUserExcept(userId, only.token)
+      const remaining = yield* svc.listForUser(userId)
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0]?.token).toBe(only.token)
+    }))
 })
 
 // A broken DB → SessionStoreFailed (separate suite — no container needed).

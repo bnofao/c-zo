@@ -6,7 +6,7 @@ export type Storage = ReturnType<typeof useStorage>
 
 type EmailAndPasswordOption = Exclude<BetterAuthOptions['emailAndPassword'], undefined>
 
-export function emailAndPasswordConfig(option?: EmailAndPasswordOption) {
+export function emailAndPasswordConfig(option?: EmailAndPasswordOption, requireEmailVerification = false) {
   return {
     ...option,
     enabled: true,
@@ -14,10 +14,6 @@ export function emailAndPasswordConfig(option?: EmailAndPasswordOption) {
     maxPasswordLength: 128,
     password: {
       hash: async (password: string) => {
-        // const result = validatePasswordStrength(password)
-        // if (!result.valid) {
-        //   throw new Error(`Password too weak: ${result.errors.join(', ')}`)
-        // }
         const { hashPassword } = await import('better-auth/crypto')
         return hashPassword(password)
       },
@@ -26,26 +22,7 @@ export function emailAndPasswordConfig(option?: EmailAndPasswordOption) {
         return verifyPassword({ hash, password })
       },
     },
-    requireEmailVerification: false,
-    sendResetPassword: async (_args: Parameters<Exclude<EmailAndPasswordOption['sendResetPassword'], undefined>>[0]) => {
-      // TODO(events): publish PasswordResetRequested via EmailEvents when the
-      // domain bus exists.
-    },
-    resetPasswordTokenExpiresIn: 3600,
-  }
-}
-
-type EmailVerificationOption = Exclude<BetterAuthOptions['emailVerification'], undefined>
-
-export function emailVerificationConfig(option?: EmailVerificationOption) {
-  return {
-    ...option,
-    sendVerificationEmail: async (_args: Parameters<Exclude<EmailVerificationOption['sendVerificationEmail'], undefined>>[0]) => {
-      // TODO(events): publish VerificationEmailRequested via EmailEvents.
-    },
-    sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    expiresIn: 3600,
+    requireEmailVerification,
   }
 }
 

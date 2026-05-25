@@ -11,7 +11,7 @@ import { accountConfig } from './account'
 import { actorType } from './actor'
 import { databaseConfig } from './database'
 import { organizationConfig } from './organization'
-import { advancedConfig, emailAndPasswordConfig, emailVerificationConfig, rateLimitConfig, secondaryStorageConfig } from './others'
+import { advancedConfig, emailAndPasswordConfig, rateLimitConfig, secondaryStorageConfig } from './others'
 import { sessionConfig, sessionHooks } from './session'
 import { socialConfig } from './social'
 import { userConfig, userHooks } from './user'
@@ -27,6 +27,8 @@ export interface AuthOption {
   ac?: AccessControl
   roles?: Record<string, BetterAuthAccessRole>
   trustedOrigins?: (string[] | ((request?: Request | undefined) => Awaitable<(string | undefined | null)[]>)) | undefined
+  /** When true, gate sign-in on user.emailVerified. */
+  requireEmailVerification?: boolean
 }
 
 export type Auth = ReturnType<typeof createAuth>
@@ -50,8 +52,7 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
     session: sessionConfig(),
     secondaryStorage: secondaryStorageConfig(option.storage),
     verification: verificationConfig(),
-    emailAndPassword: emailAndPasswordConfig(),
-    emailVerification: emailVerificationConfig(),
+    emailAndPassword: emailAndPasswordConfig(undefined, option.requireEmailVerification ?? false),
     rateLimit: rateLimitConfig(undefined, option.storage),
     advanced: advancedConfig({ cookiePrefix, disableOriginCheck: true }),
     plugins: [
@@ -96,6 +97,11 @@ function buildAuthConfig(db: unknown, option: AuthOption)/* : BetterAuthOptions 
       '/api-key/update',
       '/api-key/delete',
       '/api-key/list',
+      // ─── Account flows (SP5: covered by native GraphQL account mutations) ───
+      '/forget-password',
+      '/reset-password',
+      '/verify-email',
+      '/send-verification-email',
       // ─── Account (covered by account GraphQL resolvers) ────────────
       '/change-password',
       '/change-email',

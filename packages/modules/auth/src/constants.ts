@@ -25,3 +25,9 @@ export const INVITATION_DURATION: Duration.Duration = Duration.days(7)
  */
 export const IMPERSONATION_DEFAULT_TTL: Duration.Duration = Duration.hours(1)
 export const IMPERSONATION_MAX_TTL: Duration.Duration = Duration.hours(4)
+
+/** Default TTL for password reset tokens. Override via AuthModuleConfig.account.passwordResetTtl. */
+export const PASSWORD_RESET_TTL: Duration.Duration = Duration.hours(1)
+
+/** Default TTL for email verification tokens. Override via AuthModuleConfig.account.emailVerificationTtl. */
+export const EMAIL_VERIFICATION_TTL: Duration.Duration = Duration.hours(24)
