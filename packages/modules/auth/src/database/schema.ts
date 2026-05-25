@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
@@ -23,6 +23,7 @@ export const users = pgTable('users', {
 
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { precision: 6, withTimezone: true }).notNull(),
+  deletedAt: timestamp('deleted_at', { precision: 6, withTimezone: true }),
 })
 
 export const sessions = pgTable('sessions', {

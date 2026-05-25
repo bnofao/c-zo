@@ -51,6 +51,33 @@ export type AuthEvent
     readonly _tag: 'EmailVerified'
     readonly userId: number
   }
+  | {
+    readonly _tag: 'EmailChangeRequested'
+    readonly userId: number
+    readonly oldEmail: string
+    readonly newEmail: string
+    /** Raw token for the confirmation email body. Never persisted raw — only sha256(token) is. */
+    readonly token: string
+    readonly expiresAt: Date
+  }
+  | {
+    readonly _tag: 'EmailChanged'
+    readonly userId: number
+    readonly oldEmail: string
+    readonly newEmail: string
+  }
+  | {
+    readonly _tag: 'AccountDeleted'
+    readonly userId: number
+    readonly email: string
+    /** Raw restore token for the deletion notification email body. */
+    readonly token: string
+    readonly expiresAt: Date
+  }
+  | {
+    readonly _tag: 'AccountRestored'
+    readonly userId: number
+  }
 
 export class AuthEvents extends Context.Service<AuthEvents, {
   readonly publish: (event: AuthEvent) => EffectNS.Effect<void>

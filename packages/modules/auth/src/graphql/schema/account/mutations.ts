@@ -3,7 +3,11 @@ import { Effect } from 'effect'
 import z from 'zod'
 import {
   AccountService,
+  AccountUnrecoverable,
+  CannotDeleteWithOwnedOrgs,
   IncorrectCurrentPassword,
+  InvalidAccountRestoreToken,
+  InvalidEmailChangeToken,
   InvalidEmailVerificationToken,
   InvalidPasswordResetToken,
 } from '../../../services/account'
@@ -14,7 +18,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'requestPasswordReset',
     { inputFields: t => ({
-        email: t.string({ required: true, validate: z.email().transform(e => e.toLowerCase()) }),
+      email: t.string({ required: true, validate: z.email().transform(e => e.toLowerCase()) }),
     }) },
     {
       errors: { types: [] },
@@ -33,8 +37,8 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'resetPassword',
     { inputFields: t => ({
-        token: t.string({ required: true }),
-        newPassword: t.string({ required: true, validate: passwordSchema }),
+      token: t.string({ required: true }),
+      newPassword: t.string({ required: true, validate: passwordSchema }),
     }) },
     {
       errors: { types: [InvalidPasswordResetToken, PasswordHashFailed] },
@@ -92,8 +96,8 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'changePassword',
     { inputFields: t => ({
-        currentPassword: t.string({ required: true }),
-        newPassword: t.string({ required: true, validate: passwordSchema }),
+      currentPassword: t.string({ required: true }),
+      newPassword: t.string({ required: true, validate: passwordSchema }),
     }) },
     {
       errors: { types: [UserNotFound, IncorrectCurrentPassword, PasswordHashFailed] },
@@ -109,6 +113,98 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
               currentPassword: input.currentPassword,
               newPassword: input.newPassword,
             })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
+  builder.relayMutationField(
+    'requestEmailChange',
+    { inputFields: t => ({
+        currentPassword: t.string({ required: false }),
+        newEmail: t.string({ required: true, validate: z.email().transform(e => e.toLowerCase()) }),
+    }) },
+    {
+      errors: { types: [IncorrectCurrentPassword] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        const userId = Number(ctx.auth.user!.id)
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            yield* (yield* AccountService).requestEmailChange({
+              userId,
+              currentPassword: input.currentPassword ?? undefined,
+              newEmail: input.newEmail,
+            })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
+  builder.relayMutationField(
+    'confirmEmailChange',
+    { inputFields: t => ({
+        token: t.string({ required: true }),
+    }) },
+    {
+      errors: { types: [InvalidEmailChangeToken] },
+      resolve: async (_root, { input }, ctx) => {
+        const currentSessionToken = ctx.auth.session?.token ?? null
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            yield* (yield* AccountService).confirmEmailChange({
+              token: input.token,
+              currentSessionToken,
+            })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
+  builder.relayMutationField(
+    'deleteAccount',
+    { inputFields: t => ({
+        currentPassword: t.string({ required: false }),
+    }) },
+    {
+      errors: { types: [IncorrectCurrentPassword, CannotDeleteWithOwnedOrgs] },
+      authScopes: { auth: true },
+      resolve: async (_root, { input }, ctx) => {
+        const userId = Number(ctx.auth.user!.id)
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            yield* (yield* AccountService).deleteAccount({
+              userId,
+              currentPassword: input.currentPassword ?? undefined,
+            })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+  )
+
+  builder.relayMutationField(
+    'restoreAccount',
+    { inputFields: t => ({
+        token: t.string({ required: true }),
+    }) },
+    {
+      errors: { types: [InvalidAccountRestoreToken, AccountUnrecoverable] },
+      resolve: async (_root, { input }, ctx) => {
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            yield* (yield* AccountService).restoreAccount(input.token)
           }),
         )
         return { success: true }

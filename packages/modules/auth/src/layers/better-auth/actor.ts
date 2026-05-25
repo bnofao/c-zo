@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from 'better-auth'
 import type { AuthMethod } from '../../services/actor'
 // import { useRuntime } from '@czo/kit/effect'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { createAuthMiddleware } from 'better-auth/api'
 // import { Effect } from 'effect'
 // import { AuthActorService } from '../../services/actor'
 
@@ -83,7 +83,7 @@ export function actorType(): BetterAuthPlugin {
               stateData = JSON.parse(verification.value) as Record<string, unknown>
             }
             catch {
-              return
+
             }
 
             // const actor = stateData.actor as string | undefined

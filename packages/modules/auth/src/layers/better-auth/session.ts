@@ -2,7 +2,6 @@ import type { BetterAuthOptions } from 'better-auth'
 import type { ActorProviderFailed } from '../../services/actor'
 // import { runEffect, useRuntime } from '@czo/kit/effect'
 // import { Effect } from 'effect'
-import { AuthActorService } from '../../services/actor'
 import { ACTOR_TYPE_HEADER } from './actor'
 
 export const SESSION_EXPIRY_SECONDS = 604800

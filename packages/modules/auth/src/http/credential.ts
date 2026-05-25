@@ -5,13 +5,12 @@ import type * as Cookie from '../services/cookie'
 import type { PasswordHashFailed } from '../services/user'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { Data, Effect } from 'effect'
-import { accounts, users } from '../database/schema'
+import { users } from '../database/schema'
 import { AuthActorService } from '../services/actor'
 import * as AuthEvents from '../services/events/auth'
 import * as Password from '../services/password'
 import * as Session from '../services/session'
-
-const CREDENTIAL_PROVIDER = 'credential'
+import { CREDENTIAL_PROVIDER, insertCredential } from '../services/utils/credential-account'
 
 // ─── Tagged errors ───────────────────────────────────────────────────────
 
@@ -122,14 +121,7 @@ export function signUp(input: SignUpInput): Effect.Effect<
         }).returning()
         if (!u)
           return yield* Effect.fail(new Error('user insert returned no row'))
-        yield* tx.insert(accounts).values({
-          userId: u.id,
-          accountId: String(u.id),
-          providerId: CREDENTIAL_PROVIDER,
-          password: passwordHash,
-          createdAt: now,
-          updatedAt: now,
-        })
+        yield* insertCredential(tx, u.id, passwordHash, now)
         return u
       }),
     ))

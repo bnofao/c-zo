@@ -7,8 +7,9 @@ import { eq } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import type { InferSelectModel } from 'drizzle-orm'
 import { AccessService } from './access'
-import { BetterAuth } from './auth-instance'
 import { UserEvents } from './events/user'
+import { PasswordService } from './password'
+import { insertCredential, updateCredentialPassword } from './utils/credential-account'
 import { validateRole } from './utils/validate-roles'
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
@@ -208,7 +209,7 @@ export class UserService extends Context.Service<
 
 const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
-  const auth = yield* BetterAuth
+  const passwords = yield* PasswordService
   const access = yield* AccessService
   const { roles } = yield* access.buildRoles
   const events = yield* UserEvents
@@ -280,28 +281,18 @@ const make = Effect.gen(function* () {
         if (!user)
           return yield* Effect.fail(new UserDbFailed({ cause: 'insert returned no row' }))
 
-        // Link credential if a password was provided. Failure is now a
-        // tagged error (`CredentialLinkFailed`) — callers must decide
-        // whether to compensate; we don't silently leave a credential-less
-        // user any more.
+        // Link credential if a password was provided. Native impl via the
+        // shared `insertCredential` helper (same row shape as `http/credential.ts`
+        // signUp). Failure is wrapped in `CredentialLinkFailed` — callers must
+        // decide whether to compensate; we don't silently leave a credential-
+        // less user any more.
         if (input.password) {
-          const linkResult = yield* Effect.result(
-            Effect.tryPromise({
-              try: async () => {
-                const ctx = await auth.$context
-                const hashedPassword = await ctx.password.hash(input.password!)
-                await ctx.internalAdapter.linkAccount({
-                  accountId: String(user.id),
-                  providerId: 'credential',
-                  userId: String(user.id),
-                  password: hashedPassword,
-                })
-              },
-              catch: cause => new CredentialLinkFailed({ cause }),
-            }),
+          const hashed = yield* passwords.hash(input.password).pipe(
+            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
           )
-          if (linkResult._tag === 'Failure')
-            return yield* Effect.fail(new CredentialLinkFailed({ cause: linkResult.failure.cause }))
+          yield* insertCredential(db, user.id, hashed).pipe(
+            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+          )
         }
 
         yield* Effect.forkDetach(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
@@ -389,20 +380,8 @@ const make = Effect.gen(function* () {
     setPassword: (id, password) =>
       Effect.gen(function* () {
         yield* findById(id)
-
-        const result = yield* Effect.result(
-          Effect.tryPromise({
-            try: async () => {
-              const ctx = await auth.$context
-              const hashed = await ctx.password.hash(password)
-              await ctx.internalAdapter.updatePassword(String(id), hashed)
-              return true as const
-            },
-            catch: cause => new PasswordHashFailed({ cause }),
-          }),
-        )
-        if (result._tag === 'Failure')
-          return yield* Effect.fail(result.failure)
+        const hashed = yield* passwords.hash(password)
+        yield* dbErr(updateCredentialPassword(db, id, hashed))
         return true as const
       }),
 
@@ -413,13 +392,11 @@ const make = Effect.gen(function* () {
         if (actorId !== undefined && existing.id === actorId)
           return yield* Effect.fail(new CannotRemoveSelf())
 
-        yield* Effect.tryPromise({
-          try: async () => {
-            const ctx = await auth.$context
-            await ctx.internalAdapter.deleteUser(String(id))
-          },
-          catch: cause => new UserDbFailed({ cause }),
-        })
+        // Hard delete. FKs to users.id are all `ON DELETE CASCADE` (sessions,
+        // accounts, members, invitations, api_keys) so the row removal
+        // cascades exactly the way `better-auth.internalAdapter.deleteUser`
+        // did, without the better-auth runtime dependency.
+        yield* dbErr(db.delete(users).where(eq(users.id, id)))
         yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
         return true as const
       }),

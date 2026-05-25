@@ -77,6 +77,9 @@ export interface AuthModuleConfig {
   readonly account?: {
     readonly passwordResetTtl?: Duration.Duration // default 1h
     readonly emailVerificationTtl?: Duration.Duration // default 24h
+    readonly changeEmailTtl?: Duration.Duration // default 24h (SP6)
+    readonly gracePeriod?: Duration.Duration // default 30 days (SP6, = restore token TTL)
+    readonly sendOldEmailNotificationOnChange?: boolean // default true (SP6)
   }
   /** Override the default LoggingEmailLive (dev stub). */
   readonly email?: {
@@ -196,6 +199,10 @@ export function makeAuthModule(config: AuthModuleConfig): CzoModule<'auth', neve
     sendVerificationOnSignUp: config.sendVerificationOnSignUp,
     passwordResetTtl: config.account?.passwordResetTtl,
     emailVerificationTtl: config.account?.emailVerificationTtl,
+    // SP6 additions:
+    changeEmailTtl: config.account?.changeEmailTtl,
+    gracePeriod: config.account?.gracePeriod,
+    sendOldEmailNotificationOnChange: config.account?.sendOldEmailNotificationOnChange,
   })
 
   const EmailLive = config.email?.layer ?? Email.loggingLayer

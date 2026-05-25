@@ -13,6 +13,7 @@ import * as Cookie from './cookie'
 import * as AuthEventsMod from './events/auth'
 import * as UserEventsMod from './events/user'
 import * as Impersonation from './impersonation'
+import * as Password from './password'
 import * as Session from './session'
 import * as User from './user'
 
@@ -45,7 +46,7 @@ const SessionLive = Session.layer.pipe(
   Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer)),
 )
 const UserLive = User.layer.pipe(
-  Layer.provide(Layer.mergeAll(UserEventsMod.layer, BetterAuthLive, AccessSeedLayer)),
+  Layer.provide(Layer.mergeAll(UserEventsMod.layer, BetterAuthLive, AccessSeedLayer, Password.layer)),
 )
 const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer({})
 const ImpersonationConfigAllowAdmin = Impersonation.makeImpersonationConfigLayer({

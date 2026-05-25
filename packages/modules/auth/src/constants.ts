@@ -31,3 +31,9 @@ export const PASSWORD_RESET_TTL: Duration.Duration = Duration.hours(1)
 
 /** Default TTL for email verification tokens. Override via AuthModuleConfig.account.emailVerificationTtl. */
 export const EMAIL_VERIFICATION_TTL: Duration.Duration = Duration.hours(24)
+
+/** Default TTL for change-email tokens. Override via AuthModuleConfig.account.changeEmailTtl. */
+export const CHANGE_EMAIL_TTL: Duration.Duration = Duration.hours(24)
+
+/** Grace period for self-deleted accounts. = restore token TTL. Override via AuthModuleConfig.account.gracePeriod. */
+export const ACCOUNT_GRACE_PERIOD: Duration.Duration = Duration.days(30)

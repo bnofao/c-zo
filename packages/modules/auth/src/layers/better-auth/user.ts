@@ -8,24 +8,6 @@ export function userConfig(): BetterAuthOptions['user'] {
       // createdAt: 'created_at',
       // updatedAt: 'updated_at',
     },
-    changeEmail: {
-      enabled: true,
-      sendChangeEmailConfirmation: async (_user, _request) => {
-
-      },
-    },
-    deleteUser: {
-      enabled: true,
-      sendDeleteAccountVerification: async (_user, _request) => {
-
-      },
-      beforeDelete: async (_user, _request) => {
-
-      },
-      afterDelete: async (_user, _request) => {
-        // `UserDeleted` is published from `UserService.remove`.
-      },
-    },
   }
 }
 
