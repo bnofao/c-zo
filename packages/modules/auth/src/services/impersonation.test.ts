@@ -43,7 +43,7 @@ const AccessSeedLayer = Access.makeLayer(
   true,
 )
 const SessionLive = Session.layer.pipe(
-  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer)),
+  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
 )
 const UserLive = User.layer.pipe(
   Layer.provide(Layer.mergeAll(UserEventsMod.layer, BetterAuthLive, AccessSeedLayer, Password.layer)),
@@ -75,8 +75,8 @@ const TestLayerAllowAdmin = Impersonation.layer.pipe(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-const seedUser = (overrides: { role?: string, banned?: boolean, email?: string } = {}) =>
-  Effect.gen(function* () {
+function seedUser(overrides: { role?: string, banned?: boolean, email?: string } = {}) {
+  return Effect.gen(function* () {
     const db = (yield* DrizzleDb) as Database<Relations>
     const now = new Date()
     const rows = yield* db.insert(users).values({
@@ -90,6 +90,7 @@ const seedUser = (overrides: { role?: string, banned?: boolean, email?: string }
     }).returning()
     return (rows[0] as { id: number }).id
   })
+}
 
 // ─── Main suite ───────────────────────────────────────────────────────────
 
@@ -290,7 +291,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('impersonation
     }))
 
   // 11. parent session is suspended while child exists
-  it.effect('start: parent session is suspended (resolve null) while child exists', () =>
+  it.effect('start: parent session remains resolvable while child exists (NOT EXISTS removed)', () =>
     Effect.gen(function* () {
       yield* truncateAuth
       const adminId = yield* seedUser({ role: 'admin' })
@@ -305,7 +306,13 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('impersonation
         targetUserId: targetId,
       })
 
-      expect(yield* sessions.resolve(admin.token)).toBeNull()
+      // Cookie has been rotated client-side to the child token; the parent
+      // token still resolves to the admin session if the caller happens to
+      // hold it (e.g. another device that authenticated before `start`).
+      const resolved = yield* sessions.resolve(admin.token)
+      expect(resolved).not.toBeNull()
+      expect(resolved?.session.token).toBe(admin.token)
+      expect(resolved?.session.impersonatedBy).toBeNull()
     }))
 
   // 12. parent session is restored after stop
@@ -328,6 +335,102 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('impersonation
       const resolved = yield* sessions.resolve(admin.token)
       expect(resolved).not.toBeNull()
       expect(resolved?.session.token).toBe(admin.token)
+    }))
+
+  it.effect('walk-up: resolving an expired child returns the parent session', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser({ role: 'admin' })
+      const targetId = yield* seedUser({ role: 'user' })
+      const sessions = yield* Session.SessionService
+      const imp = yield* Impersonation.ImpersonationService
+
+      const admin = yield* sessions.create({ userId: adminId })
+      const child = yield* imp.start({
+        adminId,
+        adminToken: admin.token,
+        targetUserId: targetId,
+      })
+
+      // Force the child past its expiresAt without calling stop().
+      yield* sessions.update(child.session.token, { expiresAt: new Date(Date.now() - 1000) })
+      // Drop the child's L1/L2 entry so the next resolve goes through lookup.
+      yield* sessions.invalidateCacheForUser(targetId)
+
+      // Front sends its (now expired) child token. The server walks up and
+      // returns the parent's resolved session — caller detects mismatch via
+      // `session.token !== incomingToken`.
+      const resolved = yield* sessions.resolve(child.session.token)
+      expect(resolved).not.toBeNull()
+      expect(resolved?.session.token).toBe(admin.token)
+      expect(resolved?.user.id).toBe(adminId)
+      expect(resolved?.session.impersonatedBy).toBeNull()
+
+      // The expired child row was deleted as part of the walk-up.
+      const childRow = yield* sessions.listForUser(targetId)
+      expect(childRow).toHaveLength(0)
+    }))
+
+  it.effect('walk-up: expired child + expired parent → null', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser({ role: 'admin' })
+      const targetId = yield* seedUser({ role: 'user' })
+      const sessions = yield* Session.SessionService
+      const imp = yield* Impersonation.ImpersonationService
+
+      const admin = yield* sessions.create({ userId: adminId })
+      const child = yield* imp.start({
+        adminId,
+        adminToken: admin.token,
+        targetUserId: targetId,
+      })
+
+      const past = new Date(Date.now() - 1000)
+      yield* sessions.update(child.session.token, { expiresAt: past })
+      yield* sessions.update(admin.token, { expiresAt: past })
+      yield* sessions.invalidateCacheForUser(targetId)
+      yield* sessions.invalidateCacheForUser(adminId)
+
+      expect(yield* sessions.resolve(child.session.token)).toBeNull()
+    }))
+
+  it.effect('walk-up: publishes ImpersonationStopped with reason "expired"', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const adminId = yield* seedUser({ role: 'admin' })
+      const targetId = yield* seedUser({ role: 'user' })
+      const sessions = yield* Session.SessionService
+      const imp = yield* Impersonation.ImpersonationService
+      const events = yield* AuthEventsMod.AuthEvents
+
+      const admin = yield* sessions.create({ userId: adminId })
+      const child = yield* imp.start({
+        adminId,
+        adminToken: admin.token,
+        targetUserId: targetId,
+      })
+
+      // Take 1 — the next event after start (which already fired).
+      const collector = yield* events.subscribe.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkChild,
+      )
+      yield* Effect.yieldNow
+
+      yield* sessions.update(child.session.token, { expiresAt: new Date(Date.now() - 1000) })
+      yield* sessions.invalidateCacheForUser(targetId)
+      yield* sessions.resolve(child.session.token)
+
+      const collected = yield* Fiber.join(collector)
+      const event = collected[0]!
+      expect(event._tag).toBe('ImpersonationStopped')
+      if (event._tag !== 'ImpersonationStopped')
+        throw new Error('expected ImpersonationStopped')
+      expect(event.adminId).toBe(adminId)
+      expect(event.targetUserId).toBe(targetId)
+      expect(event.reason).toBe('expired')
     }))
 
   // 13. FK cascade: revoking the admin token deletes the child
@@ -420,6 +523,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('impersonation
         throw new Error('expected ImpersonationStopped')
       expect(event.adminId).toBe(adminId)
       expect(event.targetUserId).toBe(targetId)
+      expect(event.reason).toBe('explicit')
     }))
 })
 

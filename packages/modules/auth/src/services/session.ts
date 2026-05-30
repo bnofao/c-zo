@@ -1,16 +1,18 @@
 import type { Relations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db/effect'
+import type { UserEvent } from './events/user'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { and, desc, eq, gt, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, lt, ne } from 'drizzle-orm'
 import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import { Context, Data, Duration, Effect, Layer, Schema, Stream } from 'effect'
 import { Persistable, PersistedCache } from 'effect/unstable/persistence'
 import { SESSION_DURATION } from '../constants'
 import { sessions, users } from '../database/schema'
 import * as Cookie from './cookie'
-import { type UserEvent, UserEvents } from './events/user'
+import { AuthEvents } from './events/auth'
+import { UserEvents } from './events/user'
 
 /**
  * The canonical session lifetime now lives in `../constants` (a `Duration`,
@@ -71,6 +73,13 @@ export class SessionService extends Context.Service<SessionService, {
   readonly purgeExpired: () => Effect.Effect<number, SessionStoreFailed>
   readonly setCookie: (token: string) => Cookie.Cookie
   readonly readSessionToken: (cookieHeader: string) => string | null
+  /**
+   * Extract a session token from an `Authorization: Bearer <token>` header.
+   * Returns the raw token, or `null` when the header is absent, uses another
+   * scheme, or carries no token. The scheme keyword is matched case-insensitively
+   * (HTTP auth schemes are case-insensitive per RFC 7235).
+   */
+  readonly readBearerToken: (authorizationHeader: string | null | undefined) => string | null
 }>()('@czo/auth/SessionService') {}
 
 // ─── Cache value schema + key (Persistable) ──────────────────────────────
@@ -102,6 +111,7 @@ class SessionKey extends Persistable.Class<{ payload: { token: string } }>()(
 const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const cookies = yield* Cookie.CookieService
+  const authEvents = yield* AuthEvents
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
     eff.pipe(Effect.mapError(cause => new SessionStoreFailed({ cause })))
@@ -118,17 +128,11 @@ const make = Effect.gen(function* () {
    */
   const lookup = (key: SessionKey): Effect.Effect<ResolvedSession | null> =>
     Effect.gen(function* () {
-      // SP4b: suspend the admin session while a child (impersonation) session
-      // points at it via `parent_token`. The NOT EXISTS subquery hides the row
-      // from `resolve` until the child is revoked (or cascade-deleted).
       const rows = yield* db
         .select()
         .from(sessions)
         .innerJoin(users, eq(sessions.userId, users.id))
-        .where(and(
-          eq(sessions.token, key.token),
-          sql`NOT EXISTS (SELECT 1 FROM ${sessions} c WHERE c.parent_token = ${sessions.token})`,
-        ))
+        .where(eq(sessions.token, key.token))
         .limit(1)
         .pipe(Effect.orDie)
 
@@ -139,12 +143,37 @@ const make = Effect.gen(function* () {
       const session = row.sessions
       const user = row.users
 
-      if (session.expiresAt.getTime() <= Date.now()) {
-        yield* db.delete(sessions).where(eq(sessions.token, key.token)).pipe(Effect.orDie)
-        return null
+      if (session.expiresAt.getTime() > Date.now())
+        return { session: session as SessionRow, user: user as User }
+
+      // Expired. If it's an impersonation child with a live parent, auto walk
+      // up: delete the child, emit ImpersonationStopped(reason: 'expired'),
+      // and return the parent's resolved session. The caller (session-context
+      // contributor) detects the token mismatch and rotates the cookie.
+      if (session.parentToken && session.impersonatedBy != null) {
+        const parentRows = yield* db
+          .select()
+          .from(sessions)
+          .innerJoin(users, eq(sessions.userId, users.id))
+          .where(eq(sessions.token, session.parentToken))
+          .limit(1)
+          .pipe(Effect.orDie)
+        const parentRow = parentRows[0]
+        if (parentRow && parentRow.sessions.expiresAt.getTime() > Date.now()) {
+          yield* db.delete(sessions).where(eq(sessions.token, key.token)).pipe(Effect.orDie)
+          yield* Effect.forkDetach(authEvents.publish({
+            _tag: 'ImpersonationStopped',
+            adminId: Number(session.impersonatedBy),
+            targetUserId: session.userId,
+            sessionToken: key.token,
+            reason: 'expired',
+          }))
+          return { session: parentRow.sessions as SessionRow, user: parentRow.users as User }
+        }
       }
 
-      return { session: session as SessionRow, user: user as User }
+      yield* db.delete(sessions).where(eq(sessions.token, key.token)).pipe(Effect.orDie)
+      return null
     })
 
   const cache = yield* PersistedCache.make(lookup, {
@@ -152,20 +181,32 @@ const make = Effect.gen(function* () {
     // L2 TTL is the session's REAL remaining lifetime — not a flat 7 days —
     // so an expired (or bulk-revoked) session can't be served stale from L2.
     // TimeToLiveFn signature: (exit, _request) => Duration.Input
-    timeToLive: (exit, _request) => {
+    timeToLive: (exit, request) => {
       if (exit._tag !== 'Success' || exit.value === null)
+        return NEGATIVE_TTL
+      // Walk-up alias: the lookup was keyed by an expired child token but
+      // returned the parent's session. Don't persist this aliasing — the
+      // cookie has already been rotated client-side; subsequent requests come
+      // in under the parent's own key.
+      if (exit.value.session.token !== request.token)
         return NEGATIVE_TTL
       const remainingMs = exit.value.session.expiresAt.getTime() - Date.now()
       return remainingMs > 0 ? Duration.millis(remainingMs) : NEGATIVE_TTL
     },
-    // L1 in-memory TTL — short fixed window to bound staleness.
-    // Second parameter (_request) is unused but required by TimeToLiveFn type.
-    inMemoryTTL: (_exit, _request) => L1_TTL,
+    inMemoryTTL: (exit, request) => {
+      if (exit._tag !== 'Success' || exit.value === null)
+        return NEGATIVE_TTL
+      if (exit.value.session.token !== request.token)
+        return NEGATIVE_TTL
+      return L1_TTL
+    },
     inMemoryCapacity: 10_000,
   })
 
-  /** Drop the L1+L2 cache entry for one token. Shared by `revoke`,
-   * `revokeAllForUser`, and `invalidateCacheForUser`. */
+  /**
+   * Drop the L1+L2 cache entry for one token. Shared by `revoke`,
+   * `revokeAllForUser`, and `invalidateCacheForUser`.
+   */
   const invalidateCacheForToken = (token: string) =>
     cache.invalidate(new SessionKey({ token })).pipe(
       Effect.mapError(cause => new SessionStoreFailed({ cause })),
@@ -269,6 +310,15 @@ const make = Effect.gen(function* () {
       ).pipe(Effect.map(deleted => deleted.length)),
     setCookie: token => cookies.create(token),
     readSessionToken: header => cookies.parse(header)[cookies.name] ?? null,
+    readBearerToken: (header) => {
+      if (!header)
+        return null
+      const [scheme, ...rest] = header.split(' ')
+      if (scheme?.toLowerCase() !== 'bearer')
+        return null
+      const token = rest.join(' ').trim()
+      return token === '' ? null : token
+    },
   })
 })
 

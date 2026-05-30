@@ -123,6 +123,16 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** seulement si threat model l'exige.
 
+### B14. Rotation de token pour clients Bearer-only
+
+**État :** Le contributeur de contexte (`graphql/session-context.ts`) accepte désormais le token de session via `Authorization: Bearer <token>` (méthode `SessionService.readBearerToken`, priorité sur le cookie). Mais la rotation — quand `resolve` walk-up d'un enfant d'impersonation expiré vers le parent et que `resolved.session.token !== token` — ne propage le nouveau token que via `ctx.setCookie` (Set-Cookie). Un client **purement Bearer** (pas de cookie : API, mobile) ignore le Set-Cookie et continuerait donc à présenter l'ancien token après un walk-up.
+
+**Impact :** borné — la rotation ne survient qu'au terme d'une impersonation (flow surtout navigateur). Un client Bearer en cours d'impersonation après expiration de l'enfant garderait le token enfant jusqu'à ce qu'il en redemande un.
+
+**Travail :** renvoyer le token tourné dans un header de réponse (p.ex. `X-Session-Token`) en plus du Set-Cookie quand la source était le header Authorization, et documenter côté client qu'il doit le ré-adopter. Décider si on expose toujours le header ou seulement quand la source d'entrée était Bearer.
+
+**Priorité :** basse — seulement si un client non-navigateur consomme l'impersonation.
+
 ---
 
 ## Historique des items résolus

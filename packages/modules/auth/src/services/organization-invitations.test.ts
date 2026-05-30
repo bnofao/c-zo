@@ -1,9 +1,9 @@
 import { DrizzleDb } from '@czo/kit/db/effect'
-import { expect, it, layer } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
-import { ORGANIZATION_HIERARCHY, ORGANIZATION_STATEMENTS } from '../plugins/access'
-import { invitations, members, organizations, users } from '../database/schema'
+import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
+import { Effect, Layer } from 'effect'
+import { invitations, members, organizations, users } from '../database/schema'
+import { ORGANIZATION_HIERARCHY, ORGANIZATION_STATEMENTS } from '../plugins/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Access from './access'
 import { BetterAuth } from './auth-instance'
@@ -38,16 +38,25 @@ function seedOrgWithOwner(email: string, slug: string) {
     const db = yield* DrizzleDb
     const now = new Date()
     const userRows = yield* db.insert(users).values({
-      name: 'Owner', email, role: 'user', createdAt: now, updatedAt: now,
+      name: 'Owner',
+      email,
+      role: 'user',
+      createdAt: now,
+      updatedAt: now,
     } as never).returning()
     const orgRows = yield* db.insert(organizations).values({
-      name: 'Acme', slug, createdAt: now,
+      name: 'Acme',
+      slug,
+      createdAt: now,
     } as never).returning()
     // `.values(... as never)` erases Drizzle's inferred return type, so the row id is cast back here.
     const user = userRows[0] as { id: number }
     const org = orgRows[0] as { id: number }
     yield* db.insert(members).values({
-      organizationId: org.id, userId: user.id, role: 'org:owner', createdAt: now,
+      organizationId: org.id,
+      userId: user.id,
+      role: 'org:owner',
+      createdAt: now,
     } as never)
     return { userId: user.id, orgId: org.id }
   })
@@ -60,7 +69,10 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       const { userId, orgId } = yield* seedOrgWithOwner('owner1@x.com', 'acme1')
       const svc = yield* OrganizationService
       const inv = yield* svc.createInvitation({
-        organizationId: orgId, email: 'invitee@x.com', role: 'org:admin', inviterId: userId,
+        organizationId: orgId,
+        email: 'invitee@x.com',
+        role: 'org:admin',
+        inviterId: userId,
       })
       expect(inv.status).toBe('pending')
       expect(inv.email).toBe('invitee@x.com')
@@ -74,7 +86,10 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       const { userId, orgId } = yield* seedOrgWithOwner('owner3@x.com', 'acme3')
       const svc = yield* OrganizationService
       const err = yield* svc.createInvitation({
-        organizationId: orgId, email: 'x@x.com', role: 'not-a-role', inviterId: userId,
+        organizationId: orgId,
+        email: 'x@x.com',
+        role: 'not-a-role',
+        inviterId: userId,
       }).pipe(Effect.flip)
       expect(err._tag).toBe('OrgInvalidRole')
     }))
@@ -86,7 +101,10 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       const svc = yield* OrganizationService
       yield* svc.createInvitation({ organizationId: orgId, email: 'dup@x.com', role: 'org:admin', inviterId: userId })
       const err = yield* svc.createInvitation({
-        organizationId: orgId, email: 'dup@x.com', role: 'org:admin', inviterId: userId,
+        organizationId: orgId,
+        email: 'dup@x.com',
+        role: 'org:admin',
+        inviterId: userId,
       }).pipe(Effect.flip)
       expect(err._tag).toBe('InvitationAlreadyExists')
     }))
@@ -97,7 +115,10 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       const { userId, orgId } = yield* seedOrgWithOwner('owner5@x.com', 'acme5')
       const svc = yield* OrganizationService
       const err = yield* svc.createInvitation({
-        organizationId: orgId, email: 'owner5@x.com', role: 'org:admin', inviterId: userId,
+        organizationId: orgId,
+        email: 'owner5@x.com',
+        role: 'org:admin',
+        inviterId: userId,
       }).pipe(Effect.flip)
       expect(err._tag).toBe('MemberAlreadyExists')
     }))
@@ -108,10 +129,17 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       const { userId, orgId } = yield* seedOrgWithOwner('owner6@x.com', 'acme6')
       const svc = yield* OrganizationService
       const first = yield* svc.createInvitation({
-        organizationId: orgId, email: 're@x.com', role: 'org:admin', inviterId: userId,
+        organizationId: orgId,
+        email: 're@x.com',
+        role: 'org:admin',
+        inviterId: userId,
       })
       const again = yield* svc.createInvitation({
-        organizationId: orgId, email: 're@x.com', role: 'org:admin', inviterId: userId, resend: true,
+        organizationId: orgId,
+        email: 're@x.com',
+        role: 'org:admin',
+        inviterId: userId,
+        resend: true,
       })
       expect(again.id).toBe(first.id)
       expect(again.status).toBe('pending')
@@ -123,7 +151,10 @@ layer(TestLayer)('OrganizationService.createInvitation', (it) => {
       yield* truncateAuth
       const svc = yield* OrganizationService
       const err = yield* svc.createInvitation({
-        organizationId: 999999, email: 'x@x.com', role: 'org:admin', inviterId: 1,
+        organizationId: 999999,
+        email: 'x@x.com',
+        role: 'org:admin',
+        inviterId: 1,
       }).pipe(Effect.flip)
       expect(err._tag).toBe('OrganizationNotFound')
     }))
@@ -143,13 +174,20 @@ function seedInvitation(opts: {
     const now = new Date()
     const { userId: ownerId, orgId } = yield* seedOrgWithOwner(opts.ownerEmail, opts.slug)
     const inviteeRows = yield* db.insert(users).values({
-      name: 'Invitee', email: opts.inviteeEmail, role: 'user', createdAt: now, updatedAt: now,
+      name: 'Invitee',
+      email: opts.inviteeEmail,
+      role: 'user',
+      createdAt: now,
+      updatedAt: now,
     } as never).returning()
     const invRows = yield* db.insert(invitations).values({
-      organizationId: orgId, email: opts.inviteeEmail, role: opts.role ?? 'org:admin',
+      organizationId: orgId,
+      email: opts.inviteeEmail,
+      role: opts.role ?? 'org:admin',
       status: opts.status ?? 'pending',
       expiresAt: opts.expiresAt ?? new Date(Date.now() + 86_400_000),
-      inviterId: ownerId, createdAt: now,
+      inviterId: ownerId,
+      createdAt: now,
     } as never).returning()
     const invitee = inviteeRows[0] as { id: number }
     const inv = invRows[0] as { id: number }
@@ -162,7 +200,9 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { orgId, inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'o1@x.com', slug: 'a1', inviteeEmail: 'i1@x.com',
+        ownerEmail: 'o1@x.com',
+        slug: 'a1',
+        inviteeEmail: 'i1@x.com',
       })
       const svc = yield* OrganizationService
       const { invitation, member } = yield* svc.acceptInvitation(invitationId, inviteeId)
@@ -176,7 +216,9 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'o2@x.com', slug: 'a2', inviteeEmail: 'i2@x.com',
+        ownerEmail: 'o2@x.com',
+        slug: 'a2',
+        inviteeEmail: 'i2@x.com',
         expiresAt: new Date(Date.now() - 1000),
       })
       const svc = yield* OrganizationService
@@ -188,7 +230,10 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'o3@x.com', slug: 'a3', inviteeEmail: 'i3@x.com', status: 'cancelled',
+        ownerEmail: 'o3@x.com',
+        slug: 'a3',
+        inviteeEmail: 'i3@x.com',
+        status: 'cancelled',
       })
       const svc = yield* OrganizationService
       const err = yield* svc.acceptInvitation(invitationId, inviteeId).pipe(Effect.flip)
@@ -199,7 +244,9 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { invitationId } = yield* seedInvitation({
-        ownerEmail: 'o4@x.com', slug: 'a4', inviteeEmail: 'i4@x.com',
+        ownerEmail: 'o4@x.com',
+        slug: 'a4',
+        inviteeEmail: 'i4@x.com',
       })
       // the owner (a different user/email) tries to accept i4's invitation
       const db = yield* DrizzleDb
@@ -222,11 +269,16 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { orgId, inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'o6@x.com', slug: 'a6', inviteeEmail: 'i6@x.com',
+        ownerEmail: 'o6@x.com',
+        slug: 'a6',
+        inviteeEmail: 'i6@x.com',
       })
       const db = yield* DrizzleDb
       yield* db.insert(members).values({
-        organizationId: orgId, userId: inviteeId, role: 'org:member', createdAt: new Date(),
+        organizationId: orgId,
+        userId: inviteeId,
+        role: 'org:member',
+        createdAt: new Date(),
       } as never)
       const svc = yield* OrganizationService
       const err = yield* svc.acceptInvitation(invitationId, inviteeId).pipe(Effect.flip)
@@ -237,7 +289,9 @@ layer(TestLayer)('OrganizationService.acceptInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { invitationId } = yield* seedInvitation({
-        ownerEmail: 'o7@x.com', slug: 'a7', inviteeEmail: 'i7@x.com',
+        ownerEmail: 'o7@x.com',
+        slug: 'a7',
+        inviteeEmail: 'i7@x.com',
       })
       const svc = yield* OrganizationService
       const err = yield* svc.acceptInvitation(invitationId, 999999).pipe(Effect.flip)
@@ -250,7 +304,9 @@ layer(TestLayer)('OrganizationService.rejectInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'or1@x.com', slug: 'rj1', inviteeEmail: 'ir1@x.com',
+        ownerEmail: 'or1@x.com',
+        slug: 'rj1',
+        inviteeEmail: 'ir1@x.com',
       })
       const svc = yield* OrganizationService
       const rejected = yield* svc.rejectInvitation(invitationId, inviteeId)
@@ -262,7 +318,9 @@ layer(TestLayer)('OrganizationService.rejectInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { invitationId } = yield* seedInvitation({
-        ownerEmail: 'or2@x.com', slug: 'rj2', inviteeEmail: 'ir2@x.com',
+        ownerEmail: 'or2@x.com',
+        slug: 'rj2',
+        inviteeEmail: 'ir2@x.com',
       })
       const db = yield* DrizzleDb
       const [owner] = yield* db.select().from(users).where(eq(users.email, 'or2@x.com'))
@@ -275,7 +333,10 @@ layer(TestLayer)('OrganizationService.rejectInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { inviteeId, invitationId } = yield* seedInvitation({
-        ownerEmail: 'or3@x.com', slug: 'rj3', inviteeEmail: 'ir3@x.com', status: 'accepted',
+        ownerEmail: 'or3@x.com',
+        slug: 'rj3',
+        inviteeEmail: 'ir3@x.com',
+        status: 'accepted',
       })
       const svc = yield* OrganizationService
       const err = yield* svc.rejectInvitation(invitationId, inviteeId).pipe(Effect.flip)
@@ -294,7 +355,9 @@ layer(TestLayer)('OrganizationService.rejectInvitation', (it) => {
     Effect.gen(function* () {
       yield* truncateAuth
       const { invitationId } = yield* seedInvitation({
-        ownerEmail: 'or4@x.com', slug: 'rj4', inviteeEmail: 'ir4@x.com',
+        ownerEmail: 'or4@x.com',
+        slug: 'rj4',
+        inviteeEmail: 'ir4@x.com',
       })
       const svc = yield* OrganizationService
       const err = yield* svc.rejectInvitation(invitationId, 999999).pipe(Effect.flip)

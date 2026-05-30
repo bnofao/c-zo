@@ -38,7 +38,7 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
       emailVerified: t.exposeBoolean('emailVerified'),
       image: t.exposeString('image', { nullable: true }),
       role: t.string({ resolve: u => u.role ?? 'user' }),
-      banned: t.exposeBoolean('banned'),
+      banned: t.exposeBoolean('banned', { nullable: true }),
       banReason: t.exposeString('banReason', { nullable: true }),
       banExpires: t.expose('banExpires', { type: 'DateTime', nullable: true }),
       twoFactorEnabled: t.exposeBoolean('twoFactorEnabled', { nullable: true }),

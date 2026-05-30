@@ -1,7 +1,6 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { decodeGlobalID } from '@czo/kit/graphql'
 import { Duration, Effect } from 'effect'
-import { setCookie } from 'h3'
 import {
   CannotChainImpersonation,
   CannotImpersonateAdmin,
@@ -56,8 +55,7 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
             return { result, cookie: sessions.setCookie(result.session.token) }
           }),
         )
-        if (ctx.event)
-          setCookie(ctx.event, cookie.name, cookie.value, cookie.attributes)
+        ctx.setCookie(cookie.serialize())
 
         return result
       },
@@ -72,7 +70,10 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
 
   builder.relayMutationField(
     'stopImpersonation',
-    { inputFields: () => ({}) },
+    // No client input — the active session identifies the impersonation.
+    // GraphQL forbids an empty input object and the relay plugin omits
+    // `clientMutationId` globally, so declare it here as the single field.
+    { inputFields: t => ({ clientMutationId: t.string({ required: false }) }) },
     {
       errors: { types: [ImpersonationNotActive] },
       authScopes: { auth: true },
@@ -86,8 +87,7 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
             return { result, cookie: sessions.setCookie(result.session.token) }
           }),
         )
-        if (ctx.event)
-          setCookie(ctx.event, cookie.name, cookie.value, cookie.attributes)
+        ctx.setCookie(cookie.serialize())
 
         return result
       },

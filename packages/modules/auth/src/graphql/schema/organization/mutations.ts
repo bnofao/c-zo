@@ -1,4 +1,4 @@
-import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
+import type { AuthGraphQLSchemaBuilder } from '../..'
 import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
@@ -24,8 +24,8 @@ import {
   OrgUserNotFound,
 } from './errors'
 
-const slugSchema = z.string().min(3, "Slug must be at least 3 characters").max(50, "Slug is too long").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-  message: "Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)",
+const slugSchema = z.string().min(3, 'Slug must be at least 3 characters').max(50, 'Slug is too long').regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  message: 'Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)',
 })
 
 // ─── Organization Mutations ───────────────────────────────────────────────────
@@ -37,7 +37,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     {
       inputFields: t => ({
         name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()) }),
-        slug: t.string({ required: true, validate:  slugSchema }),
+        slug: t.string({ required: true, validate: slugSchema }),
         logo: t.string({ validate: z.url() }),
         type: t.string(),
         metadata: t.field({ type: 'JSONObject' }),
@@ -59,12 +59,12 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           throw new UnauthenticatedError()
 
         const result = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.create({
               ...input,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
-              userId: Number(authUser.id)
+              userId: Number(authUser.id),
             })
           }),
         )
@@ -112,7 +112,7 @@ Effect.gen(function* () {
         const orgId = Number(id)
 
         const result = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.update(orgId, {
               ...input,
@@ -153,7 +153,7 @@ Effect.gen(function* () {
         const orgId = Number(id)
 
         await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.remove(orgId)
           }),
@@ -284,7 +284,7 @@ Effect.gen(function* () {
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.invitationId)
         await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.cancelInvitation(Number(id))
           }),
@@ -387,7 +387,7 @@ Effect.gen(function* () {
         const { id: orgId } = decodeGlobalID(input.organizationId)
 
         await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.removeMember({
               memberId: Number(memberId),
@@ -436,7 +436,7 @@ Effect.gen(function* () {
         const { id: orgId } = decodeGlobalID(input.organizationId)
 
         const result = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.updateMemberRole({
               id: Number(memberId),
@@ -455,5 +455,4 @@ Effect.gen(function* () {
       }),
     },
   )
-
 }

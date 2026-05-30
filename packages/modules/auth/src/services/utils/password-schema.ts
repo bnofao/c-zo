@@ -15,11 +15,11 @@ import { Schema } from 'effect'
  * scope for this sprint.
  */
 const password = Schema.String.check(
-  Schema.isMinLength(8,  { message: 'Password must be at least 8 characters long' }),
+  Schema.isMinLength(8, { message: 'Password must be at least 8 characters long' }),
   Schema.isMaxLength(20, { message: 'Password cannot exceed 20 characters' }),
-  Schema.isPattern(/[A-Z]/,      { message: 'Password must contain at least one uppercase letter' }),
-  Schema.isPattern(/[a-z]/,      { message: 'Password must contain at least one lowercase letter' }),
-  Schema.isPattern(/\d/,         { message: 'Password must contain at least one number' }),
+  Schema.isPattern(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' }),
+  Schema.isPattern(/[a-z]/, { message: 'Password must contain at least one lowercase letter' }),
+  Schema.isPattern(/\d/, { message: 'Password must contain at least one number' }),
   Schema.isPattern(/[!@#$%^&*]/, { message: 'Password must contain at least one special character' }),
 )
 

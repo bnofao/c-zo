@@ -26,6 +26,8 @@ export type AuthEvent
     readonly adminId: number
     readonly targetUserId: number
     readonly sessionToken: string
+    /** `'explicit'` = `stopImpersonation` mutation; `'expired'` = auto walk-up at resolve time after child TTL elapsed. */
+    readonly reason: 'explicit' | 'expired'
   }
   | {
     readonly _tag: 'PasswordResetRequested'

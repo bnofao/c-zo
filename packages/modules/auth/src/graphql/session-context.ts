@@ -3,20 +3,34 @@ import { Effect } from 'effect'
 import * as Session from '../services/session'
 
 /**
- * The `graphql.contexts` contributor: read the session cookie off the request
- * and resolve it into `ctx.auth`. Absent/expired → anonymous. An infra failure
- * (`SessionStoreFailed`) is propagated — the request fails, never silently
- * downgraded to anonymous.
+ * The `graphql.contexts` contributor: read the session token off the request
+ * and resolve it into `ctx.auth`. The token is taken from the `Authorization:
+ * Bearer <token>` header when present, otherwise from the session cookie.
+ * Absent/expired → anonymous. An infra failure (`SessionStoreFailed`) is
+ * propagated — the request fails, never silently downgraded to anonymous.
+ *
+ * Rotation: when `resolve` walks up from an expired impersonation child to its
+ * parent, the returned `session.token` differs from the incoming token. We
+ * rewrite the cookie in the response so the next (cookie-based) request uses
+ * the parent's token; the front detects the impersonation has ended via
+ * `session.impersonatedBy` flipping back to `null`. (A pure Bearer client
+ * ignores the Set-Cookie, but queueing it is harmless.)
  */
 export function makeSessionContextContributor() {
   return (systemContext: unknown): Effect.Effect<Partial<GraphQLContextMap>, unknown, Session.SessionService> =>
     Effect.gen(function* () {
       const session = yield* Session.SessionService
-      const request = (systemContext as { request?: Request }).request
-      const token = session.readSessionToken(request?.headers.get('cookie') ?? '')
+      const ctx = systemContext as { request?: Request, setCookie?: (serialized: string) => void }
+      // Authorization header takes precedence over the cookie fallback.
+      const token = session.readBearerToken(ctx.request?.headers.get('authorization'))
+        ?? session.readSessionToken(ctx.request?.headers.get('cookie') ?? '')
       if (!token)
         return { auth: { session: null } }
       const resolved = yield* session.resolve(token)
-      return { auth: resolved ?? { session: null } }
+      if (!resolved)
+        return { auth: { session: null } }
+      if (resolved.session.token !== token && ctx.setCookie)
+        ctx.setCookie(session.setCookie(resolved.session.token).serialize())
+      return { auth: resolved }
     })
 }

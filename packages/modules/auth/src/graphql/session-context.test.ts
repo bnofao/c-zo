@@ -6,6 +6,7 @@ import { Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
 import * as Cookie from '../services/cookie'
+import * as AuthEventsMod from '../services/events/auth'
 import * as Session from '../services/session'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import { makeSessionContextContributor } from './session-context'
@@ -16,7 +17,7 @@ const cookieLayer = Cookie.layer({
 })
 
 const TestLayer = Session.layer.pipe(
-  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer)),
+  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
   Layer.provideMerge(AuthPostgresLayer),
 )
 

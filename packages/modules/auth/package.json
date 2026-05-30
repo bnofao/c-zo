@@ -94,6 +94,7 @@
     "graphql-scalars": "catalog:common",
     "h3": "catalog:",
     "nitro": "catalog:dev",
+    "openapi-types": "catalog:dev",
     "pg": "catalog:common",
     "vitest": "catalog:testing"
   }

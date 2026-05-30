@@ -9,13 +9,14 @@ export const signOutHandler = defineHandler(async (event) => {
       const session = yield* Session.SessionService
       const cookies = yield* Cookie.CookieService
       const token = getCookie(event, cookies.name)
-      if (token)
+      if (token) {
         // A revoke infra failure must NOT block logout — log it and clear the
         // cookie anyway. Stays in Effect (a pipe); the handler keeps no try/catch.
         yield* session.revoke(token).pipe(
           Effect.catchCause(cause =>
             Effect.logWarning('sign-out: session revoke failed', cause)),
         )
+      }
       return cookies.createBlank()
     }),
   )

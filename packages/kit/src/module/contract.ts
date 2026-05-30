@@ -23,6 +23,7 @@ import type { Effect, Layer } from 'effect'
 import type { H3 } from 'h3'
 import type { RelationsFactory } from '../db/schema-registry'
 import type { SeederConfig } from '../db/seeder'
+import type { ApiRoute } from '../openapi/route'
 
 /* ─── Module ───────────────────────────────────────────────────────── */
 
@@ -86,6 +87,15 @@ export interface Module<Name extends string = string, R = never> {
   readonly http?: (app: H3) => Effect.Effect<void, never, never>
 
   /**
+   * Declarative REST routes. Each entry is registered on the host h3 app
+   * AND aggregated into the OpenAPI document (when `buildApp({ openapi })`
+   * is configured), keeping path/method/operation a single source of
+   * truth. The imperative `http(app)` hook remains for non-REST needs
+   * (middleware, catch-alls, proxying).
+   */
+  readonly routes?: readonly ApiRoute[]
+
+  /**
    * Effect that runs once after the runtime is built but before the
    * server starts accepting traffic. Use for last-mile setup that
    * needs the runtime (e.g. `AccessService.freeze`, registry
@@ -105,24 +115,29 @@ export interface Module<Name extends string = string, R = never> {
 /* ─── Helper ───────────────────────────────────────────────────────── */
 
 /**
- * Identity helper to define a `CzoModule` with type inference. Doesn't
- * do anything at runtime — purely a TypeScript ergonomics improvement
- * over annotating the object literal manually.
+ * Helper to define a `CzoModule` with type inference. Takes a thunk so a
+ * module's imperative Layer construction (multiple `const`s, config reads,
+ * validation) lives inline at the export site — no separately-named
+ * `makeXModule` factory needed. The thunk is invoked immediately; `Layer`s
+ * stay lazy descriptions, so there's no eager work at import time.
  *
  * @example
  * ```ts
- * export default defineModule({
- *   name: 'auth',
- *   version: '0.1.0',
- *   layer: AuthModuleLive,
- *   db: { schema: authSchema, relations: authRelations },
- *   graphql: (builder) => registerAuthSchema(builder),
- *   onStart: AccessService.use((s) => s.freeze),
+ * export default defineModule(() => {
+ *   const AuthModuleLive = Layer.mergeAll(...).pipe(Layer.provide(AuthModuleConfigLive))
+ *   return {
+ *     name: 'auth',
+ *     version: '0.1.0',
+ *     layer: AuthModuleLive,
+ *     db: { schema: authSchema, relations: authRelations },
+ *     graphql: { contribution: registerAuthSchema },
+ *     onStart: AccessService.use((s) => s.freeze),
+ *   }
  * })
  * ```
  */
 export function defineModule<Name extends string, R>(
-  module: Module<Name, R>,
+  module: () => Module<Name, R>,
 ): Module<Name, R> {
-  return module
+  return module()
 }

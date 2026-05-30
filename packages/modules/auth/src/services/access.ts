@@ -64,21 +64,25 @@ export function mergePermissions<S extends Statements>(
 
 // ─── Forked from better-auth/plugins/access (drop-in surface) ────────
 
-export type AuthorizeResult = { success: boolean, error: string | null }
+export interface AuthorizeResult { success: boolean, error: string | null }
 
 function authorizePermissions<S extends Statements>(
   granted: RolePermissions<S> | null | undefined,
   required: RolePermissions<S>,
   connector: 'AND' | 'OR' = 'AND',
 ): AuthorizeResult {
-  if (!granted) return { success: false, error: 'No permissions granted' }
+  if (!granted)
+    return { success: false, error: 'No permissions granted' }
   for (const [resource, actions] of Object.entries(required) as [string, string[]][]) {
     const grantedActions = (granted as Record<string, string[]>)[resource]
-    if (!grantedActions) return { success: false, error: `Missing resource: ${resource}` }
+    if (!grantedActions)
+      return { success: false, error: `Missing resource: ${resource}` }
     const hasAll = actions.every(a => grantedActions.includes(a))
     const hasAny = actions.some(a => grantedActions.includes(a))
-    if (connector === 'AND' && !hasAll) return { success: false, error: `Missing actions on ${resource}` }
-    if (connector === 'OR' && !hasAny) return { success: false, error: `No matching action on ${resource}` }
+    if (connector === 'AND' && !hasAll)
+      return { success: false, error: `Missing actions on ${resource}` }
+    if (connector === 'OR' && !hasAny)
+      return { success: false, error: `No matching action on ${resource}` }
   }
   return { success: true, error: null }
 }

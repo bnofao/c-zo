@@ -7,8 +7,9 @@ import { Effect, Layer } from 'effect'
 import { apikeys, members, organizations, users } from '../database/schema'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import { layer as accessLayer } from './access'
-import { ApiKeyService, Unauthorized, layer as apiKeyLayer } from './api-key'
+import { layer as apiKeyLayer, ApiKeyService, Unauthorized } from './api-key'
 import { BetterAuth } from './auth-instance'
+import { layer as apiKeyEventsLayer } from './events/api-key'
 import { layer as orgEventsLayer } from './events/organization'
 import { layer as orgLayer } from './organization'
 
@@ -19,6 +20,7 @@ const BetterAuthStub = Layer.succeed(BetterAuth, { options: { plugins: [] } } as
 // Compose: ApiKeyService needs DrizzleDb + AccessService.
 // OrgLayer is included for seed helpers (members/organizations tables) but is no longer a service dep.
 const TestLayer = apiKeyLayer.pipe(
+  Layer.provideMerge(apiKeyEventsLayer),
   Layer.provideMerge(orgLayer.pipe(Layer.provideMerge(orgEventsLayer))),
   Layer.provideMerge(accessLayer),
   Layer.provideMerge(BetterAuthStub),
@@ -41,8 +43,8 @@ const truncateAll: Effect.Effect<void, never, DrizzleDb> = Effect.gen(function* 
 // ─── Seed helpers ────────────────────────────────────────────────────────────
 
 /** Insert a bare user row, return its id. */
-const seedUser = (email?: string) =>
-  Effect.gen(function* () {
+function seedUser(email?: string) {
+  return Effect.gen(function* () {
     const db = (yield* DrizzleDb) as Database<Relations>
     const now = new Date()
     const rows = yield* db.insert(users).values({
@@ -54,10 +56,11 @@ const seedUser = (email?: string) =>
     }).returning()
     return (rows[0] as { id: number }).id
   })
+}
 
 /** Insert an organization row, return its id. */
-const seedOrg = () =>
-  Effect.gen(function* () {
+function seedOrg() {
+  return Effect.gen(function* () {
     const db = (yield* DrizzleDb) as Database<Relations>
     const now = new Date()
     const rows = yield* db.insert(organizations).values({
@@ -67,10 +70,11 @@ const seedOrg = () =>
     }).returning()
     return (rows[0] as { id: number }).id
   })
+}
 
 /** Make userId a member of orgId. */
-const seedMember = (orgId: number, userId: number) =>
-  Effect.gen(function* () {
+function seedMember(orgId: number, userId: number) {
+  return Effect.gen(function* () {
     const db = (yield* DrizzleDb) as Database<Relations>
     yield* db.insert(members).values({
       organizationId: orgId,
@@ -79,17 +83,20 @@ const seedMember = (orgId: number, userId: number) =>
       createdAt: new Date(),
     })
   })
+}
 
 /** Minimal create input for a USER-scoped key. */
-const userKeyInput = (userId: number) => ({
-  input: {
-    name: 'test-key',
-    group: 'default',
-    prefix: 'sk',
-    referenceId: userId,
-  },
-  opts: {},
-} as const)
+function userKeyInput(userId: number) {
+  return {
+    input: {
+      name: 'test-key',
+      group: 'default',
+      prefix: 'sk',
+      referenceId: userId,
+    },
+    opts: {},
+  } as const
+}
 
 // ─── Suite ───────────────────────────────────────────────────────────────────
 

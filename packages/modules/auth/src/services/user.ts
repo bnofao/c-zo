@@ -1,11 +1,11 @@
 import type { Relations } from '@czo/auth/relations'
 import type { sessions, UserSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
+import type { InferSelectModel } from 'drizzle-orm'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { eq } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
-import type { InferSelectModel } from 'drizzle-orm'
 import { AccessService } from './access'
 import { UserEvents } from './events/user'
 import { PasswordService } from './password'
@@ -404,13 +404,16 @@ const make = Effect.gen(function* () {
     hasPermission: input =>
       Effect.gen(function* () {
         const { permissions, role, connector = 'AND' } = input
-        if (!permissions) return false
+        if (!permissions)
+          return false
         const roleNames = (role || 'user').split(',')
         for (const r of roleNames) {
           const acRole = yield* access.role(r)
-          if (!acRole) continue
+          if (!acRole)
+            continue
           const ok = yield* access.authorize(acRole.statements, permissions, connector)
-          if (ok) return true
+          if (ok)
+            return true
         }
         return false
       }),

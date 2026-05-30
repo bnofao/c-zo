@@ -7,6 +7,7 @@ import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Cookie from './cookie'
+import * as AuthEventsMod from './events/auth'
 import * as UserEventsMod from './events/user'
 import * as Session from './session'
 
@@ -17,7 +18,7 @@ const cookieLayer = Cookie.layer({
 
 // SessionService provided over the Testcontainers Postgres + memory persistence.
 const TestLayer = Session.layer.pipe(
-  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer)),
+  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
   Layer.provideMerge(AuthPostgresLayer),
 )
 
@@ -81,6 +82,25 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionServic
       const svc = yield* Session.SessionService
       const cookie = svc.setCookie('tok-roundtrip')
       expect(svc.readSessionToken(`${cookie.name}=${cookie.value}`)).toBe('tok-roundtrip')
+    }))
+
+  it.effect('readBearerToken extracts a Bearer token (case-insensitive scheme)', () =>
+    Effect.gen(function* () {
+      const svc = yield* Session.SessionService
+      expect(svc.readBearerToken('Bearer tok-abc')).toBe('tok-abc')
+      expect(svc.readBearerToken('bearer tok-abc')).toBe('tok-abc')
+      expect(svc.readBearerToken('Bearer   tok-abc  ')).toBe('tok-abc')
+    }))
+
+  it.effect('readBearerToken returns null for absent/other-scheme/empty headers', () =>
+    Effect.gen(function* () {
+      const svc = yield* Session.SessionService
+      expect(svc.readBearerToken(null)).toBeNull()
+      expect(svc.readBearerToken(undefined)).toBeNull()
+      expect(svc.readBearerToken('')).toBeNull()
+      expect(svc.readBearerToken('Basic dXNlcjpwYXNz')).toBeNull()
+      expect(svc.readBearerToken('Bearer')).toBeNull()
+      expect(svc.readBearerToken('Bearer   ')).toBeNull()
     }))
 
   it.effect('update patches a session field and the next resolve sees it', () =>
@@ -154,7 +174,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionServic
     }))
 
   // ─── SP4b: impersonation parent/child linkage ──────────────────────────
-  it.effect('resolve returns null while a child session exists (suspended parent)', () =>
+  it.effect('parent session remains resolvable while a live child exists', () =>
     Effect.gen(function* () {
       yield* truncateAuth
       const adminId = yield* seedUser
@@ -162,7 +182,6 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionServic
       const svc = yield* Session.SessionService
 
       const admin = yield* svc.create({ userId: adminId, actorType: 'user' })
-      expect(yield* svc.resolve(admin.token)).not.toBeNull()
 
       yield* svc.create({
         userId: targetId,
@@ -172,26 +191,9 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('sessionServic
       })
 
       yield* svc.invalidateCacheForUser(adminId)
-      expect(yield* svc.resolve(admin.token)).toBeNull()
-    }))
-
-  it.effect('resolve restores the parent after the child is revoked', () =>
-    Effect.gen(function* () {
-      yield* truncateAuth
-      const adminId = yield* seedUser
-      const targetId = yield* seedUser
-      const svc = yield* Session.SessionService
-
-      const admin = yield* svc.create({ userId: adminId, actorType: 'user' })
-      const child = yield* svc.create({
-        userId: targetId,
-        actorType: 'user',
-        impersonatedBy: adminId,
-        parentToken: admin.token,
-      })
-      yield* svc.revoke(child.token)
-      yield* svc.invalidateCacheForUser(adminId)
-      expect(yield* svc.resolve(admin.token)).not.toBeNull()
+      const resolved = yield* svc.resolve(admin.token)
+      expect(resolved).not.toBeNull()
+      expect(resolved?.session.token).toBe(admin.token)
     }))
 
   it.effect('FK cascade: revoking admin token deletes child impersonation session', () =>
@@ -352,5 +354,6 @@ describe('sessionService — infra failure', () => {
       } as never),
       Persistence.layerMemory,
       cookieLayer,
+      AuthEventsMod.layer,
     ))))))
 })

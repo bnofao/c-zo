@@ -1,12 +1,12 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { EffectPgDatabase } from 'drizzle-orm/effect-postgres'
-import type { AnyRelations } from 'drizzle-orm/relations'
 import type { PgTable } from 'drizzle-orm/pg-core'
+import type { AnyRelations } from 'drizzle-orm/relations'
 import { and, eq, sql } from 'drizzle-orm'
 import { Effect } from 'effect'
 import { OptimisticLockError } from './errors'
 
-type TableWithVersion = PgTable & { id: any; version: any; updatedAt: any }
+type TableWithVersion = PgTable & { id: any, version: any, updatedAt: any }
 
 /**
  * Accepts both `EffectPgDatabase` and `EffectPgTransaction` (which extends

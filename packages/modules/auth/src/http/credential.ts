@@ -3,6 +3,7 @@ import type { Database } from '@czo/kit/db/effect'
 import type { ActorProviderFailed } from '../services/actor'
 import type * as Cookie from '../services/cookie'
 import type { PasswordHashFailed } from '../services/user'
+import { describeDbError } from '@czo/kit/db'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { Data, Effect } from 'effect'
 import { users } from '../database/schema'
@@ -40,9 +41,18 @@ export class CredentialDbFailed extends Data.TaggedError('CredentialDbFailed')<{
   get message() { return 'Credential database operation failed' }
 }
 
-/** Wrap a DB Effect — any failure becomes `CredentialDbFailed`. */
-const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
-  eff.pipe(Effect.mapError(cause => new CredentialDbFailed({ cause })))
+/**
+ * Wrap a DB Effect — any failure becomes `CredentialDbFailed`. Before wrapping,
+ * log the *real* driver error: drizzle's `EffectDrizzleQueryError.message` only
+ * echoes the SQL (`"Failed query: …"`), so `describeDbError` unwraps `.cause` to
+ * the leaf Postgres error (SQLSTATE + message + detail) and surfaces it.
+ */
+function dbErr<A, E>(eff: Effect.Effect<A, E>) {
+  return eff.pipe(
+    Effect.tapError(cause => Effect.logError(`auth credential DB op failed: ${describeDbError(cause)}`)),
+    Effect.mapError(cause => new CredentialDbFailed({ cause })),
+  )
+}
 
 // ─── Inputs ──────────────────────────────────────────────────────────────
 

@@ -60,7 +60,7 @@ describe('AccessService.authorize', () => {
 })
 
 describe('createAccessControl (fork of better-auth/plugins/access)', () => {
-  const statements = { user: ['create', 'read', 'update'], 'api-key': ['create'] } as const
+  const statements = { 'user': ['create', 'read', 'update'], 'api-key': ['create'] } as const
 
   it('exposes statements + newRole on the AccessControl', () => {
     const ac = createAccessControl(statements)

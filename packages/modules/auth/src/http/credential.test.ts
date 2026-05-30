@@ -5,8 +5,8 @@ import { expect, layer } from '@effect/vitest'
 import { Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, users } from '../database/schema'
-import * as Actor from '../services/actor'
 import { DEFAULT_ACTOR_RESTRICTIONS } from '../plugins/actor'
+import * as Actor from '../services/actor'
 import * as Cookie from '../services/cookie'
 import * as AuthEvents from '../services/events/auth'
 import * as Password from '../services/password'
@@ -21,7 +21,7 @@ const cookieLayer = Cookie.layer({
 
 const TestLayer = Layer.mergeAll(
   Password.layer,
-  Session.layer.pipe(Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer))),
+  Session.layer.pipe(Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEvents.layer))),
   Actor.makeLayer(DEFAULT_ACTOR_RESTRICTIONS, true),
   AuthEvents.layer,
 ).pipe(Layer.provideMerge(AuthPostgresLayer))
@@ -55,7 +55,8 @@ layer(TestLayer, { timeout: 120_000 })('credential signUp/signIn', (it) => {
       const collected = yield* Fiber.join(collector)
       const event = collected[0]!
       expect(event._tag).toBe('SignedUp')
-      if (event._tag !== 'SignedUp') throw new Error('expected SignedUp')
+      if (event._tag !== 'SignedUp')
+        throw new Error('expected SignedUp')
       expect(event.email).toBe('evt@example.com')
     }))
 

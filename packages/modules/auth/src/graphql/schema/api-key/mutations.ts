@@ -58,10 +58,6 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
           }),
         )
 
-        // TODO(events): publish ApiKeyCreated when the domain bus exists.
-        // NOTE: ApiKeyService.create returns the persisted row (key = hashed).
-        // The plain key is not returned by the service — plain is always null here.
-        // To expose the plain key, the service signature must be extended (out of scope).
         return { apiKey, plain: null as string | null }
       },
     },

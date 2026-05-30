@@ -46,7 +46,7 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
               : undefined,
           }))
         })
-        return ctx.runEffect(program) as any
+        return ctx.runEffect(program)
       },
     }))
 }

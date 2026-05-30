@@ -15,22 +15,13 @@ export default defineBuildConfig({
   entries: [
     'src/index',
     'src/module/index',
+    'src/email/index',
+    'src/openapi/index',
     'src/graphql/index',
     'src/db/index',
     'src/db/effect',
-    'src/ioc/index',
-    'src/cache/index',
-    'src/event-bus/index',
-    'src/telemetry/index',
-    'src/queue/index',
-    'src/testing/index',
   ],
   externals: [
-    'nitropack',
-    'nitropack/runtime',
-    'nitro',
-    'nitro/runtime',
-    'nitro/runtime-config',
     'unimport',
     'graphql',
     'graphql-middleware',
@@ -47,5 +38,8 @@ export default defineBuildConfig({
     'bullmq',
     'ioredis',
     'citty',
+    // Types-only dep used via `import type` in `src/openapi/*`; keep it
+    // external so unbuild emits the type reference instead of bundling.
+    'openapi-types',
   ],
 })

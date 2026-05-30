@@ -46,7 +46,7 @@ const cookieLayer = Cookie.layer({
 })
 
 const SessionLive = Session.layer.pipe(
-  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer)),
+  Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
 )
 
 const UserLive = User.layer.pipe(
@@ -906,14 +906,16 @@ layer(TestLayerWithSubscribers, { timeout: 120_000, excludeTestServices: true })
       const account = yield* Account.AccountService
       const events = yield* AuthEventsMod.AuthEvents
       const collected = yield* events.subscribe.pipe(
-        Stream.take(1), Stream.runCollect, Effect.forkChild,
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkChild,
       )
 
       yield* account.requestEmailChange({ userId: u.id, currentPassword: 'OldPass1!', newEmail: 'new@x.com' })
       const reqArr = yield* Fiber.join(collected)
       const req = reqArr[0] as Extract<AuthEventsMod.AuthEvent, { _tag: 'EmailChangeRequested' }>
 
-      EmailMockState.sends.length = 0   // reset after the request-side mail
+      EmailMockState.sends.length = 0 // reset after the request-side mail
       yield* account.confirmEmailChange({ token: req.token, currentSessionToken: current.token })
       yield* Effect.sleep(Duration.millis(200))
 

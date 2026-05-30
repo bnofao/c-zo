@@ -101,9 +101,17 @@ const RAW_TYPE_OIDS = new Set([1184, 1114, 1082, 1083, 1231, 1115, 1185, 1182])
  *  `PgClient.layer` owns the pool lifecycle and absorbs Scope + Reactivity.
  */
 function makeClientDb(url: Redacted.Redacted<string>, relations: RelationsEntry) {
-  return PgDrizzle.makeWithDefaults({ relations }).pipe(
-    Effect.provide(makePgClientLayer(url)),
-  )
+  return Effect.gen(function* () {
+    // Build the PgClient layer into the AMBIENT (DrizzleDb layer) scope via
+    // `Layer.build`, NOT `Effect.provide`. `Effect.provide(scopedLayer)` ties the
+    // pool's scope to the completion of `makeWithDefaults` — so `pool.end()` runs
+    // immediately after construction and the first real query fails with "Cannot
+    // use a pool after calling end on the pool". `Layer.build` attaches the pool
+    // finalizer to the surrounding `Layer.effect` scope (app lifetime), matching
+    // how `testing/postgres.ts` composes it via `Layer.provide`.
+    const context = yield* Layer.build(makePgClientLayer(url))
+    return yield* PgDrizzle.makeWithDefaults({ relations }).pipe(Effect.provide(context))
+  })
 }
 
 /**

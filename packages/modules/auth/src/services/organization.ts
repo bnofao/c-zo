@@ -1,8 +1,8 @@
 import type { Relations } from '@czo/auth/relations'
 import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
-import type { InferSelectModel } from 'drizzle-orm'
 import type { OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
+import type { InferSelectModel } from 'drizzle-orm'
 import type { Auth } from '../layers/better-auth'
 import { invitations, members, organizations } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
@@ -408,6 +408,7 @@ export class OrganizationService extends Context.Service<
 
     readonly listUserInvitations: (
       email: string,
+      config?: InvitationFindManyConfig,
     ) => Effect.Effect<readonly OrganizationInvitation[], OrgDbFailed>
 
     readonly cancelInvitation: (
@@ -801,11 +802,13 @@ const make = Effect.gen(function* () {
         return rows
       }),
 
-    listUserInvitations: email =>
+    listUserInvitations: (email, config) =>
       Effect.gen(function* () {
-        const rows = yield* dbErr(
-          db.query.invitations.findMany({ where: { email, status: 'pending' } }),
-        )
+        const merged = {
+          ...config,
+          where: { ...config?.where, email, status: 'pending' as const },
+        }
+        const rows = yield* dbErr(db.query.invitations.findMany(merged))
         return rows
       }),
 

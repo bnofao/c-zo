@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "NODE_ENV=development node --import ./src/register-otel.mjs --import tsx --watch src/main.ts",
     "start": "node --import ./src/register-otel.mjs --import tsx src/main.ts",
-    "check-types": "pnpm tsc --noEmit"
+    "check-types": "pnpm tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:status": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "nitro task run db:seed"
   },
   "dependencies": {
     "@czo/auth": "workspace:*",
@@ -28,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:types",
+    "drizzle-kit": "catalog:dev",
     "tsx": "catalog:cli",
     "typescript": "catalog:dev"
   }

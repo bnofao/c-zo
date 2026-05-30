@@ -34,29 +34,9 @@
       "types": "./src/email/index.ts",
       "default": "./dist/email/index.mjs"
     },
-    "./ioc": {
-      "types": "./src/ioc/index.ts",
-      "default": "./dist/ioc/index.mjs"
-    },
-    "./cache": {
-      "types": "./src/cache/index.ts",
-      "default": "./dist/cache/index.mjs"
-    },
-    "./queue": {
-      "types": "./src/queue/index.ts",
-      "default": "./dist/queue/index.mjs"
-    },
-    "./event-bus": {
-      "types": "./src/event-bus/index.ts",
-      "default": "./dist/event-bus/index.mjs"
-    },
-    "./telemetry": {
-      "types": "./src/telemetry/index.ts",
-      "default": "./dist/telemetry/index.mjs"
-    },
-    "./testing": {
-      "types": "./src/testing/index.ts",
-      "default": "./dist/testing/index.mjs"
+    "./openapi": {
+      "types": "./src/openapi/index.ts",
+      "default": "./dist/openapi/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -94,8 +74,7 @@
     "graphql": "catalog:common",
     "graphql-yoga": "catalog:common",
     "h3": "^2.0.0-rc.0",
-    "ioredis": "^5.0.0",
-    "nitro": "^2.0.0 || ^3.0.0"
+    "ioredis": "^5.0.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/exporter-metrics-otlp-http": {
@@ -128,12 +107,6 @@
     "@opentelemetry/semantic-conventions": {
       "optional": true
     },
-    "amqplib": {
-      "optional": true
-    },
-    "bullmq": {
-      "optional": true
-    },
     "graphql": {
       "optional": true
     },
@@ -144,9 +117,6 @@
       "optional": true
     },
     "ioredis": {
-      "optional": true
-    },
-    "nitro": {
       "optional": true
     }
   },
@@ -191,6 +161,7 @@
     "graphql-yoga": "catalog:common",
     "h3": "catalog:",
     "nitro": "catalog:dev",
+    "openapi-types": "catalog:dev",
     "unimport": "catalog:dev",
     "vitest": "catalog:testing"
   }

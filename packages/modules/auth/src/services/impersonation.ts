@@ -1,10 +1,10 @@
-import type { AuthModuleConfig } from '../module'
-import type { SessionRow, User } from './user'
+import type { SessionStoreFailed } from './session'
+import type { SessionRow, User, UserDbFailed, UserNotFound } from './user'
 import { Context, Data, Duration, Effect, Layer } from 'effect'
 import { IMPERSONATION_DEFAULT_TTL, IMPERSONATION_MAX_TTL } from '../constants'
 import { AuthEvents } from './events/auth'
-import { SessionService, SessionStoreFailed } from './session'
-import { UserDbFailed, UserNotFound, UserService } from './user'
+import { SessionService } from './session'
+import { UserService } from './user'
 
 // ─── Tagged errors ──────────────────────────────────────────────────────
 
@@ -62,14 +62,19 @@ export class ImpersonationConfig extends Context.Service<
   }
 >()('@czo/auth/ImpersonationConfig') {}
 
-export const makeImpersonationConfigLayer = (
-  config?: AuthModuleConfig['impersonation'],
-): Layer.Layer<ImpersonationConfig> =>
-  Layer.succeed(ImpersonationConfig, {
+export interface ImpersonationOptions {
+  readonly defaultTtl?: Duration.Duration
+  readonly maxTtl?: Duration.Duration
+  readonly allowImpersonateAdmin?: boolean
+}
+
+export function makeImpersonationConfigLayer(config?: ImpersonationOptions): Layer.Layer<ImpersonationConfig> {
+  return Layer.succeed(ImpersonationConfig, {
     defaultTtl: config?.defaultTtl ?? IMPERSONATION_DEFAULT_TTL,
     maxTtl: config?.maxTtl ?? IMPERSONATION_MAX_TTL,
     allowImpersonateAdmin: config?.allowImpersonateAdmin ?? false,
   })
+}
 
 // ─── Service contract ───────────────────────────────────────────────────
 
@@ -121,8 +126,9 @@ export class ImpersonationService extends Context.Service<
  * TODO: tighten to exact match against `AccessService` registered admin role
  * names once that surface exposes role metadata.
  */
-const isAdminRole = (role: string | null | undefined): boolean => {
-  if (!role) return false
+function isAdminRole(role: string | null | undefined): boolean {
+  if (!role)
+    return false
   return role.split(',').some(r => r.trim().toLowerCase().includes('admin'))
 }
 
@@ -178,10 +184,6 @@ const make = Effect.gen(function* () {
         expiresIn: effectiveTtl,
       })
 
-      // Drop any cached resolution of the admin's session so the suspended
-      // NOT EXISTS rule takes effect immediately.
-      yield* sessions.invalidateCacheForUser(adminId)
-
       yield* Effect.forkDetach(events.publish({
         _tag: 'ImpersonationStarted',
         adminId,
@@ -197,9 +199,10 @@ const make = Effect.gen(function* () {
 
   const stop = Effect.fn('impersonation.stop')(
     function* (currentToken: string) {
-      // We cannot use `sessions.resolve` here — the admin (parent) is
-      // suspended while the child exists, AND the child resolves fine. So we
-      // resolve the child to obtain its parentToken + impersonatedBy fields.
+      // Resolve the child to obtain its parentToken + impersonatedBy fields.
+      // Distinct from the auto walk-up in `SessionService.lookup`: an explicit
+      // stop must verify the caller is *actually* on a child session before
+      // mutating anything.
       const childResolved = yield* sessions.resolve(currentToken)
       if (!childResolved || childResolved.session.impersonatedBy == null || childResolved.session.parentToken == null)
         return yield* Effect.fail(new ImpersonationNotActive({ token: currentToken }))
@@ -208,11 +211,7 @@ const make = Effect.gen(function* () {
       const targetUserId = childResolved.session.userId
       const parentToken = childResolved.session.parentToken
 
-      // Revoke the child first; this lifts the NOT EXISTS suspension on the
-      // parent.
       yield* sessions.revoke(currentToken)
-      // Drop cached resolutions of the parent admin user.
-      yield* sessions.invalidateCacheForUser(adminId)
 
       const restored = yield* sessions.resolve(parentToken)
       if (!restored)
@@ -223,6 +222,7 @@ const make = Effect.gen(function* () {
         adminId,
         targetUserId,
         sessionToken: currentToken,
+        reason: 'explicit',
       }))
 
       return { session: restored.session, user: restored.user } satisfies ImpersonationResult

@@ -1,6 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { Effect } from 'effect'
-import z from 'zod'
 import {
   AccountService,
   AccountUnrecoverable,
@@ -12,13 +11,14 @@ import {
   InvalidPasswordResetToken,
 } from '../../../services/account'
 import { PasswordHashFailed, UserNotFound } from '../../../services/user'
+import { emailSchema } from '../../../services/utils/email-schema'
 import { passwordSchema } from '../../../services/utils/password-schema'
 
 export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): void {
   builder.relayMutationField(
     'requestPasswordReset',
     { inputFields: t => ({
-      email: t.string({ required: true, validate: z.email().transform(e => e.toLowerCase()) }),
+      email: t.string({ required: true, validate: emailSchema }),
     }) },
     {
       errors: { types: [] },
@@ -59,7 +59,10 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
 
   builder.relayMutationField(
     'requestEmailVerification',
-    { inputFields: () => ({}) },
+    // No client input — the user comes from the session. GraphQL forbids an
+    // empty input object, and the relay plugin omits `clientMutationId`
+    // globally, so declare it here as the single (optional) input field.
+    { inputFields: t => ({ clientMutationId: t.string({ required: false }) }) },
     {
       errors: { types: [] },
       authScopes: { auth: true },
@@ -124,8 +127,8 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'requestEmailChange',
     { inputFields: t => ({
-        currentPassword: t.string({ required: false }),
-        newEmail: t.string({ required: true, validate: z.email().transform(e => e.toLowerCase()) }),
+      currentPassword: t.string({ required: false }),
+      newEmail: t.string({ required: true, validate: emailSchema }),
     }) },
     {
       errors: { types: [IncorrectCurrentPassword] },
@@ -150,7 +153,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'confirmEmailChange',
     { inputFields: t => ({
-        token: t.string({ required: true }),
+      token: t.string({ required: true }),
     }) },
     {
       errors: { types: [InvalidEmailChangeToken] },
@@ -173,7 +176,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'deleteAccount',
     { inputFields: t => ({
-        currentPassword: t.string({ required: false }),
+      currentPassword: t.string({ required: false }),
     }) },
     {
       errors: { types: [IncorrectCurrentPassword, CannotDeleteWithOwnedOrgs] },
@@ -197,7 +200,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
   builder.relayMutationField(
     'restoreAccount',
     { inputFields: t => ({
-        token: t.string({ required: true }),
+      token: t.string({ required: true }),
     }) },
     {
       errors: { types: [InvalidAccountRestoreToken, AccountUnrecoverable] },

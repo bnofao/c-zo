@@ -22,12 +22,15 @@ import type { GraphQLSchema } from 'graphql'
 import type { YogaServerInstance } from 'graphql-yoga'
 import type { RelationsEntry, SchemaRegistryShape } from '../db/schema-registry'
 import type { Module } from './contract'
+import process from 'node:process'
 import { DatabaseConfigFromEnv, DrizzleDbLayer } from '@czo/kit/db/effect'
 import { GraphQLBuilder, makeGraphQLBuilder } from '@czo/kit/graphql'
+import { findDuplicateRoutes, mountOpenApi } from '@czo/kit/openapi'
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
 import { ConfigProvider, Effect, Layer } from 'effect'
+import { Persistence } from 'effect/unstable/persistence'
 import { createYoga } from 'graphql-yoga'
-import { defineHandler, H3, serve } from 'h3'
+import { fromNodeHandler, H3, serve } from 'h3'
 import { buildSchemaRegistryLayer } from '../db/schema-registry'
 
 declare module 'h3' {
@@ -50,6 +53,23 @@ export interface BuildAppOptions {
   readonly http?: {
     readonly port?: number
     readonly hostname?: string
+  }
+  readonly openapi?: {
+    readonly title: string
+    readonly version: string
+    readonly description?: string
+    /** Default `/openapi.json`. */
+    readonly jsonPath?: string
+    /** Default `/reference`. */
+    readonly uiPath?: string
+    /** Scalar bundle URL; defaults to jsDelivr `@scalar/api-reference`. */
+    readonly cdn?: string
+    /**
+     * Force the docs endpoints on/off. When `undefined`, defaults to
+     * `process.env.NODE_ENV !== 'production'` (gated off in prod). REST
+     * routes are always registered regardless of this flag.
+     */
+    readonly enabled?: boolean
   }
 }
 
@@ -176,23 +196,63 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
       event.context.runEffect = runEffect
     })
 
-    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ event?: import('h3').H3Event }, GraphQLContextMap>({
+    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ pendingCookies?: string[] }, GraphQLContextMap>({
       schema: gqlSchema,
       context: async (initialContext) => {
+        // Yoga owns the Node response and never flushes the h3 `event.res`, so
+        // cookies cannot be set through the event. Instead, resolvers (and the
+        // session-context contributor) push serialized `Set-Cookie` values onto
+        // this per-request sink; the `onResponse` plugin below flushes them.
+        const pendingCookies = initialContext.pendingCookies ?? []
+        const setCookie = (serialized: string): void => {
+          pendingCookies.push(serialized)
+        }
+        // Expose on the systemContext so context contributors can queue cookies
+        // while the context is still being built (e.g. session-token rotation).
+        Object.assign(initialContext, { setCookie })
         const userCtx = await runEffect(graphQLBuilder.buildContext(initialContext))
-        return { ...userCtx, runEffect, event: initialContext.event }
+        return { ...userCtx, runEffect, setCookie }
       },
+      plugins: [
+        {
+          onResponse({ response, serverContext }) {
+            const pending = (serverContext as { pendingCookies?: string[] })?.pendingCookies ?? []
+            for (const value of pending)
+              response.headers.append('set-cookie', value)
+          },
+        },
+      ],
     })
 
-    httpApp.all(yoga.graphqlEndpoint, defineHandler(async event =>
-      yoga.handle(event.req, { event }),
-    ))
+    httpApp.all(yoga.graphqlEndpoint, fromNodeHandler(yoga))
 
     // Modules register their own routes / middlewares.
     for (const m of options.modules) {
       if (m.http)
         yield* m.http(httpApp)
     }
+
+    // Aggregate declarative REST routes from every module, warn on
+    // duplicate (method, path) pairs, then register them — and, when
+    // configured + enabled, mount the OpenAPI document + Scalar UI.
+    const apiRoutes = options.modules.flatMap(m => m.routes ? [...m.routes] : [])
+    for (const dup of findDuplicateRoutes(apiRoutes))
+      yield* Effect.logWarning(`OpenAPI: duplicate route ${dup} — last operation wins in the document`)
+
+    const oa = options.openapi
+    const exposeDocs = oa ? (oa.enabled ?? process.env.NODE_ENV !== 'production') : false
+    mountOpenApi(
+      httpApp,
+      apiRoutes,
+      oa && exposeDocs
+        ? {
+            info: { title: oa.title, version: oa.version, description: oa.description },
+            jsonPath: oa.jsonPath ?? '/openapi.json',
+            uiPath: oa.uiPath ?? '/reference',
+            cdn: oa.cdn,
+          }
+        : undefined,
+    )
 
     // Host-level extension hook.
     if (options.extend)
@@ -230,5 +290,5 @@ const ConfigProviderLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnv())
  * handling + exit codes are owned by `runMain`.
  */
 export function runApp(built: BuiltApp): void {
-  NodeRuntime.runMain(built.program.pipe(Effect.provide(ConfigProviderLayer)))
+  NodeRuntime.runMain(built.program.pipe(Effect.provide(ConfigProviderLayer), Effect.provide(Persistence.layerMemory)))
 }

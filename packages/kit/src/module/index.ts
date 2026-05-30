@@ -1,10 +1,10 @@
 // import { addImportsSources, defineNitroModule } from '@czo/kit/nitro'
 
-/* ─── Module contract (Effect-native, phase 2) ─────────────────────── */
-export type { Module, Module as CzoModule } from './contract'
-export { defineModule } from './contract'
 export type { BuildAppOptions, BuiltApp } from './app'
 export { buildApp, runApp } from './app'
+/* ─── Module contract (Effect-native, phase 2) ─────────────────────── */
+export type { Module as CzoModule, Module } from './contract'
+export { defineModule } from './contract'
 
 /* ─── Legacy Nitro module (phase 3 will remove) ────────────────────── */
 

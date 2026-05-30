@@ -1,7 +1,6 @@
 import type { DrizzleConfig } from 'drizzle-orm'
 import type { RelationsEntry, SchemaRegistryShape } from './schema-registry'
 import process from 'node:process'
-import { useContainer } from '@czo/kit/ioc'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { withReplicas } from 'drizzle-orm/pg-core'
 import { registeredRelations } from './schema-registry'
@@ -30,23 +29,10 @@ function autoSchemaConfig/* <TSchema extends Record<string, unknown>, TRelationC
 }
 
 async function getDatabaseUrl() {
-  try {
-    const config = await useContainer().make('config')
-    const url = config.database?.url
-
-    if (url)
-      return url
-  }
-  catch {
-    const url = process.env.DATABASE_URL
-    if (url)
-      return url
-  }
-
-  throw new Error(
-    'Database URL is required. '
-    + 'Set DATABASE_URL or configure runtimeConfig.database.url',
-  )
+  const url = process.env.DATABASE_URL
+  if (url)
+    return url
+  throw new Error('Database URL is required. Set DATABASE_URL.')
 }
 
 async function createDatabase<Relations extends RelationsEntry = RelationsEntry>(config?: DrizzleConfig<SchemaRegistryShape, Relations>) {

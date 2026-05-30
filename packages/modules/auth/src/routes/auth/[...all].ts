@@ -1,4 +1,3 @@
-import { BetterAuth } from '@czo/auth/services'
 // import { runEffect, useRuntime } from '@czo/kit/effect'
 import { defineHandler } from 'nitro/h3'
 import { defineRouteMeta } from './_openapi'

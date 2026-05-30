@@ -7,6 +7,7 @@ import { DrizzleDb } from '@czo/kit/db/effect'
 import { and, eq, sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { AccessService } from './access'
+import { ApiKeyEvents } from './events/api-key'
 import { randomString, sha256Hex } from './utils/crypto'
 
 type Awaitable<T> = T | Promise<T>
@@ -214,6 +215,7 @@ const make = Effect.gen(function* () {
   // type changes.
   const db = (yield* DrizzleDb) as Database<Relations>
   const access = yield* AccessService
+  const events = yield* ApiKeyEvents
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
     eff.pipe(Effect.mapError(cause => new DbFailed({ cause })))
@@ -306,7 +308,7 @@ const make = Effect.gen(function* () {
     })
 
   return ApiKeyService.of({
-    findFirst: (config) =>
+    findFirst: config =>
       Effect.gen(function* () {
         const data = yield* dbErr(db.query.apikeys.findFirst(config))
         if (!data)
@@ -314,7 +316,7 @@ const make = Effect.gen(function* () {
         return data
       }),
 
-    findMany: (config) =>
+    findMany: config =>
       Effect.gen(function* () {
         const rows = yield* dbErr(db.query.apikeys.findMany(config))
         return rows
@@ -367,6 +369,15 @@ const make = Effect.gen(function* () {
         if (!row)
           return yield* Effect.fail(new DbFailed({ cause: 'insert returned no row' }))
 
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'ApiKeyCreated',
+          keyId: row.id,
+          name: row.name ?? input.name,
+          prefix: row.prefix ?? input.prefix,
+          reference: row.reference,
+          referenceId: row.referenceId,
+        }))
+
         return { ...row, key }
       }),
 
@@ -397,6 +408,7 @@ const make = Effect.gen(function* () {
         if (!hasChanges)
           return yield* Effect.fail(new NoChanges())
 
+        const changes = { ...patch }
         patch.updatedAt = new Date()
 
         const [updated] = yield* dbErr(db.update(apikeys)
@@ -410,6 +422,15 @@ const make = Effect.gen(function* () {
 
         if (!updated)
           return yield* Effect.fail(new ApiKeyNotFound())
+
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'ApiKeyUpdated',
+          keyId: updated.id,
+          reference: updated.reference,
+          referenceId: updated.referenceId,
+          changes,
+        }))
+
         return updated
       }),
 
@@ -424,7 +445,7 @@ const make = Effect.gen(function* () {
         return yield* validate(hashed, opts)
       }),
 
-    remove: (id) =>
+    remove: id =>
       Effect.gen(function* () {
         // Fetch key first to derive reference/referenceId for the DB-level
         // integrity .where clause below — not an auth check.

@@ -4,11 +4,12 @@ import { vi } from 'vitest'
 import * as Actor from './actor'
 
 // Each test gets a fresh `Actor.layer` (Layer.sync) → isolated registry.
-const withSvc = <A, E>(fn: (svc: typeof Actor.AuthActorService.Service) => Effect.Effect<A, E>) =>
-  Effect.gen(function* () {
+function withSvc<A, E>(fn: (svc: typeof Actor.AuthActorService.Service) => Effect.Effect<A, E>) {
+  return Effect.gen(function* () {
     const svc = yield* Actor.AuthActorService
     return yield* fn(svc)
   }).pipe(Effect.provide(Actor.layer))
+}
 
 describe('authActorService layer', () => {
   describe('registerActor', () => {

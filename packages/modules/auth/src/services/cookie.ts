@@ -72,30 +72,32 @@ function parseCookieHeader(header: string): Record<string, string> {
   return out
 }
 
-const make = (config: CookieConfig) => CookieService.of({
-  name: config.name,
-  create: value => new Cookie({ name: config.name, value, attributes: config.attributes }),
-  createBlank: () => new Cookie({
+function make(config: CookieConfig) {
+  return CookieService.of({
     name: config.name,
-    value: '',
-    attributes: { ...config.attributes, maxAge: 0, expires: new Date(0) },
-  }),
-  parse: parseCookieHeader,
-})
+    create: value => new Cookie({ name: config.name, value, attributes: config.attributes }),
+    createBlank: () => new Cookie({
+      name: config.name,
+      value: '',
+      attributes: { ...config.attributes, maxAge: 0, expires: new Date(0) },
+    }),
+    parse: parseCookieHeader,
+  })
+}
 
 /** Layer factory — parametrised by a resolved `CookieConfig`. */
-export const layer = (config: CookieConfig): Layer.Layer<CookieService> =>
-  Layer.succeed(CookieService, make(config))
+export function layer(config: CookieConfig): Layer.Layer<CookieService> {
+  return Layer.succeed(CookieService, make(config))
+}
 
 /**
  * Layer factory reading the cookie config from Effect `Config` — each field is
  * individually wrappable as a `Config` (e.g. `name` / `sameSite` / `maxAge`
  * sourced from env vars). Fails with `ConfigError` if a required key is absent.
  */
-export const layerConfig = (
-  config: Config.Wrap<CookieConfig>,
-): Layer.Layer<CookieService, Config.ConfigError> =>
-  Layer.effect(CookieService, Config.unwrap(config).pipe(Effect.map(make)))
+export function layerConfig(config: Config.Wrap<CookieConfig>): Layer.Layer<CookieService, Config.ConfigError> {
+  return Layer.effect(CookieService, Config.unwrap(config).pipe(Effect.map(make)))
+}
 
 /**
  * The cookie configuration as a `Config.Wrap` — one `Config` per field, with

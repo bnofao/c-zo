@@ -4,24 +4,13 @@
  * Every module is listed explicitly here. `composeApp(modules)` in
  * `main.ts` consumes this list to aggregate DB schemas, GraphQL
  * contributions, Effect Layers, and lifecycle hooks.
+ *
+ * Modules read their own config from the environment via Effect `Config`,
+ * so the manifest is a plain list — no per-module config is threaded here.
  */
 import type { CzoModule } from '@czo/kit/module'
-import { makeAuthModule } from '@czo/auth/module'
+import authModule from '@czo/auth/module'
 
-export interface LifeConfig {
-  readonly app: string
-  readonly baseUrl?: string
-  readonly auth: {
-    readonly secret: string
-  }
-}
-
-export function makeModules(config: LifeConfig): ReadonlyArray<CzoModule> {
-  return [
-    makeAuthModule({
-      app: config.app,
-      secret: config.auth.secret,
-      baseUrl: config.baseUrl,
-    }),
-  ]
-}
+export const modules: ReadonlyArray<CzoModule> = [
+  authModule,
+]

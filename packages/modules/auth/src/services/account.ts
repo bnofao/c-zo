@@ -1,5 +1,6 @@
 import type { Relations } from '@czo/auth/relations'
 import type { Database } from '@czo/kit/db/effect'
+import type { SendEmailInput } from '@czo/kit/email'
 import type { AuthEvent } from './events/auth'
 import type { SessionStoreFailed } from './session'
 import type { PasswordHashFailed } from './user'
@@ -7,7 +8,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { EmailService } from '@czo/kit/email'
 import { and, count, eq, gt, like } from 'drizzle-orm'
-import { Context, Data, Duration, Effect, Layer, Stream } from 'effect'
+import { Context, Data, Duration, Effect, Layer, Option, Stream } from 'effect'
 import { ACCOUNT_GRACE_PERIOD, CHANGE_EMAIL_TTL, EMAIL_VERIFICATION_TTL, PASSWORD_RESET_TTL } from '../constants'
 import { accounts, members, users, verifications } from '../database/schema'
 import { AuthEvents } from './events/auth'
@@ -25,12 +26,12 @@ export class AccountDbFailed extends Data.TaggedError('AccountDbFailed')<{
   get message() { return 'Account store operation failed' }
 }
 
-export class InvalidPasswordResetToken extends Data.TaggedError('InvalidPasswordResetToken')<{}> {
+export class InvalidPasswordResetToken extends Data.TaggedError('InvalidPasswordResetToken') {
   readonly code = 'INVALID_PASSWORD_RESET_TOKEN'
   get message() { return 'Password reset token is invalid or expired' }
 }
 
-export class InvalidEmailVerificationToken extends Data.TaggedError('InvalidEmailVerificationToken')<{}> {
+export class InvalidEmailVerificationToken extends Data.TaggedError('InvalidEmailVerificationToken') {
   readonly code = 'INVALID_EMAIL_VERIFICATION_TOKEN'
   get message() { return 'Email verification token is invalid or expired' }
 }
@@ -42,12 +43,12 @@ export class IncorrectCurrentPassword extends Data.TaggedError('IncorrectCurrent
   get message() { return 'Current password is incorrect' }
 }
 
-export class InvalidEmailChangeToken extends Data.TaggedError('InvalidEmailChangeToken')<{}> {
+export class InvalidEmailChangeToken extends Data.TaggedError('InvalidEmailChangeToken') {
   readonly code = 'INVALID_EMAIL_CHANGE_TOKEN'
   get message() { return 'Email change token is invalid or expired' }
 }
 
-export class InvalidAccountRestoreToken extends Data.TaggedError('InvalidAccountRestoreToken')<{}> {
+export class InvalidAccountRestoreToken extends Data.TaggedError('InvalidAccountRestoreToken') {
   readonly code = 'INVALID_ACCOUNT_RESTORE_TOKEN'
   get message() { return 'Account restore token is invalid or expired' }
 }
@@ -608,12 +609,28 @@ export const layer = Layer.effect(
 
 // ─── Subscribers ─────────────────────────────────────────────────────────
 
+// EmailService is an OPTIONAL dependency: the module doesn't provide one by
+// default, so `R` stays clean. When the host app provides an `EmailService`
+// layer, emails are sent; otherwise we log and skip. Probing via
+// `Effect.serviceOption` keeps `EmailService` out of every subscriber's `R`.
+function sendEmail(input: SendEmailInput) {
+  return Effect.serviceOption(EmailService).pipe(
+    Effect.flatMap(Option.match({
+      onNone: () =>
+        Effect.logInfo('email.skipped (no EmailService configured)', {
+          to: input.to,
+          subject: input.subject,
+        }),
+      onSome: email => email.send(input),
+    })),
+  )
+}
+
 const onPasswordResetRequested = Effect.fn('account.subscribers.password-reset')(
   function* (e: Extract<AuthEvent, { _tag: 'PasswordResetRequested' }>) {
     const config = yield* AccountConfig
-    const email = yield* EmailService
     const resetUrl = `${config.baseUrl}/reset-password?token=${e.token}`
-    yield* email.send({
+    yield* sendEmail({
       to: e.email,
       subject: 'Reset your password',
       html: `<p>Click to reset: <a href="${resetUrl}">${resetUrl}</a></p><p>Expires ${e.expiresAt.toISOString()}</p>`,
@@ -625,9 +642,8 @@ const onPasswordResetRequested = Effect.fn('account.subscribers.password-reset')
 const onEmailVerificationRequested = Effect.fn('account.subscribers.email-verification')(
   function* (e: Extract<AuthEvent, { _tag: 'EmailVerificationRequested' }>) {
     const config = yield* AccountConfig
-    const email = yield* EmailService
     const verifyUrl = `${config.baseUrl}/verify-email?token=${e.token}`
-    yield* email.send({
+    yield* sendEmail({
       to: e.email,
       subject: 'Verify your email',
       html: `<p>Click to verify: <a href="${verifyUrl}">${verifyUrl}</a></p>`,
@@ -649,9 +665,8 @@ const onSignedUp = Effect.fn('account.subscribers.signed-up')(
 const onEmailChangeRequested = Effect.fn('account.subscribers.email-change-requested')(
   function* (e: Extract<AuthEvent, { _tag: 'EmailChangeRequested' }>) {
     const config = yield* AccountConfig
-    const email = yield* EmailService
     const url = `${config.baseUrl}/confirm-email-change?token=${e.token}`
-    yield* email.send({
+    yield* sendEmail({
       to: e.newEmail,
       subject: 'Confirm your new email',
       html: `<p>Click to confirm your new email: <a href="${url}">${url}</a></p><p>Expires ${e.expiresAt.toISOString()}</p>`,
@@ -663,9 +678,9 @@ const onEmailChangeRequested = Effect.fn('account.subscribers.email-change-reque
 const onEmailChanged = Effect.fn('account.subscribers.email-changed')(
   function* (e: Extract<AuthEvent, { _tag: 'EmailChanged' }>) {
     const config = yield* AccountConfig
-    if (!config.sendOldEmailNotificationOnChange) return
-    const email = yield* EmailService
-    yield* email.send({
+    if (!config.sendOldEmailNotificationOnChange)
+      return
+    yield* sendEmail({
       to: e.oldEmail,
       subject: 'Your account email was changed',
       html: `<p>Your account email was changed to <strong>${e.newEmail}</strong>. If this wasn't you, contact support immediately.</p>`,
@@ -677,9 +692,8 @@ const onEmailChanged = Effect.fn('account.subscribers.email-changed')(
 const onAccountDeleted = Effect.fn('account.subscribers.account-deleted')(
   function* (e: Extract<AuthEvent, { _tag: 'AccountDeleted' }>) {
     const config = yield* AccountConfig
-    const email = yield* EmailService
     const url = `${config.baseUrl}/restore-account?token=${e.token}`
-    yield* email.send({
+    yield* sendEmail({
       to: e.email,
       subject: 'Your account has been deleted',
       html: `<p>Your account is scheduled for deletion. You have until ${e.expiresAt.toISOString()} to restore it: <a href="${url}">${url}</a></p>`,
@@ -688,7 +702,7 @@ const onAccountDeleted = Effect.fn('account.subscribers.account-deleted')(
   },
 )
 
-function runSubscriber(tag: string, eff: Effect.Effect<void, unknown, AccountConfig | EmailService | AccountService>) {
+function runSubscriber(tag: string, eff: Effect.Effect<void, unknown, AccountConfig | AccountService>) {
   return Effect.orDie(eff).pipe(
     Effect.catchCause(cause =>
       Effect.logError(`account subscriber failed for ${tag}`, cause)),
@@ -700,13 +714,19 @@ export const subscribersLayer = Layer.effectDiscard(
     const events = yield* AuthEvents
     yield* Effect.forkScoped(
       Stream.runForEach(events.subscribe, e =>
-        e._tag === 'PasswordResetRequested'       ? runSubscriber(e._tag, onPasswordResetRequested(e))
-        : e._tag === 'EmailVerificationRequested' ? runSubscriber(e._tag, onEmailVerificationRequested(e))
-        : e._tag === 'SignedUp'                   ? runSubscriber(e._tag, onSignedUp(e))
-        : e._tag === 'EmailChangeRequested'       ? runSubscriber(e._tag, onEmailChangeRequested(e))
-        : e._tag === 'EmailChanged'               ? runSubscriber(e._tag, onEmailChanged(e))
-        : e._tag === 'AccountDeleted'             ? runSubscriber(e._tag, onAccountDeleted(e))
-        :                                           Effect.void),
+        e._tag === 'PasswordResetRequested'
+          ? runSubscriber(e._tag, onPasswordResetRequested(e))
+          : e._tag === 'EmailVerificationRequested'
+            ? runSubscriber(e._tag, onEmailVerificationRequested(e))
+            : e._tag === 'SignedUp'
+              ? runSubscriber(e._tag, onSignedUp(e))
+              : e._tag === 'EmailChangeRequested'
+                ? runSubscriber(e._tag, onEmailChangeRequested(e))
+                : e._tag === 'EmailChanged'
+                  ? runSubscriber(e._tag, onEmailChanged(e))
+                  : e._tag === 'AccountDeleted'
+                    ? runSubscriber(e._tag, onAccountDeleted(e))
+                    : Effect.void),
     )
   }),
 )

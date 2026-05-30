@@ -22,6 +22,36 @@ export class OptimisticLockError extends Error {
   }
 }
 
+/**
+ * Unwrap a (possibly multiply-wrapped) DB failure to its root driver error and
+ * format the parts that matter for diagnosis: `<SQLSTATE> <message> (<detail>)`.
+ *
+ * Drizzle wraps the Postgres error in `EffectDrizzleQueryError`, whose `message`
+ * only echoes the SQL + params (`"Failed query: …"`) — the real reason (the
+ * Postgres `code`/`message`/`detail`) lives on the nested `.cause`. Domain
+ * `dbErr` helpers then wrap THAT in a tagged error with its own `cause`. This
+ * walks the whole `.cause` chain to the leaf and surfaces it on one line, so a
+ * failure logs *why* instead of just re-printing the query.
+ */
+export function describeDbError(err: unknown): string {
+  let current: unknown = err
+  const seen = new Set<unknown>()
+  while (
+    current
+    && typeof current === 'object'
+    && !seen.has(current)
+    && (current as { cause?: unknown }).cause != null
+  ) {
+    seen.add(current)
+    current = (current as { cause?: unknown }).cause
+  }
+  const leaf = (current ?? err) as { code?: unknown, message?: unknown, detail?: unknown }
+  const code = typeof leaf?.code === 'string' ? leaf.code : undefined
+  const message = typeof leaf?.message === 'string' ? leaf.message : String(current)
+  const detail = typeof leaf?.detail === 'string' ? leaf.detail : undefined
+  return [code, message, detail ? `(${detail})` : undefined].filter(Boolean).join(' ')
+}
+
 export function toDatabaseError(err: unknown): never {
   if (err instanceof DatabaseError)
     throw err

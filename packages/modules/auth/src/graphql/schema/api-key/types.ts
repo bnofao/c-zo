@@ -13,8 +13,8 @@ import type { AuthGraphQLSchemaBuilder } from '../../index'
 export function registerApiKeyTypes(builder: AuthGraphQLSchemaBuilder): void {
   builder.drizzleNode('apikeys', {
     name: 'ApiKey',
-    id: { column: (k: any) => k.id },
-    fields: (t: any) => ({
+    id: { column: k => k.id },
+    fields: t => ({
       name: t.exposeString('name', { nullable: true }),
       prefix: t.exposeString('prefix', { nullable: true }),
       start: t.exposeString('start', { nullable: true }),
