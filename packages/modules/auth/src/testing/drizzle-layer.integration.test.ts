@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { SchemaRegistry } from '@czo/kit/db'
 import { DatabaseConfig, DrizzleDb, DrizzleDbLayer } from '@czo/kit/db/effect'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
+import { eq } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/effect-postgres/migrator'
 import { Effect, Layer, Redacted } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -48,11 +49,14 @@ describe('drizzleDbLayer (production composition)', () => {
     const program = Effect.gen(function* () {
       const db = yield* DrizzleDb
       yield* migrate(db, { migrationsFolder: MIGRATIONS }).pipe(Effect.orDie)
-      // The exact call that failed in the app (credential.ts sign-up).
-      return yield* db.query.users.findFirst({ where: { email: 'nobody@example.com' } })
+      // A real query against the production pool — the operation class that
+      // failed with "Cannot use a pool after calling end" (credential.ts
+      // sign-up's user lookup). The core `select` form types off the table
+      // directly, so the test needs no `Database<Relations>` cast.
+      return yield* db.select().from(authSchema.users).where(eq(authSchema.users.email, 'nobody@example.com'))
     }).pipe(Effect.provide(DbLayer), Effect.scoped)
 
-    const row = await Effect.runPromise(program)
-    expect(row ?? null).toBeNull()
+    const rows = await Effect.runPromise(program)
+    expect(rows).toHaveLength(0)
   }, 120_000)
 })

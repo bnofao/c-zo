@@ -8,14 +8,9 @@ import { apikeys, members, organizations, users } from '../database/schema'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import { layer as accessLayer } from './access'
 import { layer as apiKeyLayer, ApiKeyService, Unauthorized } from './api-key'
-import { BetterAuth } from './auth-instance'
 import { layer as apiKeyEventsLayer } from './events/api-key'
 import { layer as orgEventsLayer } from './events/organization'
 import { layer as orgLayer } from './organization'
-
-// Stub BetterAuth — orgLayer now depends on it for hasPermission, but the
-// integration suite doesn't exercise that path.
-const BetterAuthStub = Layer.succeed(BetterAuth, { options: { plugins: [] } } as never)
 
 // Compose: ApiKeyService needs DrizzleDb + AccessService.
 // OrgLayer is included for seed helpers (members/organizations tables) but is no longer a service dep.
@@ -23,7 +18,6 @@ const TestLayer = apiKeyLayer.pipe(
   Layer.provideMerge(apiKeyEventsLayer),
   Layer.provideMerge(orgLayer.pipe(Layer.provideMerge(orgEventsLayer))),
   Layer.provideMerge(accessLayer),
-  Layer.provideMerge(BetterAuthStub),
   Layer.provideMerge(AuthPostgresLayer),
 )
 

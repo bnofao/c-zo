@@ -71,12 +71,11 @@
     "h3": { "optional": true }
   },
   "dependencies": {
-    "@better-auth/api-key": "catalog:common",
     "@czo/kit": "workspace:*",
     "@effect/sql-pg": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@node-rs/argon2": "catalog:common",
-    "better-auth": "catalog:common",
+    "@standard-schema/spec": "catalog:",
     "drizzle-orm": "catalog:common",
     "effect": "catalog:",
     "graphql": "catalog:common",
@@ -93,7 +92,6 @@
     "drizzle-kit": "catalog:dev",
     "graphql-scalars": "catalog:common",
     "h3": "catalog:",
-    "nitro": "catalog:dev",
     "openapi-types": "catalog:dev",
     "pg": "catalog:common",
     "vitest": "catalog:testing"

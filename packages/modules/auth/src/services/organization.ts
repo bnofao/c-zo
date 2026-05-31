@@ -1,113 +1,23 @@
 import type { Relations } from '@czo/auth/relations'
 import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db/effect'
-import type { OrganizationOptions, OrganizationRole, Role } from 'better-auth/plugins'
 import type { InferSelectModel } from 'drizzle-orm'
-import type { Auth } from '../layers/better-auth'
+import type { AccessRole } from './access'
 import { invitations, members, organizations } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db/effect'
 import { and, count, eq, like } from 'drizzle-orm'
 import { Context, Data, Duration, Effect, Layer } from 'effect'
 import { INVITATION_DURATION } from '../constants'
 import { AccessService } from './access'
-import { BetterAuth } from './auth-instance'
 import { OrganizationEvents } from './events/organization'
 import { validateRole } from './utils/validate-roles'
 
 // ─── Permission helpers (formerly in layers/auth.ts) ─────────────────
 
-interface OrgPermissionInput {
-  orgId: string
-  permissions: Record<string, string[]>
-  role: string
-  allowCreatorAllPermissions?: boolean
-  useMemoryCache?: boolean
-  connector?: 'AND' | 'OR'
-}
-
 // TODO: bound this cache (LRU / TTL). It grows one entry per organization and
 // is never evicted — fine for a small tenant count, a slow leak otherwise.
 // Carried over verbatim from the legacy auth service.
-const cacheOrgRoles = new Map<string, { [x: string]: Role<Record<string, string[]>> | undefined }>()
-
-function isValidPermissionsRecord(value: unknown): value is Record<string, string[]> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return false
-  for (const [key, actions] of Object.entries(value)) {
-    if (typeof key !== 'string')
-      return false
-    if (!Array.isArray(actions))
-      return false
-    if (!actions.every((a: unknown) => typeof a === 'string'))
-      return false
-  }
-  return true
-}
-
-export async function checkOrgPermission(auth: Auth, input: OrgPermissionInput): Promise<boolean> {
-  const {
-    orgId,
-    permissions,
-    role,
-    allowCreatorAllPermissions,
-    useMemoryCache = false,
-    connector = 'AND',
-  } = input
-
-  const orgOptions = auth.options?.plugins?.find(
-    (p: { id: string }) => p.id === 'organization',
-  )?.options as OrganizationOptions | undefined
-
-  let acRoles: { [x: string]: Role<Record<string, string[]>> | undefined } = {
-    ...(orgOptions?.roles || {}),
-  }
-
-  if (orgOptions?.dynamicAccessControl?.enabled && orgOptions?.ac && !useMemoryCache) {
-    const dbRoles = await (await auth?.$context)?.adapter.findMany<
-      OrganizationRole & { permission: string }
-    >({
-      model: 'organizationRole',
-      where: [{ field: 'organizationId', value: orgId }],
-    })
-
-    if (dbRoles) {
-      for (const { role: roleName, permission: permissionsString } of dbRoles) {
-        if (roleName in acRoles)
-          continue
-        const parsed: unknown = JSON.parse(permissionsString)
-        // Corrupt data in the organizationRole table — surfaces as an Effect
-        // defect (the Tag declares `E = never`), which is intentional: this
-        // "should never happen" and we want it loud, not silently `false`.
-        if (!isValidPermissionsRecord(parsed))
-          throw new Error(`Invalid permissions for org role '${roleName}' (org ${orgId})`)
-        // @ts-expect-error newRole accepts the parsed shape we just validated
-        acRoles[roleName] = orgOptions.ac.newRole(parsed)
-      }
-    }
-  }
-
-  if (useMemoryCache)
-    acRoles = cacheOrgRoles.get(orgId) || acRoles
-  cacheOrgRoles.set(orgId, acRoles)
-
-  if (!permissions)
-    return false
-
-  const roles = role.split(',')
-  const creatorRole = orgOptions?.creatorRole || 'owner'
-  const isCreator = roles.includes(creatorRole)
-
-  if (isCreator && allowCreatorAllPermissions)
-    return true
-
-  for (const r of roles) {
-    const acRole = acRoles[r as keyof typeof acRoles]
-    const result = acRole?.authorize(permissions, connector)
-    if (result?.success)
-      return true
-  }
-  return false
-}
+const cacheOrgRoles = new Map<string, { [x: string]: AccessRole | undefined }>()
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
 
@@ -457,6 +367,8 @@ export class OrganizationService extends Context.Service<
       permissions: Record<string, string[]>
       connector?: 'AND' | 'OR'
       allowCreatorAllPermissions?: boolean
+      dynamicAccessControl?: boolean
+      creatorRole?: string
       useMemoryCache?: boolean
     }) => Effect.Effect<boolean>
   }
@@ -469,7 +381,6 @@ const make = Effect.gen(function* () {
   const access = yield* AccessService
   const { roles } = yield* access.buildRoles
   const events = yield* OrganizationEvents
-  const auth = yield* BetterAuth
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
     eff.pipe(Effect.mapError(cause => new OrgDbFailed({ cause })))
@@ -978,7 +889,29 @@ const make = Effect.gen(function* () {
     // ── Permissions ──────────────────────────────────────────────────
 
     hasPermission: input =>
-      Effect.promise(() => checkOrgPermission(auth, input)),
+      Effect.gen(function* () {
+        if (input.allowCreatorAllPermissions && input.role.split(',').includes(input.creatorRole ?? 'owner'))
+          return true
+
+        let acRoles: { [x: string]: AccessRole | undefined } = Object.assign({}, roles)
+
+        if (input.dynamicAccessControl) {
+          // TODO: this is a naive implementation that re-fetches all org roles on every permission check when
+          // `dynamicAccessControl` is enabled. A more efficient approach would be to only fetch the relevant org's roles,
+          // and to cache them with an appropriate invalidation strategy (e.g. subscribe to role change events).
+        }
+
+        if (input.useMemoryCache)
+          acRoles = cacheOrgRoles.get(input.orgId) ?? acRoles
+        cacheOrgRoles.set(input.orgId, acRoles)
+
+        return yield* access.checkPermission(
+          input.role,
+          input.permissions,
+          role => Effect.sync(() => acRoles[role]),
+          input.connector,
+        )
+      }),
   })
 })
 

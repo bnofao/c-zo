@@ -54,8 +54,8 @@ const built = buildApp({
     // Gated off when NODE_ENV === 'production'.
   },
   // Pre-mount routes that need no runtime access. Anything requiring
-  // module services (e.g. `BetterAuth` for `/api/auth/**`) should live
-  // in the owning module's `http` hook.
+  // module services per request should live in the owning module's
+  // `http` hook.
   httpApp: () => {
     const app = new H3()
     app.get('/health', defineHandler(() => ({ ok: true, app: 'life' })))

@@ -11,13 +11,11 @@
  * below; phase 3 will formalize it once Nitro is dropped.
  */
 import { authScopes, registerAuthSchema } from '@czo/auth/graphql'
-import { makeBetterAuthLive } from '@czo/auth/layers'
 import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
-import { Access, Actor, ApiKey, ApiKeyEvents, BetterAuth, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
+import { Access, Actor, ApiKey, ApiKeyEvents, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
 import { Config, Effect, Layer } from 'effect'
-import { defineHandler } from 'h3'
 import { makeSessionContextContributor } from './graphql/session-context'
 import { authRoutes } from './http/routes'
 import {
@@ -93,10 +91,10 @@ const DB_SEEDERS = [
 ] as const
 
 /**
- * Construct the auth `CzoModule`. The Layer wires `AccessService`,
- * `BetterAuth`, and the four domain services (User, Organization,
- * ApiKey, AuthActor) with their event buses. `onStart` freezes the
- * access registry after all modules have registered their domains.
+ * Construct the auth `CzoModule`. The Layer wires `AccessService` and
+ * the four domain services (User, Organization, ApiKey, AuthActor) with
+ * their event buses. `onStart` freezes the access registry after all
+ * modules have registered their domains.
  */
 export default defineModule(() => {
   // Host config read from the environment via Effect `Config`. Replaces the
@@ -128,13 +126,6 @@ export default defineModule(() => {
       { name: 'apps', statements: APPS_STATEMENTS, hierarchy: APPS_HIERARCHY },
     ] as const
     const AccessServiceLive = Access.makeLayer(accessOptions as never, false)
-
-    const BetterAuthLive = makeBetterAuthLive({
-      app: cfg.app,
-      secret: cfg.secret,
-      baseUrl: cfg.baseUrl,
-      requireEmailVerification: cfg.requireEmailVerification,
-    })
 
     const OrganizationServiceLive = Organization.layer
     // AuthActorService's registry is closed at construction — no post-boot
@@ -184,10 +175,8 @@ export default defineModule(() => {
       // start/stop), and `Account.subscribersLayer` (consumer for email-side
       // notifications). Factor it out so the same `PubSub` instance is seen by all.
       Layer.provideMerge(AuthEvents.layer),
-      // `provideMerge` so `BetterAuth` and `AccessService` stay visible at
-      // the runtime surface — request-time consumers reach them via
-      // `runEffect(rt, BetterAuth)` without composing an inner runtime.
-      Layer.provideMerge(BetterAuthLive),
+      // `provideMerge` so `AccessService` stays visible at the runtime
+      // surface — request-time consumers reach it via `runEffect(rt, …)`.
       Layer.provideMerge(AccessServiceLive),
       Layer.provideMerge(ImpersonationConfigLive),
       Layer.provideMerge(AccountConfigLive),
@@ -215,19 +204,6 @@ export default defineModule(() => {
     // Credential endpoints (sign-up/in/out) are declared as `routes` so they
     // surface in the OpenAPI document; see `./http/routes`.
     routes: authRoutes,
-    http: (app) => {
-      // Mount better-auth's catch-all on `/api/auth/**`. The handler
-      // pulls `BetterAuth` per-request via `event.context.runEffect`
-      // (injected by the kit) — singleton lookup is cheap and avoids
-      // closing over a runtime ref at module-load time. h3's router
-      // matches the specific `routes` above over this wildcard regardless
-      // of registration order.
-      app.all('/api/auth/**', defineHandler(async (event) => {
-        const auth = await event.context.runEffect(BetterAuth)
-        return auth.handler(event.req)
-      }))
-      return Effect.void
-    },
     onStart: Effect.gen(function* () {
       const access = yield* Access.AccessService
       yield* access.freeze

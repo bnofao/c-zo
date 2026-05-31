@@ -6,15 +6,10 @@ import { invitations, members, organizations, users } from '../database/schema'
 import { ORGANIZATION_HIERARCHY, ORGANIZATION_STATEMENTS } from '../plugins/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Access from './access'
-import { BetterAuth } from './auth-instance'
 import * as OrganizationEvents from './events/organization'
 import * as Organization from './organization'
 
 const { OrganizationService } = Organization
-
-// Stub BetterAuth — the invitations test suite doesn't exercise hasPermission,
-// so an empty plugin list is enough to satisfy the dep.
-const BetterAuthStub = Layer.succeed(BetterAuth, { options: { plugins: [] } } as never)
 
 // OrganizationService over Testcontainers Postgres, with AccessService seeded
 // with the organization domain so role validation (`org:*` roles) passes.
@@ -25,7 +20,6 @@ const TestLayer = Organization.layer.pipe(
       true,
     ),
     OrganizationEvents.layer,
-    BetterAuthStub,
   )),
   Layer.provideMerge(AuthPostgresLayer),
 )

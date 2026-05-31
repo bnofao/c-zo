@@ -45,19 +45,9 @@ export default defineBuildConfig({
     },
   ],
   externals: [
-    'nitropack',
-    'nitropack/runtime',
-    'nitro',
-    'nitro/runtime',
-    'nitro/runtime-config',
-    'better-auth',
-    'better-auth/plugins',
-    'better-auth/adapters/drizzle',
     '@czo/kit',
-    '@czo/kit/nitro',
     '@czo/kit/db',
     '@czo/kit/db/effect',
-    '@czo/kit/event-bus',
     'drizzle-orm',
     'drizzle-orm/pg-core',
     'nitro/storage',
@@ -66,7 +56,6 @@ export default defineBuildConfig({
     '@czo/kit/graphql',
     'graphql',
     'graphql-scalars',
-    '@graphql-tools/resolvers-composition',
     // Effect's type graph is huge — inlining its `.d.ts` across all entries
     // drives unbuild's rollup-plugin-dts pass past 4 GB of heap. Consumers
     // (mazo, kit) already depend on `effect` directly, so externalising here

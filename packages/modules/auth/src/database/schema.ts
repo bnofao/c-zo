@@ -183,3 +183,23 @@ export type SessionSchema = typeof sessions
 export type OrganizationSchema = typeof organizations
 export type MemberSchema = typeof members
 export type ApiKeySchema = typeof apikeys
+
+// Register these tables into the kit's global `SchemaRegistryShape`, so the
+// relations builder (`@czo/auth/relations`) and `db.query.*` are typed against
+// them. This augmentation lives next to the table definitions — NOT in a
+// standalone file — so it travels with every import of the schema and applies
+// in downstream packages (apps/life, @czo/stock-location), whose compilation
+// only pulls files reachable through the import graph.
+declare module '@czo/kit/db' {
+  interface SchemaRegistryShape {
+    users: typeof users
+    sessions: typeof sessions
+    accounts: typeof accounts
+    verifications: typeof verifications
+    organizations: typeof organizations
+    members: typeof members
+    invitations: typeof invitations
+    twoFactor: typeof twoFactor
+    apikeys: typeof apikeys
+  }
+}

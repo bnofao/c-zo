@@ -11,7 +11,6 @@ import { ADMIN_HIERARCHY, ADMIN_STATEMENTS } from '../plugins/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Access from './access'
 import * as Account from './account'
-import { BetterAuth } from './auth-instance'
 import * as Cookie from './cookie'
 import * as AuthEventsMod from './events/auth'
 import * as UserEventsMod from './events/user'
@@ -20,20 +19,6 @@ import * as Session from './session'
 import * as User from './user'
 
 // ─── Test layer composition ───────────────────────────────────────────────
-
-const authStub = {
-  options: {},
-  $context: Promise.resolve({
-    options: {},
-    password: { hash: async (p: string) => `hashed:${p}` },
-    internalAdapter: {
-      linkAccount: async () => ({}),
-      updatePassword: async () => ({}),
-      deleteUser: async () => ({}),
-    },
-  }),
-} as never
-const BetterAuthLive = Layer.succeed(BetterAuth, authStub)
 
 const AccessSeedLayer = Access.makeLayer(
   [{ name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY }],
@@ -50,7 +35,7 @@ const SessionLive = Session.layer.pipe(
 )
 
 const UserLive = User.layer.pipe(
-  Layer.provide(Layer.mergeAll(UserEventsMod.layer, BetterAuthLive, AccessSeedLayer, Password.layer)),
+  Layer.provide(Layer.mergeAll(UserEventsMod.layer, AccessSeedLayer, Password.layer)),
 )
 
 const AccountConfigLive = Account.makeAccountConfigLayer({ baseUrl: 'https://test.example.com' })

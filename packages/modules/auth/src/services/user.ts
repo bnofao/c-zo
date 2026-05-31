@@ -402,23 +402,14 @@ const make = Effect.gen(function* () {
       }),
 
     hasPermission: input =>
-      Effect.gen(function* () {
-        const { permissions, role, connector = 'AND' } = input
-        if (!permissions)
-          return false
-        const roleNames = (role || 'user').split(',')
-        for (const r of roleNames) {
-          const acRole = yield* access.role(r)
-          if (!acRole)
-            continue
-          const ok = yield* access.authorize(acRole.statements, permissions, connector)
-          if (ok)
-            return true
-        }
-        return false
-      }),
+      access.checkPermission(
+        input.role || 'user',
+        input.permissions,
+        role => access.role(role),
+        input.connector ?? 'AND',
+      ),
   })
 })
 
-/** Live layer — depends on DrizzleDb, BetterAuth, AccessService, UserEvents. */
+/** Live layer — depends on DrizzleDb, AccessService, UserEvents. */
 export const layer = Layer.effect(UserService, make)

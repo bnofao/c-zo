@@ -8,7 +8,6 @@ import { users } from '../database/schema'
 import { ADMIN_HIERARCHY, ADMIN_STATEMENTS } from '../plugins/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import * as Access from './access'
-import { BetterAuth } from './auth-instance'
 import * as Cookie from './cookie'
 import * as AuthEventsMod from './events/auth'
 import * as UserEventsMod from './events/user'
@@ -24,20 +23,6 @@ const cookieLayer = Cookie.layer({
   attributes: { httpOnly: true, sameSite: 'lax', secure: false, path: '/', maxAge: 604800 },
 })
 
-const authStub = {
-  options: {},
-  $context: Promise.resolve({
-    options: {},
-    password: { hash: async (p: string) => `hashed:${p}` },
-    internalAdapter: {
-      linkAccount: async () => ({}),
-      updatePassword: async () => ({}),
-      deleteUser: async () => ({}),
-    },
-  }),
-} as never
-const BetterAuthLive = Layer.succeed(BetterAuth, authStub)
-
 const AccessSeedLayer = Access.makeLayer(
   [{ name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY }],
   true,
@@ -46,7 +31,7 @@ const SessionLive = Session.layer.pipe(
   Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
 )
 const UserLive = User.layer.pipe(
-  Layer.provide(Layer.mergeAll(UserEventsMod.layer, BetterAuthLive, AccessSeedLayer, Password.layer)),
+  Layer.provide(Layer.mergeAll(UserEventsMod.layer, AccessSeedLayer, Password.layer)),
 )
 const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer({})
 const ImpersonationConfigAllowAdmin = Impersonation.makeImpersonationConfigLayer({

@@ -219,6 +219,13 @@ export class AccessService extends Context.Service<
       required: RolePermissions<Statements>,
       connector?: 'AND' | 'OR',
     ) => Effect.Effect<boolean>
+
+    readonly checkPermission: (
+      role: string,
+      permissions: Record<string, string[]>,
+      acRole: (role: string) => Effect.Effect<AccessRole | undefined>,
+      connector?: 'AND' | 'OR',
+    ) => Effect.Effect<boolean>
   }
 >()('@czo/auth/AccessService') {}
 
@@ -257,6 +264,13 @@ export function makeLayer(
     }
 
     let frozen = freezeOnInit
+
+    const authorize = (
+      granted: RolePermissions<Statements> | null | undefined,
+      required: RolePermissions<Statements>,
+      connector: 'AND' | 'OR' = 'AND'
+    ) =>
+        Effect.sync(() => authorizePermissions(granted, required, connector).success)
 
     return AccessService.of({
       register: option =>
@@ -321,8 +335,22 @@ export function makeLayer(
         return { ac, roles }
       }),
 
-      authorize: (granted, required, connector = 'AND') =>
-        Effect.sync(() => authorizePermissions(granted, required, connector).success),
+      authorize,
+      checkPermission: (role, permissions, acRoleFunc, connector = 'AND') =>
+      Effect.gen(function* () {
+        if (!permissions)
+          return false
+        const roleNames = role.split(',')
+        for (const r of roleNames) {
+          const acRole = yield* acRoleFunc(r)
+          if (!acRole)
+            continue
+          const ok = yield* authorize(acRole.statements, permissions, connector)
+          if (ok)
+            return true
+        }
+        return false
+      }),
     })
   })
 }

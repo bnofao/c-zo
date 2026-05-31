@@ -141,7 +141,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       },
     }))
 
-  // `activeMember` and `activeMemberRole` (session-aware organization plugin
-  // wrappers) will be re-introduced once the BetterAuth Tag exposes the
-  // request-scoped context.
+  // `activeMember` and `activeMemberRole` (session-aware organization helpers)
+  // are deferred — they need request-scoped session context not yet plumbed
+  // into this resolver.
 }
