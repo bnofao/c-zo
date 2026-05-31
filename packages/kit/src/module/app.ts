@@ -20,10 +20,10 @@ import type { GraphQLContextMap } from '@czo/kit/graphql'
 import type { ConfigError } from 'effect/Config'
 import type { GraphQLSchema } from 'graphql'
 import type { YogaServerInstance } from 'graphql-yoga'
-import type { RelationsEntry, SchemaRegistryShape } from '../db/schema-registry'
+import type { RelationsEntry, SchemaRegistryShape } from '../db'
 import type { Module } from './contract'
 import process from 'node:process'
-import { DatabaseConfigFromEnv, DrizzleDbLayer } from '@czo/kit/db/effect'
+import { buildSchemaRegistryLayer, DatabaseConfigFromEnv, DrizzleDbLayer } from '@czo/kit/db'
 import { GraphQLBuilder, makeGraphQLBuilder } from '@czo/kit/graphql'
 import { findDuplicateRoutes, mountOpenApi } from '@czo/kit/openapi'
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
@@ -31,7 +31,6 @@ import { ConfigProvider, Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { createYoga } from 'graphql-yoga'
 import { fromNodeHandler, H3, serve } from 'h3'
-import { buildSchemaRegistryLayer } from '../db/schema-registry'
 
 declare module 'h3' {
   interface H3EventContext {
@@ -88,6 +87,8 @@ export interface BuiltApp {
   readonly modules: ReadonlyArray<Module>
   /** Sequenced `onStart` effects, in case the caller wants to inspect. */
   readonly startup: Effect.Effect<void>
+  /** Sequenced `onStarted` effects (run after every `onStart`). */
+  readonly started: Effect.Effect<void>
   /** Sequenced `onStop` effects, in case the caller wants to inspect. */
   readonly teardown: Effect.Effect<void>
 }
@@ -112,13 +113,19 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     ...options.modules.flatMap(m => m.db?.relations ? [m.db.relations(dbSchemas)] : []),
   )
 
-  // 2. Module layers — fold so the empty case stays typed cleanly.
+  // 2. Module layers — fold with `provideMerge` so each module is
+  //    provided by all earlier modules: a module listed AFTER its
+  //    dependencies (e.g. `stock-location` after `auth`) resolves their
+  //    exported services (`OrganizationService`, `AccessService`) at its
+  //    own construction. Sibling `Layer.merge` does NOT cross-wire — it
+  //    would leave the dependent's requirement unsatisfied at build time.
+  //    `provideMerge` keeps every module's outputs visible at the surface.
   //    NB: each `m.layer` is typed `Layer<never, never, never>` via the
   //    contract's cast, but at runtime the services it provides (e.g.
   //    `UserService`) reach for `DrizzleDb`. `DrizzleLayer` is piped in
   //    below so those resolutions succeed.
   const moduleLayersRaw = options.modules.reduce<Layer.Layer<never, never, never>>(
-    (acc, m) => Layer.merge(acc, m.layer),
+    (acc, m) => Layer.provideMerge(m.layer, acc),
     Layer.empty,
   )
 
@@ -150,11 +157,21 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   const appLayer = Layer.mergeAll(moduleLayers, GraphQLBuilderLayer)
 
   // 5. Lifecycle effects. R defaults to `never` on `Module`, so onStart
-  //    /onStop are already `Effect<void>` — no cast needed.
+  //    /onStarted/onStop are already `Effect<void>` — no cast needed.
+  //    `onStart` runs first (modules register into shared registries),
+  //    then `onStarted` runs once every module's `onStart` has completed
+  //    (finalization that must observe all registrations, e.g. freeze).
   const startup = Effect.gen(function* () {
     for (const m of options.modules) {
       if (m.onStart)
         yield* m.onStart
+    }
+  })
+
+  const started = Effect.gen(function* () {
+    for (const m of options.modules) {
+      if (m.onStarted)
+        yield* m.onStarted
     }
   })
 
@@ -170,8 +187,10 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
 
   const main = Effect.gen(function* () {
     // Run startup INSIDE the program so errors propagate and the
-    // server cannot listen before modules are ready.
+    // server cannot listen before modules are ready. `onStart` phase
+    // first (registrations), then `onStarted` (finalization, e.g. freeze).
     yield* startup
+    yield* started
 
     // Capture the current Context so the synchronous Yoga `context`
     // callback can re-enter Effect via `Effect.runPromiseWith`.
@@ -273,7 +292,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
 
   const program = Effect.scoped(main).pipe(Effect.provide(appLayer))
 
-  return { program, modules: options.modules, startup, teardown }
+  return { program, modules: options.modules, startup, started, teardown }
 }
 
 const ConfigProviderLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnv()).pipe(

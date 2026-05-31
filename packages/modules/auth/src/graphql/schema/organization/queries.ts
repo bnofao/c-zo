@@ -14,7 +14,23 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         id: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      // Org-scoped: the org IS the resource. Unknown id → require auth and let
+      // the nullable field resolve to null (resolver catches OrganizationNotFound).
+      authScopes: async (_parent, args, ctx) => {
+        const { id } = decodeGlobalID(args.id)
+        const organization = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const org = yield* svc.findFirst({ where: { id: Number(id) } }).pipe(
+              Effect.catchTag('OrganizationNotFound', () => Effect.succeed(null)),
+            )
+            return org?.id ?? null
+          }),
+        )
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'organization', actions: ['read'], organization } }
+      },
       resolve: async (_query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
@@ -32,15 +48,25 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         search: t.arg.string({ required: false }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      // "My organizations": any authenticated user lists the orgs they belong
+      // to. There is no global `organization:list` capability, and listing all
+      // orgs would cross tenants — so the result is filtered to the caller's
+      // memberships via the `members` relation.
+      authScopes: { auth: true },
       resolve: async (query, _root, args, ctx) => {
+        const authUser = ctx.auth?.user
+        if (!authUser)
+          throw new UnauthenticatedError()
+
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findMany(query({
-            // Drizzle RQBv2 filter-callback typing is not publicly exported.
-            where: args.search
-              ? { name: { ilike: `%${args.search}%` } }
-              : undefined,
+            // Tenant boundary: only orgs where the caller is a member. The
+            // optional name search is AND-ed in.
+            where: {
+              members: { userId: Number(authUser.id) },
+              ...(args.search ? { name: { ilike: `%${args.search}%` } } : {}),
+            },
           }))
         })
         return ctx.runEffect(program)
@@ -54,7 +80,9 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         slug: t.arg.string({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      // Pre-creation utility (no existing org to scope against), like
+      // `createOrganization` — any authenticated user may check availability.
+      authScopes: { auth: true },
       resolve: async (_root, args, ctx) => {
         return ctx.runEffect(
           Effect.gen(function* () {
@@ -72,7 +100,13 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         organizationId: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'member',
+          actions: ['read'],
+          organization: Number(decodeGlobalID(args.organizationId).id),
+        },
+      }),
       resolve: async (query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.organizationId)
         return await ctx.runEffect(
@@ -92,7 +126,23 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         id: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      // Org-scoped: the org is derived from the invitation. Unknown id →
+      // require auth and let the nullable field resolve to null.
+      authScopes: async (_parent, args, ctx) => {
+        const { id } = decodeGlobalID(args.id)
+        const organization = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const inv = yield* svc.getInvitation(Number(id)).pipe(
+              Effect.catchTag('InvitationNotFound', () => Effect.succeed(null)),
+            )
+            return inv?.organizationId ?? null
+          }),
+        )
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'invitation', actions: ['read'], organization } }
+      },
       resolve: async (_query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
@@ -110,7 +160,13 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       args: {
         organizationId: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'invitation',
+          actions: ['read'],
+          organization: Number(decodeGlobalID(args.organizationId).id),
+        },
+      }),
       resolve: async (query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.organizationId)
         return await ctx.runEffect(
@@ -126,7 +182,8 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('myInvitations', t =>
     t.drizzleConnection({
       type: 'invitations',
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
+      // The caller's own invitations (matched by their email) — not org-scoped.
+      authScopes: { auth: true },
       resolve: async (query, _root, _args, ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)

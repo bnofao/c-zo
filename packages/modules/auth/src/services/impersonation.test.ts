@@ -1,6 +1,6 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db/effect'
-import { DrizzleDb } from '@czo/kit/db/effect'
+import type { Database } from '@czo/kit/db'
+import { DrizzleDb } from '@czo/kit/db'
 import { expect, layer } from '@effect/vitest'
 import { Duration, Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'

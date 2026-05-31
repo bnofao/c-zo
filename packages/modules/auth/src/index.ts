@@ -204,8 +204,13 @@ export default defineModule(() => {
     // Credential endpoints (sign-up/in/out) are declared as `routes` so they
     // surface in the OpenAPI document; see `./http/routes`.
     routes: authRoutes,
-    onStart: Effect.gen(function* () {
+    // Freeze the access registry in `onStarted` — after every module's
+    // `onStart` has declared its access domain (e.g. stock-location
+    // registers `'stock-location'` in its own `onStart`). Auth's own four
+    // domains are seeded in the layer (`Access.makeLayer(..., false)`).
+    onStarted: Effect.gen(function* () {
       const access = yield* Access.AccessService
+      yield* access.buildRoles
       yield* access.freeze
       // Warm OrganizationService so a broken Layer composition fails at
       // boot rather than at first request.

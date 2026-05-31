@@ -2,7 +2,7 @@ import { defineConfig } from 'drizzle-kit'
 import { discoverModuleSchemas } from '@czo/kit/db'
 
 export default defineConfig({
-  schema: discoverModuleSchemas(['@czo/auth/module']),
+  schema: discoverModuleSchemas(['@czo/auth', '@czo/stock-location']),
   out: './migrations',
   dialect: 'postgresql',
   dbCredentials: {

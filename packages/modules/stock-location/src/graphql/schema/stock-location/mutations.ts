@@ -7,6 +7,7 @@ import {
   generateHandle,
   StockLocationService,
 } from '../../../services/stock-location'
+import { loadOrganizationId } from './authz'
 import { HandleTaken, StockLocationNotFound } from './errors'
 
 const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {
@@ -32,14 +33,20 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     },
     {
       errors: { types: [ValidationError, HandleTaken] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['create'] } },
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'stock-location',
+          actions: ['create'],
+          organization: Number(decodeGlobalID(args.input.organizationId).id),
+        },
+      }),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id: orgId } = decodeGlobalID(input.organizationId)
         const handle = input.handle ?? generateHandle(input.name)
 
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
             return yield* svc.create({
               ...input,
@@ -53,7 +60,7 @@ Effect.gen(function* () {
                     countryCode: input.address.countryCode ?? undefined,
                   }
                 : undefined,
-            }, { actorId: ctx.auth.user!.id })
+            })
           }),
         )
         return { stockLocation }
@@ -81,14 +88,20 @@ Effect.gen(function* () {
     },
     {
       errors: { types: [ValidationError, StockLocationNotFound, OptimisticLockError] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
+      },
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id } = decodeGlobalID(input.id)
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
-            yield* svc.findFirst({ where: { id: Number(id) } })
             return yield* svc.update(Number(id), input.version, {
               name: input.name ?? undefined,
               handle: input.handle ?? undefined,
@@ -101,7 +114,7 @@ Effect.gen(function* () {
                     countryCode: input.address.countryCode ?? undefined,
                   }
                 : undefined,
-            }, { actorId: ctx.auth.user!.id })
+            })
           }),
         )
         return { stockLocation }
@@ -125,15 +138,21 @@ Effect.gen(function* () {
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['delete'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['delete'], organization } }
+      },
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id } = decodeGlobalID(input.id)
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
-            yield* svc.findFirst({ where: { id: Number(id) } })
-            return yield* svc.softDelete(Number(id), input.version, { actorId: ctx.auth.user!.id })
+            return yield* svc.softDelete(Number(id), input.version)
           }),
         )
         return { stockLocation }
@@ -157,15 +176,21 @@ Effect.gen(function* () {
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['delete'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['delete'], organization } }
+      },
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id } = decodeGlobalID(input.id)
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
-            yield* svc.findFirst({ where: { id: Number(id) } })
-            return yield* svc.delete(Number(id), input.version, { actorId: ctx.auth.user!.id })
+            return yield* svc.delete(Number(id), input.version)
           }),
         )
         return { stockLocation }
@@ -190,15 +215,21 @@ Effect.gen(function* () {
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
+      },
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id } = decodeGlobalID(input.id)
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
-            yield* svc.findFirst({ where: { id: Number(id) } })
-            return yield* svc.setStatus(Number(id), input.version, input.isActive, { actorId: ctx.auth.user!.id })
+            return yield* svc.setStatus(Number(id), input.version, input.isActive)
           }),
         )
         return { stockLocation }
@@ -222,15 +253,21 @@ Effect.gen(function* () {
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
+      },
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const { id } = decodeGlobalID(input.id)
         const stockLocation = await ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
-            yield* svc.findFirst({ where: { id: Number(id) } })
-            return yield* svc.setDefault(Number(id), input.version, { actorId: ctx.auth.user!.id })
+            return yield* svc.setDefault(Number(id), input.version)
           }),
         )
         return { stockLocation }

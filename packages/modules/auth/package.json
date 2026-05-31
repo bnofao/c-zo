@@ -11,12 +11,8 @@
   },
   "exports": {
     ".": {
-      "types": "./src/module.ts",
-      "default": "./dist/module.mjs"
-    },
-    "./module": {
-      "types": "./src/module.ts",
-      "default": "./dist/module.mjs"
+      "types": "./src/index.ts",
+      "default": "./dist/index.mjs"
     },
     "./types": {
       "types": "./src/types.ts",
@@ -34,17 +30,13 @@
       "types": "./src/services/index.ts",
       "default": "./dist/services/index.mjs"
     },
-    "./layers": {
-      "types": "./src/layers/index.ts",
-      "default": "./dist/layers/index.mjs"
-    },
     "./graphql": {
       "types": "./src/graphql/index.ts",
       "default": "./dist/graphql/index.mjs"
     }
   },
-  "main": "./dist/module.mjs",
-  "types": "./src/module.ts",
+  "main": "./dist/index.mjs",
+  "types": "./src/index.ts",
   "files": [
     "dist"
   ],

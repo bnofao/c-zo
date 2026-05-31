@@ -15,6 +15,7 @@
   "dependencies": {
     "@czo/auth": "workspace:*",
     "@czo/kit": "workspace:*",
+    "@czo/stock-location": "workspace:*",
     "@effect/opentelemetry": "catalog:",
     "@opentelemetry/api": "catalog:common",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",

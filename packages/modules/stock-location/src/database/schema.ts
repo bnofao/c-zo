@@ -36,3 +36,16 @@ export const stockLocationAddresses = pgTable('stock_location_addresses', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// Register these tables into the kit's global `SchemaRegistryShape`, so the
+// relations builder (`@czo/stock-location/relations`) and `db.query.*` are
+// typed against them. This augmentation lives next to the table definitions —
+// NOT in a standalone file — so it travels with every import of the schema and
+// applies in downstream packages (apps/life), whose compilation only pulls
+// files reachable through the import graph.
+declare module '@czo/kit/db' {
+  interface SchemaRegistryShape {
+    stockLocations: typeof stockLocations
+    stockLocationAddresses: typeof stockLocationAddresses
+  }
+}

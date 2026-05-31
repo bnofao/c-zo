@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('seeder', () => {
   beforeEach(() => {
     vi.resetModules()
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost:5432/seed_test')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   describe('registerSeeder', () => {
@@ -136,11 +141,11 @@ describe('seeder', () => {
       const mockDb = {}
       const mockSchema = { users: {}, apps: {} }
 
-      vi.doMock('./manager', () => ({
-        useDatabase: vi.fn().mockResolvedValue(mockDb),
+      vi.doMock('drizzle-orm/node-postgres', () => ({
+        drizzle: vi.fn().mockReturnValue(mockDb),
       }))
 
-      vi.doMock('./schema-registry', () => ({
+      vi.doMock('../schema', () => ({
         registeredSchemas: vi.fn().mockReturnValue(mockSchema),
       }))
 
@@ -186,11 +191,11 @@ describe('seeder', () => {
       const mockDb = {}
       const mockSchema = { users: {} }
 
-      vi.doMock('./manager', () => ({
-        useDatabase: vi.fn().mockResolvedValue(mockDb),
+      vi.doMock('drizzle-orm/node-postgres', () => ({
+        drizzle: vi.fn().mockReturnValue(mockDb),
       }))
 
-      vi.doMock('./schema-registry', () => ({
+      vi.doMock('../schema', () => ({
         registeredSchemas: vi.fn().mockReturnValue(mockSchema),
       }))
 
@@ -214,11 +219,11 @@ describe('seeder', () => {
         reset: mockResetFn,
       }))
 
-      vi.doMock('./manager', () => ({
-        useDatabase: vi.fn().mockResolvedValue({}),
+      vi.doMock('drizzle-orm/node-postgres', () => ({
+        drizzle: vi.fn().mockReturnValue({}),
       }))
 
-      vi.doMock('./schema-registry', () => ({
+      vi.doMock('../schema', () => ({
         registeredSchemas: vi.fn().mockReturnValue({ users: {} }),
       }))
 
@@ -240,11 +245,11 @@ describe('seeder', () => {
         reset: vi.fn(),
       }))
 
-      vi.doMock('./manager', () => ({
-        useDatabase: vi.fn().mockResolvedValue({}),
+      vi.doMock('drizzle-orm/node-postgres', () => ({
+        drizzle: vi.fn().mockReturnValue({}),
       }))
 
-      vi.doMock('./schema-registry', () => ({
+      vi.doMock('../schema', () => ({
         registeredSchemas: vi.fn().mockReturnValue({ users: {}, apps: {}, products: {} }),
       }))
 

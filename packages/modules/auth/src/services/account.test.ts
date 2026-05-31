@@ -1,6 +1,6 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db/effect'
-import { DrizzleDb } from '@czo/kit/db/effect'
+import type { Database } from '@czo/kit/db'
+import { DrizzleDb } from '@czo/kit/db'
 import * as Email from '@czo/kit/email'
 import { expect, layer } from '@effect/vitest'
 import { eq, like } from 'drizzle-orm'

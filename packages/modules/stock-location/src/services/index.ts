@@ -1,6 +1,6 @@
 import { Layer } from 'effect'
-import * as StockLocation from './stock-location'
 import * as StockLocationEvents from './events/stock-location'
+import * as StockLocation from './stock-location'
 
 export { StockLocation, StockLocationEvents }
 

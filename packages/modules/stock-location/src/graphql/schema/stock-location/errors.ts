@@ -2,13 +2,11 @@ import type { StockLocationGraphQLSchemaBuilder } from '@czo/stock-location/grap
 import { registerError } from '@czo/kit/graphql'
 import {
   HandleTaken,
-  StockLocationNoChanges,
   StockLocationNotFound,
 } from '../../../services/stock-location'
 
 export {
   HandleTaken,
-  StockLocationNoChanges,
   StockLocationNotFound,
 }
 
@@ -18,5 +16,4 @@ export function registerStockLocationErrors(builder: StockLocationGraphQLSchemaB
     name: 'StockLocationHandleTakenError',
     fields: t => ({ handle: t.exposeString('handle') }),
   })
-  registerError(builder, StockLocationNoChanges, { name: 'StockLocationNoChangesError' })
 }

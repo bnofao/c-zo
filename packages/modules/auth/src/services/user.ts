@@ -1,9 +1,9 @@
 import type { Relations } from '@czo/auth/relations'
 import type { sessions, UserSchema } from '@czo/auth/schema'
-import type { Database } from '@czo/kit/db/effect'
+import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import { users } from '@czo/auth/schema'
-import { DrizzleDb } from '@czo/kit/db/effect'
+import { DrizzleDb } from '@czo/kit/db'
 import { eq } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { AccessService } from './access'
@@ -211,7 +211,6 @@ const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const passwords = yield* PasswordService
   const access = yield* AccessService
-  const { roles } = yield* access.buildRoles
   const events = yield* UserEvents
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
@@ -227,6 +226,10 @@ const make = Effect.gen(function* () {
 
   const ensureValidRole = (role: string | string[]) =>
     Effect.gen(function* () {
+      // Read the live role set at request time — the registry is fully
+      // populated only after every module's `onStart` (e.g. stock-location),
+      // which runs after this service is constructed.
+      const roles = yield* access.roles
       const valid = validateRole(role, roles)
       if (!valid)
         return yield* Effect.fail(new InvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))

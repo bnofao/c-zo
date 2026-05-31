@@ -1,6 +1,6 @@
 import type { RelationsEntry } from '@czo/kit/db'
 import type { GraphQLSchema } from 'graphql'
-import type { Database } from '../db/effect'
+import type { Database } from '../db'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
 import DrizzlePlugin from '@pothos/plugin-drizzle'
@@ -13,7 +13,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import { Context, Effect, Layer } from 'effect'
 import { DateTimeResolver, JSONObjectResolver } from 'graphql-scalars'
 import z from 'zod'
-import { DrizzleDb } from '../db/effect'
+import { DrizzleDb } from '../db'
 import { ValidationError } from './errors'
 import { registerErrorTypes } from './errors/builders'
 
@@ -137,7 +137,11 @@ function setupBuilder<Relations extends RelationsEntry>(
       TracingPlugin,
       // ...(opts.extraPlugins ?? []),
     ],
-    drizzle: { client: db as any, getTableConfig: getTableConfig as any, relations },
+    // The drizzle plugin's model-loader is promise-based (`query.then(...)`), so
+    // it gets the node-postgres `$promise` view (same pool); the effect-postgres
+    // `db` stays the resolvers' client via `ctx.runEffect`. Falls back to `db`
+    // for lightweight test layers that don't build a `$promise` view.
+    drizzle: { client: (db.$promise ?? db) as any, getTableConfig: getTableConfig as any, relations },
     relay: { clientMutationId: 'omit', cursorType: 'String' },
     errors: {
       unsafelyHandleInputErrors: true,

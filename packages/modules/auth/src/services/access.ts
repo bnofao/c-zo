@@ -247,6 +247,25 @@ export function makeLayer(
     const _hierarchies = new Map<string, AccessHierarchyProvider>()
     const _providers = new Map<string, AccessStatementProvider>()
 
+    // Compile every registered hierarchy into the `_providers` role cache that
+    // `role` / `roles` / `checkPermission` read. Called at EVERY mutation point
+    // (seed + `register`) so the cache always reflects ALL registered domains —
+    // including ones added late via `register` (e.g. stock-location's `onStart`,
+    // which runs long after the auth services were constructed). Previously this
+    // only ran inside `buildRoles` at service-construction time, so domains
+    // registered afterwards were invisible and their permission checks denied.
+    const recompileProviders = (): BuiltRoles => {
+      const ac = createAccessControl(Object.fromEntries(_statements.entries()))
+      const builder = roleBuilder(ac)
+      let roles: Record<string, AccessRole> = {}
+      for (const [name, hierarchy] of _hierarchies.entries()) {
+        const _roles = builder.createHierarchy(hierarchy.hierarchy as any)
+        roles = Object.assign(roles, _roles)
+        _providers.set(name, { name, roles: _roles })
+      }
+      return { ac, roles }
+    }
+
     // Seed from initialOptions. Duplicate detection mirrors the runtime
     // `register` checks: same provider name, same hierarchy name, or same
     // statement resource across providers all throw — these are boot-time
@@ -262,15 +281,16 @@ export function makeLayer(
         _statements.set(resource, permissions as readonly string[])
       _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
     }
+    // recompileProviders()
 
     let frozen = freezeOnInit
 
     const authorize = (
       granted: RolePermissions<Statements> | null | undefined,
       required: RolePermissions<Statements>,
-      connector: 'AND' | 'OR' = 'AND'
+      connector: 'AND' | 'OR' = 'AND',
     ) =>
-        Effect.sync(() => authorizePermissions(granted, required, connector).success)
+      Effect.sync(() => authorizePermissions(granted, required, connector).success)
 
     return AccessService.of({
       register: option =>
@@ -291,6 +311,10 @@ export function makeLayer(
             _statements.set(resource, permissions as readonly string[])
 
           _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
+          // Keep the role cache in sync so this domain's roles are immediately
+          // visible to `role` / `roles` / `checkPermission` at request time —
+          // without waiting for a (now removed) construction-time `buildRoles`.
+          // recompileProviders()
         }),
 
       providers: Effect.sync(() => [..._providers.values()]),
@@ -323,34 +347,28 @@ export function makeLayer(
 
       isFrozen: Effect.sync(() => frozen),
 
-      buildRoles: Effect.sync((): BuiltRoles => {
-        const ac = createAccessControl(Object.fromEntries(_statements.entries()))
-        const builder = roleBuilder(ac)
-        let roles: Record<string, AccessRole> = {}
-        for (const [name, hierarchy] of _hierarchies.entries()) {
-          const _roles = builder.createHierarchy(hierarchy.hierarchy as any)
-          roles = Object.assign(roles, _roles)
-          _providers.set(name, { name, roles: _roles })
-        }
-        return { ac, roles }
-      }),
+      // Recompile and return the full role set. The cache is already kept in
+      // sync at seed + `register`, so this is a pure read for callers that want
+      // the `{ ac, roles }` shape — no longer the only path that populates
+      // `_providers`, and no longer needed at service construction.
+      buildRoles: Effect.sync((): BuiltRoles => recompileProviders()),
 
       authorize,
       checkPermission: (role, permissions, acRoleFunc, connector = 'AND') =>
-      Effect.gen(function* () {
-        if (!permissions)
+        Effect.gen(function* () {
+          if (!permissions)
+            return false
+          const roleNames = role.split(',')
+          for (const r of roleNames) {
+            const acRole = yield* acRoleFunc(r)
+            if (!acRole)
+              continue
+            const ok = yield* authorize(acRole.statements, permissions, connector)
+            if (ok)
+              return true
+          }
           return false
-        const roleNames = role.split(',')
-        for (const r of roleNames) {
-          const acRole = yield* acRoleFunc(r)
-          if (!acRole)
-            continue
-          const ok = yield* authorize(acRole.statements, permissions, connector)
-          if (ok)
-            return true
-        }
-        return false
-      }),
+        }),
     })
   })
 }

@@ -19,10 +19,14 @@ export default defineBuildConfig({
     'src/openapi/index',
     'src/graphql/index',
     'src/db/index',
-    'src/db/effect',
+    'src/testing/index',
   ],
   externals: [
     'unimport',
+    // Test-only dep used by `src/testing/*`; a devDep, so unbuild won't
+    // auto-externalize it. Keep it external — `@czo/kit/testing` is only
+    // ever imported from test suites, where the dep is present.
+    '@testcontainers/postgresql',
     'graphql',
     'graphql-middleware',
     '@graphql-tools/utils',

@@ -137,9 +137,6 @@ catalogs:
     '@effect/vitest':
       specifier: 4.0.0-beta.70
       version: 4.0.0-beta.70
-    '@paralleldrive/cuid2':
-      specifier: ^2.2.2
-      version: 2.3.1
     '@pothos/core':
       specifier: ^4.12.0
       version: 4.12.0
@@ -353,6 +350,9 @@ importers:
       '@czo/kit':
         specifier: workspace:*
         version: link:../../packages/kit
+      '@czo/stock-location':
+        specifier: workspace:*
+        version: link:../../packages/modules/stock-location
       '@effect/opentelemetry':
         specifier: 'catalog:'
         version: 4.0.0-beta.70(@opentelemetry/api-logs@0.218.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.218.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)(effect@4.0.0-beta.70)
@@ -411,79 +411,6 @@ importers:
       typescript:
         specifier: catalog:dev
         version: 5.9.3
-
-  apps/mazo:
-    dependencies:
-      '@opentelemetry/api':
-        specifier: ^1.9.0
-        version: 1.9.1
-      '@opentelemetry/exporter-metrics-otlp-http':
-        specifier: ^0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-trace-otlp-http':
-        specifier: ^0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation':
-        specifier: ^0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-http':
-        specifier: ^0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-pg':
-        specifier: ^0.70.0
-        version: 0.70.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources':
-        specifier: ^2.0.0
-        version: 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-logs':
-        specifier: ^0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-metrics':
-        specifier: ^2.0.0
-        version: 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-node':
-        specifier: 0.218.0
-        version: 0.218.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base':
-        specifier: ^2.0.0
-        version: 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-node':
-        specifier: ^2.0.0
-        version: 2.7.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.36.0
-        version: 1.40.0
-      graphql:
-        specifier: catalog:common
-        version: 16.13.2
-      graphql-scalars:
-        specifier: catalog:common
-        version: 1.25.0(graphql@16.13.2)
-      graphql-yoga:
-        specifier: catalog:common
-        version: 5.21.0(graphql@16.13.2)
-      kysely:
-        specifier: catalog:common
-        version: 0.28.16
-      pg:
-        specifier: catalog:common
-        version: 8.20.0
-    devDependencies:
-      '@czo/auth':
-        specifier: workspace:*
-        version: link:../../packages/modules/auth
-      '@czo/kit':
-        specifier: workspace:*
-        version: link:../../packages/kit
-      '@czo/stock-location':
-        specifier: workspace:*
-        version: link:../../packages/modules/stock-location
-      drizzle-kit:
-        specifier: catalog:dev
-        version: 1.0.0-rc.3
-      nitro:
-        specifier: catalog:dev
-        version: 3.0.260429-beta(@azure/identity@4.13.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6))(giget@3.2.0)(ioredis@5.10.1)(jiti@2.6.1)(rollup@4.60.2)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
 
   apps/paiya:
     dependencies:
@@ -684,6 +611,9 @@ importers:
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.0-beta.70(effect@4.0.0-beta.70)(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@testcontainers/postgresql':
+        specifier: catalog:dev
+        version: 11.14.0
       '@types/amqplib':
         specifier: catalog:types
         version: 0.10.8
@@ -845,24 +775,12 @@ importers:
       '@czo/kit':
         specifier: workspace:*
         version: link:../../kit
-      '@effect/sql-pg':
-        specifier: 'catalog:'
-        version: 4.0.0-beta.70(effect@4.0.0-beta.70)
-      '@graphql-tools/utils':
-        specifier: catalog:common
-        version: 10.11.0(graphql@16.13.2)
-      '@paralleldrive/cuid2':
-        specifier: 'catalog:'
-        version: 2.3.1
       drizzle-orm:
         specifier: catalog:common
         version: 1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.70
-      graphql:
-        specifier: catalog:common
-        version: 16.13.2
       zod:
         specifier: catalog:common
         version: 4.3.6
@@ -882,12 +800,6 @@ importers:
       drizzle-kit:
         specifier: catalog:dev
         version: 1.0.0-rc.3
-      graphql-scalars:
-        specifier: catalog:common
-        version: 1.25.0(graphql@16.13.2)
-      nitro:
-        specifier: catalog:dev
-        version: 3.0.260429-beta(@azure/identity@4.13.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6))(giget@3.2.0)(ioredis@5.10.1)(jiti@2.6.1)(rollup@4.60.2)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
       vitest:
         specifier: catalog:testing
         version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
@@ -2519,10 +2431,6 @@ packages:
     resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
     engines: {node: '>= 20.19.0'}
 
-  '@noble/hashes@1.8.0':
-    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
-    engines: {node: ^14.21.3 || >=16}
-
   '@noble/hashes@2.2.0':
     resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
     engines: {node: '>= 20.19.0'}
@@ -2937,9 +2845,6 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
-
-  '@paralleldrive/cuid2@2.3.1':
-    resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -9437,8 +9342,6 @@ snapshots:
 
   '@noble/ciphers@2.2.0': {}
 
-  '@noble/hashes@1.8.0': {}
-
   '@noble/hashes@2.2.0': {}
 
   '@node-rs/argon2-android-arm-eabi@2.0.2':
@@ -9845,10 +9748,6 @@ snapshots:
 
   '@oxfmt/binding-win32-x64-msvc@0.35.0':
     optional: true
-
-  '@paralleldrive/cuid2@2.3.1':
-    dependencies:
-      '@noble/hashes': 1.8.0
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -11369,7 +11268,7 @@ snapshots:
 
   docker-compose@1.4.2:
     dependencies:
-      yaml: 2.8.3
+      yaml: 2.9.0
 
   docker-modem@5.0.7:
     dependencies:

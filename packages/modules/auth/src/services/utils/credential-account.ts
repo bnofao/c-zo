@@ -1,5 +1,5 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Database } from '@czo/kit/db/effect'
+import type { Database } from '@czo/kit/db'
 import { and, eq } from 'drizzle-orm'
 import { accounts } from '../../database/schema'
 

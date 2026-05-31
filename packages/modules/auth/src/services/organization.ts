@@ -1,10 +1,10 @@
 import type { Relations } from '@czo/auth/relations'
 import type { MemberSchema, OrganizationSchema } from '@czo/auth/schema'
-import type { Database } from '@czo/kit/db/effect'
+import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { AccessRole } from './access'
 import { invitations, members, organizations } from '@czo/auth/schema'
-import { DrizzleDb } from '@czo/kit/db/effect'
+import { DrizzleDb } from '@czo/kit/db'
 import { and, count, eq, like } from 'drizzle-orm'
 import { Context, Data, Duration, Effect, Layer } from 'effect'
 import { INVITATION_DURATION } from '../constants'
@@ -379,7 +379,6 @@ export class OrganizationService extends Context.Service<
 const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const access = yield* AccessService
-  const { roles } = yield* access.buildRoles
   const events = yield* OrganizationEvents
 
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
@@ -387,6 +386,9 @@ const make = Effect.gen(function* () {
 
   const ensureValidRole = (role: string | string[]) =>
     Effect.gen(function* () {
+      // Live role set at request time (registry is complete only after all
+      // modules' `onStart` — e.g. stock-location — which run post-construction).
+      const roles = yield* access.roles
       const valid = validateRole(role, roles)
       if (!valid)
         return yield* Effect.fail(new OrgInvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
@@ -661,7 +663,7 @@ const make = Effect.gen(function* () {
           return yield* Effect.fail(new MemberNotFound())
 
         const creatorRole = scope?.creatorRole ?? 'owner'
-        const newRoles = typeof input.role === 'string' ? [input.role] : input.role
+        const newRoles = typeof input.role === 'string' ? input.role.split(',').map((r) => r.trim()) : input.role
         const settingCreatorRole = newRoles.includes(creatorRole)
         const updatingCreator = (existing.role as string).split(',').includes(creatorRole)
 
@@ -893,6 +895,10 @@ const make = Effect.gen(function* () {
         if (input.allowCreatorAllPermissions && input.role.split(',').includes(input.creatorRole ?? 'owner'))
           return true
 
+        // Live role set at request time — includes domains registered by other
+        // modules' `onStart` (e.g. stock-location), which the old
+        // construction-time snapshot missed (→ their perms always denied).
+        const roles = yield* access.roles
         let acRoles: { [x: string]: AccessRole | undefined } = Object.assign({}, roles)
 
         if (input.dynamicAccessControl) {

@@ -35,6 +35,19 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
       phone: t.string(),
     }),
   })
+  
+  builder.inputType('UpdateStockLocationAddressInput', {
+    validate: stockLocationAddressSchema.partial(),
+    fields: t => ({
+      addressLine1: t.string(),
+      addressLine2: t.string(),
+      city: t.string(),
+      province: t.string(),
+      postalCode: t.string(),
+      countryCode: t.string(),
+      phone: t.string(),
+    }),
+  })
 
   const StockLocationWhereInputRef = builder.inputRef<StockLocationWhereInput>('StockLocationWhereInput').implement({
     fields: t => ({
@@ -58,13 +71,20 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
     } as const,
   })
 
+  // Own the sort-direction enum locally rather than referencing auth's
+  // `OrderDirection` by string name — that coupled the schema build to auth's
+  // contribution running first and never type-checked across modules.
+  const StockLocationOrderDirectionRef = builder.enumType('StockLocationOrderDirection', {
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
   builder.inputType('StockLocationOrderByInput', {
     fields: t => ({
-      // `OrderDirection` enum is registered by @czo/auth — referenced here
-      // by string name. Auth's plugin must load before stock-location for
-      // the registry lookup to succeed at boot.
       field: t.field({ type: StockLocationOrderFieldRef, required: true, validate: stockLocationOrderFieldSchema }),
-      direction: t.field({ type: 'OrderDirection', required: true, validate: orderDirectionSchema }),
+      direction: t.field({ type: StockLocationOrderDirectionRef, required: true, validate: orderDirectionSchema }),
     }),
   })
 }

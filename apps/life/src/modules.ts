@@ -9,8 +9,13 @@
  * so the manifest is a plain list — no per-module config is threaded here.
  */
 import type { CzoModule } from '@czo/kit/module'
-import authModule from '@czo/auth/module'
+import authModule from '@czo/auth'
+import stockLocationModule from '@czo/stock-location'
 
+// Order matters: `buildApp` provides earlier modules to later ones (its
+// `provideMerge` layer fold), so dependency providers come first. Auth must
+// precede stock-location, which reaches auth's OrganizationService/AccessService.
 export const modules: ReadonlyArray<CzoModule> = [
   authModule,
+  stockLocationModule,
 ]

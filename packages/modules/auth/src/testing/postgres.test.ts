@@ -1,4 +1,4 @@
-import { DrizzleDb } from '@czo/kit/db/effect'
+import { DrizzleDb } from '@czo/kit/db'
 import { expect, layer } from '@effect/vitest'
 import { sql } from 'drizzle-orm'
 import { Effect } from 'effect'

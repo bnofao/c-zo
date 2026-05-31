@@ -3,7 +3,7 @@ import { it as itEffect } from '@effect/vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Effect, Layer } from 'effect'
 import { describe, expect } from 'vitest'
-import { DrizzleDb } from '../db/effect'
+import { DrizzleDb } from '../db'
 import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
 
 /**

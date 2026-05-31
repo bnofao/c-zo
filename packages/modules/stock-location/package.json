@@ -11,12 +11,8 @@
   },
   "exports": {
     ".": {
-      "types": "./src/module.ts",
-      "default": "./dist/module.mjs"
-    },
-    "./types": {
-      "types": "./src/types.ts",
-      "default": "./dist/types.mjs"
+      "types": "./src/index.ts",
+      "default": "./dist/index.mjs"
     },
     "./schema": {
       "types": "./src/database/schema.ts",
@@ -33,14 +29,10 @@
     "./graphql": {
       "types": "./src/graphql/index.ts",
       "default": "./dist/graphql/index.mjs"
-    },
-    "./events": {
-      "types": "./src/events/index.ts",
-      "default": "./dist/events/index.mjs"
     }
   },
-  "main": "./dist/module.mjs",
-  "types": "./src/module.ts",
+  "main": "./dist/index.mjs",
+  "types": "./src/index.ts",
   "files": [
     "dist"
   ],
@@ -64,12 +56,8 @@
   },
   "dependencies": {
     "@czo/kit": "workspace:*",
-    "@effect/sql-pg": "catalog:",
-    "@graphql-tools/utils": "catalog:common",
-    "@paralleldrive/cuid2": "catalog:",
     "drizzle-orm": "catalog:common",
     "effect": "catalog:",
-    "graphql": "catalog:common",
     "zod": "catalog:common"
   },
   "devDependencies": {
@@ -78,8 +66,6 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "catalog:dev",
-    "graphql-scalars": "catalog:common",
-    "nitro": "catalog:dev",
     "vitest": "catalog:testing"
   }
 }

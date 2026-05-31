@@ -1,9 +1,0 @@
-dist
-.data
-.nitro
-.cache
-.output
-.env
-.env.local
-
-_migrations

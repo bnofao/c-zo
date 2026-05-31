@@ -1,17 +1,12 @@
+import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
 import type { stockLocations } from '../database/schema'
-import { Organization } from '@czo/auth/services'
-
-type NotAMember = Organization.NotAMember
-const NotAMember = Organization.NotAMember
-const OrganizationService = Organization.OrganizationService
-import { OptimisticLockError, optimisticUpdate } from '@czo/kit/db'
-import { Database, DrizzleDb } from '@czo/kit/db/effect'
+import type { StockLocationEvent } from './events/stock-location'
+import { DrizzleDb, OptimisticLockError, optimisticUpdate } from '@czo/kit/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { stockLocationAddresses, stockLocations as stockLocationsTable } from '../database/schema'
-import type { StockLocationEvent } from './events/stock-location'
 import { StockLocationEvents } from './events/stock-location'
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
@@ -28,11 +23,6 @@ export class HandleTaken extends Data.TaggedError('HandleTaken')<{
   get message() { return `Handle '${this.handle}' already exists in organization` }
 }
 
-export class StockLocationNoChanges extends Data.TaggedError('StockLocationNoChanges') {
-  readonly code = 'STOCK_LOCATION_NO_CHANGES'
-  get message() { return 'No changes provided' }
-}
-
 export class StockLocationDbFailed extends Data.TaggedError('StockLocationDbFailed')<{
   readonly cause: unknown
 }> {
@@ -43,23 +33,8 @@ export class StockLocationDbFailed extends Data.TaggedError('StockLocationDbFail
 export type StockLocationError
   = | StockLocationNotFound
     | HandleTaken
-    | StockLocationNoChanges
     | StockLocationDbFailed
     | OptimisticLockError
-    | NotAMember
-
-// ─── Scope ───────────────────────────────────────────────────────────────────
-
-/**
- * Caller identity required for any write. The service enforces that
- * `actorId` is a member of the target stock location's organization (via
- * `@czo/auth/OrganizationService.checkMembership`); non-members fail with
- * the auth domain's `NotAMember` so the GraphQL layer can route it through
- * the shared error type.
- */
-export interface ActorScope {
-  readonly actorId: number
-}
 
 // ─── Input types ─────────────────────────────────────────────────────────────
 
@@ -132,28 +107,27 @@ export class StockLocationService extends Context.Service<
     ) => Effect.Effect<readonly StockLocation[], StockLocationDbFailed>
 
     // ── Writes ────────────────────────────────────────────────────────────
+    // Authorization (org membership + permission) is enforced at the GraphQL
+    // layer via the `permission` authScope — the service trusts its callers.
     readonly create: (
       input: CreateStockLocationInput,
-      scope: ActorScope,
-    ) => Effect.Effect<StockLocation, HandleTaken | NotAMember | StockLocationDbFailed>
+    ) => Effect.Effect<StockLocation, HandleTaken | StockLocationDbFailed>
 
     readonly update: (
       id: number,
       expectedVersion: number,
       input: UpdateStockLocationInput,
-      scope: ActorScope,
     ) => Effect.Effect<
       StockLocation,
-      StockLocationNotFound | StockLocationNoChanges | OptimisticLockError | NotAMember | StockLocationDbFailed
+      StockLocationNotFound | OptimisticLockError | StockLocationDbFailed
     >
 
     readonly softDelete: (
       id: number,
       expectedVersion: number,
-      scope: ActorScope,
     ) => Effect.Effect<
       StockLocation,
-      StockLocationNotFound | OptimisticLockError | NotAMember | StockLocationDbFailed
+      StockLocationNotFound | OptimisticLockError | StockLocationDbFailed
     >
 
     /**
@@ -164,29 +138,26 @@ export class StockLocationService extends Context.Service<
     readonly delete: (
       id: number,
       expectedVersion: number,
-      scope: ActorScope,
     ) => Effect.Effect<
       StockLocation,
-      StockLocationNotFound | OptimisticLockError | NotAMember | StockLocationDbFailed
+      StockLocationNotFound | OptimisticLockError | StockLocationDbFailed
     >
 
     readonly setStatus: (
       id: number,
       expectedVersion: number,
       isActive: boolean,
-      scope: ActorScope,
     ) => Effect.Effect<
       StockLocation,
-      StockLocationNotFound | OptimisticLockError | NotAMember | StockLocationDbFailed
+      StockLocationNotFound | OptimisticLockError | StockLocationDbFailed
     >
 
     readonly setDefault: (
       id: number,
       expectedVersion: number,
-      scope: ActorScope,
     ) => Effect.Effect<
       StockLocation,
-      StockLocationNotFound | OptimisticLockError | NotAMember | StockLocationDbFailed
+      StockLocationNotFound | OptimisticLockError | StockLocationDbFailed
     >
   }
 >()('@czo/stock-location/StockLocationService') {}
@@ -201,7 +172,6 @@ const make = Effect.gen(function* () {
   // schema. Runtime client is the same — only the static type changes.
   const db = (yield* DrizzleDb) as Database<Relations>
   const events = yield* StockLocationEvents
-  const org = yield* OrganizationService
 
   /** Map any DB-layer error to StockLocationDbFailed. */
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
@@ -219,26 +189,10 @@ const make = Effect.gen(function* () {
   /** Publish a single domain event. PubSub.dropping never blocks. */
   const publish = (event: StockLocationEvent) => events.publish(event)
 
-  /**
-   * Verify the actor is a member of the given organization. Auth's
-   * `OrgDbFailed` is folded into our own `StockLocationDbFailed` so the
-   * error channel stays module-local.
-   */
-  const assertMember = (
-    organizationId: number,
-    actorId: number,
-  ): Effect.Effect<void, NotAMember | StockLocationDbFailed> =>
-    Effect.gen(function* () {
-      const isMember = yield* org.checkMembership(organizationId, actorId).pipe(
-        Effect.mapError(cause => new StockLocationDbFailed({ cause })),
-      )
-      if (!isMember)
-        return yield* Effect.fail(new NotAMember())
-    })
-
-  // `findFirst` is a closure const so `fetchScoped` (and any future internal
-  // caller) can reuse it. Typed once via `StockLocationServiceImpl['findFirst']`;
-  // the other methods get contextual typing from the `.of({...})` literal.
+  // `findFirst` is a closure const so the authScope layer (and any future
+  // internal caller) can reuse it. Typed once via
+  // `StockLocationServiceImpl['findFirst']`; the other methods get contextual
+  // typing from the `.of({...})` literal.
   const findFirst: StockLocationServiceImpl['findFirst'] = config =>
     Effect.gen(function* () {
       const row = yield* dbErr(db.query.stockLocations.findFirst({
@@ -247,18 +201,6 @@ const make = Effect.gen(function* () {
       }))
       if (!row)
         return yield* Effect.fail(new StockLocationNotFound())
-      return row
-    })
-
-  /**
-   * Fetch a stock location by id and verify the actor is a member of its
-   * organization. Returns the row so callers can use `row.organizationId`
-   * for downstream side-effects (events, cascading writes).
-   */
-  const fetchScoped = (id: number, actorId: number) =>
-    Effect.gen(function* () {
-      const row = yield* findFirst({ where: { id } })
-      yield* assertMember(row.organizationId, actorId)
       return row
     })
 
@@ -271,10 +213,8 @@ const make = Effect.gen(function* () {
         where: { ...config?.where, deletedAt: { isNull: true } },
       })),
 
-    create: (input, scope) =>
+    create: input =>
       Effect.gen(function* () {
-        yield* assertMember(input.organizationId, scope.actorId)
-
         // Pre-check for handle uniqueness within the org — the column doesn't
         // have a composite unique constraint, so we enforce it here. This is
         // racy under concurrent inserts; the optimistic-lock window is the
@@ -325,9 +265,11 @@ const make = Effect.gen(function* () {
         return location
       }),
 
-    update: (id, expectedVersion, input, scope) =>
+    update: (id, expectedVersion, input) =>
       Effect.gen(function* () {
-        yield* fetchScoped(id, scope.actorId)
+        // Existence check — a missing row is a NotFound (404), distinct from the
+        // version-mismatch OptimisticLockError that `optimisticUpdate` raises.
+        yield* findFirst({ where: { id } })
 
         const updated = yield* dbErrOptimistic(
           optimisticUpdate({ db, table: stockLocationsTable, id, expectedVersion, values: input }),
@@ -357,9 +299,12 @@ const make = Effect.gen(function* () {
         return updated
       }),
 
-    softDelete: (id, expectedVersion, scope) =>
+    softDelete: (id, expectedVersion) =>
       Effect.gen(function* () {
-        yield* fetchScoped(id, scope.actorId)
+        // Existence check — a missing row is a NotFound (404), distinct from a
+        // version-mismatch OptimisticLockError.
+        yield* findFirst({ where: { id } })
+
         const deleted = yield* dbErrOptimistic(
           optimisticUpdate({ db, table: stockLocationsTable, id, expectedVersion, values: { deletedAt: sql`NOW()` as any } }),
         )
@@ -375,9 +320,12 @@ const make = Effect.gen(function* () {
         return deleted
       }),
 
-    delete: (id, expectedVersion, scope) =>
+    delete: (id, expectedVersion) =>
       Effect.gen(function* () {
-        yield* fetchScoped(id, scope.actorId)
+        // Existence check — a missing row is a NotFound (404), distinct from a
+        // version-mismatch OptimisticLockError.
+        yield* findFirst({ where: { id } })
+
         // Mirrors `optimisticUpdate`: a single DELETE gated on version. If
         // nothing was returned, we resolve the actual version (or null if
         // the row is gone) and throw an OptimisticLockError.
@@ -413,9 +361,12 @@ const make = Effect.gen(function* () {
         return deleted
       }),
 
-    setStatus: (id, expectedVersion, isActive, scope) =>
+    setStatus: (id, expectedVersion, isActive) =>
       Effect.gen(function* () {
-        yield* fetchScoped(id, scope.actorId)
+        // Existence check — a missing row is a NotFound (404), distinct from a
+        // version-mismatch OptimisticLockError.
+        yield* findFirst({ where: { id } })
+
         const updated = yield* dbErrOptimistic(
           optimisticUpdate({ db, table: stockLocationsTable, id, expectedVersion, values: { isActive } }),
         )
@@ -430,9 +381,12 @@ const make = Effect.gen(function* () {
         return updated
       }),
 
-    setDefault: (id, expectedVersion, scope) =>
+    setDefault: (id, expectedVersion) =>
       Effect.gen(function* () {
-        yield* fetchScoped(id, scope.actorId)
+        // Existence check — a missing row is a NotFound (404), distinct from a
+        // version-mismatch OptimisticLockError.
+        yield* findFirst({ where: { id } })
+
         // The whole transaction stays in one Effect.gen — inner queries are
         // yield*-ed. OptimisticLockError thrown inside is preserved by
         // dbErrOptimistic so the GraphQL layer can route it.

@@ -21,8 +21,7 @@
 import type { GraphQLContextMap, SchemaBuilder } from '@czo/kit/graphql'
 import type { Effect, Layer } from 'effect'
 import type { H3 } from 'h3'
-import type { RelationsFactory } from '../db/schema-registry'
-import type { SeederConfig } from '../db/seeder'
+import type { RelationsFactory, SeederConfig } from '../db'
 import type { ApiRoute } from '../openapi/route'
 
 /* ─── Module ───────────────────────────────────────────────────────── */
@@ -97,11 +96,21 @@ export interface Module<Name extends string = string, R = never> {
 
   /**
    * Effect that runs once after the runtime is built but before the
-   * server starts accepting traffic. Use for last-mile setup that
-   * needs the runtime (e.g. `AccessService.freeze`, registry
-   * finalization).
+   * server starts accepting traffic. Use for setup that registers into
+   * a shared registry owned by another module (e.g. a module declaring
+   * its access domain via `AccessService.register`). Runs in module
+   * order, before any `onStarted`.
    */
   readonly onStart?: Effect.Effect<void, never, R>
+
+  /**
+   * Effect that runs after **every** module's `onStart` has completed,
+   * still before the server accepts traffic. Use for finalization that
+   * must observe all modules' `onStart` registrations — e.g. auth
+   * freezing the `AccessService` registry once every module has
+   * declared its access domain in `onStart`.
+   */
+  readonly onStarted?: Effect.Effect<void, never, R>
 
   /**
    * Effect that runs during graceful shutdown, before the runtime is

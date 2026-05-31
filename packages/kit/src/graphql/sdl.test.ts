@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Effect, Layer } from 'effect'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { DrizzleDb } from '../db/effect'
+import { DrizzleDb } from '../db'
 import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
 import { emitSDL, verifySDL } from './sdl'
 

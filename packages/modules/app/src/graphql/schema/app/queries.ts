@@ -1,6 +1,6 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
-import { DrizzleDb } from '@czo/kit/db/effect'
-import { runEffect, useRuntime } from '@czo/kit/effect'
+import { DrizzleDb } from '@czo/kit/db'
+import { runEffect, useRuntime } from '@czo/kit/db'
 
 // ─── App Queries ──────────────────────────────────────────────────────────────
 

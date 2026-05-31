@@ -37,12 +37,8 @@ declare module '@czo/kit/graphql' {
     StockLocation: StockLocation
   }
 
-  interface BuilderAuthScopes {
-    permission: {
-      resource: string
-      actions: string[]
-    }
-  }
+  // `BuilderAuthScopes` is not augmented here — stock-location reuses auth's
+  // `permission` scope, declared by `@czo/auth/graphql` (imported above).
 
   interface SchemaBuilderRefs {
   }

@@ -1,4 +1,5 @@
 import type { FunctionsVersioning } from 'drizzle-seed'
+import process from 'node:process'
 
 export type SeedRefineFuncs = FunctionsVersioning
 
@@ -108,11 +109,18 @@ export interface RunSeederOptions {
 }
 
 export async function runSeeder(opts?: RunSeederOptions): Promise<void> {
-  const { useDatabase } = await import('./manager')
-  const { registeredSchemas } = await import('./schema-registry')
+  const { registeredSchemas } = await import('../schema')
   const { reset, seed } = await import('drizzle-seed')
+  const { drizzle } = await import('drizzle-orm/node-postgres')
 
-  const db = await useDatabase()
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl)
+    throw new Error('Database URL is required. Set DATABASE_URL.')
+
+  // drizzle-seed drives a plain node-postgres client; `seed`/`reset` take the
+  // schema explicitly, so the connection needs no relations config. Use the
+  // master URL (first of a comma-separated list); replicas are read-only.
+  const db = drizzle(databaseUrl.split(',')[0]!)
   const schema = registeredSchemas()
 
   if (opts?.reset) {

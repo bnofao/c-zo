@@ -52,7 +52,11 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           OrganizationLimitReached,
         ],
       },
-      authScopes: { permission: { resource: 'organization', actions: ['create'] } },
+      // Creating an org is a global capability — there is no existing org to
+      // scope membership against, so `permission` (which would fall back to a
+      // never-granted `organization:create` global-role check) cannot apply.
+      // Any authenticated user may create an org; the resolver makes them owner.
+      authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
@@ -65,7 +69,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
               ...input,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
               userId: Number(authUser.id),
-            })
+            }, { role: 'org:owner'})
           }),
         )
         return { organization: result }
@@ -280,7 +284,26 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     },
     {
       errors: { types: [InvitationNotFound] },
-      authScopes: { permission: { resource: 'organization', actions: ['invite'] } },
+      // Cancelling is org-scoped: the caller needs `invitation:cancel` in the
+      // org that owns the invitation. The org is derived from the invitation
+      // itself (the input only carries `invitationId`). Unknown invitation →
+      // require auth and defer to the resolver's InvitationNotFound (404),
+      // rather than masking existence as a 403.
+      authScopes: async (_parent, args, ctx) => {
+        const { id } = decodeGlobalID(args.input.invitationId)
+        const organization = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const invitation = yield* svc.getInvitation(Number(id)).pipe(
+              Effect.catchTag('InvitationNotFound', () => Effect.succeed(null)),
+            )
+            return invitation?.organizationId ?? null
+          }),
+        )
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'invitation', actions: ['cancel'], organization } }
+      },
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.invitationId)
         await ctx.runEffect(
@@ -377,8 +400,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
-          resource: 'organization',
-          actions: ['remove-member'],
+          resource: 'member',
+          actions: ['remove'],
           organization: Number(decodeGlobalID(args.input.organizationId).id),
         },
       }),
@@ -426,8 +449,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
-          resource: 'organization',
-          actions: ['update-member-role'],
+          resource: 'member',
+          actions: ['update'],
           organization: Number(decodeGlobalID(args.input.organizationId).id),
         },
       }),

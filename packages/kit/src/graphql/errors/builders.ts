@@ -1,4 +1,4 @@
-import { OptimisticLockError } from '../../db/errors'
+import { OptimisticLockError } from '../../db'
 import {
   ConflictError,
   ForbiddenError,

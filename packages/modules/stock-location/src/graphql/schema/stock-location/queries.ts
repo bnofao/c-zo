@@ -1,6 +1,7 @@
 import type { StockLocationGraphQLSchemaBuilder } from '@czo/stock-location/graphql'
 import { Effect } from 'effect'
 import { StockLocationService } from '../../../services/stock-location'
+import { loadOrganizationId } from './authz'
 
 // ─── Stock Location Queries ───────────────────────────────────────────────────
 
@@ -14,12 +15,19 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
       type: 'stockLocations',
       nullable: true,
       args: {
-        id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
+        id: t.arg.globalID({ required: true }),
       },
-      authScopes: { permission: { resource: 'stock-location', actions: ['read'] } },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.id.id)
+        // Unknown id → require auth and let the nullable field resolve to null
+        // (the service NotFound is collapsed below), rather than a gate 403.
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['read'], organization } }
+      },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
             return yield* svc.findFirst(query({ where: { id: Number(args.id.id) } }))
           }).pipe(
@@ -34,8 +42,19 @@ Effect.gen(function* () {
   builder.queryField('stockLocations', t =>
     t.drizzleConnection({
       type: 'stockLocations',
-      authScopes: { permission: { resource: 'stock-location', actions: ['read'] } },
+      // Org-scoped: the caller must hold `read` permission in the target org.
+      // Listing is always bounded to a single organization (below) so it never
+      // spans tenants.
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'stock-location',
+          actions: ['read'],
+          organization: Number(args.organizationId.id),
+        },
+      }),
       args: {
+        /** Organization to list within. Listing is always tenant-scoped. */
+        organizationId: t.arg.globalID({ required: true }),
         /** Free-text search across `name` and `handle` (case-insensitive substring). */
         search: t.arg.string(),
         where: t.arg({ type: 'StockLocationWhereInput' }),
@@ -43,7 +62,7 @@ Effect.gen(function* () {
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
-Effect.gen(function* () {
+          Effect.gen(function* () {
             const svc = yield* StockLocationService
 
             // Compose `search` into the where clause as an OR over name/handle
@@ -58,10 +77,12 @@ Effect.gen(function* () {
                 }
               : null
 
+            // Tenant boundary: always constrain to the requested org so the
+            // listing can never cross organizations, regardless of `where`.
+            const orgClause = { organizationId: Number(args.organizationId.id) }
             const userWhere = (args.where ?? null) as Record<string, unknown> | null
-            const where = searchClause && userWhere
-              ? { AND: [userWhere, searchClause] }
-              : (searchClause ?? userWhere ?? undefined)
+            const clauses = [orgClause, userWhere, searchClause].filter(Boolean)
+            const where = clauses.length === 1 ? clauses[0] : { AND: clauses }
 
             return yield* svc.findMany(query({
               where: where as any,

@@ -26,10 +26,6 @@
       "types": "./src/db/index.ts",
       "default": "./dist/db/index.mjs"
     },
-    "./db/effect": {
-      "types": "./src/db/effect.ts",
-      "default": "./dist/db/effect.mjs"
-    },
     "./email": {
       "types": "./src/email/index.ts",
       "default": "./dist/email/index.mjs"
@@ -37,6 +33,10 @@
     "./openapi": {
       "types": "./src/openapi/index.ts",
       "default": "./dist/openapi/index.mjs"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./dist/testing/index.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -152,6 +152,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@testcontainers/postgresql": "catalog:dev",
     "@types/amqplib": "catalog:types",
     "@types/pg": "catalog:types",
     "@vitest/coverage-v8": "catalog:testing",
