@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "deleted_at" timestamp(6) with time zone;

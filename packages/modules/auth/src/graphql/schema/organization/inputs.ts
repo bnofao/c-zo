@@ -1,18 +1,18 @@
-import type { AuthGraphQLShemaBuilder } from '@czo/auth/types'
+import type { AuthGraphQLSchemaBuilder } from '../..'
 import z from 'zod'
 
-const slugSchema = z.string().min(3, "Slug must be at least 3 characters").max(50, "Slug is too long").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-  message: "Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)",
+const slugSchema = z.string().min(3, 'Slug must be at least 3 characters').max(50, 'Slug is too long').regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+  message: 'Slug must be lowercase and only contain letters, numbers, and hyphens (no trailing/leading hyphens)',
 })
 
 // ─── Pothos input type registration ──────────────────────────────────────────
 
-export function registerOrganizationInputs(builder: AuthGraphQLShemaBuilder): void {
+export function registerOrganizationInputs(builder: AuthGraphQLSchemaBuilder): void {
   builder.inputType('OrganizationCreateData', {
     // validate: createOrganizationSchema,
     fields: t => ({
       name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()) }),
-      slug: t.string({ required: true, validate:  slugSchema }),
+      slug: t.string({ required: true, validate: slugSchema }),
       logo: t.string({ validate: z.url() }),
       type: t.string(),
       metadata: t.field({ type: 'JSONObject' }),

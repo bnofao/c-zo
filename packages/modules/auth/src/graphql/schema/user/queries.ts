@@ -1,12 +1,11 @@
-import type { SchemaBuilder } from '@czo/kit/graphql'
-import { runEffect } from '@czo/kit/effect'
+import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { decodeGlobalID } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { UserService } from '../../../services/user'
 
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
-export function registerUserQueries(builder: SchemaBuilder): void {
+export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── user(id) — single user by ID ─────────────────────────────────────────
   builder.queryField('user', t =>
     t.drizzleField({
@@ -23,7 +22,7 @@ export function registerUserQueries(builder: SchemaBuilder): void {
           const svc = yield* UserService
           return yield* svc.findFirst({ where: { id: Number(id) } })
         }).pipe(Effect.catchTag('UserNotFound', () => Effect.succeed(null)))
-        return runEffect(ctx.auth.runtime, program)
+        return ctx.runEffect(program)
       },
     }))
 
@@ -32,9 +31,9 @@ export function registerUserQueries(builder: SchemaBuilder): void {
     t.drizzleConnection({
       type: 'users',
       args: {
-        search: t.arg.string({ required: false }),
-        where: t.arg({ type: 'UserWhereInput', required: false }),
-        orderBy: t.arg({ type: ['UserOrderByInput'], required: false }),
+        search: t.arg.string(),
+        where: t.arg({ type: 'UserWhereInput' }),
+        orderBy: t.arg({ type: ['UserOrderByInput'] }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query, _root, args, ctx) => {
@@ -47,7 +46,7 @@ export function registerUserQueries(builder: SchemaBuilder): void {
               : undefined,
           }))
         })
-        return runEffect(ctx.auth.runtime, program) as any
+        return ctx.runEffect(program)
       },
     }))
 }

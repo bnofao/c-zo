@@ -1,6 +1,7 @@
+import type { StockLocationGraphQLSchemaBuilder, StockLocationWhereInput } from '@czo/stock-location/graphql'
 import { z } from 'zod'
 
-// ─── Zod schemas (used in mutations for validation) ───────────────────────────
+// ─── Zod schemas (kept for the address sub-shape) ─────────────────────────────
 
 export const stockLocationAddressSchema = z.object({
   addressLine1: z.string().min(1).max(255),
@@ -12,29 +13,19 @@ export const stockLocationAddressSchema = z.object({
   phone: z.string().max(20).optional(),
 })
 
-export const createStockLocationSchema = z.object({
-  name: z.string().min(1).max(255).transform(v => v.trim()),
-  handle: z.string().regex(/^[a-z0-9-]+$/).max(100).optional(),
-  organizationId: z.string().min(1),
-  isDefault: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
-  address: stockLocationAddressSchema.optional(),
-})
-
-export const updateStockLocationSchema = z.object({
-  name: z.string().min(1).max(255).transform(v => v.trim()).optional(),
-  handle: z.string().regex(/^[a-z0-9-]+$/).max(100).optional(),
-  metadata: z.record(z.any()).optional(),
-  address: stockLocationAddressSchema.optional(),
-})
+const stockLocationOrderFieldSchema = z.enum(['name', 'handle', 'createdAt'])
+const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 // ─── Pothos input types ───────────────────────────────────────────────────────
+//
+// `CreateStockLocationInput` and `UpdateStockLocationInput` are now generated
+// by `relayMutationField` from the inline `inputFields` blocks in mutations.ts
+// — only the nested address shape stays as a standalone input.
 
-export function registerStockLocationInputs(builder: any): void {
-  const StockLocationAddressInput = (builder as any).inputType('StockLocationAddressInput', {
-    validate: { schema: stockLocationAddressSchema },
-    fields: (t: any) => ({
+export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaBuilder): void {
+  builder.inputType('CreateStockLocationAddressInput', {
+    validate: stockLocationAddressSchema,
+    fields: t => ({
       addressLine1: t.string({ required: true }),
       addressLine2: t.string(),
       city: t.string({ required: true }),
@@ -45,25 +36,55 @@ export function registerStockLocationInputs(builder: any): void {
     }),
   })
 
-  ;(builder as any).inputType('CreateStockLocationInput', {
-    fields: (t: any) => ({
-      organizationId: t.globalID({ required: true, for: ['Organization'] }),
-      name: t.string({ required: true }),
-      handle: t.string(),
-      isDefault: t.boolean(),
-      isActive: t.boolean(),
-      metadata: t.field({ type: 'JSONObject' }),
-      address: t.field({ type: StockLocationAddressInput }),
+  builder.inputType('UpdateStockLocationAddressInput', {
+    validate: stockLocationAddressSchema.partial(),
+    fields: t => ({
+      addressLine1: t.string(),
+      addressLine2: t.string(),
+      city: t.string(),
+      province: t.string(),
+      postalCode: t.string(),
+      countryCode: t.string(),
+      phone: t.string(),
     }),
   })
 
-  ;(builder as any).inputType('UpdateStockLocationInput', {
-    validate: { schema: updateStockLocationSchema },
-    fields: (t: any) => ({
-      name: t.string(),
-      handle: t.string(),
-      metadata: t.field({ type: 'JSONObject' }),
-      address: t.field({ type: StockLocationAddressInput }),
+  const StockLocationWhereInputRef = builder.inputRef<StockLocationWhereInput>('StockLocationWhereInput').implement({
+    fields: t => ({
+      name: t.field({ type: 'StringFilterInput' }),
+      handle: t.field({ type: 'StringFilterInput' }),
+      organizationId: t.field({ type: 'IntFilterInput' }),
+      isActive: t.field({ type: 'BooleanFilterInput' }),
+      isDefault: t.field({ type: 'BooleanFilterInput' }),
+      createdAt: t.field({ type: 'DateTimeFilterInput' }),
+      AND: t.field({ type: [StockLocationWhereInputRef] }),
+      OR: t.field({ type: [StockLocationWhereInputRef] }),
+      NOT: t.field({ type: StockLocationWhereInputRef }),
+    }),
+  })
+
+  const StockLocationOrderFieldRef = builder.enumType('StockLocationOrderField', {
+    values: {
+      NAME: { value: 'name' },
+      HANDLE: { value: 'handle' },
+      CREATED_AT: { value: 'createdAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing auth's
+  // `OrderDirection` by string name — that coupled the schema build to auth's
+  // contribution running first and never type-checked across modules.
+  const StockLocationOrderDirectionRef = builder.enumType('StockLocationOrderDirection', {
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('StockLocationOrderByInput', {
+    fields: t => ({
+      field: t.field({ type: StockLocationOrderFieldRef, required: true, validate: stockLocationOrderFieldSchema }),
+      direction: t.field({ type: StockLocationOrderDirectionRef, required: true, validate: orderDirectionSchema }),
     }),
   })
 }

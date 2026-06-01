@@ -1,7 +1,7 @@
-import type { HierarchyLevel } from '@czo/auth/services'
+import type { HierarchyLevel } from '../services/access'
 
 export const ORGANIZATION_STATEMENTS = {
-  organization: ['read', 'update', 'delete'],
+  organization: ['update', 'delete'],
   member: ['read', 'create', 'update', 'delete'],
   invitation: ['read', 'create', 'cancel'],
 } as const
@@ -23,7 +23,7 @@ export const ORGANIZATION_HIERARCHY: HierarchyLevel<typeof ORGANIZATION_STATEMEN
   {
     name: 'org:viewer',
     permissions: {
-      organization: ['read'],
+      organization: [],
       member: ['read'],
       invitation: ['read'],
     },

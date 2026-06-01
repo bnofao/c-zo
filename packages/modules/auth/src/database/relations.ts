@@ -1,7 +1,7 @@
-import type { SchemaRegistry } from '@czo/kit/db'
+import type { SchemaRegistryShape } from '@czo/kit/db'
 import { defineRelationsPart } from 'drizzle-orm'
 
-export function authRelations(schema: SchemaRegistry) {
+export function authRelations(schema: SchemaRegistryShape) {
   return defineRelationsPart(
     schema,
     r => ({

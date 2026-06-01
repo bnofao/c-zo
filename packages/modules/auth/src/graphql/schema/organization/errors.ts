@@ -1,12 +1,16 @@
 import { registerError } from '@czo/kit/graphql'
-import {
+import { Organization } from '../../../services'
+
+const {
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
   InvitationAlreadyExists,
+  InvitationEmailMismatch,
   InvitationExpired,
   InvitationLimitReached,
   InvitationNotFound,
+  InvitationNotPending,
   MemberAlreadyExists,
   MemberLimitReached,
   MemberNotFound,
@@ -17,7 +21,7 @@ import {
   OrgInvalidRole,
   OrgNoChanges,
   OrgUserNotFound,
-} from '../../../services'
+} = Organization
 
 // Re-export the tagged-error classes so resolvers can list them in
 // `errors: { types: [...] }` without reaching into services/.
@@ -26,9 +30,11 @@ export {
   CannotPromoteToOwner,
   CannotRemoveLastOwner,
   InvitationAlreadyExists,
+  InvitationEmailMismatch,
   InvitationExpired,
   InvitationLimitReached,
   InvitationNotFound,
+  InvitationNotPending,
   MemberAlreadyExists,
   MemberLimitReached,
   MemberNotFound,
@@ -64,5 +70,7 @@ export function registerOrganizationErrors(builder: any): void {
   registerError(builder, InvitationExpired, { name: 'InvitationExpiredError' })
   registerError(builder, InvitationAlreadyExists, { name: 'InvitationAlreadyExistsError' })
   registerError(builder, InvitationLimitReached, { name: 'InvitationLimitReachedError' })
+  registerError(builder, InvitationNotPending, { name: 'InvitationNotPendingError' })
+  registerError(builder, InvitationEmailMismatch, { name: 'InvitationEmailMismatchError' })
   registerError(builder, OrgNoChanges, { name: 'OrganizationNoChangesError' })
 }

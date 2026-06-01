@@ -1,10 +1,9 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import type { User } from '../../../services'
-import { runEffect } from '@czo/kit/effect'
 import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
-import { AuthService, UserService } from '../../../services'
+import { Session, User } from '../../../services'
+import { passwordSchema } from '../../../services/utils/password-schema'
 import {
   CannotBanSelf,
   CannotDemoteSelf,
@@ -18,23 +17,6 @@ import {
   UserNotBanned,
   UserNotFound,
 } from './errors'
-
-const passwordSchema = z
-  .string()
-  .min(8, { message: 'Password must be at least 8 characters long' })
-  .max(20, { message: 'Password cannot exceed 20 characters' })
-  .refine(val => /[A-Z]/.test(val), {
-    message: 'Password must contain at least one uppercase letter',
-  })
-  .refine(val => /[a-z]/.test(val), {
-    message: 'Password must contain at least one lowercase letter',
-  })
-  .refine(val => /\d/.test(val), {
-    message: 'Password must contain at least one number',
-  })
-  .refine(val => /[!@#$%^&*]/.test(val), {
-    message: 'Password must contain at least one special character',
-  })
 
 // ─── User Mutations ───────────────────────────────────────────────────────────
 
@@ -69,18 +51,13 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
           if (!actorId)
             throw new ForbiddenError('You do not have permission to set user roles')
 
-          const canSetRole = await runEffect(
-            ctx.auth.runtime,
+          const canSetRole = await ctx.runEffect(
             Effect.gen(function* () {
-              const svc = yield* AuthService
-              return yield* svc.hasPermission(
-                {
-                  userId: actorId,
-                  organizationId: ctx.auth.session?.activeOrganizationId,
-                  role: ctx.auth.user?.role,
-                },
-                { user: ['set-role'] },
-              )
+              const svc = yield* User.UserService
+              return yield* svc.hasPermission({
+                role: ctx.auth.user?.role ?? undefined,
+                permissions: { user: ['set-role'] },
+              })
             }),
           )
 
@@ -88,10 +65,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
             throw new ForbiddenError('You do not have permission to set user roles')
         }
 
-        const result = await runEffect(
-          ctx.auth.runtime,
+        const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.update(userId, {
               ...input,
               name: input.name || undefined,
@@ -114,8 +90,8 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     {
       inputFields: t => ({
         email: t.string({ required: true, validate: z.email().transform(email => email.toLowerCase()) }),
-        name: t.string({ required: true , validate: z.string().max(225).min(1).transform(name => name.trim())}),
-        password: t.string({ required: true, validate: z.string().min(8).max(128).nullable().optional()}),
+        name: t.string({ required: true, validate: z.string().max(225).min(1).transform(name => name.trim()) }),
+        password: t.string({ required: true, validate: z.string().min(8).max(128).nullable().optional() }),
         role: t.stringList(),
       }),
     },
@@ -131,10 +107,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
       resolve: async (_root, { input }, ctx) => {
-        const result = await runEffect(
-          ctx.auth.runtime,
+        const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.create(input)
           }),
         )
@@ -162,14 +137,13 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       errors: { types: [ForbiddenError, UserNotFound, CannotBanSelf, UserAlreadyBanned] },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
-        const authUser = ctx.auth?.user as User
+        const authUser = ctx.auth?.user as User.User
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
 
-        const result = await runEffect(
-          ctx.auth.runtime,
+        const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.ban(userId, input, Number(authUser.id))
           }),
         )
@@ -197,12 +171,11 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
-        const actorId = Number((ctx.auth?.user as User).id)
+        const actorId = Number((ctx.auth?.user as User.User).id)
 
-        const result = await runEffect(
-          ctx.auth.runtime,
+        const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.unban(userId, actorId)
           }),
         )
@@ -233,10 +206,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
         const userId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-        const result = await runEffect(
-          ctx.auth.runtime,
+        const result = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.setRole(userId, input.role, actorId)
           }),
         )
@@ -270,10 +242,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
         const { id } = decodeGlobalID(input.id)
         const userId = Number(id)
 
-        await runEffect(
-          ctx.auth.runtime,
+        await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.setPassword(userId, input.newPassword)
           }),
         )
@@ -304,10 +275,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
         const userId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
-        await runEffect(
-          ctx.auth.runtime,
+        await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
+            const svc = yield* User.UserService
             return yield* svc.remove(userId, actorId)
           }),
         )
@@ -333,11 +303,10 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     {
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
       resolve: async (_root, { input }, ctx) => {
-        await runEffect(
-          ctx.auth.runtime,
+        await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
-            return yield* svc.revokeSession(input.sessionToken)
+            const svc = yield* Session.SessionService
+            yield* svc.revoke(input.sessionToken)
           }),
         )
         return { success: true }
@@ -361,11 +330,10 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     {
       authScopes: { permission: { resource: 'session', actions: ['revoke'] } },
       resolve: async (_root, { input }, ctx) => {
-        await runEffect(
-          ctx.auth.runtime,
+        await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* UserService
-            return yield* svc.revokeSessions(Number(input.id))
+            const svc = yield* Session.SessionService
+            yield* svc.revokeAllForUser(Number(input.id))
           }),
         )
         return { success: true }

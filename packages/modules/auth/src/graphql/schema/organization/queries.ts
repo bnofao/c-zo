@@ -1,16 +1,11 @@
-import type { AuthContext } from '@czo/auth/types'
-import type { SchemaBuilder } from '@czo/kit/graphql'
-import { runEffect } from '@czo/kit/effect'
+import type { AuthGraphQLSchemaBuilder } from '../..'
 import { decodeGlobalID, UnauthenticatedError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { OrganizationService } from '../../../services/organization'
-import { InvitationNotFound, OrganizationNotFound } from './errors'
-
-interface Ctx { auth: AuthContext, request?: Request }
 
 // ─── Organization Queries ─────────────────────────────────────────────────────
 
-export function registerOrganizationQueries(builder: SchemaBuilder): void {
+export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── organization(id) — single org by ID ──────────────────────────────────
   builder.queryField('organization', t =>
     t.drizzleField({
@@ -19,14 +14,30 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
       args: {
         id: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_query, _root, args, ctx: Ctx) => {
+      // Org-scoped: the org IS the resource. Unknown id → require auth and let
+      // the nullable field resolve to null (resolver catches OrganizationNotFound).
+      authScopes: async (_parent, args, ctx) => {
+        const { id } = decodeGlobalID(args.id)
+        const organization = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const org = yield* svc.findFirst({ where: { id: Number(id) } }).pipe(
+              Effect.catchTag('OrganizationNotFound', () => Effect.succeed(null)),
+            )
+            return org?.id ?? null
+          }),
+        )
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'organization', actions: ['read'], organization } }
+      },
+      resolve: async (_query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findFirst({ where: { id: Number(id) } })
         }).pipe(Effect.catchTag('OrganizationNotFound', () => Effect.succeed(null)))
-        return runEffect(ctx.auth.runtime, program)
+        return ctx.runEffect(program)
       },
     }))
 
@@ -37,20 +48,29 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
       args: {
         search: t.arg.string({ required: false }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (query, _root, args, ctx: Ctx) => {
+      // "My organizations": any authenticated user lists the orgs they belong
+      // to. There is no global `organization:list` capability, and listing all
+      // orgs would cross tenants — so the result is filtered to the caller's
+      // memberships via the `members` relation.
+      authScopes: { auth: true },
+      resolve: async (query, _root, args, ctx) => {
+        const authUser = ctx.auth?.user
+        if (!authUser)
+          throw new UnauthenticatedError()
+
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findMany(query({
-            // Drizzle RQBv2 filter-callback typing is not publicly exported.
-            where: args.search
-              ? { name: { ilike: `%${args.search}%` } } as any
-              : undefined,
+            // Tenant boundary: only orgs where the caller is a member. The
+            // optional name search is AND-ed in.
+            where: {
+              members: { userId: Number(authUser.id) },
+              ...(args.search ? { name: { ilike: `%${args.search}%` } } : {}),
+            },
           }))
         })
-        return runEffect(ctx.auth.runtime, program) as any
+        return ctx.runEffect(program)
       },
-      edgesField: {},
     }))
 
   // ── checkSlug(slug) — verify organization slug availability ───────────────
@@ -60,10 +80,11 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
       args: {
         slug: t.arg.string({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
-        return runEffect(
-          ctx.auth.runtime,
+      // Pre-creation utility (no existing org to scope against), like
+      // `createOrganization` — any authenticated user may check availability.
+      authScopes: { auth: true },
+      resolve: async (_root, args, ctx) => {
+        return ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.checkSlug(args.slug)
@@ -74,88 +95,110 @@ export function registerOrganizationQueries(builder: SchemaBuilder): void {
 
   // ── members(organizationId) — list members of an org ─────────────────────
   builder.queryField('members', t =>
-    t.field({
-      type: ['Member'],
+    t.drizzleConnection({
+      type: 'members',
       args: {
         organizationId: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'member',
+          actions: ['read'],
+          organization: Number(decodeGlobalID(args.organizationId).id),
+        },
+      }),
+      resolve: async (query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.organizationId)
-        return await runEffect(
-          ctx.auth.runtime,
+        return await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.listMembers(Number(id))
+            return yield* svc.listMembers(Number(id), query({}))
           }),
-        ) as any
+        )
       },
     }))
 
   // ── invitation(id) — single invitation by ID ─────────────────────────────
   builder.queryField('invitation', t =>
-    t.field({
-      type: 'Invitation',
+    t.drizzleField({
+      type: 'invitations',
       nullable: true,
-      errors: { types: [InvitationNotFound] },
       args: {
         id: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      // Org-scoped: the org is derived from the invitation. Unknown id →
+      // require auth and let the nullable field resolve to null.
+      authScopes: async (_parent, args, ctx) => {
+        const { id } = decodeGlobalID(args.id)
+        const organization = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* OrganizationService
+            const inv = yield* svc.getInvitation(Number(id)).pipe(
+              Effect.catchTag('InvitationNotFound', () => Effect.succeed(null)),
+            )
+            return inv?.organizationId ?? null
+          }),
+        )
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'invitation', actions: ['read'], organization } }
+      },
+      resolve: async (_query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.id)
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.getInvitation(Number(id))
         }).pipe(Effect.catchTag('InvitationNotFound', () => Effect.succeed(null)))
-        return runEffect(ctx.auth.runtime, program) as any
+        return ctx.runEffect(program)
       },
     }))
 
   // ── invitations(organizationId) — list invitations for an org ────────────
   builder.queryField('invitations', t =>
-    t.field({
-      type: ['Invitation'],
+    t.drizzleConnection({
+      type: 'invitations',
       args: {
         organizationId: t.arg.id({ required: true }),
       },
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, args, ctx: Ctx) => {
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'invitation',
+          actions: ['read'],
+          organization: Number(decodeGlobalID(args.organizationId).id),
+        },
+      }),
+      resolve: async (query, _root, args, ctx) => {
         const { id } = decodeGlobalID(args.organizationId)
-        return await runEffect(
-          ctx.auth.runtime,
+        return await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.listInvitations(Number(id))
+            return yield* svc.listInvitations(Number(id), query({}))
           }),
-        ) as any
+        )
       },
     }))
 
   // ── myInvitations — invitations for the authenticated user ────────────────
   builder.queryField('myInvitations', t =>
-    t.field({
-      type: ['Invitation'],
-      authScopes: { permission: { resource: 'organization', actions: ['read'] } },
-      resolve: async (_root, _args, ctx: Ctx) => {
+    t.drizzleConnection({
+      type: 'invitations',
+      // The caller's own invitations (matched by their email) — not org-scoped.
+      authScopes: { auth: true },
+      resolve: async (query, _root, _args, ctx) => {
         const authUser = ctx.auth?.user
         if (!authUser)
           throw new UnauthenticatedError()
 
-        return await runEffect(
-          ctx.auth.runtime,
+        return await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.listUserInvitations(authUser.email)
+            return yield* svc.listUserInvitations(authUser.email, query({}))
           }),
-        ) as any
+        )
       },
     }))
 
-  // ─── better-auth-backed queries (phase 2) ──────────────────────────────────
-  // `activeMember` and `activeMemberRole` wrap better-auth's session-aware
-  // organization plugin API. They will be re-introduced once the BetterAuth
-  // Tag exposes the request-scoped context. Intentionally absent from the
-  // schema until then.
-  void OrganizationNotFound
+  // `activeMember` and `activeMemberRole` (session-aware organization helpers)
+  // are deferred — they need request-scoped session context not yet plumbed
+  // into this resolver.
 }

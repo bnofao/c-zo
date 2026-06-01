@@ -54,7 +54,7 @@ export default defineBuildConfig({
     '@czo/kit',
     '@czo/kit/nitro',
     '@czo/kit/db',
-    '@czo/kit/db/effect',
+    '@czo/kit/db',
     '@czo/kit/effect',
     '@czo/kit/event-bus',
     'drizzle-orm',

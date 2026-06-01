@@ -2,9 +2,15 @@ import type { Relations } from '@czo/auth/relations'
 import type { sessions, UserSchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
-import type { Effect } from 'effect'
-
-import { Context, Data } from 'effect'
+import { users } from '@czo/auth/schema'
+import { DrizzleDb } from '@czo/kit/db'
+import { eq } from 'drizzle-orm'
+import { Context, Data, Effect, Layer } from 'effect'
+import { AccessService } from './access'
+import { UserEvents } from './events/user'
+import { PasswordService } from './password'
+import { insertCredential, updateCredentialPassword } from './utils/credential-account'
+import { validateRole } from './utils/validate-roles'
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
 
@@ -144,7 +150,7 @@ export interface SetUserPasswordInput {
 type FindFirstConfig = Parameters<Database<Relations>['query']['users']['findFirst']>[0]
 type FindManyConfig = Parameters<Database<Relations>['query']['users']['findMany']>[0]
 
-export class UserService extends Context.Tag('@czo/auth/UserService')<
+export class UserService extends Context.Service<
   UserService,
   {
     readonly findMany: (
@@ -191,16 +197,222 @@ export class UserService extends Context.Tag('@czo/auth/UserService')<
       actorId?: number,
     ) => Effect.Effect<true, UserNotFound | CannotRemoveSelf | UserDbFailed>
 
-    readonly listSessions: (
-      id: number,
-    ) => Effect.Effect<readonly SessionRow[], UserDbFailed>
-
-    readonly revokeSession: (
-      token: string,
-    ) => Effect.Effect<true, UserDbFailed>
-
-    readonly revokeSessions: (
-      id: number,
-    ) => Effect.Effect<true, UserDbFailed>
+    readonly hasPermission: (input: {
+      role?: string
+      permissions: Record<string, string[]>
+      connector?: 'AND' | 'OR'
+    }) => Effect.Effect<boolean>
   }
->() {}
+>()('@czo/auth/UserService') {}
+
+// ─── Layer ───────────────────────────────────────────────────────────────
+
+const make = Effect.gen(function* () {
+  const db = (yield* DrizzleDb) as Database<Relations>
+  const passwords = yield* PasswordService
+  const access = yield* AccessService
+  const events = yield* UserEvents
+
+  const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+    eff.pipe(Effect.mapError(cause => new UserDbFailed({ cause })))
+
+  const findById = (id: number) =>
+    Effect.gen(function* () {
+      const row = yield* dbErr(db.query.users.findFirst({ where: { id } }))
+      if (!row)
+        return yield* Effect.fail(new UserNotFound())
+      return row
+    })
+
+  const ensureValidRole = (role: string | string[]) =>
+    Effect.gen(function* () {
+      // Read the live role set at request time — the registry is fully
+      // populated only after every module's `onStart` (e.g. stock-location),
+      // which runs after this service is constructed.
+      const roles = yield* access.roles
+      const valid = validateRole(role, roles)
+      if (!valid)
+        return yield* Effect.fail(new InvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
+      return valid
+    })
+
+  const updateUserRow = (id: number, patch: Record<string, unknown>) =>
+    Effect.gen(function* () {
+      const [row] = yield* dbErr(
+        db.update(users).set({ ...patch, updatedAt: new Date() }).where(eq(users.id, id)).returning(),
+      )
+      if (!row)
+        return yield* Effect.fail(new UserDbFailed({ cause: 'update returned no row' }))
+      return row
+    })
+
+  return UserService.of({
+    findMany: (config?) =>
+      dbErr(db.query.users.findMany(config)).pipe(
+        Effect.map(rows => rows),
+      ),
+
+    findFirst: (config?) =>
+      Effect.gen(function* () {
+        const row = yield* dbErr(db.query.users.findFirst(config))
+        if (!row)
+          return yield* Effect.fail(new UserNotFound())
+        return row
+      }),
+
+    create: input =>
+      Effect.gen(function* () {
+        const existing = yield* dbErr(
+          db.query.users.findFirst({ where: { email: input.email } }),
+        )
+        if (existing)
+          return yield* Effect.fail(new UserAlreadyExists({ user: existing }))
+
+        let role: string | undefined = input.role as string | undefined
+        if (input.role) {
+          role = yield* ensureValidRole(input.role)
+        }
+
+        const [user] = yield* dbErr(
+          db.insert(users).values({
+            ...input,
+            role: role ?? 'user',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }).returning(),
+        )
+        if (!user)
+          return yield* Effect.fail(new UserDbFailed({ cause: 'insert returned no row' }))
+
+        // Link credential if a password was provided. Native impl via the
+        // shared `insertCredential` helper (same row shape as `http/credential.ts`
+        // signUp). Failure is wrapped in `CredentialLinkFailed` — callers must
+        // decide whether to compensate; we don't silently leave a credential-
+        // less user any more.
+        if (input.password) {
+          const hashed = yield* passwords.hash(input.password).pipe(
+            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+          )
+          yield* insertCredential(db, user.id, hashed).pipe(
+            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+          )
+        }
+
+        yield* Effect.forkDetach(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
+        return user
+      }),
+
+    update: (id, input) =>
+      Effect.gen(function* () {
+        yield* findById(id)
+
+        if (Object.keys(input).length === 0)
+          return yield* Effect.fail(new UserNoChanges())
+
+        let role: string | undefined = input.role as string | undefined
+        if (input.role) {
+          role = yield* ensureValidRole(input.role)
+        }
+
+        const row = yield* updateUserRow(id, { ...input, role })
+        yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
+        return row
+      }),
+
+    ban: (id, input, actorId) =>
+      Effect.gen(function* () {
+        const existing = yield* findById(id)
+
+        if (actorId !== undefined && existing.id === actorId)
+          return yield* Effect.fail(new CannotBanSelf())
+
+        if (existing.banned)
+          return yield* Effect.fail(new UserAlreadyBanned())
+
+        const row = yield* updateUserRow(id, {
+          banned: true,
+          banReason: input.reason ?? 'No reason provided',
+          banExpires: typeof input.expiresIn === 'number'
+            ? new Date(Date.now() + input.expiresIn * 1000)
+            : null,
+        })
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'UserBanned',
+          userId: id,
+          bannedBy: actorId ?? null,
+          reason: row.banReason,
+          expires: row.banExpires,
+        }))
+        return row
+      }),
+
+    unban: (id, actorId) =>
+      Effect.gen(function* () {
+        const existing = yield* findById(id)
+        if (!existing.banned)
+          return yield* Effect.fail(new UserNotBanned())
+
+        const row = yield* updateUserRow(id, {
+          banned: false,
+          banReason: null,
+          banExpires: null,
+        })
+        yield* Effect.forkDetach(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
+        return row
+      }),
+
+    setRole: (id, role, actorId) =>
+      Effect.gen(function* () {
+        const existing = yield* findById(id)
+        const validRole = yield* ensureValidRole(role)
+
+        if (actorId !== undefined && existing.id === actorId)
+          return yield* Effect.fail(new CannotDemoteSelf())
+
+        const row = yield* updateUserRow(id, { role: validRole })
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'UserRoleChanged',
+          userId: id,
+          previousRole: existing.role,
+          newRole: validRole,
+          changedBy: actorId ?? null,
+        }))
+        return row
+      }),
+
+    setPassword: (id, password) =>
+      Effect.gen(function* () {
+        yield* findById(id)
+        const hashed = yield* passwords.hash(password)
+        yield* dbErr(updateCredentialPassword(db, id, hashed))
+        return true as const
+      }),
+
+    remove: (id, actorId) =>
+      Effect.gen(function* () {
+        const existing = yield* findById(id)
+
+        if (actorId !== undefined && existing.id === actorId)
+          return yield* Effect.fail(new CannotRemoveSelf())
+
+        // Hard delete. FKs to users.id are all `ON DELETE CASCADE` (sessions,
+        // accounts, members, invitations, api_keys) so the row removal
+        // cascades exactly the way `better-auth.internalAdapter.deleteUser`
+        // did, without the better-auth runtime dependency.
+        yield* dbErr(db.delete(users).where(eq(users.id, id)))
+        yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
+        return true as const
+      }),
+
+    hasPermission: input =>
+      access.checkPermission(
+        input.role || 'user',
+        input.permissions,
+        role => access.role(role),
+        input.connector ?? 'AND',
+      ),
+  })
+})
+
+/** Live layer — depends on DrizzleDb, AccessService, UserEvents. */
+export const layer = Layer.effect(UserService, make)

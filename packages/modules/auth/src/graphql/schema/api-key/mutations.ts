@@ -1,81 +1,153 @@
-import type { AuthContext } from '@czo/auth/types'
-import type { SchemaBuilder } from '@czo/kit/graphql'
-import { NotFoundError, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
-
-interface Ctx { auth: AuthContext, request?: Request }
+import type { AuthGraphQLSchemaBuilder } from '../../.'
+import { ApiKeyNotFound, ApiKeyService, NoChanges, RefillPairRequired } from '@czo/auth/services/api-key'
+import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
+import { Effect } from 'effect'
 
 // ─── API Key Mutations ────────────────────────────────────────────────────────
 
-export function registerApiKeyMutations(builder: SchemaBuilder): void {
+export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void {
   // ── createApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('createApiKey', t =>
-    t.field({
-      // Returns a special object with the full key (only visible once)
-      type: 'String',
-      errors: { types: [ValidationError, UnauthenticatedError] },
-      args: {
-        input: t.arg({ type: 'CreateApiKeyInput', required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { input: { name: string, expiresIn?: number, prefix?: string, remaining?: number, refillAmount?: number, refillInterval?: number, rateLimitEnabled?: boolean, rateLimitTimeWindow?: number, rateLimitMax?: number } }, ctx: Ctx) => {
-        const authUser = ctx.auth?.user
-        if (!authUser)
-          throw new UnauthenticatedError()
+  builder.relayMutationField(
+    'createApiKey',
+    {
+      inputFields: t => ({
+        owner: t.field({ type: 'ApiKeyOwnerInput', required: true }),
+        name: t.string({ required: true }),
+        group: t.string({ required: true }),
+        prefix: t.string({ required: true }),
+        expiresIn: t.int({ required: false }),
+        remaining: t.int({ required: false }),
+        refillAmount: t.int({ required: false }),
+        refillInterval: t.int({ required: false }),
+        rateLimitEnabled: t.boolean({ required: false }),
+        rateLimitTimeWindow: t.int({ required: false }),
+        rateLimitMax: t.int({ required: false }),
+      }),
+    },
+    {
+      errors: { types: [ValidationError, UnauthenticatedError, RefillPairRequired] },
+      authScopes: (_parent, args, _ctx) => ({
+        apiKeyOwner: {
+          ownerType: args.input.owner.type,
+          ownerId: Number(decodeGlobalID(args.input.owner.id).id),
+          action: 'create' as const,
+        },
+      }),
+      resolve: async (_root, { input }, ctx) => {
+        const owner = input.owner
 
-        const result = await ctx.auth.apiKeyService.create(
-          { ...args.input, userId: authUser.id },
-          ctx.request?.headers ?? new Headers(),
+        const reference = owner.type === 'USER' ? 'user' : 'organization'
+        const referenceId = Number(decodeGlobalID(owner.id).id)
+        const { owner: _owner, ...rest } = input
+
+        const apiKey = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ApiKeyService
+            return yield* svc.create(
+              {
+                ...rest,
+                referenceId,
+                refillAmount: input.refillAmount ?? undefined,
+                refillInterval: input.refillInterval ?? undefined,
+                rateLimitEnabled: input.rateLimitEnabled ?? undefined,
+                rateLimitTimeWindow: input.rateLimitTimeWindow ?? undefined,
+                rateLimitMax: input.rateLimitMax ?? undefined,
+              },
+              { reference },
+            )
+          }),
         )
-        if (!result)
-          throw new NotFoundError('ApiKey', 'created')
 
-        // TODO(events): publish ApiKeyCreated via ApiKeyEvents when the
-        // domain bus exists.
-
-        // Return the full key string (only available at creation time)
-        return (result as any).key ?? result.id
+        return { apiKey, plain: null as string | null }
       },
-    }))
-
-  // ── deleteApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('deleteApiKey', t =>
-    t.field({
-      type: 'Boolean',
-      errors: { types: [NotFoundError, UnauthenticatedError] },
-      args: {
-        id: t.arg.id({ required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { id: string }, ctx: Ctx) => {
-        if (!ctx.auth?.user)
-          throw new UnauthenticatedError()
-
-        await ctx.auth.apiKeyService.remove(String(args.id), ctx.request?.headers ?? new Headers())
-        return true
-      },
-    }))
+    },
+    {
+      outputFields: t => ({
+        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey }),
+        plain: t.string({ nullable: true, resolve: p => p.plain }),
+      }),
+    },
+  )
 
   // ── updateApiKey ──────────────────────────────────────────────────────────
-  builder.mutationField('updateApiKey', t =>
-    t.field({
-      type: 'ApiKey',
-      errors: { types: [ValidationError, NotFoundError, UnauthenticatedError] },
-      args: {
-        id: t.arg.id({ required: true }),
-        input: t.arg({ type: 'UpdateApiKeyInput', required: true }),
-      },
-      authScopes: { loggedIn: true },
-      resolve: async (_root: unknown, args: { id: string, input: { name?: string, enabled?: boolean, remaining?: number, expiresIn?: number, refillAmount?: number, refillInterval?: number, rateLimitEnabled?: boolean, rateLimitTimeWindow?: number, rateLimitMax?: number } }, ctx: Ctx) => {
-        if (!ctx.auth?.user)
-          throw new UnauthenticatedError()
+  builder.relayMutationField(
+    'updateApiKey',
+    {
+      inputFields: t => ({
+        id: t.id({ required: true }),
+        name: t.string({ required: false }),
+        enabled: t.boolean({ required: false }),
+        remaining: t.int({ required: false }),
+        expiresIn: t.int({ required: false }),
+        refillAmount: t.int({ required: false }),
+        refillInterval: t.int({ required: false }),
+        rateLimitEnabled: t.boolean({ required: false }),
+        rateLimitTimeWindow: t.int({ required: false }),
+        rateLimitMax: t.int({ required: false }),
+      }),
+    },
+    {
+      errors: { types: [ValidationError, UnauthenticatedError, ApiKeyNotFound, NoChanges, RefillPairRequired] },
+      authScopes: (_parent, args, _ctx) => ({
+        apiKeyOwner: {
+          keyId: Number(decodeGlobalID(args.input.id).id),
+          action: 'update' as const,
+        },
+      }),
+      resolve: async (_root, { input }, ctx) => {
+        const keyId = Number(decodeGlobalID(input.id).id)
 
-        const result = await ctx.auth.apiKeyService.update(
-          { keyId: String(args.id), ...args.input },
-          ctx.request?.headers ?? new Headers(),
+        const apiKey = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ApiKeyService
+            const { id: _id, ...patch } = input
+            return yield* svc.update(keyId, patch)
+          }),
         )
-        if (!result)
-          throw new NotFoundError('ApiKey', String(args.id))
-        return result
+
+        return { apiKey }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey }),
+      }),
+    },
+  )
+
+  // ── removeApiKey ──────────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'removeApiKey',
+    {
+      inputFields: t => ({
+        id: t.id({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [UnauthenticatedError, ApiKeyNotFound] },
+      authScopes: (_parent, args, _ctx) => ({
+        apiKeyOwner: {
+          keyId: Number(decodeGlobalID(args.input.id).id),
+          action: 'delete' as const,
+        },
+      }),
+      resolve: async (_root, { input }, ctx) => {
+        const keyId = Number(decodeGlobalID(input.id).id)
+
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ApiKeyService
+            return yield* svc.remove(keyId)
+          }),
+        )
+
+        return { success: true }
+      },
+    },
+    {
+      outputFields: t => ({
+        success: t.boolean({ resolve: p => p.success }),
+      }),
+    },
+  )
 }

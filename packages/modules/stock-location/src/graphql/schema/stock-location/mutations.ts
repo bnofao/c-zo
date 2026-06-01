@@ -1,145 +1,282 @@
-import type { SchemaBuilder } from '@czo/kit/graphql'
-import type { StockLocationService, UpdateStockLocationInput } from '../../../services/stock-location.service'
+import type { StockLocationGraphQLSchemaBuilder } from '@czo/stock-location/graphql'
 import { OptimisticLockError } from '@czo/kit/db'
-import { ConflictError, NotFoundError, ValidationError } from '@czo/kit/graphql'
-import { useContainer } from '@czo/kit/ioc'
-import { generateHandle } from '../../../services/stock-location.service'
-import { createStockLocationSchema } from './inputs'
+import { decodeGlobalID, ValidationError } from '@czo/kit/graphql'
+import { Effect } from 'effect'
+import z from 'zod'
+import {
+  generateHandle,
+  StockLocationService,
+} from '../../../services/stock-location'
+import { loadOrganizationId } from './authz'
+import { HandleTaken, StockLocationNotFound } from './errors'
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-
-async function getService(): Promise<StockLocationService> {
-  const container = useContainer()
-  return container.make('stockLocation:service')
-}
+const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {
+  message: 'Handle must be lowercase letters, digits, or hyphens only',
+}).max(100)
 
 // ─── Stock Location Mutations ─────────────────────────────────────────────────
 
-export function registerStockLocationMutations(builder: SchemaBuilder): void {
+export function registerStockLocationMutations(builder: StockLocationGraphQLSchemaBuilder): void {
   // ── createStockLocation ───────────────────────────────────────────────────
-  builder.mutationField('createStockLocation', t =>
-    t.field({
-      type: 'StockLocation',
-      errors: { types: [ValidationError, ConflictError] },
-      args: {
-        input: t.arg({ type: 'CreateStockLocationInput', required: true }),
-      },
-      authScopes: { permission: { resource: 'stock-location', actions: ['create'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const raw = args.input as { name: string, handle?: string | null, organizationId?: { id: string } | string | null }
-        const parsed = createStockLocationSchema.safeParse({
-          ...raw,
-          organizationId: (raw.organizationId as { id: string } | null | undefined)?.id ?? raw.organizationId,
-          handle: raw.handle ?? generateHandle(raw.name),
-        })
-        if (!parsed.success)
-          throw ValidationError.fromZod(parsed.error as any)
+  builder.relayMutationField(
+    'createStockLocation',
+    {
+      inputFields: t => ({
+        organizationId: t.field({ type: 'ID', required: true }),
+        name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()) }),
+        handle: t.string({ validate: handleSchema.optional() }),
+        isDefault: t.boolean(),
+        isActive: t.boolean(),
+        metadata: t.field({ type: 'JSONObject' }),
+        address: t.field({ type: 'CreateStockLocationAddressInput' }),
+      }),
+    },
+    {
+      errors: { types: [ValidationError, HandleTaken] },
+      authScopes: (_parent, args) => ({
+        permission: {
+          resource: 'stock-location',
+          actions: ['create'],
+          organization: Number(decodeGlobalID(args.input.organizationId).id),
+        },
+      }),
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const handle = input.handle ?? generateHandle(input.name)
 
-        const service = await getService()
-        const existing = await service.findByHandle(
-          parsed.data.organizationId,
-          parsed.data.handle!,
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.create({
+              ...input,
+              organizationId: Number(orgId),
+              handle,
+              address: input.address
+                ? {
+                    ...input.address,
+                    addressLine1: input.address.addressLine1 ?? undefined,
+                    city: input.address.city ?? undefined,
+                    countryCode: input.address.countryCode ?? undefined,
+                  }
+                : undefined,
+            })
+          }),
         )
-        if (existing) {
-          throw new ConflictError(
-            'StockLocation',
-            'handle',
-            `Handle '${parsed.data.handle}' already exists in organization`,
-          )
-        }
-        return service.create(parsed.data as any)
+        return { stockLocation }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 
   // ── updateStockLocation ───────────────────────────────────────────────────
-  builder.mutationField('updateStockLocation', t =>
-    t.field({
-      type: 'StockLocation',
-      errors: { types: [ValidationError, NotFoundError, OptimisticLockError] },
-      args: {
-        id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
-        version: t.arg.int({ required: true }),
-        input: t.arg({ type: 'UpdateStockLocationInput', required: true }),
+  builder.relayMutationField(
+    'updateStockLocation',
+    {
+      inputFields: t => ({
+        id: t.field({ type: 'ID', required: true }),
+        version: t.int({ required: true }),
+        name: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional() }),
+        handle: t.string({ validate: handleSchema.optional() }),
+        metadata: t.field({ type: 'JSONObject' }),
+        address: t.field({ type: 'UpdateStockLocationAddressInput' }),
+      }),
+    },
+    {
+      errors: { types: [ValidationError, StockLocationNotFound, OptimisticLockError] },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
       },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const id = (args.id as { id: string }).id
-        const version = args.version as number
-        const input = args.input as UpdateStockLocationInput
-        const service = await getService()
-        const existing = await service.find(Number(id))
-        if (!existing)
-          throw new NotFoundError('StockLocation', id)
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id } = decodeGlobalID(input.id)
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.update(Number(id), input.version, {
+              name: input.name ?? undefined,
+              handle: input.handle ?? undefined,
+              metadata: input.metadata,
+              address: input.address
+                ? {
+                    ...input.address,
+                    addressLine1: input.address.addressLine1 ?? undefined,
+                    city: input.address.city ?? undefined,
+                    countryCode: input.address.countryCode ?? undefined,
+                  }
+                : undefined,
+            })
+          }),
+        )
+        return { stockLocation }
+      },
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 
-        return service.update(Number(id), version, input)
+  // ── deleteStockLocation (soft delete) ─────────────────────────────────────
+  builder.relayMutationField(
+    'deleteStockLocation',
+    {
+      inputFields: t => ({
+        id: t.field({ type: 'ID', required: true }),
+        version: t.int({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['delete'], organization } }
       },
-    }))
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id } = decodeGlobalID(input.id)
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.softDelete(Number(id), input.version)
+          }),
+        )
+        return { stockLocation }
+      },
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 
-  // ── deleteStockLocation ───────────────────────────────────────────────────
-  builder.mutationField('deleteStockLocation', t =>
-    t.field({
-      type: 'StockLocation',
-      errors: { types: [NotFoundError, OptimisticLockError] },
-      args: {
-        id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
-        version: t.arg.int({ required: true }),
+  // ── forceDeleteStockLocation (hard delete, cascades) ──────────────────────
+  builder.relayMutationField(
+    'forceDeleteStockLocation',
+    {
+      inputFields: t => ({
+        id: t.field({ type: 'ID', required: true }),
+        version: t.int({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['delete'], organization } }
       },
-      authScopes: { permission: { resource: 'stock-location', actions: ['delete'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const id = (args.id as { id: string }).id
-        const version = args.version as number
-        const service = await getService()
-        const existing = await service.find(Number(id))
-        if (!existing)
-          throw new NotFoundError('StockLocation', id)
-
-        return service.softDelete(Number(id), version)
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id } = decodeGlobalID(input.id)
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.delete(Number(id), input.version)
+          }),
+        )
+        return { stockLocation }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 
   // ── setStockLocationStatus ────────────────────────────────────────────────
-  builder.mutationField('setStockLocationStatus', t =>
-    t.field({
-      type: 'StockLocation',
-      errors: { types: [NotFoundError, OptimisticLockError] },
-      args: {
-        id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
-        version: t.arg.int({ required: true }),
-        isActive: t.arg.boolean({ required: true }),
+  builder.relayMutationField(
+    'setStockLocationStatus',
+    {
+      inputFields: t => ({
+        id: t.field({ type: 'ID', required: true }),
+        version: t.int({ required: true }),
+        isActive: t.boolean({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
       },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const id = (args.id as { id: string }).id
-        const version = args.version as number
-        const isActive = args.isActive as boolean
-        const service = await getService()
-        const existing = await service.find(Number(id))
-        if (!existing)
-          throw new NotFoundError('StockLocation', id)
-
-        return service.setStatus(Number(id), version, isActive)
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id } = decodeGlobalID(input.id)
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.setStatus(Number(id), input.version, input.isActive)
+          }),
+        )
+        return { stockLocation }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 
   // ── setDefaultStockLocation ───────────────────────────────────────────────
-  builder.mutationField('setDefaultStockLocation', t =>
-    t.field({
-      type: 'StockLocation',
-      errors: { types: [NotFoundError, OptimisticLockError] },
-      args: {
-        id: t.arg.globalID({ required: true, for: ['StockLocation'] }),
-        version: t.arg.int({ required: true }),
+  builder.relayMutationField(
+    'setDefaultStockLocation',
+    {
+      inputFields: t => ({
+        id: t.field({ type: 'ID', required: true }),
+        version: t.int({ required: true }),
+      }),
+    },
+    {
+      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      authScopes: async (_parent, args, ctx) => {
+        const organization = await loadOrganizationId(ctx, args.input.id)
+        // Unknown id → require auth and defer to the service's NotFound (404),
+        // rather than masking existence as a 403 (org-permission needs an org).
+        if (organization == null)
+          return { auth: true }
+        return { permission: { resource: 'stock-location', actions: ['update'], organization } }
       },
-      authScopes: { permission: { resource: 'stock-location', actions: ['update'] } },
-      resolve: async (_root: unknown, args: Record<string, unknown>) => {
-        const id = (args.id as { id: string }).id
-        const version = args.version as number
-        const service = await getService()
-        const existing = await service.find(Number(id))
-        if (!existing)
-          throw new NotFoundError('StockLocation', id)
-
-        return service.setDefault(Number(id), version)
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const { id } = decodeGlobalID(input.id)
+        const stockLocation = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* StockLocationService
+            return yield* svc.setDefault(Number(id), input.version)
+          }),
+        )
+        return { stockLocation }
       },
-    }))
+    },
+    {
+      outputFields: t => ({
+        stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation }),
+      }),
+    },
+  )
 }

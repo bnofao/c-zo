@@ -1,4 +1,6 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({
@@ -21,6 +23,7 @@ export const users = pgTable('users', {
 
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { precision: 6, withTimezone: true }).notNull(),
+  deletedAt: timestamp('deleted_at', { precision: 6, withTimezone: true }),
 })
 
 export const sessions = pgTable('sessions', {
@@ -41,11 +44,19 @@ export const sessions = pgTable('sessions', {
 
   // Uuser impersonation
   impersonatedBy: text('impersonated_by'),
+  parentToken: text('parent_token').references(
+    (): AnyPgColumn => sessions.token,
+    { onDelete: 'cascade' },
+  ),
 
   expiresAt: timestamp('expires_at', { precision: 6, withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { precision: 6, withTimezone: true }).notNull(),
-})
+}, table => [
+  index('idx_sessions_parent_token')
+    .on(table.parentToken)
+    .where(sql`${table.parentToken} IS NOT NULL`),
+])
 
 export const accounts = pgTable('accounts', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({
@@ -115,7 +126,11 @@ export const invitations = pgTable('invitations', {
   expiresAt: timestamp('expires_at', { precision: 6, withTimezone: true }).notNull(),
   inviterId: integer('inviter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { precision: 6, withTimezone: true }).notNull(),
-})
+}, table => [
+  uniqueIndex('invitations_org_email_pending_uniq')
+    .on(table.organizationId, table.email)
+    .where(sql`${table.status} = 'pending'`),
+])
 
 export const twoFactor = pgTable('two_factors', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({
@@ -168,3 +183,23 @@ export type SessionSchema = typeof sessions
 export type OrganizationSchema = typeof organizations
 export type MemberSchema = typeof members
 export type ApiKeySchema = typeof apikeys
+
+// Register these tables into the kit's global `SchemaRegistryShape`, so the
+// relations builder (`@czo/auth/relations`) and `db.query.*` are typed against
+// them. This augmentation lives next to the table definitions — NOT in a
+// standalone file — so it travels with every import of the schema and applies
+// in downstream packages (apps/life, @czo/stock-location), whose compilation
+// only pulls files reachable through the import graph.
+declare module '@czo/kit/db' {
+  interface SchemaRegistryShape {
+    users: typeof users
+    sessions: typeof sessions
+    accounts: typeof accounts
+    verifications: typeof verifications
+    organizations: typeof organizations
+    members: typeof members
+    invitations: typeof invitations
+    twoFactor: typeof twoFactor
+    apikeys: typeof apikeys
+  }
+}

@@ -1,6 +1,4 @@
-import type { createAccessControl, Role, Subset } from 'better-auth/plugins/access'
-import type { Effect } from 'effect'
-import { Context, Data } from 'effect'
+import { Context, Data, Effect, Layer } from 'effect'
 
 // ─── Core types ──────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ export interface AccessHierarchyProvider<
 
 export interface RoleBuilder<S extends Statements> {
   statements: S
-  ac: ReturnType<typeof createAccessControl<S>>
+  ac: AccessControl<S>
   createHierarchy: <const N extends string>(
     hierarchy: { name: N, permissions: RolePermissions<S> }[],
   ) => Record<N, AccessRole<S>>
@@ -64,8 +62,59 @@ export function mergePermissions<S extends Statements>(
   return merged as { [K in keyof S]?: S[K][number][] }
 }
 
+// ─── Forked from better-auth/plugins/access (drop-in surface) ────────
+
+export interface AuthorizeResult { success: boolean, error: string | null }
+
+function authorizePermissions<S extends Statements>(
+  granted: RolePermissions<S> | null | undefined,
+  required: RolePermissions<S>,
+  connector: 'AND' | 'OR' = 'AND',
+): AuthorizeResult {
+  if (!granted)
+    return { success: false, error: 'No permissions granted' }
+  for (const [resource, actions] of Object.entries(required) as [string, string[]][]) {
+    const grantedActions = (granted as Record<string, string[]>)[resource]
+    if (!grantedActions)
+      return { success: false, error: `Missing resource: ${resource}` }
+    const hasAll = actions.every(a => grantedActions.includes(a))
+    const hasAny = actions.some(a => grantedActions.includes(a))
+    if (connector === 'AND' && !hasAll)
+      return { success: false, error: `Missing actions on ${resource}` }
+    if (connector === 'OR' && !hasAny)
+      return { success: false, error: `No matching action on ${resource}` }
+  }
+  return { success: true, error: null }
+}
+
+export interface Role<S extends Statements = Statements> {
+  readonly statements: RolePermissions<S>
+  readonly authorize: (
+    required: RolePermissions<S>,
+    connector?: 'AND' | 'OR',
+  ) => AuthorizeResult
+}
+
+export interface AccessControl<S extends Statements> {
+  readonly statements: S
+  readonly newRole: (permissions: RolePermissions<S>) => Role<S>
+}
+
+export function createAccessControl<const S extends Statements>(
+  statements: S,
+): AccessControl<S> {
+  return {
+    statements,
+    newRole: permissions => ({
+      statements: permissions,
+      authorize: (required, connector = 'AND') =>
+        authorizePermissions(permissions, required, connector),
+    }),
+  }
+}
+
 export function roleBuilder<const S extends Statements>(
-  ac: ReturnType<typeof createAccessControl<S>>,
+  ac: AccessControl<S>,
 ): RoleBuilder<S> {
   return {
     statements: ac.statements,
@@ -75,9 +124,7 @@ export function roleBuilder<const S extends Statements>(
       let accumulated: RolePermissions<S> = {}
       for (const level of hierarchy) {
         accumulated = mergePermissions<S>(accumulated, level.permissions)
-        // Subset<keyof S, S> is structurally equivalent to S at instantiation,
-        // but TS can't prove it at the generic level — safe to cast.
-        roles[level.name] = ac.newRole(accumulated as Subset<keyof S, S>) as unknown as AccessRole<S>
+        roles[level.name] = ac.newRole(accumulated)
       }
       return roles
     },
@@ -131,11 +178,11 @@ export type AccessRegistryError
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
 export interface BuiltRoles {
-  readonly ac: ReturnType<typeof createAccessControl<Statements>>
+  readonly ac: AccessControl<Statements>
   readonly roles: Record<string, AccessRole>
 }
 
-export class AccessService extends Context.Tag('@czo/auth/AccessService')<
+export class AccessService extends Context.Service<
   AccessService,
   {
     readonly register: <S extends Statements>(
@@ -157,5 +204,174 @@ export class AccessService extends Context.Tag('@czo/auth/AccessService')<
      * effect — calling twice rebuilds from the current statements/hierarchies.
      */
     readonly buildRoles: Effect.Effect<BuiltRoles>
+
+    /**
+     * Ad-hoc role-permission check: does `granted` cover `required`?
+     *
+     * Delegates to the local `authorizePermissions` helper (forked from
+     * better-auth's `role(granted).authorize(...)` set-inclusion algorithm,
+     * MIT). The full registered roles/hierarchies surface (`role`, `roles`,
+     * `buildRoles`) also uses the local fork — `@czo/auth` no longer depends
+     * on `better-auth/plugins/access` at runtime.
+     */
+    readonly authorize: (
+      granted: RolePermissions<Statements> | null | undefined,
+      required: RolePermissions<Statements>,
+      connector?: 'AND' | 'OR',
+    ) => Effect.Effect<boolean>
+
+    readonly checkPermission: (
+      role: string,
+      permissions: Record<string, string[]>,
+      acRole: (role: string) => Effect.Effect<AccessRole | undefined>,
+      connector?: 'AND' | 'OR',
+    ) => Effect.Effect<boolean>
   }
->() {}
+>()('@czo/auth/AccessService') {}
+
+// ─── Layer ───────────────────────────────────────────────────────────
+
+/** Initial access provider options the registry is seeded with at construction. */
+export type InitialAccessOptions = readonly AccessProviderOption<Statements>[]
+
+/**
+ * Parameterized layer — seed the access registry and optionally freeze it at
+ * boot.
+ */
+export function makeLayer(
+  initialOptions: InitialAccessOptions = [],
+  freezeOnInit = false,
+): Layer.Layer<AccessService> {
+  return Layer.sync(AccessService, () => {
+    const _statements = new Map<string, readonly string[]>()
+    const _hierarchies = new Map<string, AccessHierarchyProvider>()
+    const _providers = new Map<string, AccessStatementProvider>()
+
+    // Compile every registered hierarchy into the `_providers` role cache that
+    // `role` / `roles` / `checkPermission` read. Called at EVERY mutation point
+    // (seed + `register`) so the cache always reflects ALL registered domains —
+    // including ones added late via `register` (e.g. stock-location's `onStart`,
+    // which runs long after the auth services were constructed). Previously this
+    // only ran inside `buildRoles` at service-construction time, so domains
+    // registered afterwards were invisible and their permission checks denied.
+    const recompileProviders = (): BuiltRoles => {
+      const ac = createAccessControl(Object.fromEntries(_statements.entries()))
+      const builder = roleBuilder(ac)
+      let roles: Record<string, AccessRole> = {}
+      for (const [name, hierarchy] of _hierarchies.entries()) {
+        const _roles = builder.createHierarchy(hierarchy.hierarchy as any)
+        roles = Object.assign(roles, _roles)
+        _providers.set(name, { name, roles: _roles })
+      }
+      return { ac, roles }
+    }
+
+    // Seed from initialOptions. Duplicate detection mirrors the runtime
+    // `register` checks: same provider name, same hierarchy name, or same
+    // statement resource across providers all throw — these are boot-time
+    // configuration errors, so failing fast at construction is correct.
+    for (const option of initialOptions) {
+      if (_hierarchies.has(option.name))
+        throw new Error(`Roles hierarchy for "${option.name}" is already registered`)
+      for (const resource of Object.keys(option.statements)) {
+        if (_statements.has(resource))
+          throw new Error(`Statement resource "${resource}" is already registered`)
+      }
+      for (const [resource, permissions] of Object.entries(option.statements))
+        _statements.set(resource, permissions as readonly string[])
+      _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
+    }
+    // recompileProviders()
+
+    let frozen = freezeOnInit
+
+    const authorize = (
+      granted: RolePermissions<Statements> | null | undefined,
+      required: RolePermissions<Statements>,
+      connector: 'AND' | 'OR' = 'AND',
+    ) =>
+      Effect.sync(() => authorizePermissions(granted, required, connector).success)
+
+    return AccessService.of({
+      register: option =>
+        Effect.gen(function* () {
+          if (frozen)
+            return yield* Effect.fail(new AccessRegistryFrozen({ subject: `statements "${option.name}"` }))
+          if (_providers.has(option.name))
+            return yield* Effect.fail(new StatementProviderAlreadyRegistered({ providerName: option.name }))
+          if (_hierarchies.has(option.name))
+            return yield* Effect.fail(new RolesHierarchyAlreadyRegistered({ providerName: option.name }))
+
+          for (const resource of Object.keys(option.statements)) {
+            if (_statements.has(resource))
+              return yield* Effect.fail(new StatementResourceAlreadyRegistered({ resource }))
+          }
+
+          for (const [resource, permissions] of Object.entries(option.statements))
+            _statements.set(resource, permissions as readonly string[])
+
+          _hierarchies.set(option.name, { name: option.name, hierarchy: option.hierarchy })
+          // Keep the role cache in sync so this domain's roles are immediately
+          // visible to `role` / `roles` / `checkPermission` at request time —
+          // without waiting for a (now removed) construction-time `buildRoles`.
+          // recompileProviders()
+        }),
+
+      providers: Effect.sync(() => [..._providers.values()]),
+
+      hierarchies: Effect.sync(() => [..._hierarchies.values()]),
+
+      role: name =>
+        Effect.sync(() => {
+          for (const provider of _providers.values()) {
+            if (name in provider.roles)
+              return provider.roles[name]
+          }
+          return undefined
+        }),
+
+      roles: Effect.sync(() => {
+        const map: Record<string, AccessRole> = {}
+        for (const provider of _providers.values()) {
+          for (const [roleName, role] of Object.entries(provider.roles))
+            map[roleName] = role
+        }
+        return map
+      }),
+
+      statements: Effect.sync(() => Object.fromEntries(_statements.entries())),
+
+      freeze: Effect.sync(() => {
+        frozen = true
+      }),
+
+      isFrozen: Effect.sync(() => frozen),
+
+      // Recompile and return the full role set. The cache is already kept in
+      // sync at seed + `register`, so this is a pure read for callers that want
+      // the `{ ac, roles }` shape — no longer the only path that populates
+      // `_providers`, and no longer needed at service construction.
+      buildRoles: Effect.sync((): BuiltRoles => recompileProviders()),
+
+      authorize,
+      checkPermission: (role, permissions, acRoleFunc, connector = 'AND') =>
+        Effect.gen(function* () {
+          if (!permissions)
+            return false
+          const roleNames = role.split(',')
+          for (const r of roleNames) {
+            const acRole = yield* acRoleFunc(r)
+            if (!acRole)
+              continue
+            const ok = yield* authorize(acRole.statements, permissions, connector)
+            if (ok)
+              return true
+          }
+          return false
+        }),
+    })
+  })
+}
+
+/** Default layer — empty, unfrozen registry. */
+export const layer = makeLayer()

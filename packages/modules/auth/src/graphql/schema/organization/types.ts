@@ -1,42 +1,19 @@
 // Organization sub-module — Pothos type definitions
 //
 // Relations available (relations.ts): none for organizations/members/invitations.
-// These tables are better-auth managed and do not appear in authRelations.
-// Member and Invitation are exposed as plain objectRefs (not drizzleNode) since
-// they aren't referenced by globalID in the API. Organization uses drizzleNode
-// for Relay node support since app-schema.graphql already treated it as a Node.
+// All three are exposed as drizzleNode (Relay nodes with global IDs).
+// FK columns (organizationId, userId, inviterId) are exposed as `ID!` since
+// they're identifiers; clients can resolve them to nodes via `node(id: ...)`
+// once a global ID encoder is wired for these tables.
 
-export function registerOrganizationTypes(builder: any): void {
-  // ── Member type ───────────────────────────────────────────────────────────
-  (builder as any).objectRef('Member').implement({
-    fields: (t: any) => ({
-      id: t.id({ resolve: (m: any) => m.id }),
-      organizationId: t.string({ resolve: (m: any) => m.organizationId }),
-      userId: t.string({ resolve: (m: any) => m.userId }),
-      role: t.string({ resolve: (m: any) => m.role }),
-      createdAt: t.field({ type: 'DateTime', resolve: (m: any) => m.createdAt }),
-    }),
-  });
+import type { AuthGraphQLSchemaBuilder } from '../../index'
 
-  // ── Invitation type ───────────────────────────────────────────────────────
-  (builder as any).objectRef('Invitation').implement({
-    fields: (t: any) => ({
-      id: t.id({ resolve: (i: any) => i.id }),
-      organizationId: t.string({ resolve: (i: any) => i.organizationId }),
-      email: t.string({ resolve: (i: any) => i.email }),
-      role: t.string({ resolve: (i: any) => i.role }),
-      status: t.string({ resolve: (i: any) => i.status }),
-      inviterId: t.string({ resolve: (i: any) => i.inviterId }),
-      expiresAt: t.field({ type: 'DateTime', resolve: (i: any) => i.expiresAt }),
-      createdAt: t.field({ type: 'DateTime', resolve: (i: any) => i.createdAt }),
-    }),
-  });
-
+export function registerOrganizationTypes(builder: AuthGraphQLSchemaBuilder): void {
   // ── Organization node ─────────────────────────────────────────────────────
-  (builder as any).drizzleNode('organizations', {
+  builder.drizzleNode('organizations', {
     name: 'Organization',
-    id: { column: (o: any) => o.id },
-    fields: (t: any) => ({
+    id: { column: o => o.id },
+    fields: t => ({
       name: t.exposeString('name'),
       slug: t.exposeString('slug'),
       logo: t.exposeString('logo', { nullable: true }),
@@ -44,6 +21,33 @@ export function registerOrganizationTypes(builder: any): void {
       metadata: t.exposeString('metadata', { nullable: true }),
       createdAt: t.expose('createdAt', { type: 'DateTime' }),
       updatedAt: t.expose('updatedAt', { type: 'DateTime', nullable: true }),
+    }),
+  })
+
+  // ── Member node ───────────────────────────────────────────────────────────
+  builder.drizzleNode('members', {
+    name: 'Member',
+    id: { column: m => m.id },
+    fields: t => ({
+      organizationId: t.exposeID('organizationId'),
+      userId: t.exposeID('userId'),
+      role: t.exposeString('role'),
+      createdAt: t.expose('createdAt', { type: 'DateTime' }),
+    }),
+  })
+
+  // ── Invitation node ───────────────────────────────────────────────────────
+  builder.drizzleNode('invitations', {
+    name: 'Invitation',
+    id: { column: i => i.id },
+    fields: t => ({
+      organizationId: t.exposeID('organizationId'),
+      email: t.exposeString('email'),
+      role: t.exposeString('role', { nullable: true }),
+      status: t.exposeString('status'),
+      inviterId: t.exposeID('inviterId'),
+      expiresAt: t.expose('expiresAt', { type: 'DateTime' }),
+      createdAt: t.expose('createdAt', { type: 'DateTime' }),
     }),
   })
 }

@@ -15,26 +15,18 @@ export default defineBuildConfig({
   entries: [
     'src/index',
     'src/module/index',
+    'src/email/index',
+    'src/openapi/index',
     'src/graphql/index',
     'src/db/index',
-    'src/db/effect',
-    'src/effect/index',
-    'src/ioc/index',
-    'src/cache/index',
-    'src/event-bus/index',
-    'src/telemetry/index',
-    'src/queue/index',
-    'src/nitro/index',
-    'src/plugins/index',
     'src/testing/index',
   ],
   externals: [
-    'nitropack',
-    'nitropack/runtime',
-    'nitro',
-    'nitro/runtime',
-    'nitro/runtime-config',
     'unimport',
+    // Test-only dep used by `src/testing/*`; a devDep, so unbuild won't
+    // auto-externalize it. Keep it external — `@czo/kit/testing` is only
+    // ever imported from test suites, where the dep is present.
+    '@testcontainers/postgresql',
     'graphql',
     'graphql-middleware',
     '@graphql-tools/utils',
@@ -50,5 +42,8 @@ export default defineBuildConfig({
     'bullmq',
     'ioredis',
     'citty',
+    // Types-only dep used via `import type` in `src/openapi/*`; keep it
+    // external so unbuild emits the type reference instead of bundling.
+    'openapi-types',
   ],
 })

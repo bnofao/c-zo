@@ -1,30 +1,17 @@
 import type { Relations } from '@czo/auth/relations'
-import type { Organization, OrganizationInvitation, OrganizationMember, User } from '@czo/auth/services'
+import type { ApiKey, Organization, User } from '@czo/auth/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
-import './context-factory'
+import type { ResolvedSession } from '../services/session'
+import type { SessionRow } from '../services/user'
+import type { ApiKeyOwnerInput } from './schema/api-key/inputs'
 
 export { registerAuthSchema } from './schema'
 export { authScopes } from './scopes'
 
 export type AuthGraphQLSchemaBuilder = SchemaBuilder<Relations>
 export interface AuthContext {
-  // accountService: AccountService
-  // sessionService: SessionService
-  // twoFactorService: TwoFactorService
-  // apiKeyService: ApiKeyService
-  // appService: AppService
-  /**
-   * App-wide Effect ManagedRuntime built by the @czo/kit plugin after czo:boot
-   * (auth contributes its Layer via `registerEffectLayer`). Resolvers pass it
-   * to `runEffect(ctx.auth.runtime, …)` to execute Effect-based services (e.g.
-   * ApiKeyService) and have failures rejected as the original tagged error so
-   * Pothos's errors plugin can route them.
-   */
-  runtime: ReturnType<typeof import('@czo/kit/effect').useRuntime>
-  /** better-auth session — narrowed when needed */
-  session: any
-  /** better-auth user — narrowed when needed */
-  user?: any
+  session: ResolvedSession['session'] | null
+  user?: ResolvedSession['user']
 }
 
 declare module '@czo/kit/graphql' {
@@ -35,20 +22,28 @@ declare module '@czo/kit/graphql' {
   interface BuilderSchemaInputs {
     UserWhereInput: UserWhereInput
     UserOrderByInput: OrderByInput<'email' | 'name' | 'createdAt'>
+    ApiKeyOwnerInput: ApiKeyOwnerInput
   }
 
   interface BuilderSchemaObjects {
-    User: User
-    Organization: Organization
-    Member: OrganizationMember
-    Invitation: OrganizationInvitation
+    User: User.User
+    Organization: Organization.Organization
+    Member: Organization.OrganizationMember
+    Invitation: Organization.OrganizationInvitation
+    ApiKey: ApiKey.ApiKey
+    Session: SessionRow
   }
 
   interface BuilderAuthScopes {
+    auth: boolean
     permission: {
       resource: string
       actions: string[]
+      organization?: number
     }
+    apiKeyOwner:
+      | { keyId: number, action: 'update' | 'delete' }
+      | { ownerType: 'USER' | 'ORGANIZATION', ownerId: number, action: 'create' }
   }
 
   interface SchemaBuilderRefs {

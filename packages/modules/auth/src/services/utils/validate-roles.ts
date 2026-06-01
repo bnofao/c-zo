@@ -1,7 +1,7 @@
 import type { AccessRole } from '../access'
 
 export function validateRole(role: string | string[], roles?: Record<string, AccessRole>) {
-  const _roles = Array.isArray(role) ? role : [role]
+  const _roles = Array.isArray(role) ? role : role.split(',').map(r => r.trim())
 
   for (const role of _roles) {
     if (roles && !roles[role])

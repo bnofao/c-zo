@@ -1,10 +1,16 @@
 import type { Relations } from '@czo/auth/relations'
 import type { ApiKeySchema } from '@czo/auth/schema'
 import type { Database } from '@czo/kit/db'
-import type { Awaitable } from 'better-auth'
 import type { InferSelectModel } from 'drizzle-orm'
-import type { Effect } from 'effect'
-import { Context, Data } from 'effect'
+import { apikeys } from '@czo/auth/schema'
+import { DrizzleDb } from '@czo/kit/db'
+import { and, eq, sql } from 'drizzle-orm'
+import { Context, Data, Effect, Layer } from 'effect'
+import { AccessService } from './access'
+import { ApiKeyEvents } from './events/api-key'
+import { randomString, sha256Hex } from './utils/crypto'
+
+type Awaitable<T> = T | Promise<T>
 
 // ─── Tagged errors (also serve as Pothos GraphQL errors via registerError) ───
 
@@ -49,11 +55,6 @@ export class UsageExceeded extends Data.TaggedError('UsageExceeded') {
   get message() { return 'API key usage quota exceeded' }
 }
 
-export class Intrusion extends Data.TaggedError('Intrusion') {
-  readonly code = 'INTRUSION'
-  get message() { return 'Access denied: caller is not allowed to operate on this resource' }
-}
-
 export class ApiKeyNotFound extends Data.TaggedError('ApiKeyNotFound') {
   readonly code = 'API_KEY_NOT_FOUND'
   get message() { return 'API key not found' }
@@ -79,7 +80,7 @@ export class DbFailed extends Data.TaggedError('DbFailed')<{
 export type ApiKeyError
   = | InvalidApiKey | KeyDisabled | KeyExpired | Unauthorized
     | RateLimited | Misconfigured | UsageExceeded
-    | Intrusion | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
+    | ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface CreateApiKeyInput {
@@ -99,17 +100,17 @@ interface CreateApiKeyInput {
 }
 
 interface UpdateApiKeyInput {
-  name?: string
-  enabled?: boolean
+  name?: string | null
+  enabled?: boolean | null
   remaining?: number | null
   metadata?: any
   expiresIn?: number | null
   permissions?: Record<string, string[]> | null
-  refillAmount?: number
-  refillInterval?: number
-  rateLimitEnabled?: boolean
-  rateLimitTimeWindow?: number
-  rateLimitMax?: number
+  refillAmount?: number | null
+  refillInterval?: number | null
+  rateLimitEnabled?: boolean | null
+  rateLimitTimeWindow?: number | null
+  rateLimitMax?: number | null
 }
 
 export type ApiKey = InferSelectModel<ApiKeySchema>
@@ -123,9 +124,9 @@ export interface KeyHasher {
 }
 
 export interface CreateApiKeyOptions {
-  /** Custom key generator. Defaults to a length-based random hex string. */
+  /** Custom key generator. Defaults to a length-based random alphanumeric string. */
   keyGenerator?: KeyGenerator
-  /** Custom hasher. Defaults to better-auth's `defaultKeyHasher` (sha256). */
+  /** Custom hasher. Defaults to `sha256Hex` from `./utils/crypto`. */
   keyHasher?: KeyHasher
   rateLimit?: {
     maxRequests?: number
@@ -135,44 +136,13 @@ export interface CreateApiKeyOptions {
   keyLength?: number
   reference?: string
   startCharsLength?: number
-  session: {
-    userId: number
-  }
-}
-
-export interface FindOneOptions {
-  session: {
-    userId: number
-  }
-}
-
-export interface FindManyOptions {
-  session: {
-    userId: number
-  }
-}
-
-export interface UpdateApiKeyOptions {
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
 }
 
 export interface VerifyApiKeyOptions {
   /** Required permissions, e.g. `{ users: ['read', 'write'] }`. Subset check against `apiKey.permissions`. */
   permissions?: Record<string, string[]>
-  /** Custom hasher for `verify` (plain → hashed). Defaults to better-auth's `defaultKeyHasher` (sha256). */
+  /** Custom hasher for `verify` (plain → hashed). Defaults to `sha256Hex` from `./utils/crypto`. */
   keyHasher?: KeyHasher
-}
-
-export interface RemoveApiKeyOptions {
-  reference?: string
-  referenceId?: number
-  session: {
-    userId: number
-  }
 }
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
@@ -180,29 +150,26 @@ export interface RemoveApiKeyOptions {
 type FindFirstConfig = Parameters<Database<Relations>['query']['apikeys']['findFirst']>[0]
 type FindManyConfig = Parameters<Database<Relations>['query']['apikeys']['findMany']>[0]
 
-export class ApiKeyService extends Context.Tag('@czo/auth/ApiKeyService')<
+export class ApiKeyService extends Context.Service<
   ApiKeyService,
   {
     readonly findFirst: (
-      opts: FindOneOptions,
       config?: FindFirstConfig,
-    ) => Effect.Effect<ApiKey, ApiKeyNotFound | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, ApiKeyNotFound | DbFailed>
 
     readonly findMany: (
-      opts: FindManyOptions,
       config?: FindManyConfig,
-    ) => Effect.Effect<readonly ApiKey[], Intrusion | DbFailed>
+    ) => Effect.Effect<readonly ApiKey[], DbFailed>
 
     readonly create: (
       input: CreateApiKeyInput,
       opts: CreateApiKeyOptions,
-    ) => Effect.Effect<ApiKey, RefillPairRequired | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, RefillPairRequired | DbFailed>
 
     readonly update: (
       id: number,
       input: UpdateApiKeyInput,
-      opts: UpdateApiKeyOptions,
-    ) => Effect.Effect<ApiKey, ApiKeyNotFound | NoChanges | RefillPairRequired | Intrusion | DbFailed>
+    ) => Effect.Effect<ApiKey, ApiKeyNotFound | NoChanges | RefillPairRequired | DbFailed>
 
     readonly validate: (
       hashedKey: string,
@@ -224,7 +191,284 @@ export class ApiKeyService extends Context.Tag('@czo/auth/ApiKeyService')<
 
     readonly remove: (
       id: number,
-      opts: RemoveApiKeyOptions,
-    ) => Effect.Effect<boolean, ApiKeyNotFound | Intrusion | DbFailed>
+    ) => Effect.Effect<boolean, ApiKeyNotFound | DbFailed>
   }
->() {}
+>()('@czo/auth/ApiKeyService') {}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+const defaultKeyGenerator: KeyGenerator = ({ length, prefix }) => {
+  const hex = randomString(length, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  return prefix ? `${prefix}_${hex}` : hex
+}
+
+const defaultKeyHasher: KeyHasher = (key: string) => sha256Hex(key)
+
+// ─── Layer ───────────────────────────────────────────────────────────
+
+type ApiKeyServiceImpl = Context.Service.Shape<typeof ApiKeyService>
+
+const make = Effect.gen(function* () {
+  // The kit's DrizzleDb Tag exposes the bare `Database` type. We narrow to
+  // `Database<Relations>` here so RQBv2 query inference (`db.query.apikeys.…`)
+  // matches the auth schema. The runtime client is the same — only the static
+  // type changes.
+  const db = (yield* DrizzleDb) as Database<Relations>
+  const access = yield* AccessService
+  const events = yield* ApiKeyEvents
+
+  const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+    eff.pipe(Effect.mapError(cause => new DbFailed({ cause })))
+
+  // `validate` is a closure const so `verify` can call it. Typed once via
+  // `ApiKeyServiceImpl['validate']`; the other methods get contextual typing
+  // from the `ApiKeyService.of({ ... })` literal below.
+  const validate: ApiKeyServiceImpl['validate'] = (hashedKey, opts) =>
+    Effect.gen(function* () {
+      const apiKey = yield* dbErr(db.query.apikeys.findFirst({ where: { key: hashedKey } }))
+      if (!apiKey)
+        return yield* Effect.fail(new InvalidApiKey())
+
+      if (!apiKey.enabled)
+        return yield* Effect.fail(new KeyDisabled())
+
+      const nowDate = new Date()
+      const nowMs = nowDate.getTime()
+
+      if (apiKey.expiresAt && apiKey.expiresAt.getTime() < nowMs)
+        return yield* Effect.fail(new KeyExpired({ keyId: apiKey.id }))
+
+      if (opts?.permissions) {
+        const granted = (apiKey.permissions ?? {}) as Record<string, string[]>
+        const allowed = yield* access.authorize(granted, opts.permissions)
+        if (!allowed)
+          return yield* Effect.fail(new Unauthorized())
+      }
+
+      if (apiKey.rateLimitEnabled) {
+        const windowMs = apiKey.rateLimitTimeWindow
+        const max = apiKey.rateLimitMax
+        if (windowMs !== null && max !== null) {
+          if (windowMs <= 0 || max <= 0) {
+            return yield* Effect.fail(new Misconfigured({
+              reason: 'rateLimitTimeWindow and rateLimitMax must be > 0 when rateLimitEnabled is true',
+            }))
+          }
+          const elapsed = nowMs - (apiKey.lastRequest?.getTime() ?? 0)
+          const inWindow = apiKey.lastRequest !== null && elapsed < windowMs
+          const currentCount = apiKey.requestCount ?? 0
+          if (inWindow && currentCount >= max)
+            return yield* Effect.fail(new RateLimited({ tryAgainIn: Math.ceil(windowMs - elapsed) }))
+        }
+      }
+
+      const refillDue = sql`(
+        ${apikeys.refillInterval} IS NOT NULL
+        AND ${apikeys.refillAmount} IS NOT NULL
+        AND EXTRACT(EPOCH FROM (${nowDate}::timestamptz - COALESCE(${apikeys.lastRefillAt}, ${apikeys.createdAt}))) * 1000 > ${apikeys.refillInterval}
+      )`
+
+      const [updated] = yield* dbErr(db.update(apikeys)
+        .set({
+          remaining: sql`CASE
+            WHEN ${apikeys.remaining} IS NULL THEN NULL
+            WHEN ${refillDue} THEN ${apikeys.refillAmount} - 1
+            ELSE ${apikeys.remaining} - 1
+          END`,
+          lastRefillAt: sql`CASE
+            WHEN ${refillDue} THEN ${nowDate}::timestamptz
+            ELSE ${apikeys.lastRefillAt}
+          END`,
+          lastRequest: nowDate,
+          requestCount: sql`CASE
+            WHEN ${apikeys.rateLimitEnabled} IS NOT TRUE
+              OR ${apikeys.rateLimitTimeWindow} IS NULL
+              OR ${apikeys.rateLimitMax} IS NULL
+              THEN COALESCE(${apikeys.requestCount}, 0)
+            WHEN ${apikeys.lastRequest} IS NULL
+              OR EXTRACT(EPOCH FROM (${nowDate}::timestamptz - ${apikeys.lastRequest})) * 1000 > ${apikeys.rateLimitTimeWindow}
+              THEN 1
+            ELSE COALESCE(${apikeys.requestCount}, 0) + 1
+          END`,
+          updatedAt: nowDate,
+        })
+        .where(and(
+          eq(apikeys.id, apiKey.id),
+          sql`(
+            ${apikeys.remaining} IS NULL
+            OR ${apikeys.remaining} > 0
+            OR (${refillDue} AND ${apikeys.refillAmount} > 0)
+          )`,
+        ))
+        .returning())
+
+      if (!updated)
+        return yield* Effect.fail(new UsageExceeded())
+      return updated
+    })
+
+  return ApiKeyService.of({
+    findFirst: config =>
+      Effect.gen(function* () {
+        const data = yield* dbErr(db.query.apikeys.findFirst(config))
+        if (!data)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        return data
+      }),
+
+    findMany: config =>
+      Effect.gen(function* () {
+        const rows = yield* dbErr(db.query.apikeys.findMany(config))
+        return rows
+      }),
+
+    create: (input, opts) =>
+      Effect.gen(function* () {
+        const reference = opts.reference ?? 'user'
+        const keyLength = opts.keyLength ?? 64
+        const startCharsLength = opts.startCharsLength ?? 6
+        const rateLimit = opts.rateLimit ?? {
+          maxRequests: 10,
+          timeWindow: 1000 * 60 * 60 * 24,
+        }
+
+        if ((input.refillAmount && !input.refillInterval) || (input.refillInterval && !input.refillAmount))
+          return yield* Effect.fail(new RefillPairRequired())
+
+        const generator = opts.keyGenerator ?? defaultKeyGenerator
+        const hasher = opts.keyHasher ?? defaultKeyHasher
+        const key = yield* Effect.promise(async () =>
+          generator({ length: keyLength, prefix: input.prefix }))
+        const hashedKey = yield* Effect.promise(async () => hasher(key))
+        const start = key.substring(0, startCharsLength)
+        const expiresAt = input.expiresIn ? new Date(Date.now() + input.expiresIn * 1000) : null
+        const remaining = input.remaining ?? input.refillAmount ?? null
+        const now = new Date()
+
+        const [row] = yield* dbErr(db.insert(apikeys).values({
+          configId: input.group,
+          name: input.name,
+          prefix: input.prefix,
+          start,
+          key: hashedKey,
+          referenceId: input.referenceId,
+          reference,
+          rateLimitEnabled: input.rateLimitEnabled ?? true,
+          rateLimitTimeWindow: input.rateLimitTimeWindow ?? rateLimit.timeWindow,
+          rateLimitMax: input.rateLimitMax ?? rateLimit.maxRequests,
+          remaining,
+          refillAmount: input.refillAmount,
+          refillInterval: input.refillInterval,
+          expiresAt,
+          permissions: input.permissions,
+          metadata: input.metadata,
+          createdAt: now,
+          updatedAt: now,
+        }).returning())
+
+        if (!row)
+          return yield* Effect.fail(new DbFailed({ cause: 'insert returned no row' }))
+
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'ApiKeyCreated',
+          keyId: row.id,
+          name: row.name ?? input.name,
+          prefix: row.prefix ?? input.prefix,
+          reference: row.reference,
+          referenceId: row.referenceId,
+        }))
+
+        return { ...row, key }
+      }),
+
+    update: (id, input) =>
+      Effect.gen(function* () {
+        // Fetch key first to derive reference/referenceId for the DB-level
+        // integrity .where clause below — not an auth check.
+        const existing = yield* dbErr(db.query.apikeys.findFirst({ where: { id } }))
+        if (!existing)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        const reference = existing.reference
+        const referenceId = existing.referenceId
+
+        if ((input.refillAmount !== undefined && input.refillInterval === undefined)
+          || (input.refillInterval !== undefined && input.refillAmount === undefined)) {
+          return yield* Effect.fail(new RefillPairRequired())
+        }
+
+        const { expiresIn, ...rest } = input
+        const patch: Record<string, unknown> = { ...rest }
+        if (expiresIn !== undefined) {
+          patch.expiresAt = expiresIn === null
+            ? null
+            : new Date(Date.now() + expiresIn * 1000)
+        }
+
+        const hasChanges = Object.values(patch).some(v => v !== undefined)
+        if (!hasChanges)
+          return yield* Effect.fail(new NoChanges())
+
+        const changes = { ...patch }
+        patch.updatedAt = new Date()
+
+        const [updated] = yield* dbErr(db.update(apikeys)
+          .set(patch as Partial<typeof apikeys.$inferInsert>)
+          .where(and(
+            eq(apikeys.id, id),
+            eq(apikeys.reference, reference),
+            eq(apikeys.referenceId, referenceId),
+          ))
+          .returning())
+
+        if (!updated)
+          return yield* Effect.fail(new ApiKeyNotFound())
+
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'ApiKeyUpdated',
+          keyId: updated.id,
+          reference: updated.reference,
+          referenceId: updated.referenceId,
+          changes,
+        }))
+
+        return updated
+      }),
+
+    validate,
+
+    verify: (plainKey, opts) =>
+      Effect.gen(function* () {
+        if (!plainKey)
+          return yield* Effect.fail(new InvalidApiKey())
+        const hasher = opts?.keyHasher ?? defaultKeyHasher
+        const hashed = yield* Effect.promise(async () => hasher(plainKey))
+        return yield* validate(hashed, opts)
+      }),
+
+    remove: id =>
+      Effect.gen(function* () {
+        // Fetch key first to derive reference/referenceId for the DB-level
+        // integrity .where clause below — not an auth check.
+        const existing = yield* dbErr(db.query.apikeys.findFirst({ where: { id } }))
+        if (!existing)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        const reference = existing.reference
+        const referenceId = existing.referenceId
+
+        const [deleted] = yield* dbErr(db.delete(apikeys)
+          .where(and(
+            eq(apikeys.id, id),
+            eq(apikeys.reference, reference),
+            eq(apikeys.referenceId, referenceId),
+          ))
+          .returning({ id: apikeys.id }))
+
+        if (!deleted)
+          return yield* Effect.fail(new ApiKeyNotFound())
+        return true
+      }),
+  })
+})
+
+/** Live layer. */
+export const layer = Layer.effect(ApiKeyService, make)

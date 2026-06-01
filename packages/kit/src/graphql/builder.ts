@@ -1,6 +1,6 @@
-import type { Database, RelationsEntry } from '@czo/kit/db'
+import type { RelationsEntry } from '@czo/kit/db'
 import type { GraphQLSchema } from 'graphql'
-import type { GraphQLContextMap } from './context'
+import type { Database } from '../db'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
 import DrizzlePlugin from '@pothos/plugin-drizzle'
@@ -10,10 +10,12 @@ import ScopeAuthPlugin from '@pothos/plugin-scope-auth'
 import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-validation'
 import { getTableConfig } from 'drizzle-orm/pg-core'
+import { Context, Effect, Layer } from 'effect'
+import { DateTimeResolver, JSONObjectResolver } from 'graphql-scalars'
 import z from 'zod'
+import { DrizzleDb } from '../db'
 import { ValidationError } from './errors'
 import { registerErrorTypes } from './errors/builders'
-import { DateTimeResolver, JSONObjectResolver } from './scalars'
 
 export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
   db: Database
@@ -34,6 +36,20 @@ export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Pa
   Inputs: BuilderSchemaInputs
   Objects: BuilderSchemaObjects
   AuthScopes: BuilderAuthScopes
+  DefaultFieldNullability: false
+  DefaultInputFieldRequiredness: false
+}
+
+export interface GraphQLContextMap {
+  request: Request
+  runEffect: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A>
+  /**
+   * Queue an already-serialized `Set-Cookie` header value to flush onto the
+   * HTTP response Yoga sends. Cookies cannot be set via the h3 event: Yoga owns
+   * the Node response and never flushes `event.res`. A kit `onResponse` plugin
+   * appends every queued value to the outgoing response headers.
+   */
+  setCookie: (serialized: string) => void
 }
 
 export interface BuilderSchemaObjects {
@@ -57,17 +73,61 @@ export interface BuilderSchemaInputs {
 // The `<DB, Relations, Ctx>` phantom parameters are preserved for forward-compatibility —
 // they're not yet threaded into Pothos's SchemaTypes (cascading constraint issues), but
 // the signatures remain stable for when consumers provide concrete types in follow-up PRs.
-export type SchemaBuilder<Relations extends RelationsEntry = RelationsEntry> = ReturnType<typeof initBuilder<Relations>>
+export type SchemaBuilder<Relations extends RelationsEntry = RelationsEntry> = ReturnType<typeof setupBuilder<Relations>>
 
-// Module-level state — single contribution registry.
-const authScopeContributions: Array<(builder: any) => Record<string, any>> = []
-const contributions: Array<(builder: any) => void> = []
-let built = false
+export class GraphQLBuilder extends Context.Service<GraphQLBuilder, {
+  // readonly contributions: Effect.Effect<ReadonlyArray<(builder: SchemaBuilder) => void>>
+  // readonly authScope: Effect.Effect<ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>>
+  readonly buildContext: (systemContext: unknown) => Effect.Effect<GraphQLContextMap, unknown, any>
+  readonly buildSchema: () => Effect.Effect<GraphQLSchema, never, DrizzleDb>
+}>()('@czo/kit/GraphQLBuilder') {}
 
-export function initBuilder<Relations extends RelationsEntry>(
-  opts: SchemaBuilderOptions<Relations>,
+export function makeGraphQLBuilder(
+  contributions: ReadonlyArray<(builder: SchemaBuilder) => void>,
+  contexts: ReadonlyArray<(systemContext: unknown) => Effect.Effect<Partial<GraphQLContextMap>, unknown, any>>,
+  authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
+  relations: RelationsEntry,
+) {
+  return Layer.effect(
+    GraphQLBuilder,
+    Effect.gen(function* () {
+      return GraphQLBuilder.of({
+        // contributions: Effect.succeed(contributions ?? []),
+        // authScope: Effect.succeed(authScope ?? []),
+        buildContext: (systemContext: unknown) => Effect.gen(function* () {
+          const parts = yield* Effect.all(contexts.map(ctx => ctx(systemContext)), { concurrency: 'unbounded' })
+          return Object.assign({}, ...parts)
+        }),
+        buildSchema: () =>
+          Effect.gen(function* () {
+            const db = yield* DrizzleDb
+            const builder = setupBuilder(db, relations, authScope)
+
+            stringFilterInputRef(builder)
+            booleanFilterInputRef(builder)
+            dateTimeFilterInputRef(builder)
+            dateFilterInputRef(builder)
+            timeFilterInputRef(builder)
+            intFilterInputRef(builder)
+            floatFilterInputRef(builder)
+            idFilterInputRef(builder)
+
+            for (const contribute of contributions) contribute(builder)
+
+            return builder.toSchema()
+          }),
+      })
+    }),
+  )
+}
+
+function setupBuilder<Relations extends RelationsEntry>(
+  db: Database,
+  relations: Relations,
+  authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
 ) {
   const builder = new PothosSchemaBuilder<BuilderSchemaTypes<Relations>>({
+    defaultFieldNullability: false,
     plugins: [
       DrizzlePlugin,
       RelayPlugin,
@@ -77,32 +137,29 @@ export function initBuilder<Relations extends RelationsEntry>(
       TracingPlugin,
       // ...(opts.extraPlugins ?? []),
     ],
-    drizzle: { client: opts.db as any, getTableConfig: getTableConfig as any },
+    // The drizzle plugin's model-loader is promise-based (`query.then(...)`), so
+    // it gets the node-postgres `$promise` view (same pool); the effect-postgres
+    // `db` stays the resolvers' client via `ctx.runEffect`. Falls back to `db`
+    // for lightweight test layers that don't build a `$promise` view.
+    drizzle: { client: (db.$promise ?? db) as any, getTableConfig: getTableConfig as any, relations },
     relay: { clientMutationId: 'omit', cursorType: 'String' },
-    errors: { 
+    errors: {
       unsafelyHandleInputErrors: true,
       defaultResultOptions: {
-        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Success`,
+        name: ({ fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Success`,
       },
       defaultUnionOptions: {
-        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Result`,
+        name: ({ fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Result`,
       },
     },
     validation: {
       validationError: result => ValidationError.fromStandardSchema(result),
     },
     scopeAuth: {
-      authScopes: async (ctx: any) => ({
-        permission: async ({ resource, actions }: { resource: string, actions: string[] }) =>
-          ctx?.auth?.authService?.hasPermission?.(
-            { userId: ctx?.auth?.user?.id, organizationId: ctx?.auth?.session?.activeOrganizationId },
-            { [resource]: actions },
-          ) ?? false,
-        ...buildAuthScopes(ctx),
-      }),
+      authScopes: async ctx => Object.assign({}, ...authScope.map(scope => scope(ctx))),
     },
     tracing: {
-      default: (config: any) => isRootField(config),
+      default: config => isRootField(config),
       wrap: (resolver: any, _options: any, fieldConfig: any) => async (...args: any[]) => {
         const tracer = trace.getTracer('graphql')
         return tracer.startActiveSpan(
@@ -122,7 +179,7 @@ export function initBuilder<Relations extends RelationsEntry>(
         )
       },
     },
-    ...(opts.extraPluginOptions ?? {}),
+    // ...(opts.extraPluginOptions ?? {}),
   })
 
   // Scalars
@@ -138,41 +195,6 @@ export function initBuilder<Relations extends RelationsEntry>(
   registerErrorTypes(builder)
 
   return builder
-}
-
-export function registerAuthScopes(
-  scopes: (ctx: GraphQLContextMap) => Record<string, any>,
-): void {
-  authScopeContributions.push(scopes)
-}
-
-function buildAuthScopes(ctx: GraphQLContextMap) {
-  const authScopes = authScopeContributions.map(contribute => contribute(ctx))
-  return Object.assign({}, ...authScopes)
-}
-
-export function registerSchema<Relations extends RelationsEntry>(
-  contribute: (builder: SchemaBuilder<Relations>) => void,
-): void {
-  contributions.push(contribute)
-}
-
-export function buildSchema(builder: any): GraphQLSchema {
-  if (built)
-    throw new Error('Schema already built — buildSchema() called twice')
-
-  stringFilterInputRef(builder)
-  booleanFilterInputRef(builder)
-  dateTimeFilterInputRef(builder)
-  dateFilterInputRef(builder)
-  timeFilterInputRef(builder)
-  intFilterInputRef(builder)
-  floatFilterInputRef(builder)
-  idFilterInputRef(builder)
-
-  for (const contribute of contributions) contribute(builder)
-  built = true
-  return builder.toSchema()
 }
 
 // export function registerSchemaBuilderRefs<Relations extends RelationsEntry>(
@@ -191,6 +213,46 @@ export function buildSchema(builder: any): GraphQLSchema {
 //   FloatFilterInput: ReturnType<typeof floatFilterInputRef<Relations>>
 //   IDFilterInput: ReturnType<typeof idFilterInputRef<Relations>>
 // }
+
+function _logicalFilterSchema<T extends z.ZodObject>(schema: T) {
+  return {
+    get OR() { return z.array(schema).optional().nullable() },
+    get AND() { return z.array(schema).optional().nullable() },
+    get NOT() { return schema.optional().nullable() },
+  }
+}
+
+// function stringFilterSchema() {
+//   return z.object({
+//     eq: z.string().optional().nullable(),
+//     ne: z.string().optional().nullable(),
+//     like: z.string().optional().nullable(),
+//     ilike: z.string().optional().nullable(),
+//     notLike: z.string().optional().nullable(),
+//     notIlike: z.string().optional().nullable(),
+//     in: z.array(z.string()).optional().nullable(),
+//     notIn: z.array(z.string()).optional().nullable(),
+//   })
+// }
+
+const stringFilterSchema = z.object({
+  eq: z.string().optional(),
+  ne: z.string().optional(),
+  like: z.string().optional(),
+  ilike: z.string().optional(),
+  notLike: z.string().optional(),
+  notIlike: z.string().optional(),
+  in: z.array(z.string()).optional(),
+  notIn: z.array(z.string()).optional(),
+  get OR() { return z.array(stringFilterSchema).optional() },
+  get AND() { return z.array(stringFilterSchema).optional() },
+  get NOT() { return stringFilterSchema.optional() },
+})
+
+// const cool = stringFilterSchema(true)
+// const coool = cool.extend(logicalFilterSchema(cool))
+
+type _ok = z.infer<typeof stringFilterSchema>
 
 interface LogicalFilter<T> {
   OR?: T[] | null
@@ -412,12 +474,6 @@ function idFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuild
     }),
   })
   return ref
-}
-
-// For testing only — resets module state so tests can build multiple times.
-export function _resetBuilderState(): void {
-  contributions.length = 0
-  built = false
 }
 
 export const orderDirectionSchema = z.enum({
