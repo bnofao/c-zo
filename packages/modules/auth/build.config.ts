@@ -1,6 +1,6 @@
 import { defineBuildConfig } from 'unbuild'
 
-const dirImport = {
+const _dirImport = {
   addRelativeDeclarationExtensions: true,
   // eslint-disable-next-line node/prefer-global/process
   ext: process.env.NODE_ENV === 'development' ? 'ts' : 'js',

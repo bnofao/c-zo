@@ -663,7 +663,7 @@ const make = Effect.gen(function* () {
           return yield* Effect.fail(new MemberNotFound())
 
         const creatorRole = scope?.creatorRole ?? 'owner'
-        const newRoles = typeof input.role === 'string' ? input.role.split(',').map((r) => r.trim()) : input.role
+        const newRoles = typeof input.role === 'string' ? input.role.split(',').map(r => r.trim()) : input.role
         const settingCreatorRole = newRoles.includes(creatorRole)
         const updatingCreator = (existing.role as string).split(',').includes(creatorRole)
 

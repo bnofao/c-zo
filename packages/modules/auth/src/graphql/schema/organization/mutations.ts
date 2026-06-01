@@ -69,7 +69,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
               ...input,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
               userId: Number(authUser.id),
-            }, { role: 'org:owner'})
+            }, { role: 'org:owner' })
           }),
         )
         return { organization: result }

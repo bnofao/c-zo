@@ -6,14 +6,14 @@
 //
 // Cross-module ref: StockLocation.organization resolves via auth:organizations service.
 
-import { StockLocationGraphQLSchemaBuilder } from "../..";
+import type { StockLocationGraphQLSchemaBuilder } from '../..'
 
 export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBuilder): void {
   // ── StockLocationAddress node ──────────────────────────────────────────────
   builder.drizzleNode('stockLocationAddresses', {
     name: 'StockLocationAddress',
-    id: { column: (a) => a.id },
-    fields: (t) => ({
+    id: { column: a => a.id },
+    fields: t => ({
       addressLine1: t.exposeString('addressLine1'),
       addressLine2: t.exposeString('addressLine2', { nullable: true }),
       city: t.exposeString('city'),
@@ -27,10 +27,10 @@ export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBu
   })
 
   // ── StockLocation node ─────────────────────────────────────────────────────
-  ;builder.drizzleNode('stockLocations', {
+  builder.drizzleNode('stockLocations', {
     name: 'StockLocation',
-    id: { column: (l) => l.id },
-    fields: (t) => ({
+    id: { column: l => l.id },
+    fields: t => ({
       handle: t.exposeString('handle'),
       name: t.exposeString('name'),
       isDefault: t.exposeBoolean('isDefault'),
@@ -38,7 +38,7 @@ export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBu
       metadata: t.field({
         type: 'JSONObject',
         nullable: true,
-        resolve: (l) => l.metadata as Record<string, unknown> | null,
+        resolve: l => l.metadata as Record<string, unknown> | null,
       }),
       createdAt: t.expose('createdAt', { type: 'DateTime' }),
       updatedAt: t.expose('updatedAt', { type: 'DateTime' }),

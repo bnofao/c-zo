@@ -35,7 +35,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
       phone: t.string(),
     }),
   })
-  
+
   builder.inputType('UpdateStockLocationAddressInput', {
     validate: stockLocationAddressSchema.partial(),
     fields: t => ({
