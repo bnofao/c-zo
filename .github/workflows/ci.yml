@@ -36,7 +36,8 @@ jobs:
     strategy:
       matrix:
         node: [lts/*]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Testcontainers needs a Docker runtime, only available on Linux runners.
+        os: [ubuntu-latest]
       fail-fast: false
 
     steps:
