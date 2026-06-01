@@ -6,8 +6,8 @@ import { Duration, Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
 import { ADMIN_HIERARCHY, ADMIN_STATEMENTS } from '../plugins/access'
+import { seededAccessLayer } from '../testing/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
-import * as Access from './access'
 import * as Cookie from './cookie'
 import * as AuthEventsMod from './events/auth'
 import * as UserEventsMod from './events/user'
@@ -23,7 +23,7 @@ const cookieLayer = Cookie.layer({
   attributes: { httpOnly: true, sameSite: 'lax', secure: false, path: '/', maxAge: 604800 },
 })
 
-const AccessSeedLayer = Access.makeLayer(
+const AccessSeedLayer = seededAccessLayer(
   [{ name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY }],
   true,
 )

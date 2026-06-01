@@ -146,10 +146,10 @@ function setupBuilder<Relations extends RelationsEntry>(
     errors: {
       unsafelyHandleInputErrors: true,
       defaultResultOptions: {
-        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Success`,
+        name: ({ fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Success`,
       },
       defaultUnionOptions: {
-        name: ({ parentTypeName, fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Result`,
+        name: ({ fieldName }) => `${fieldName[0]?.toUpperCase() + fieldName.slice(1)}Result`,
       },
     },
     validation: {
@@ -214,7 +214,7 @@ function setupBuilder<Relations extends RelationsEntry>(
 //   IDFilterInput: ReturnType<typeof idFilterInputRef<Relations>>
 // }
 
-function logicalFilterSchema<T extends z.ZodObject>(schema: T) {
+function _logicalFilterSchema<T extends z.ZodObject>(schema: T) {
   return {
     get OR() { return z.array(schema).optional().nullable() },
     get AND() { return z.array(schema).optional().nullable() },
@@ -252,7 +252,7 @@ const stringFilterSchema = z.object({
 // const cool = stringFilterSchema(true)
 // const coool = cool.extend(logicalFilterSchema(cool))
 
-type ok = z.infer<typeof stringFilterSchema>
+type _ok = z.infer<typeof stringFilterSchema>
 
 interface LogicalFilter<T> {
   OR?: T[] | null

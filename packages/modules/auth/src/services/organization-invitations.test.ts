@@ -4,8 +4,8 @@ import { eq } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { invitations, members, organizations, users } from '../database/schema'
 import { ORGANIZATION_HIERARCHY, ORGANIZATION_STATEMENTS } from '../plugins/access'
+import { seededAccessLayer } from '../testing/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
-import * as Access from './access'
 import * as OrganizationEvents from './events/organization'
 import * as Organization from './organization'
 
@@ -15,7 +15,7 @@ const { OrganizationService } = Organization
 // with the organization domain so role validation (`org:*` roles) passes.
 const TestLayer = Organization.layer.pipe(
   Layer.provide(Layer.mergeAll(
-    Access.makeLayer(
+    seededAccessLayer(
       [{ name: 'organization', statements: ORGANIZATION_STATEMENTS, hierarchy: ORGANIZATION_HIERARCHY }] as never,
       true,
     ),

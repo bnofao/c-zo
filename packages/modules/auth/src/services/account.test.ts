@@ -8,8 +8,8 @@ import { Duration, Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, members, organizations, users, verifications } from '../database/schema'
 import { ADMIN_HIERARCHY, ADMIN_STATEMENTS } from '../plugins/access'
+import { seededAccessLayer } from '../testing/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
-import * as Access from './access'
 import * as Account from './account'
 import * as Cookie from './cookie'
 import * as AuthEventsMod from './events/auth'
@@ -20,7 +20,7 @@ import * as User from './user'
 
 // ─── Test layer composition ───────────────────────────────────────────────
 
-const AccessSeedLayer = Access.makeLayer(
+const AccessSeedLayer = seededAccessLayer(
   [{ name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY }],
   true,
 )
