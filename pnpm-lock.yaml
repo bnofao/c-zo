@@ -268,6 +268,11 @@ catalogs:
       specifier: ^19.1.7
       version: 19.2.3
 
+patchedDependencies:
+  '@pothos/plugin-relay@4.7.0':
+    hash: 1dff438443e4f131507e4eec73e80a21fa7b1f9f3ccd017ff3f1a40cde165f84
+    path: patches/@pothos__plugin-relay@4.7.0.patch
+
 importers:
 
   .:
@@ -344,6 +349,9 @@ importers:
 
   apps/life:
     dependencies:
+      '@czo/attribute':
+        specifier: workspace:*
+        version: link:../../packages/modules/attribute
       '@czo/auth':
         specifier: workspace:*
         version: link:../../packages/modules/auth
@@ -543,7 +551,7 @@ importers:
         version: 4.9.0(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)
       '@pothos/plugin-relay':
         specifier: 'catalog:'
-        version: 4.7.0(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)
+        version: 4.7.0(patch_hash=1dff438443e4f131507e4eec73e80a21fa7b1f9f3ccd017ff3f1a40cde165f84)(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)
       '@pothos/plugin-scope-auth':
         specifier: 'catalog:'
         version: 4.1.6(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)
@@ -696,6 +704,46 @@ importers:
       nitro:
         specifier: catalog:dev
         version: 3.0.260429-beta(@azure/identity@4.13.1)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6))(giget@3.2.0)(ioredis@5.10.1)(jiti@2.6.1)(rollup@4.60.2)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      vitest:
+        specifier: catalog:testing
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
+
+  packages/modules/attribute:
+    dependencies:
+      '@czo/kit':
+        specifier: workspace:*
+        version: link:../../kit
+      drizzle-orm:
+        specifier: catalog:common
+        version: 1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.70
+      zod:
+        specifier: catalog:common
+        version: 4.3.6
+    devDependencies:
+      '@czo/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.70(effect@4.0.0-beta.70)(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@testcontainers/postgresql':
+        specifier: catalog:dev
+        version: 11.14.0
+      '@vitest/coverage-v8':
+        specifier: catalog:testing
+        version: 3.2.4(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@workspace/eslint-config':
+        specifier: workspace:*
+        version: link:../../eslint-config
+      '@workspace/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      drizzle-kit:
+        specifier: catalog:dev
+        version: 1.0.0-rc.3
       vitest:
         specifier: catalog:testing
         version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
@@ -9790,7 +9838,7 @@ snapshots:
       '@pothos/core': 4.12.0(graphql@16.13.2)
       graphql: 16.13.2
 
-  '@pothos/plugin-relay@4.7.0(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)':
+  '@pothos/plugin-relay@4.7.0(patch_hash=1dff438443e4f131507e4eec73e80a21fa7b1f9f3ccd017ff3f1a40cde165f84)(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)':
     dependencies:
       '@pothos/core': 4.12.0(graphql@16.13.2)
       graphql: 16.13.2

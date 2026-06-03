@@ -133,6 +133,30 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** basse — seulement si un client non-navigateur consomme l'impersonation.
 
+### B15. Tests E2E GraphQL pour `@czo/auth` et `@czo/stock-location`
+
+**État :** le module `@czo/attribute` a désormais une suite E2E qui boote la vraie app (`[auth, attribute]`) sur Testcontainers via le harness `bootTestApp` (`@czo/kit/testing`) et tape le vrai handler fetch (`/api/auth/**` + `/graphql`), avec vraie autz — voir `packages/modules/attribute/src/e2e/` (`harness.ts` + `node-authz` / `queries` / `attribute-mutations` / `value-mutations`). `auth` et `stock-location` n'ont, eux, que des tests d'intégration **au niveau service** ; leur surface GraphQL (resolvers, décodage relay, enforcement des `authScopes`/node-guards, mapping erreur→union) n'est pas couverte E2E.
+
+**Travail :**
+- **`@czo/auth`** : suite E2E via `bootTestApp([auth])` (auth boote seul) — sign-up/in/out (REST `/api/auth/**`), puis mutations/queries org (createOrganization, invitations, membres/rôles), API keys, account flows (change-email, delete/restore), impersonation. Couvrir les paliers d'autz (permission org vs rôle global) et les refus.
+- **`@czo/stock-location`** : suite E2E via `bootTestApp([auth, stock-location])` (dépend d'auth pour l'autz) — CRUD stock-location + scoping org + refus cross-org.
+- Factoriser un harness par module sur le modèle de `attribute/src/e2e/harness.ts` (`signUp`, `gql`, `grantGlobalRole`, `createOrgWith…`), idéalement remonté dans `@czo/kit/testing` si la duplication le justifie.
+- Réutiliser le `bootTestApp` existant ; rien à construire côté infra (le harness + le registre de node-guards sont en place).
+
+**Priorité :** moyenne — comble le gap d'autz à l'exécution (les `authScopes`/node-guards d'auth et stock-location ne sont prouvés qu'au build SDL aujourd'hui).
+
+### B16. Valider le typename des global IDs (`globalID({ for })`) dans `@czo/auth` et `@czo/stock-location`
+
+**État :** `@czo/attribute` a migré tous ses inputs/args d'id relay de `t.field({ type: 'ID' })` + `decodeGlobalID(x).id` vers `t.globalID({ for })` / `t.globalIDList` / `t.arg.globalID` → le **typename est validé au bord GraphQL** (un id de mauvais type → erreur de validation, plus silencieusement décodé), et les helpers d'autz prennent des ids **numériques**. Les autres modules ont encore l'ancien pattern :
+- **`@czo/auth`** — ~50 sites `decodeGlobalID(...).id` sur 7 fichiers (`user`, `organization`, `api-key`, `impersonation` × queries+mutations). Ids tous **intra-module** (User, Organization, Session, ApiKey, Member, Invitation) → `for` résout sans couplage cross-module.
+- **`@czo/stock-location`** — ~10 sites sur 2 fichiers (`authz.ts`, `mutations.ts`). Référence `StockLocation` (intra) + `Organization` (auth, **cross-module**) → comme attribute, son test de build de schéma isolé devra builder le schéma **combiné `[auth, stock-location]`** (mirror de `buildApp`).
+
+**Caractérisation :** ce n'est **pas une élévation de privilège** (l'autz ré-autorise sur la ligne chargée ; le numérique est de toute façon contrôlé par le client ; le typename est ignoré, pas utilisé pour router) — **robustesse / défense en profondeur**. Même nature que le fix attribute.
+
+**Travail :** appliquer le pattern attribute par module — migrer les input fields/args vers `globalID({ for })`, faire prendre des numériques aux helpers d'autz (drop du decode interne), résoudre `for: 'Organization'` (déjà enregistré par auth dans le schéma combiné). **Le patch plugin requis est déjà en place** (`patches/@pothos__plugin-relay@4.7.0.patch` — `globalID({ for })` avec un nom en string crashait sans lui, cf. `reference_pothos_relay_globalid_patch`). Faire stock-location d'abord (petit, 10 sites) puis auth (gros, 50 sites + ripple helpers, mérite sa propre revue).
+
+**Priorité :** basse — défense en profondeur, pas d'exploit ; pattern + patch déjà prouvés sur attribute.
+
 ---
 
 ## Historique des items résolus

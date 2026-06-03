@@ -246,4 +246,10 @@ onlyBuiltDependencies:
   - esbuild
   - simple-git-hooks
 
+# Vendored one-line fix: @pothos/plugin-relay@4.7.0 `globalID({ for })` crashes at
+# schema build when `for` is a string type name (`'parseId' in <string>` throws);
+# the patch guards it with `typeof type === 'object'`. Remove when fixed upstream.
+patchedDependencies:
+  '@pothos/plugin-relay@4.7.0': patches/@pothos__plugin-relay@4.7.0.patch
+
 shellEmulator: true

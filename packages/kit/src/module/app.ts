@@ -1,3 +1,4 @@
+import type { DrizzleDb } from '@czo/kit/db'
 /**
  * Application bootstrap — `buildApp` (pure builder) + `runApp` (terminal runner).
  *
@@ -17,7 +18,6 @@
  * `Effect.runPromiseExit` (typically with a `port: 0` override).
  */
 import type { GraphQLContextMap } from '@czo/kit/graphql'
-import type { ConfigError } from 'effect/Config'
 import type { GraphQLSchema } from 'graphql'
 import type { YogaServerInstance } from 'graphql-yoga'
 import type { RelationsEntry, SchemaRegistryShape } from '../db'
@@ -46,6 +46,12 @@ declare module 'h3' {
 
 export interface BuildAppOptions {
   readonly modules: ReadonlyArray<Module>
+  /**
+   * Override the database layer. Production omits this (DB comes from env via
+   * `DrizzleDbLayer ⊕ DatabaseConfigFromEnv`). Tests inject a Testcontainers
+   * `DrizzleDb` so the booted app talks to an ephemeral container.
+   */
+  readonly db?: Layer.Layer<DrizzleDb, unknown, never>
   readonly httpApp?: H3 | (() => H3)
   readonly extend?: (httpApp: H3) => Effect.Effect<void, never, never>
   readonly graphQLApp?: (schema: GraphQLSchema) => YogaServerInstance<Record<string, any>, GraphQLContextMap>
@@ -79,10 +85,12 @@ export interface BuiltApp {
    * `teardown` as a finalizer, and parks on `Effect.never`. Consume
    * via `runApp` (production) or `Effect.runPromiseExit` (tests).
    *
-   * `E = ConfigError` because `DatabaseConfigFromEnv` reads env vars
-   * and can fail at layer construction.
+   * `E = unknown` because the DB layer is injectable (`options.db`): the
+   * production path fails with `ConfigError` (env-var reads in
+   * `DatabaseConfigFromEnv`), but an injected layer may surface any error,
+   * so the merged `appLayer` error channel widens to `unknown`.
    */
-  readonly program: Effect.Effect<void, ConfigError, never>
+  readonly program: Effect.Effect<void, unknown, never>
   /** Module list — exposed for logging / tooling. */
   readonly modules: ReadonlyArray<Module>
   /** Sequenced `onStart` effects, in case the caller wants to inspect. */
@@ -91,6 +99,20 @@ export interface BuiltApp {
   readonly started: Effect.Effect<void>
   /** Sequenced `onStop` effects, in case the caller wants to inspect. */
   readonly teardown: Effect.Effect<void>
+  /**
+   * Assembles the h3 fetch app (schema → Yoga → module routes → OpenAPI →
+   * extend) WITHOUT serving. `@czo/kit/testing` provides this with `appLayer`
+   * to drive requests against a Testcontainers DB: module routes via
+   * `httpApp.fetch(request)`, and GraphQL via `yoga.fetch(request)` directly
+   * (the production `fromNodeHandler` mount can't run on the web-fetch path).
+   */
+  readonly assembleApp: Effect.Effect<{ httpApp: H3, runEffect: <A, E>(e: Effect.Effect<A, E, any>) => Promise<A>, yoga: YogaServerInstance<{ pendingCookies?: string[] }, GraphQLContextMap> }, never, GraphQLBuilder | DrizzleDb>
+  /**
+   * The composed app `Layer` (module services + `DrizzleDb` + `GraphQLBuilder`).
+   * `@czo/kit/testing` can `Layer.buildWithScope(appLayer, scope)` then
+   * provide `assembleApp` with the resulting context.
+   */
+  readonly appLayer: Layer.Layer<GraphQLBuilder | DrizzleDb, unknown, never>
 }
 
 /**
@@ -133,10 +155,11 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   const graphQLContributions = options.modules.flatMap(m => m.graphql?.contribution ? [m.graphql.contribution] : [])
   const authScopes = options.modules.flatMap(m => m.graphql?.authScope ? [m.graphql.authScope] : [])
   const graphQLContexts = options.modules.flatMap(m => m.graphql?.contexts ? [m.graphql.contexts] : [])
+  const nodeGuards = Object.assign({}, ...options.modules.flatMap(m => m.graphql?.nodeGuards ? [m.graphql.nodeGuards] : []))
 
   // 4. Infrastructure layers.
   const SchemaRegistryLayer = buildSchemaRegistryLayer(dbSchemas, relations)
-  const DrizzleLayer = DrizzleDbLayer.pipe(
+  const DrizzleLayer = options.db ?? DrizzleDbLayer.pipe(
     Layer.provide(SchemaRegistryLayer),
     Layer.provide(DatabaseConfigFromEnv),
   )
@@ -145,6 +168,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     graphQLContexts,
     authScopes,
     relations,
+    nodeGuards,
   ).pipe(Layer.provide(DrizzleLayer))
 
   // Wire DrizzleLayer INTO moduleLayers so module-internal services
@@ -185,13 +209,10 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   const port = options.http?.port ?? 4000
   const hostname = options.http?.hostname ?? '127.0.0.1'
 
-  const main = Effect.gen(function* () {
-    // Run startup INSIDE the program so errors propagate and the
-    // server cannot listen before modules are ready. `onStart` phase
-    // first (registrations), then `onStarted` (finalization, e.g. freeze).
-    yield* startup
-    yield* started
-
+  // Assemble the h3 fetch app (schema → Yoga → module routes → OpenAPI →
+  // extend) WITHOUT serving. Shared by prod (`main`, which adds serve+never)
+  // and `@czo/kit/testing`'s `bootTestApp` (which drives `httpApp.fetch`).
+  const assembleApp = Effect.gen(function* () {
     // Capture the current Context so the synchronous Yoga `context`
     // callback can re-enter Effect via `Effect.runPromiseWith`.
     const appContext = yield* Effect.context<GraphQLBuilder>()
@@ -277,6 +298,18 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     if (options.extend)
       yield* options.extend(httpApp)
 
+    return { httpApp, runEffect, yoga }
+  })
+
+  const main = Effect.gen(function* () {
+    // Run startup INSIDE the program so errors propagate and the
+    // server cannot listen before modules are ready. `onStart` phase
+    // first (registrations), then `onStarted` (finalization, e.g. freeze).
+    yield* startup
+    yield* started
+
+    const { httpApp } = yield* assembleApp
+
     yield* Effect.acquireRelease(
       Effect.sync(() => serve(httpApp, { port, hostname })),
       s => Effect.promise(async () => { await s.close() }),
@@ -292,7 +325,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
 
   const program = Effect.scoped(main).pipe(Effect.provide(appLayer))
 
-  return { program, modules: options.modules, startup, started, teardown }
+  return { program, modules: options.modules, startup, started, teardown, assembleApp, appLayer }
 }
 
 const ConfigProviderLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnv()).pipe(
