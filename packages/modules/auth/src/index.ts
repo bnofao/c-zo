@@ -136,7 +136,10 @@ export default defineModule(() => {
     // from the env-backed `Config.Wrap`; all cookie tuning lives in
     // `services/cookie.ts`. SessionService also requires DrizzleDb +
     // Persistence — shared infra provided at the app surface by composeApp.
-    const sessionLayer = Session.layer.pipe(Layer.provide(Cookie.layerConfigService))
+    // `provideMerge` (not `provide`) so `CookieService` is ALSO exported to the
+    // merged module runtime: the `/api/auth/sign-out` route handler resolves it
+    // directly via `event.context.runEffect` (private `provide` → 500).
+    const sessionLayer = Session.layer.pipe(Layer.provideMerge(Cookie.layerConfigService))
 
     const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer(undefined)
 

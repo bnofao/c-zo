@@ -506,7 +506,10 @@ export const layer = Layer.effect(
           .from(members)
           .where(and(
             eq(members.userId, input.userId),
-            eq(members.role, 'owner'),
+            // Roles are stored namespaced + comma-joined (e.g. `org:owner`), so
+            // match a substring — an exact `'owner'` never matches (the org
+            // membership owner is `org:owner`). Mirrors OrganizationService.
+            like(members.role, '%owner%'),
           )),
       )
 
@@ -518,7 +521,7 @@ export const layer = Layer.effect(
               .from(members)
               .where(and(
                 eq(members.organizationId, m.organizationId),
-                eq(members.role, 'owner'),
+                like(members.role, '%owner%'),
               )),
           )
           const ownerCount = ownerCountRows[0]?.cnt ?? 0

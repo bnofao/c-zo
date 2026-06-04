@@ -112,14 +112,17 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
-        const orgId = Number(id)
+        // Strip the relay-global `id` from the spread — it must NOT reach the
+        // Drizzle `SET` (it's a string global id, the PK is an int identity, so
+        // `SET id = 'Org:..'` errors). Only the updatable fields go through.
+        const { id: globalId, ...rest } = input
+        const orgId = Number(decodeGlobalID(globalId).id)
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
             return yield* svc.update(orgId, {
-              ...input,
+              ...rest,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
             })
           }),
@@ -401,7 +404,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       authScopes: (_parent, args, _ctx) => ({
         permission: {
           resource: 'member',
-          actions: ['remove'],
+          actions: ['delete'],
           organization: Number(decodeGlobalID(args.input.organizationId).id),
         },
       }),
