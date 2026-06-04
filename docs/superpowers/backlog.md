@@ -157,6 +157,27 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** basse — défense en profondeur, pas d'exploit ; pattern + patch déjà prouvés sur attribute.
 
+### B17. Compléter la surface GraphQL `api-key` (feature inachevée SP3)
+
+**État :** révélé par les E2E B15. La surface GraphQL api-key existe (`graphql/schema/api-key/{errors,types,inputs,queries,mutations}.ts` + scope `apiKeyOwner` dans `scopes.ts`) mais est **inachevée et désactivée** :
+1. `registerApiKeySchema(builder)` est **commenté** dans `graphql/schema/index.ts` (depuis la migration Pothos #101) → aucune des mutations/queries api-key (`createApiKey`, `updateApiKey`, `removeApiKey`, `myApiKeys`, `apiKey`, `organizationApiKeys`) n'existe dans le schéma.
+2. Même activé, `createApiKey` retourne `plain: null` (`api-key/mutations.ts`) car `ApiKeyService.create` **jette le plaintext généré** (retourne seulement la ligne `ApiKey` hashée) → les clés créées sont **inutilisables** (le client ne reçoit jamais le secret).
+3. Les fichiers du schéma api-key importent leurs services via les **subpaths** `@czo/auth/services/*` (vs imports relatifs partout ailleurs) → cassent sous vitest.
+
+**Travail :** changer `ApiKeyService.create` pour retourner `{ apiKey, plain }` (le plaintext one-time), threader dans le resolver ; ré-enregistrer le schéma ; normaliser les imports en relatif. La suite E2E est **déjà écrite + vérifiée** (`packages/modules/auth/src/e2e/api-key.e2e.test.ts`, `describe.skip`, 5/6 verts schéma activé) — un-skip une fois complété.
+
+**Priorité :** moyenne — feature exposée mais non-fonctionnelle ; petit contrat de service à étendre.
+
+### B18. Relay `StockLocation` : global id depuis les mutations + node-guard org-scopé
+
+**État :** révélé par les E2E B15 (2 `it.fails` dans `stock-location.e2e.test.ts`). Deux trous relais :
+1. `createStockLocation` retourne `stockLocation.id` en **entier brut** (ex. `1`) au lieu d'un global id relay → re-injecter cet id dans `stockLocation(id:)` / `node(id:)` échoue "Invalid global ID: 1". (`StockLocation` est pourtant un `drizzleNode` avec un `id` global ; le payload de mutation expose l'id brut.)
+2. **Aucun node-guard** enregistré pour `StockLocation` (`graphql.nodeGuards`) → `node(id:)` n'est **pas scopé org** : un non-membre peut lire une stock-location d'un autre org via `node(id:)` (fuite cross-org). `attribute` enregistre des node-guards précisément pour ça (cf. `reference_kit_node_guards`).
+
+**Travail :** (1) faire exposer le global id par le payload de mutation (vérifier le champ de sortie `stockLocation` / le comportement drizzleNode en contexte mutation) ; (2) enregistrer un node-guard `StockLocation` calqué sur attribute (résout l'org via la ligne, exige `stock-location:read` sur cet org). Flip les 2 `it.fails` en tests verts.
+
+**Priorité :** moyenne — #2 est une fuite cross-org (sécurité) ; #1 rend les ids de mutation inutilisables côté client.
+
 ---
 
 ## Historique des items résolus
