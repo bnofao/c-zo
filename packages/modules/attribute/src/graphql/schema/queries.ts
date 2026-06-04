@@ -16,18 +16,13 @@ import type { Attribute as AttributeNs } from '@czo/attribute/services'
 import type { AttributeGraphQLSchemaBuilder } from '..'
 import { Attribute } from '@czo/attribute/services'
 import { Effect } from 'effect'
-import { attributePermission, attributeReadScope } from '../authz'
+import { attributePermission, attributeReadScope, decodeOrgInput } from '../authz'
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
-/** Decode the explicit `organizationId` arg (parsed relay id) to a numeric org, or null. */
-function argOrg(organizationId: { id: string } | null | undefined): number | null {
-  return organizationId != null ? Number(organizationId.id) : null
-}
-
 /** `ReadScope` from the explicit org arg (null → platform-only view). */
 function orgScope(organizationId: { id: string } | null | undefined): AttributeNs.ReadScope {
-  return { organizationId: argOrg(organizationId) }
+  return { organizationId: decodeOrgInput(organizationId) }
 }
 
 /**
@@ -38,7 +33,7 @@ function orgScope(organizationId: { id: string } | null | undefined): AttributeN
  * arg would be a cross-org read leak).
  */
 function orgAuthScope(organizationId: { id: string } | null | undefined) {
-  return attributePermission('read', argOrg(organizationId))
+  return attributePermission('read', decodeOrgInput(organizationId))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

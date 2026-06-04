@@ -36,7 +36,6 @@ import {
   attributeTextValues,
   attributeValues,
 } from '../database/schema'
-import { Attribute } from '../services'
 
 /** A column carrying the org owner of a value row. */
 type OrgColumnTable
@@ -69,8 +68,9 @@ export type ValueFamily = keyof typeof VALUE_TABLE
  *   • `null`       → platform attribute    (PLATFORM tier)
  *   • `undefined`  → no live row matches   (UNKNOWN — defer to 404)
  *
- * Uses the unscoped `findById` so the gate sees the resource regardless of the
- * caller's org; the per-org decision is made by the returned tier, not here.
+ * Projects only `organizationId` (no full-row hydration) and is unscoped so the
+ * gate sees the resource regardless of the caller's org; the per-org decision is
+ * made by the returned tier, not here. Mirrors `loadValueOrg`/`loadAttributeOrgBySlug`.
  */
 export function loadAttributeOrg(
   ctx: GraphQLContextMap,
@@ -78,10 +78,12 @@ export function loadAttributeOrg(
 ): Promise<number | null | undefined> {
   return ctx.runEffect(
     Effect.gen(function* () {
-      const svc = yield* Attribute.AttributeService
-      const row = yield* svc.findById(attributeId).pipe(
-        Effect.catchTag('AttributeNotFound', () => Effect.succeed(undefined)),
-      )
+      const db = (yield* DrizzleDb) as Database<Relations>
+      const [row] = yield* db
+        .select({ organizationId: attributes.organizationId })
+        .from(attributes)
+        .where(eq(attributes.id, attributeId))
+        .limit(1)
       // `undefined` → unknown; otherwise the row's org (`null` = platform).
       return row === undefined ? undefined : row.organizationId
     }),

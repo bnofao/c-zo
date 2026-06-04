@@ -1,5 +1,5 @@
 import type { Scope } from 'effect'
-import type { Database, RelationsEntry } from '../db'
+import type { Database } from '../db'
 /**
  * `bootTestApp` — boot a set of kit modules on an ephemeral Postgres
  * (Testcontainers) and return a FETCHABLE app: no socket, no `serve`.
@@ -20,7 +20,7 @@ import { Effect, Layer, Redacted } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import pg from 'pg'
 import { DrizzleDb } from '../db'
-import { buildApp } from '../module/app'
+import { buildApp, mergeModuleDb } from '../module/app'
 import { acquireContainerUrl } from './postgres'
 
 export interface BootTestApp {
@@ -49,13 +49,8 @@ export function bootTestApp(options: BootTestAppOptions): Effect.Effect<BootTest
   return Effect.gen(function* () {
     const url = yield* acquireContainerUrl(options.image ?? 'postgres:17')
 
-    // Merge every module's schema + relations the same way `buildApp` does,
-    // so the test DB sees cross-module relation references.
-    const dbSchemas = Object.assign({}, ...options.modules.map(m => m.db?.schema ?? {}))
-    const relations: RelationsEntry = Object.assign(
-      {},
-      ...options.modules.flatMap(m => m.db?.relations ? [m.db.relations(dbSchemas)] : []),
-    )
+    // Merged module schema + relations (shared with `buildApp` via `mergeModuleDb`).
+    const { relations } = mergeModuleDb(options.modules)
 
     // Own a single `pg.Pool` and expose TWO drizzle views over it, exactly like
     // production `makeClientDb`: the effect-postgres client for service code AND a

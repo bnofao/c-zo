@@ -14,7 +14,7 @@ import type { AttributeGraphQLSchemaBuilder } from '../..'
 import { OptimisticLockError } from '@czo/kit/db'
 import { Effect } from 'effect'
 import { Attribute } from '../../../services'
-import { attributePermission, attributeScope } from '../../authz'
+import { attributePermission, attributeScope, decodeOrgInput } from '../../authz'
 import { attributeEnumRefs } from '../enums'
 
 export function registerAttributeMutations(builder: AttributeGraphQLSchemaBuilder): void {
@@ -48,15 +48,10 @@ export function registerAttributeMutations(builder: AttributeGraphQLSchemaBuilde
           Attribute.UnitNotAllowed,
         ],
       },
-      authScopes: (_parent, args) => {
-        const org = args.input.organizationId == null ? null : Number(args.input.organizationId.id)
-        return attributePermission('create', org)
-      },
+      authScopes: (_parent, args) => attributePermission('create', decodeOrgInput(args.input.organizationId)),
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const organizationId = input.organizationId != null
-          ? Number(input.organizationId.id)
-          : null
+        const organizationId = decodeOrgInput(input.organizationId)
         const attribute = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* Attribute.AttributeService

@@ -295,7 +295,7 @@ const make = Effect.gen(function* () {
           if (!visual.ok) {
             if (visual.code === 'SWATCH_REQUIRES_COLOR_OR_FILE')
               return yield* Effect.fail(new SwatchRequiresColorOrFile())
-            return yield* Effect.fail(new AttributeDbFailed({ cause: visual.message }))
+            return yield* Effect.fail(new SwatchVisualInvalid({ reason: visual.message }))
           }
         }
         const slug = resolveSlug(input.value, input.slug)

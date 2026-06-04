@@ -122,18 +122,27 @@ export interface BuiltApp {
  * `runApp(built)` for production, or to `Effect.runPromiseExit` in
  * tests for short-lived assertions.
  */
-export function buildApp(options: BuildAppOptions): BuiltApp {
-  // 1. Merge DB contributions. Schemas first (flat merge), then invoke
-  //    each relations factory with the merged schemas so cross-module
-  //    references (`r.one.users()` from a non-auth module) resolve.
-  const dbSchemas: SchemaRegistryShape = Object.assign(
-    {},
-    ...options.modules.map(m => m.db?.schema ?? {}),
-  )
+/**
+ * Merge every module's `db.schema` (flat), then build relations from the MERGED
+ * schema so cross-module relation references (e.g. `r.one.users()` from a
+ * non-auth module) resolve. Shared by `buildApp` (production DB layer) and
+ * `@czo/kit/testing`'s `bootTestApp` so the two never derive it differently.
+ */
+export function mergeModuleDb(modules: ReadonlyArray<Module>): {
+  dbSchemas: SchemaRegistryShape
+  relations: RelationsEntry
+} {
+  const dbSchemas: SchemaRegistryShape = Object.assign({}, ...modules.map(m => m.db?.schema ?? {}))
   const relations: RelationsEntry = Object.assign(
     {},
-    ...options.modules.flatMap(m => m.db?.relations ? [m.db.relations(dbSchemas)] : []),
+    ...modules.flatMap(m => m.db?.relations ? [m.db.relations(dbSchemas)] : []),
   )
+  return { dbSchemas, relations }
+}
+
+export function buildApp(options: BuildAppOptions): BuiltApp {
+  // 1. Merge DB contributions (schemas + relations) — see `mergeModuleDb`.
+  const { dbSchemas, relations } = mergeModuleDb(options.modules)
 
   // 2. Module layers — fold with `provideMerge` so each module is
   //    provided by all earlier modules: a module listed AFTER its

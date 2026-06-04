@@ -33,6 +33,10 @@ export type NodeGuard = (row: any, ctx: GraphQLContextMap) => boolean | Record<s
  * each key of the scope object to whatever scopes the modules registered (boolean
  * scopes checked as booleans, parametrized scopes called with the arg). AND across
  * keys; an unknown scope or any failing scope denies (fail-closed).
+ *
+ * Supports only a flat AND-map of scopes (what node guards need) — NOT scope-auth's
+ * `$all`/`$any`/`$granted` combinators. A guard that needs those should not be used
+ * here; extend this evaluator (or delegate to scope-auth) if that ever changes.
  */
 async function passesNodeGuard(
   scope: boolean | Record<string, unknown>,

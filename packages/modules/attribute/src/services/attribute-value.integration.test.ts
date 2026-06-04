@@ -92,6 +92,27 @@ layer(TestLayer, { timeout: 120_000 })('AttributeValueService integration', (it)
       expect(filed.mimetype).toBe('image/png')
     }))
 
+  it.effect('updateSwatch — invalid visual → SwatchVisualInvalid; both cleared → SwatchRequiresColorOrFile', () =>
+    Effect.gen(function* () {
+      yield* truncateAttribute
+      const svc = yield* AttributeValueService
+      const attributeId = yield* seedAttribute('finish', 'SWATCH')
+      const swatch = yield* svc.createSwatch({ attributeId, value: 'White', color: '#fff', organizationId: null })
+
+      // Invalid hex color on update → the typed SwatchVisualInvalid (NOT an opaque
+      // AttributeDbFailed — the bug this guards: updateSwatch mapped it wrong).
+      const invalid = yield* svc
+        .updateSwatch(swatch.id, { color: 'notahex' })
+        .pipe(Effect.flip)
+      expect(invalid._tag).toBe('SwatchVisualInvalid')
+
+      // Clearing both color and file → SwatchRequiresColorOrFile.
+      const bare = yield* svc
+        .updateSwatch(swatch.id, { color: null, file: null })
+        .pipe(Effect.flip)
+      expect(bare._tag).toBe('SwatchRequiresColorOrFile')
+    }))
+
   it.effect('createReference — sets referenceId; duplicate (attribute, referenceId) → AttributeDbFailed', () =>
     Effect.gen(function* () {
       yield* truncateAttribute

@@ -28,59 +28,47 @@
 
 import type { AttributeGraphQLSchemaBuilder } from '..'
 import type { FileInfo } from './scalars'
+import { attributePermission, decodeOrgInput } from '../authz'
 import { attributeEnumRefs } from './enums'
-
-/** Decode the explicit `organizationId` arg (parsed relay id) to a numeric org, or null. */
-function argOrg(organizationId: { id: string } | null | undefined): number | null {
-  return organizationId != null ? Number(organizationId.id) : null
-}
 
 /** Visibility `where` for a choice table: platform rows, plus the requested org's rows. */
 function choiceWhere(args: { organizationId?: { id: string } | null }) {
-  const org = argOrg(args.organizationId)
+  const org = decodeOrgInput(args.organizationId)
   return org == null
     ? { organizationId: { isNull: true as const } }
     : { OR: [{ organizationId: { isNull: true as const } }, { organizationId: org }] }
 }
 
 /**
- * Parent-aware authScope for a choice connection.
+ * Parent-aware authScope for a choice connection. Reuses the same `attribute:read`
+ * tiers as `attribute(id)` / `attributes` / `node()` (`attributePermission`), so a
+ * value read is never a weaker path than the attribute it belongs to.
  *
  * - Org-owned attribute (`parentOrg = X`): the connection only ever exposes X's
  *   rows, so the arg MUST name X and the caller needs `attribute:read` in X. A
  *   foreign arg (or a missing one) is denied — passing another org on a private
  *   attribute is a meaningless, leak-shaped request, and this is what stops
  *   `node(id:)` from leaking a private attribute's values.
- * - Global attribute (`parentOrg = null`): arg-driven. No arg → platform rows for
- *   any authenticated caller; an arg `O` → `attribute:read` in `O` (cross-tenant
- *   gate). Without that gate the arg would be a cross-org read leak.
+ * - Platform attribute (`parentOrg = null`): no arg → GLOBAL `attribute:read`;
+ *   an arg `O` → the member role in `O` (cross-tenant gate).
  */
 function choiceAuthScope(parentOrg: number | null, args: { organizationId?: { id: string } | null }) {
-  const arg = argOrg(args.organizationId)
-  if (parentOrg != null) {
-    return arg === parentOrg
-      ? { permission: { resource: 'attribute', actions: ['read'], organization: parentOrg } }
-      : false
-  }
-  return arg == null
-    ? { auth: true as const }
-    : { permission: { resource: 'attribute', actions: ['read'], organization: arg } }
+  const arg = decodeOrgInput(args.organizationId)
+  if (parentOrg != null)
+    return arg === parentOrg ? attributePermission('read', parentOrg) : false
+  return attributePermission('read', arg)
 }
 
 /**
  * The `node(id:)` read scope for any attribute-domain row, derived from its own
- * org. Used by the kit node-guard registry (`graphql/node-guards.ts`) for the
- * Attribute node AND every value node — so the relay `node`/`nodes` path is
- * gated uniformly (a denied node resolves to null). Mirrors the query gate
- * (`tierScope` / `attributePermission('read', org)`) so node() is never a weaker
- * path than `attribute(id)` / `attributes`:
- *   • platform row (organizationId = null) → global `attribute:read` (no org).
- *   • org-owned row (organizationId = X)   → `attribute:read` in X.
+ * org — used by the kit node-guard registry (`graphql/node-guards.ts`) for the
+ * Attribute node AND every value node, so the relay `node`/`nodes` path is gated
+ * uniformly (a denied node resolves to null). It is exactly the query-path gate
+ * (`attributePermission('read', org)` = `tierScope`), so node() is never a weaker
+ * path than `attribute(id)` / `attributes`.
  */
 export function nodeReadScope(attr: { organizationId: number | null }) {
-  return attr.organizationId == null
-    ? { permission: { resource: 'attribute', actions: ['read'] } }
-    : { permission: { resource: 'attribute', actions: ['read'], organization: attr.organizationId } }
+  return attributePermission('read', attr.organizationId)
 }
 
 export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): void {
