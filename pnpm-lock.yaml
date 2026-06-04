@@ -140,6 +140,9 @@ catalogs:
     '@pothos/core':
       specifier: ^4.12.0
       version: 4.12.0
+    '@pothos/plugin-directives':
+      specifier: ^4.3.0
+      version: 4.3.0
     '@pothos/plugin-drizzle':
       specifier: ^0.17.1
       version: 0.17.1
@@ -164,9 +167,15 @@ catalogs:
     effect:
       specifier: 4.0.0-beta.70
       version: 4.0.0-beta.70
+    graphql-rate-limit-directive:
+      specifier: ^2.0.6
+      version: 2.0.6
     h3:
       specifier: ^2.0.1-rc.20
       version: 2.0.1-rc.20
+    rate-limiter-flexible:
+      specifier: ^5.0.5
+      version: 5.0.5
   dev:
     '@antfu/eslint-config':
       specifier: ^5.4.1
@@ -543,6 +552,9 @@ importers:
       '@pothos/core':
         specifier: 'catalog:'
         version: 4.12.0(graphql@16.13.2)
+      '@pothos/plugin-directives':
+        specifier: 'catalog:'
+        version: 4.3.0(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)
       '@pothos/plugin-drizzle':
         specifier: 'catalog:'
         version: 0.17.1(@pothos/core@4.12.0(graphql@16.13.2))(drizzle-orm@1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6))(graphql@16.13.2)
@@ -588,6 +600,9 @@ importers:
       exsolve:
         specifier: catalog:common
         version: 1.0.8
+      graphql-rate-limit-directive:
+        specifier: 'catalog:'
+        version: 2.0.6(@graphql-tools/utils@10.11.0(graphql@16.13.2))(graphql@16.13.2)(rate-limiter-flexible@5.0.5)
       graphql-scalars:
         specifier: catalog:common
         version: 1.25.0(graphql@16.13.2)
@@ -609,6 +624,9 @@ importers:
       pg:
         specifier: catalog:common
         version: 8.20.0
+      rate-limiter-flexible:
+        specifier: 'catalog:'
+        version: 5.0.5
       tinyglobby:
         specifier: catalog:common
         version: 0.2.16
@@ -2921,6 +2939,12 @@ packages:
   '@pothos/core@4.12.0':
     resolution: {integrity: sha512-PeiODrj3GjQ7Nbs/5p65DEyBWZTSGGjgGO/BgaMEqS1jBNX/2zJTEQJA9zM5uPmCHUCDjE7Qn2U7lOi0ALp/8A==}
     peerDependencies:
+      graphql: ^16.10.0
+
+  '@pothos/plugin-directives@4.3.0':
+    resolution: {integrity: sha512-HCwZrQAtoYcTeMZ4Cq7YvS2xYgX6WYG0EN6lr/DbjSOm6OEpFY6xeob0a75x1Nysie4b6gJpzNpozSshQTeEHg==}
+    peerDependencies:
+      '@pothos/core': '*'
       graphql: ^16.10.0
 
   '@pothos/plugin-drizzle@0.17.1':
@@ -5267,6 +5291,13 @@ packages:
       cosmiconfig-toml-loader:
         optional: true
 
+  graphql-rate-limit-directive@2.0.6:
+    resolution: {integrity: sha512-2EYUwaVEsRfxZFyXEKse+EZ3xxLXHxN7ssIFoBt0GBNagWbIVhP5wG1mv1oEOp9CvDlSdC/hcM5zbhNMwAjYqw==}
+    peerDependencies:
+      '@graphql-tools/utils': ^8.0.0 || ^9.0.0 || ^10.0.0
+      graphql: ^16.0.0
+      rate-limiter-flexible: ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0
+
   graphql-scalars@1.25.0:
     resolution: {integrity: sha512-b0xyXZeRFkne4Eq7NAnL400gStGqG/Sx9VqX0A05nHyEbv57UJnWKsjNnrpVqv5e/8N1MUxkt0wwcRXbiyKcFg==}
     engines: {node: '>=10'}
@@ -6665,6 +6696,9 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
+
+  rate-limiter-flexible@5.0.5:
+    resolution: {integrity: sha512-+/dSQfo+3FYwYygUs/V2BBdwGa9nFtakDwKt4l0bnvNB53TNT++QSFewwHX9qXrZJuMe9j+TUaU21lm5ARgqdQ==}
 
   rc9@3.0.1:
     resolution: {integrity: sha512-gMDyleLWVE+i6Sgtc0QbbY6pEKqYs97NGi6isHQPqYlLemPoO8dxQ3uGi0f4NiP98c+jMW6cG1Kx9dDwfvqARQ==}
@@ -9827,6 +9861,11 @@ snapshots:
     dependencies:
       graphql: 16.13.2
 
+  '@pothos/plugin-directives@4.3.0(@pothos/core@4.12.0(graphql@16.13.2))(graphql@16.13.2)':
+    dependencies:
+      '@pothos/core': 4.12.0(graphql@16.13.2)
+      graphql: 16.13.2
+
   '@pothos/plugin-drizzle@0.17.1(@pothos/core@4.12.0(graphql@16.13.2))(drizzle-orm@1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6))(graphql@16.13.2)':
     dependencies:
       '@pothos/core': 4.12.0(graphql@16.13.2)
@@ -12172,6 +12211,12 @@ snapshots:
       - typescript
       - utf-8-validate
 
+  graphql-rate-limit-directive@2.0.6(@graphql-tools/utils@10.11.0(graphql@16.13.2))(graphql@16.13.2)(rate-limiter-flexible@5.0.5):
+    dependencies:
+      '@graphql-tools/utils': 10.11.0(graphql@16.13.2)
+      graphql: 16.13.2
+      rate-limiter-flexible: 5.0.5
+
   graphql-scalars@1.25.0(graphql@16.13.2):
     dependencies:
       graphql: 16.13.2
@@ -13741,6 +13786,8 @@ snapshots:
   querystringify@2.2.0: {}
 
   queue-microtask@1.2.3: {}
+
+  rate-limiter-flexible@5.0.5: {}
 
   rc9@3.0.1:
     dependencies:

@@ -26,9 +26,11 @@ import process from 'node:process'
 import { buildSchemaRegistryLayer, DatabaseConfigFromEnv, DrizzleDbLayer } from '@czo/kit/db'
 import { GraphQLBuilder, makeGraphQLBuilder } from '@czo/kit/graphql'
 import { findDuplicateRoutes, mountOpenApi } from '@czo/kit/openapi'
+import { RateLimiterLive } from '@czo/kit/ratelimit'
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
 import { ConfigProvider, Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
+import { defaultKeyGenerator, rateLimitDirective } from 'graphql-rate-limit-directive'
 import { createYoga } from 'graphql-yoga'
 import { fromNodeHandler, H3, serve } from 'h3'
 
@@ -43,6 +45,18 @@ declare module 'h3' {
     runEffect: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A>
   }
 }
+
+// Enforces the `@rateLimit` directive (declared on fields via
+// @pothos/plugin-directives) at the HTTP/schema-assembly seam — NOT inside the
+// pure `buildSchema`, so the kit builder unit tests stay in a single graphql
+// realm (this CJS transformer would otherwise duplicate `graphql`). Keyed by
+// client IP; the per-account layer for those mutations is the existing 60s DB
+// cooldown. In-memory store now; swap to a Redis-backed limiter when the
+// deployment goes multi-instance. Module scope = one store across requests.
+const { rateLimitDirectiveTransformer } = rateLimitDirective({
+  keyGenerator: (dargs, src, args, ctx, info) =>
+    `${defaultKeyGenerator(dargs, src, args, ctx, info)}:${(ctx as { clientIp?: string }).clientIp ?? 'anon'}`,
+})
 
 export interface BuildAppOptions {
   readonly modules: ReadonlyArray<Module>
@@ -187,7 +201,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   // still pull it.
   const moduleLayers = moduleLayersRaw.pipe(Layer.provideMerge(DrizzleLayer))
 
-  const appLayer = Layer.mergeAll(moduleLayers, GraphQLBuilderLayer)
+  const appLayer = Layer.mergeAll(moduleLayers, GraphQLBuilderLayer, RateLimiterLive)
 
   // 5. Lifecycle effects. R defaults to `never` on `Module`, so onStart
   //    /onStarted/onStop are already `Effect<void>` — no cast needed.
@@ -226,7 +240,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     // callback can re-enter Effect via `Effect.runPromiseWith`.
     const appContext = yield* Effect.context<GraphQLBuilder>()
     const graphQLBuilder = yield* GraphQLBuilder
-    const gqlSchema = yield* graphQLBuilder.buildSchema()
+    const gqlSchema = rateLimitDirectiveTransformer(yield* graphQLBuilder.buildSchema())
 
     const httpApp = typeof options.httpApp === 'function'
       ? options.httpApp()
@@ -260,7 +274,9 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
         // while the context is still being built (e.g. session-token rotation).
         Object.assign(initialContext, { setCookie })
         const userCtx = await runEffect(graphQLBuilder.buildContext(initialContext))
-        return { ...userCtx, runEffect, setCookie }
+        const xff = initialContext.request?.headers?.get('x-forwarded-for')
+        const clientIp = xff?.split(',')[0]?.trim() ?? 'anon'
+        return { ...userCtx, runEffect, setCookie, clientIp }
       },
       plugins: [
         {

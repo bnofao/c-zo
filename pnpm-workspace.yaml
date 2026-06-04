@@ -33,6 +33,7 @@ catalog:
   '@mikro-orm/postgresql': 6.4.3
   '@paralleldrive/cuid2': ^2.2.2
   '@pothos/core': ^4.12.0
+  '@pothos/plugin-directives': ^4.3.0
   '@pothos/plugin-drizzle': ^0.17.1
   '@pothos/plugin-errors': ^4.9.0
   '@pothos/plugin-relay': ^4.7.0
@@ -70,6 +71,7 @@ catalog:
   '@effect/vitest': 4.0.0-beta.70
   errx: ^0.1.0
   exsolve: ^1.0.7
+  graphql-rate-limit-directive: ^2.0.6
   graphql-scalars: ^1.25.0
   h3: ^2.0.1-rc.20
   hookable: 5.5.3
@@ -94,6 +96,7 @@ catalog:
   prop-types: ^15.8.1
   qs: ^6.12.0
   radix-ui: 1.1.2
+  rate-limiter-flexible: ^5.0.5
   react: ^19.1.1
   react-country-flag: ^3.1.0
   react-currency-input-field: ^3.6.11
