@@ -1,0 +1,44 @@
+diff --git a/esm/input-field-builder.js b/esm/input-field-builder.js
+index e347197a8719105f8d4f18a06b81a64738920b10..17f9f882f5ec0ea194fbafaba41cea7bfde239fd 100644
+--- a/esm/input-field-builder.js
++++ b/esm/input-field-builder.js
+@@ -12,7 +12,7 @@ inputFieldBuilder.globalIDList = function globalIDList({ for: forTypes, ...optio
+                 forTypes
+             ])) === null || _this === void 0 ? void 0 : _this.map((type) => ({
+                 typename: this.builder.configStore.getTypeConfig(type).name,
+-                parseId: "parseId" in type ? type.parseId : undefined
++                parseId: typeof type === "object" && "parseId" in type ? type.parseId : undefined
+             }))) !== null && _map !== void 0 ? _map : null
+         }
+     });
+@@ -29,7 +29,7 @@ inputFieldBuilder.globalID = function globalID({ for: forTypes, ...options } = {
+                 forTypes
+             ])) === null || _this === void 0 ? void 0 : _this.map((type) => ({
+                 typename: this.builder.configStore.getTypeConfig(type).name,
+-                parseId: "parseId" in type ? type.parseId : undefined
++                parseId: typeof type === "object" && "parseId" in type ? type.parseId : undefined
+             }))) !== null && _map !== void 0 ? _map : null
+         }
+     });
+diff --git a/lib/input-field-builder.js b/lib/input-field-builder.js
+index f732ef5ef9268d1583d29773f433e7f313c0bbd5..44fb982b13ad7e7c76743383f97d9e76aa8914b3 100644
+--- a/lib/input-field-builder.js
++++ b/lib/input-field-builder.js
+@@ -16,7 +16,7 @@ inputFieldBuilder.globalIDList = function globalIDList({ for: forTypes, ...optio
+                 forTypes
+             ])) === null || _this === void 0 ? void 0 : _this.map((type)=>({
+                     typename: this.builder.configStore.getTypeConfig(type).name,
+-                    parseId: 'parseId' in type ? type.parseId : undefined
++                    parseId: typeof type === 'object' && 'parseId' in type ? type.parseId : undefined
+                 }))) !== null && _map !== void 0 ? _map : null
+         }
+     });
+@@ -33,7 +33,7 @@ inputFieldBuilder.globalID = function globalID({ for: forTypes, ...options } = {
+                 forTypes
+             ])) === null || _this === void 0 ? void 0 : _this.map((type)=>({
+                     typename: this.builder.configStore.getTypeConfig(type).name,
+-                    parseId: 'parseId' in type ? type.parseId : undefined
++                    parseId: typeof type === 'object' && 'parseId' in type ? type.parseId : undefined
+                 }))) !== null && _map !== void 0 ? _map : null
+         }
+     });

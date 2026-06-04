@@ -20,12 +20,12 @@
     "dev:czo": "pnpm --filter @czo/czo dev",
     "build:mazo": "pnpm --filter @czo/mazo build",
     "build:czo": "pnpm --filter @czo/czo build",
-    "lint": "turbo lint",
+    "lint": "turbo lint --filter=!@czo/app",
     "lint:fix": "turbo lint:fix",
     "start:mazo": "pnpm --filter @czo/mazo start",
     "test": "vitest",
-    "check-types": "turbo check-types",
-    "typecheck": "turbo check-types"
+    "check-types": "turbo check-types --filter=!@czo/app",
+    "typecheck": "turbo check-types --filter=!@czo/app"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:dev",

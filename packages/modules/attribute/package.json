@@ -1,0 +1,68 @@
+{
+  "name": "@czo/attribute",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Attribute module for c-zo — flexible typed attributes",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./schema": {
+      "types": "./src/database/schema.ts",
+      "default": "./dist/database/schema.mjs"
+    },
+    "./relations": {
+      "types": "./src/database/relations.ts",
+      "default": "./dist/database/relations.mjs"
+    },
+    "./services": {
+      "types": "./src/services/index.ts",
+      "default": "./dist/services/index.mjs"
+    },
+    "./graphql": {
+      "types": "./src/graphql/index.ts",
+      "default": "./dist/graphql/index.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "types": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:latest": "drizzle-kit migrate",
+    "migrate:status": "drizzle-kit check",
+    "check-types": "pnpm tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@czo/auth": "workspace:*"
+  },
+  "dependencies": {
+    "@czo/kit": "workspace:*",
+    "drizzle-orm": "catalog:common",
+    "effect": "catalog:",
+    "zod": "catalog:common"
+  },
+  "devDependencies": {
+    "@czo/auth": "workspace:*",
+    "@czo/kit": "workspace:*",
+    "@effect/vitest": "catalog:",
+    "@testcontainers/postgresql": "catalog:dev",
+    "@vitest/coverage-v8": "catalog:testing",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "drizzle-kit": "catalog:dev",
+    "vitest": "catalog:testing"
+  }
+}

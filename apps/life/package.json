@@ -13,6 +13,7 @@
     "db:seed": "nitro task run db:seed"
   },
   "dependencies": {
+    "@czo/attribute": "workspace:*",
     "@czo/auth": "workspace:*",
     "@czo/kit": "workspace:*",
     "@czo/stock-location": "workspace:*",

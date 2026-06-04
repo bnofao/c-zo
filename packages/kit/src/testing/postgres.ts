@@ -15,7 +15,7 @@ const DEFAULT_IMAGE = 'postgres:17'
  * `Redacted<string>`. The container is stopped when the surrounding Scope
  * closes. Shared by both seams below.
  */
-function acquireContainerUrl(image: string) {
+export function acquireContainerUrl(image: string) {
   return Effect.acquireRelease(
     Effect.promise(() => new PostgreSqlContainer(image).start()),
     c => Effect.promise(() => c.stop()),

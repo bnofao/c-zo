@@ -18,7 +18,7 @@
  * pattern. The legacy Nitro module export (`module/index.ts`) stays in
  * place during the transition; phase 3 will drop it entirely.
  */
-import type { GraphQLContextMap, SchemaBuilder } from '@czo/kit/graphql'
+import type { GraphQLContextMap, NodeGuard, SchemaBuilder } from '@czo/kit/graphql'
 import type { Effect, Layer } from 'effect'
 import type { H3 } from 'h3'
 import type { RelationsFactory, SeederConfig } from '../db'
@@ -66,12 +66,17 @@ export interface Module<Name extends string = string, R = never> {
    *  - `authScope` — receives the GraphQL context and returns the
    *    `authScopes` map merged into `scopeAuth.authScopes` at request
    *    time (used by `t.field({ authScopes: { … } })`).
+   *  - `nodeGuards` — per-GraphQL-type `node(id:)`/`nodes(ids:)` authorization
+   *    guards, keyed by type name. Each runs ONLY on the relay node path (not
+   *    connections / mutation returns) and returns a scope object evaluated
+   *    against the same registered scopes as `authScope`.
    */
   readonly graphql?: {
     readonly contribution?: (builder: SchemaBuilder) => void
     readonly authScope?: (ctx: GraphQLContextMap) => Record<string, unknown>
     readonly contexts?: (systemContext: unknown) =>
     Effect.Effect<Partial<GraphQLContextMap>, unknown, any>
+    readonly nodeGuards?: Record<string, NodeGuard>
   }
 
   /**

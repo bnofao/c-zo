@@ -1,11 +1,11 @@
 import { defineConfig } from 'drizzle-kit'
-import { discoverModuleSchemas } from '@czo/kit/db'
 
 export default defineConfig({
-  schema: discoverModuleSchemas(['@czo/auth', '@czo/attribute', '@czo/stock-location']),
+  schema: './src/database/schema.ts',
   out: './migrations',
   dialect: 'postgresql',
   dbCredentials: {
+    // eslint-disable-next-line node/prefer-global/process
     url: process.env.DATABASE_URL || 'postgresql://czo:czo@localhost:5432/czo_dev',
   },
 })

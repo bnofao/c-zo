@@ -17,6 +17,48 @@ import { DrizzleDb } from '../db'
 import { ValidationError } from './errors'
 import { registerErrorTypes } from './errors/builders'
 
+/**
+ * A per-type `node(id:)` authorization guard. A module registers guards via
+ * `graphql.nodeGuards` keyed by GraphQL type name; the guard receives the loaded
+ * row + context and returns a scope object (e.g. `{ permission: { … } }`),
+ * `{ auth: true }`, or a boolean. It runs ONLY on the relay `node`/`nodes` path —
+ * never on connections or mutation returns — so it can gate cross-org reads
+ * reachable by global id without conflicting with field/connection authScopes.
+ */
+export type NodeGuard = (row: any, ctx: GraphQLContextMap) => boolean | Record<string, unknown>
+
+/**
+ * Evaluate a guard's scope against the SAME composed scope map as
+ * `scopeAuth.authScopes` — fully dynamic: kit knows no scope names, it dispatches
+ * each key of the scope object to whatever scopes the modules registered (boolean
+ * scopes checked as booleans, parametrized scopes called with the arg). AND across
+ * keys; an unknown scope or any failing scope denies (fail-closed).
+ *
+ * Supports only a flat AND-map of scopes (what node guards need) — NOT scope-auth's
+ * `$all`/`$any`/`$granted` combinators. A guard that needs those should not be used
+ * here; extend this evaluator (or delegate to scope-auth) if that ever changes.
+ */
+async function passesNodeGuard(
+  scope: boolean | Record<string, unknown>,
+  ctx: GraphQLContextMap,
+  authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
+): Promise<boolean> {
+  if (typeof scope === 'boolean')
+    return scope
+  const scopes: Record<string, unknown> = Object.assign({}, ...authScope.map(s => s(ctx)))
+  for (const [name, arg] of Object.entries(scope)) {
+    const loader = scopes[name]
+    if (loader === undefined)
+      return false
+    const ok = typeof loader === 'function'
+      ? await (loader as (a: unknown) => boolean | Promise<boolean>)(arg)
+      : Boolean(loader)
+    if (!ok)
+      return false
+  }
+  return true
+}
+
 export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
   db: Database
   relations: Relations
@@ -87,6 +129,7 @@ export function makeGraphQLBuilder(
   contexts: ReadonlyArray<(systemContext: unknown) => Effect.Effect<Partial<GraphQLContextMap>, unknown, any>>,
   authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
   relations: RelationsEntry,
+  nodeGuards: Record<string, NodeGuard> = {},
 ) {
   return Layer.effect(
     GraphQLBuilder,
@@ -101,7 +144,7 @@ export function makeGraphQLBuilder(
         buildSchema: () =>
           Effect.gen(function* () {
             const db = yield* DrizzleDb
-            const builder = setupBuilder(db, relations, authScope)
+            const builder = setupBuilder(db, relations, authScope, nodeGuards)
 
             stringFilterInputRef(builder)
             booleanFilterInputRef(builder)
@@ -125,6 +168,7 @@ function setupBuilder<Relations extends RelationsEntry>(
   db: Database,
   relations: Relations,
   authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
+  nodeGuards: Record<string, NodeGuard>,
 ) {
   const builder = new PothosSchemaBuilder<BuilderSchemaTypes<Relations>>({
     defaultFieldNullability: false,
@@ -142,7 +186,36 @@ function setupBuilder<Relations extends RelationsEntry>(
     // `db` stays the resolvers' client via `ctx.runEffect`. Falls back to `db`
     // for lightweight test layers that don't build a `$promise` view.
     drizzle: { client: (db.$promise ?? db) as any, getTableConfig: getTableConfig as any, relations },
-    relay: { clientMutationId: 'omit', cursorType: 'String' },
+    relay: {
+      clientMutationId: 'omit',
+      cursorType: 'String',
+      // Per-node() authorization: a module registers `graphql.nodeGuards` keyed by
+      // GraphQL type name. The guard runs ONLY on the `node(id:)`/`nodes(ids:)`
+      // path (never connections or mutation returns), so it closes cross-org
+      // node() reads without conflicting with field/connection authScopes.
+      nodeQueryOptions: {
+        resolve: async (_parent, { id }, ctx, _info, resolveNode) => {
+          const guard = nodeGuards[id.typename]
+          if (!guard)
+            return resolveNode(id)
+          const row = await resolveNode(id)
+          if (row == null)
+            return row
+          return (await passesNodeGuard(guard(row, ctx), ctx, authScope)) ? row : null
+        },
+      },
+      nodesQueryOptions: {
+        resolve: async (_parent, { ids }, ctx, _info, resolveNodes) => {
+          const rows = await resolveNodes(ids)
+          return Promise.all(rows.map(async (row, i) => {
+            const guard = nodeGuards[ids[i]!.typename]
+            if (!guard || row == null)
+              return row
+            return (await passesNodeGuard(guard(row, ctx), ctx, authScope)) ? row : null
+          }))
+        },
+      },
+    },
     errors: {
       unsafelyHandleInputErrors: true,
       defaultResultOptions: {

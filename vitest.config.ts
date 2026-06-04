@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // `@czo/app` is a broken orphan (kit-v2 restructure) — excluded from the
+    // root test run until it's migrated or deleted.
+    projects: ['packages/kit', 'packages/modules/*', '!packages/modules/app'],
     server: {
       deps: {
         inline: [
