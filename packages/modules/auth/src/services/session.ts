@@ -4,7 +4,7 @@ import type { UserEvent } from './events/user'
 import type { SessionRow, User } from './user'
 import { randomBytes } from 'node:crypto'
 import { DrizzleDb } from '@czo/kit/db'
-import { and, desc, eq, gt, lt, ne } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt, ne } from 'drizzle-orm'
 import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import { Context, Data, Duration, Effect, Layer, Schema, Stream } from 'effect'
 import { Persistable, PersistedCache } from 'effect/unstable/persistence'
@@ -131,7 +131,7 @@ const make = Effect.gen(function* () {
       const rows = yield* db
         .select()
         .from(sessions)
-        .innerJoin(users, eq(sessions.userId, users.id))
+        .innerJoin(users, and(eq(sessions.userId, users.id), isNull(users.deletedAt)))
         .where(eq(sessions.token, key.token))
         .limit(1)
         .pipe(Effect.orDie)
@@ -154,7 +154,7 @@ const make = Effect.gen(function* () {
         const parentRows = yield* db
           .select()
           .from(sessions)
-          .innerJoin(users, eq(sessions.userId, users.id))
+          .innerJoin(users, and(eq(sessions.userId, users.id), isNull(users.deletedAt)))
           .where(eq(sessions.token, session.parentToken))
           .limit(1)
           .pipe(Effect.orDie)

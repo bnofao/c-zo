@@ -175,7 +175,8 @@ export function signIn(input: SignInInput): Effect.Effect<
     const password = yield* Password.PasswordService
     const session = yield* Session.SessionService
 
-    const user = yield* dbErr(db.query.users.findFirst({ where: { email: input.email } }))
+    // Soft-deleted accounts must NOT sign in — filter `deletedAt IS NULL`.
+    const user = yield* dbErr(db.query.users.findFirst({ where: { email: input.email, deletedAt: { isNull: true } } }))
     if (!user)
       return yield* Effect.fail(new InvalidCredentials())
 
