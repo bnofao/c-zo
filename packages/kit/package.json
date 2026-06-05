@@ -34,6 +34,10 @@
       "types": "./src/openapi/index.ts",
       "default": "./dist/openapi/index.mjs"
     },
+    "./ratelimit": {
+      "types": "./src/ratelimit/index.ts",
+      "default": "./dist/ratelimit/index.mjs"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./dist/testing/index.mjs"
@@ -128,6 +132,7 @@
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
     "@pothos/core": "catalog:",
+    "@pothos/plugin-directives": "catalog:",
     "@pothos/plugin-drizzle": "catalog:",
     "@pothos/plugin-errors": "catalog:",
     "@pothos/plugin-relay": "catalog:",
@@ -141,12 +146,14 @@
     "drizzle-seed": "catalog:common",
     "effect": "catalog:",
     "exsolve": "catalog:common",
+    "graphql-rate-limit-directive": "catalog:",
     "graphql-scalars": "catalog:common",
     "hookable": "catalog:dev",
     "jiti": "catalog:common",
     "kysely": "catalog:common",
     "pathe": "catalog:common",
     "pg": "catalog:common",
+    "rate-limiter-flexible": "catalog:",
     "tinyglobby": "catalog:common",
     "zod": "catalog:common"
   },

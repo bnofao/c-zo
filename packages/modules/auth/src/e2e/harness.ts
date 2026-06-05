@@ -75,16 +75,19 @@ export async function bootAuthApp(): Promise<AuthHarness> {
   }
 
   const signUp: AuthHarness['signUp'] = async (email, name, password) => {
+    // Distinct X-Forwarded-For per actor so each sign-up keys its own bucket —
+    // otherwise they all share `anon` and trip the per-IP sign-up cap (10/60s).
+    const ip = `10.0.0.${signUpCount + 1}`
     const res = await app.fetch(new Request(`${AUTH_URL}/sign-up`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
       body: JSON.stringify({ email, name, password }),
     }))
     const body = (await res.json()) as { token?: string }
     if (!res.ok || !body.token)
       throw new Error(`sign-up failed (${res.status}): ${JSON.stringify(body)}`)
     signUpCount += 1
-    return { token: body.token, userId: signUpCount, ip: `10.0.0.${signUpCount}` }
+    return { token: body.token, userId: signUpCount, ip }
   }
 
   const signIn: AuthHarness['signIn'] = (email, password, ip) =>

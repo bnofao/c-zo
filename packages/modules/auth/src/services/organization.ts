@@ -453,7 +453,7 @@ function make(ownerRole: string) {
       create: (input, scope) =>
         Effect.gen(function* () {
           const { userId, ...orgData } = input
-          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId, deletedAt: { isNull: true } } }))
           if (!user)
             return yield* Effect.fail(new OrgUserNotFound())
 
@@ -572,7 +572,7 @@ function make(ownerRole: string) {
 
       addMember: (input, memberLimit) =>
         Effect.gen(function* () {
-          const user = yield* dbErr(db.query.users.findFirst({ where: { id: input.userId } }))
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: input.userId, deletedAt: { isNull: true } } }))
           if (!user)
             return yield* Effect.fail(new OrgUserNotFound())
 
@@ -813,7 +813,7 @@ function make(ownerRole: string) {
           if (inv.expiresAt.getTime() <= Date.now())
             return yield* Effect.fail(new InvitationExpired())
 
-          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId, deletedAt: { isNull: true } } }))
           if (!user)
             return yield* Effect.fail(new OrgUserNotFound())
           if (user.email !== inv.email)
@@ -869,7 +869,7 @@ function make(ownerRole: string) {
             return yield* Effect.fail(new InvitationNotPending())
 
           // Note: expiry is not enforced on rejection — a user may reject a lapsed invite.
-          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId, deletedAt: { isNull: true } } }))
           if (!user)
             return yield* Effect.fail(new OrgUserNotFound())
           if (user.email !== inv.email)

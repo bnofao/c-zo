@@ -147,8 +147,21 @@ export interface SetUserPasswordInput {
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────
 
-type FindFirstConfig = Parameters<Database<Relations>['query']['users']['findFirst']>[0]
-type FindManyConfig = Parameters<Database<Relations>['query']['users']['findMany']>[0]
+type FindFirstConfig = NonNullable<Parameters<Database<Relations>['query']['users']['findFirst']>[0]> & { excludeDeleted?: boolean }
+type FindManyConfig = NonNullable<Parameters<Database<Relations>['query']['users']['findMany']>[0]> & { excludeDeleted?: boolean }
+
+/**
+ * Strip the non-Drizzle `excludeDeleted` flag and, unless it's explicitly
+ * `false`, AND-merge `deletedAt: { isNull: true }` into the `where`. RQBv2's
+ * object-where ANDs sibling keys, so this is safe even when `where` carries a
+ * top-level `OR`. The `excludeDeleted` key MUST NOT reach `db.query`.
+ */
+function withDeletedFilter<C extends { where?: object, excludeDeleted?: boolean }>(config?: C) {
+  const { excludeDeleted, ...rest } = config ?? ({} as C)
+  return excludeDeleted === false
+    ? rest
+    : { ...rest, where: { ...(rest as { where?: object }).where, deletedAt: { isNull: true } } }
+}
 
 export class UserService extends Context.Service<
   UserService,
@@ -218,7 +231,7 @@ const make = Effect.gen(function* () {
 
   const findById = (id: number) =>
     Effect.gen(function* () {
-      const row = yield* dbErr(db.query.users.findFirst({ where: { id } }))
+      const row = yield* dbErr(db.query.users.findFirst({ where: { id, deletedAt: { isNull: true } } }))
       if (!row)
         return yield* Effect.fail(new UserNotFound())
       return row
@@ -248,13 +261,13 @@ const make = Effect.gen(function* () {
 
   return UserService.of({
     findMany: (config?) =>
-      dbErr(db.query.users.findMany(config)).pipe(
+      dbErr(db.query.users.findMany(withDeletedFilter(config))).pipe(
         Effect.map(rows => rows),
       ),
 
     findFirst: (config?) =>
       Effect.gen(function* () {
-        const row = yield* dbErr(db.query.users.findFirst(config))
+        const row = yield* dbErr(db.query.users.findFirst(withDeletedFilter(config)))
         if (!row)
           return yield* Effect.fail(new UserNotFound())
         return row

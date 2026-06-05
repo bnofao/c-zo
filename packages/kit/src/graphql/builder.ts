@@ -3,6 +3,7 @@ import type { GraphQLSchema } from 'graphql'
 import type { Database } from '../db'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
+import DirectivesPlugin from '@pothos/plugin-directives'
 import DrizzlePlugin from '@pothos/plugin-drizzle'
 import ErrorsPlugin from '@pothos/plugin-errors'
 import RelayPlugin from '@pothos/plugin-relay'
@@ -68,6 +69,12 @@ export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
 
 export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Partial<PothosSchemaTypes.UserSchemaTypes> {
   Context: GraphQLContextMap
+  Directives: {
+    rateLimit: {
+      locations: 'FIELD_DEFINITION'
+      args: { limit: number, duration: number }
+    }
+  }
   Scalars: {
     DateTime: { Input: Date | string, Output: Date }
     JSONObject: { Input: Record<string, any>, Output: Record<string, unknown> }
@@ -92,6 +99,7 @@ export interface GraphQLContextMap {
    * appends every queued value to the outgoing response headers.
    */
   setCookie: (serialized: string) => void
+  readonly clientIp?: string
 }
 
 export interface BuilderSchemaObjects {
@@ -116,7 +124,6 @@ export interface BuilderSchemaInputs {
 // they're not yet threaded into Pothos's SchemaTypes (cascading constraint issues), but
 // the signatures remain stable for when consumers provide concrete types in follow-up PRs.
 export type SchemaBuilder<Relations extends RelationsEntry = RelationsEntry> = ReturnType<typeof setupBuilder<Relations>>
-
 export class GraphQLBuilder extends Context.Service<GraphQLBuilder, {
   // readonly contributions: Effect.Effect<ReadonlyArray<(builder: SchemaBuilder) => void>>
   // readonly authScope: Effect.Effect<ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>>
@@ -178,6 +185,7 @@ function setupBuilder<Relations extends RelationsEntry>(
       ErrorsPlugin,
       ScopeAuthPlugin,
       ValidationPlugin,
+      DirectivesPlugin,
       TracingPlugin,
       // ...(opts.extraPlugins ?? []),
     ],
@@ -227,6 +235,9 @@ function setupBuilder<Relations extends RelationsEntry>(
     },
     validation: {
       validationError: result => ValidationError.fromStandardSchema(result),
+    },
+    directives: {
+      useGraphQLToolsUnorderedDirectives: true,
     },
     scopeAuth: {
       authScopes: async ctx => Object.assign({}, ...authScope.map(scope => scope(ctx))),
