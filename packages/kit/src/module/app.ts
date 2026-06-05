@@ -32,7 +32,8 @@ import { ConfigProvider, Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { defaultKeyGenerator, rateLimitDirective } from 'graphql-rate-limit-directive'
 import { createYoga } from 'graphql-yoga'
-import { fromNodeHandler, H3, serve } from 'h3'
+import { fromNodeHandler, getRequestIP, H3, serve } from 'h3'
+import { resolveClientIp } from './client-ip'
 
 declare module 'h3' {
   interface H3EventContext {
@@ -43,16 +44,24 @@ declare module 'h3' {
      * `appLayer` (DrizzleDb, module services, …).
      */
     runEffect: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A>
+    /**
+     * The resolved client IP for this request under the trusted-proxy model
+     * (`TRUSTED_PROXY_HOPS`). Set by the same kit middleware as `runEffect`;
+     * REST handlers (e.g. credential rate-limiting) read it instead of trusting
+     * `X-Forwarded-For` directly. See `resolveClientIp`.
+     */
+    clientIp: string
   }
 }
 
 // Enforces the `@rateLimit` directive (declared on fields via
 // @pothos/plugin-directives) at the HTTP/schema-assembly seam — NOT inside the
 // pure `buildSchema`, so the kit builder unit tests stay in a single graphql
-// realm (this CJS transformer would otherwise duplicate `graphql`). Keyed by
-// client IP; the per-account layer for those mutations is the existing 60s DB
-// cooldown. In-memory store now; swap to a Redis-backed limiter when the
-// deployment goes multi-instance. Module scope = one store across requests.
+// realm (this CJS transformer would otherwise duplicate `graphql`). Keyed by the
+// trusted-proxy-resolved client IP (`ctx.clientIp`, see `resolveClientIp`); the
+// per-account layer for those mutations is the existing 60s DB cooldown.
+// In-memory store now; swap to a Redis-backed limiter when the deployment goes
+// multi-instance. Module scope = one store across requests.
 const { rateLimitDirectiveTransformer } = rateLimitDirective({
   keyGenerator: (dargs, src, args, ctx, info) =>
     `${defaultKeyGenerator(dargs, src, args, ctx, info)}:${(ctx as { clientIp?: string }).clientIp ?? 'anon'}`,
@@ -242,6 +251,12 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     const graphQLBuilder = yield* GraphQLBuilder
     const gqlSchema = rateLimitDirectiveTransformer(yield* graphQLBuilder.buildSchema())
 
+    // Number of trusted proxies/LBs in front of the app. Read once at assembly.
+    // `0` (default) trusts nothing from `X-Forwarded-For` and keys rate-limits
+    // off the socket peer — see `resolveClientIp`. Behind a proxy, set this to
+    // the hop count so the real client IP is recovered instead of the proxy's.
+    const trustedProxyHops = Number(process.env.TRUSTED_PROXY_HOPS) || 0
+
     const httpApp = typeof options.httpApp === 'function'
       ? options.httpApp()
       : options.httpApp ?? new H3()
@@ -257,6 +272,14 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     // `extend` handlers reach it without importing any kit symbol.
     httpApp.use((event) => {
       event.context.runEffect = runEffect
+      // Resolve the rate-limit client IP under the trusted-proxy model so REST
+      // handlers never trust `X-Forwarded-For` blindly. `getRequestIP(event)`
+      // (no `xForwardedFor`) is the socket peer.
+      event.context.clientIp = resolveClientIp(
+        event.req.headers.get('x-forwarded-for'),
+        getRequestIP(event),
+        trustedProxyHops,
+      )
     })
 
     const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ pendingCookies?: string[] }, GraphQLContextMap>({
@@ -274,8 +297,16 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
         // while the context is still being built (e.g. session-token rotation).
         Object.assign(initialContext, { setCookie })
         const userCtx = await runEffect(graphQLBuilder.buildContext(initialContext))
-        const xff = initialContext.request?.headers?.get('x-forwarded-for')
-        const clientIp = xff?.split(',')[0]?.trim() ?? 'anon'
+        // Mirror the REST path's trusted-proxy resolution. The socket peer is the
+        // Node request's `socket.remoteAddress` (present under the production
+        // `fromNodeHandler` mount; absent on the in-process `yoga.fetch` test path,
+        // where `hops=0` then keys off the forwarded hop).
+        const socketIp = (initialContext as { req?: { socket?: { remoteAddress?: string } } }).req?.socket?.remoteAddress
+        const clientIp = resolveClientIp(
+          initialContext.request?.headers?.get('x-forwarded-for'),
+          socketIp,
+          trustedProxyHops,
+        )
         return { ...userCtx, runEffect, setCookie, clientIp }
       },
       plugins: [

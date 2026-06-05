@@ -1,7 +1,7 @@
 import type { CredentialResult } from './credential'
 import { RateLimiter } from '@czo/kit/ratelimit'
 import { Duration, Effect, Schema } from 'effect'
-import { defineHandler, getRequestIP, readBody } from 'h3'
+import { defineHandler, readBody } from 'h3'
 import { errorResponseBody, httpStatusForError, InvalidRequestBody } from './error-map'
 import { rateLimitCredentials, SIGNIN_LIMITS, SIGNUP_LIMITS } from './rate-limit'
 
@@ -23,7 +23,9 @@ export function makeCredentialHandler<A extends { email: string }>(
 ) {
   const limits = action === 'signin' ? SIGNIN_LIMITS : SIGNUP_LIMITS
   return defineHandler((event) => {
-    const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
+    // `clientIp` is resolved by kit's middleware under the trusted-proxy model
+    // (`TRUSTED_PROXY_HOPS`); never trust `X-Forwarded-For` here directly.
+    const ip = event.context.clientIp ?? 'unknown'
     return event.context.runEffect(
       Effect.promise(() => readBody(event)).pipe(
         Effect.flatMap(raw =>
