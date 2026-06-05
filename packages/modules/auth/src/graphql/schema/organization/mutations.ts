@@ -65,11 +65,13 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         const result = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
+            // No explicit role — the service grants the configured org-owner
+            // role (`authConfig.orgOwnerRole`) by default.
             return yield* svc.create({
               ...input,
               metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
               userId: Number(authUser.id),
-            }, { role: 'org:owner' })
+            })
           }),
         )
         return { organization: result }

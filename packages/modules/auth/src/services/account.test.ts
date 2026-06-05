@@ -127,7 +127,7 @@ function seedOrganization(slug: string, ownerUserId: number) {
     yield* db.insert(members).values({
       organizationId: org.id,
       userId: ownerUserId,
-      role: 'owner',
+      role: 'org:owner',
       createdAt: now,
     })
     return org
@@ -755,7 +755,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('AccountServic
       yield* db.insert(members).values({
         organizationId: org.id,
         userId: u2.id,
-        role: 'owner',
+        role: 'org:owner',
         createdAt: new Date(),
       })
 

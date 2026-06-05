@@ -213,14 +213,14 @@ export interface CreateOrgScope {
    *  decides reach by inspecting the creating user.
    */
   limit?: number | ((userId: number) => Promise<boolean>)
-  /** Role to grant the creating user. Defaults to 'owner'. */
+  /** Role to grant the creating user. Defaults to the configured org-owner role. */
   role?: string | string[]
 }
 
 export interface MemberScope {
   /**
    * Role of the actor performing the change (used to enforce e.g. "only
-   *  owners can promote to owner"). Defaults to 'owner'.
+   *  owners can promote to owner"). Defaults to the configured org-owner role.
    */
   creatorRole?: string
 }
@@ -376,550 +376,555 @@ export class OrganizationService extends Context.Service<
 
 // ─── Layer ───────────────────────────────────────────────────────────────
 
-const make = Effect.gen(function* () {
-  const db = (yield* DrizzleDb) as Database<Relations>
-  const access = yield* AccessService
-  const events = yield* OrganizationEvents
+function make(ownerRole: string) {
+  return Effect.gen(function* () {
+    const db = (yield* DrizzleDb) as Database<Relations>
+    const access = yield* AccessService
+    const events = yield* OrganizationEvents
 
-  const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
-    eff.pipe(Effect.mapError(cause => new OrgDbFailed({ cause })))
+    const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+      eff.pipe(Effect.mapError(cause => new OrgDbFailed({ cause })))
 
-  const ensureValidRole = (role: string | string[]) =>
-    Effect.gen(function* () {
+    const ensureValidRole = (role: string | string[]) =>
+      Effect.gen(function* () {
       // Live role set at request time (registry is complete only after all
       // modules' `onStart` — e.g. stock-location — which run post-construction).
-      const roles = yield* access.roles
-      const valid = validateRole(role, roles)
-      if (!valid)
-        return yield* Effect.fail(new OrgInvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
-      return valid
-    })
+        const roles = yield* access.roles
+        const valid = validateRole(role, roles)
+        if (!valid)
+          return yield* Effect.fail(new OrgInvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
+        return valid
+      })
 
-  const findOrgById = (id: number) =>
-    Effect.gen(function* () {
-      const row = yield* dbErr(db.query.organizations.findFirst({ where: { id } }))
-      if (!row)
-        return yield* Effect.fail(new OrganizationNotFound())
-      return row
-    })
+    const findOrgById = (id: number) =>
+      Effect.gen(function* () {
+        const row = yield* dbErr(db.query.organizations.findFirst({ where: { id } }))
+        if (!row)
+          return yield* Effect.fail(new OrganizationNotFound())
+        return row
+      })
 
-  const findFirstMember = (organizationId: number, config?: MemberFindFirstConfig) =>
-    Effect.gen(function* () {
-      const merged = { ...config, where: { ...config?.where, organizationId } }
-      const row = yield* dbErr(db.query.members.findFirst(merged))
-      if (!row)
-        return yield* Effect.fail(new MemberNotFound())
-      return row
-    })
+    const findFirstMember = (organizationId: number, config?: MemberFindFirstConfig) =>
+      Effect.gen(function* () {
+        const merged = { ...config, where: { ...config?.where, organizationId } }
+        const row = yield* dbErr(db.query.members.findFirst(merged))
+        if (!row)
+          return yield* Effect.fail(new MemberNotFound())
+        return row
+      })
 
-  return OrganizationService.of({
+    return OrganizationService.of({
     // ── Reads ────────────────────────────────────────────────────────
-    checkMembership: (organizationId, userId) =>
-      findFirstMember(organizationId, { where: { userId } }).pipe(
-        Effect.map(() => true),
-        Effect.catchTag('MemberNotFound', () => Effect.succeed(false)),
-      ),
+      checkMembership: (organizationId, userId) =>
+        findFirstMember(organizationId, { where: { userId } }).pipe(
+          Effect.map(() => true),
+          Effect.catchTag('MemberNotFound', () => Effect.succeed(false)),
+        ),
 
-    checkSlug: slug =>
-      dbErr(db.query.organizations.findFirst({ where: { slug } })).pipe(
-        Effect.map(row => !row),
-      ),
+      checkSlug: slug =>
+        dbErr(db.query.organizations.findFirst({ where: { slug } })).pipe(
+          Effect.map(row => !row),
+        ),
 
-    findFirst: (config, authUserId) =>
-      Effect.gen(function* () {
-        const where = config?.where
-        const merged = authUserId !== undefined
-          ? { ...config, where: { ...where, members: { userId: authUserId } } }
-          : config
-        const row = yield* dbErr(db.query.organizations.findFirst(merged))
-        if (!row)
-          return yield* Effect.fail(new OrganizationNotFound())
-        return row
-      }),
+      findFirst: (config, authUserId) =>
+        Effect.gen(function* () {
+          const where = config?.where
+          const merged = authUserId !== undefined
+            ? { ...config, where: { ...where, members: { userId: authUserId } } }
+            : config
+          const row = yield* dbErr(db.query.organizations.findFirst(merged))
+          if (!row)
+            return yield* Effect.fail(new OrganizationNotFound())
+          return row
+        }),
 
-    findMany: (config, authUserId) =>
-      Effect.gen(function* () {
-        const where = config?.where
-        const merged = authUserId !== undefined
-          ? { ...config, where: { ...where, members: { userId: authUserId } } }
-          : config
-        const rows = yield* dbErr(db.query.organizations.findMany(merged))
-        return rows
-      }),
+      findMany: (config, authUserId) =>
+        Effect.gen(function* () {
+          const where = config?.where
+          const merged = authUserId !== undefined
+            ? { ...config, where: { ...where, members: { userId: authUserId } } }
+            : config
+          const rows = yield* dbErr(db.query.organizations.findMany(merged))
+          return rows
+        }),
 
-    // ── Writes ───────────────────────────────────────────────────────
+      // ── Writes ───────────────────────────────────────────────────────
 
-    create: (input, scope) =>
-      Effect.gen(function* () {
-        const { userId, ...orgData } = input
-        const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
-        if (!user)
-          return yield* Effect.fail(new OrgUserNotFound())
+      create: (input, scope) =>
+        Effect.gen(function* () {
+          const { userId, ...orgData } = input
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          if (!user)
+            return yield* Effect.fail(new OrgUserNotFound())
 
-        if (scope?.limit !== undefined) {
-          const reached = typeof scope.limit === 'function'
-            ? yield* Effect.promise(() => (scope.limit as (id: number) => Promise<boolean>)(userId))
-            : yield* dbErr(
-              db.select({ count: count() })
-                .from(organizations)
-                .innerJoin(members, eq(members.organizationId, organizations.id))
-                .where(eq(members.userId, userId))
-                .limit(1)
-                .pipe(Effect.map(([row]) => (row?.count ?? 0) >= (scope.limit as number))),
-            )
-          if (reached)
-            return yield* Effect.fail(new OrganizationLimitReached())
-        }
+          if (scope?.limit !== undefined) {
+            const reached = typeof scope.limit === 'function'
+              ? yield* Effect.promise(() => (scope.limit as (id: number) => Promise<boolean>)(userId))
+              : yield* dbErr(
+                db.select({ count: count() })
+                  .from(organizations)
+                  .innerJoin(members, eq(members.organizationId, organizations.id))
+                  .where(eq(members.userId, userId))
+                  .limit(1)
+                  .pipe(Effect.map(([row]) => (row?.count ?? 0) >= (scope.limit as number))),
+              )
+            if (reached)
+              return yield* Effect.fail(new OrganizationLimitReached())
+          }
 
-        const slugTaken = yield* dbErr(
-          db.query.organizations.findFirst({ where: { slug: input.slug } }),
-        )
-        if (slugTaken)
-          return yield* Effect.fail(new OrganizationSlugTaken({ slug: input.slug as string }))
-
-        const result = yield* dbErr(db.transaction(tx =>
-          Effect.gen(function* () {
-            const now = new Date()
-            const [org] = yield* tx.insert(organizations).values({
-              ...orgData,
-              metadata: input.metadata ? JSON.stringify(input.metadata) : null,
-              createdAt: now,
-            }).returning()
-            if (!org)
-              return yield* Effect.fail(new Error('organization insert returned no row'))
-
-            const [member] = yield* tx.insert(members).values({
-              organizationId: org.id,
-              userId,
-              role: Array.isArray(scope?.role) ? scope.role.join(',') : scope?.role || 'owner',
-              createdAt: now,
-            }).returning()
-            if (!member)
-              return yield* Effect.fail(new Error('member insert returned no row'))
-
-            return { ...org, members: [member] }
-          }),
-        ))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'OrganizationCreated',
-          orgId: result.id,
-          ownerId: userId,
-          name: result.name,
-          type: result.type ?? null,
-        }))
-        return result
-      }),
-
-    update: (id, input) =>
-      Effect.gen(function* () {
-        yield* findOrgById(id)
-
-        if (input.slug) {
-          const conflict = yield* dbErr(
-            db.query.organizations.findFirst({ where: { slug: input.slug as string } }),
+          const slugTaken = yield* dbErr(
+            db.query.organizations.findFirst({ where: { slug: input.slug } }),
           )
-          if (conflict && conflict.id !== id)
+          if (slugTaken)
             return yield* Effect.fail(new OrganizationSlugTaken({ slug: input.slug as string }))
-        }
 
-        if (Object.keys(input).length === 0)
-          return yield* Effect.fail(new OrgNoChanges())
+          const result = yield* dbErr(db.transaction(tx =>
+            Effect.gen(function* () {
+              const now = new Date()
+              const [org] = yield* tx.insert(organizations).values({
+                ...orgData,
+                metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+                createdAt: now,
+              }).returning()
+              if (!org)
+                return yield* Effect.fail(new Error('organization insert returned no row'))
 
-        const [org] = yield* dbErr(
-          db.update(organizations)
-            .set({
-              ...input,
-              metadata: input.metadata ? JSON.stringify(input.metadata) : null,
-              updatedAt: new Date(),
-            } as never)
-            .where(eq(organizations.id, id))
-            .returning(),
-        )
-        if (!org)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'update returned no row' }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'OrganizationUpdated',
-          orgId: id,
-          changes: input as Record<string, unknown>,
-        }))
-        return org
-      }),
+              const [member] = yield* tx.insert(members).values({
+                organizationId: org.id,
+                userId,
+                role: Array.isArray(scope?.role) ? scope.role.join(',') : scope?.role || ownerRole,
+                createdAt: now,
+              }).returning()
+              if (!member)
+                return yield* Effect.fail(new Error('member insert returned no row'))
 
-    remove: id =>
-      Effect.gen(function* () {
-        yield* findOrgById(id)
+              return { ...org, members: [member] }
+            }),
+          ))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'OrganizationCreated',
+            orgId: result.id,
+            ownerId: userId,
+            name: result.name,
+            type: result.type ?? null,
+          }))
+          return result
+        }),
 
-        const [org] = yield* dbErr(
-          db.delete(organizations).where(eq(organizations.id, id)).returning(),
-        )
-        if (!org)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'delete returned no row' }))
-        yield* Effect.forkDetach(events.publish({ _tag: 'OrganizationDeleted', orgId: id }))
-        return org
-      }),
+      update: (id, input) =>
+        Effect.gen(function* () {
+          yield* findOrgById(id)
 
-    // ── Members ──────────────────────────────────────────────────────
+          if (input.slug) {
+            const conflict = yield* dbErr(
+              db.query.organizations.findFirst({ where: { slug: input.slug as string } }),
+            )
+            if (conflict && conflict.id !== id)
+              return yield* Effect.fail(new OrganizationSlugTaken({ slug: input.slug as string }))
+          }
 
-    listMembers: (organizationId, config) =>
-      Effect.gen(function* () {
-        const merged = { ...config, where: { ...config?.where, organizationId } }
-        const rows = yield* dbErr(db.query.members.findMany(merged))
-        return rows
-      }),
+          if (Object.keys(input).length === 0)
+            return yield* Effect.fail(new OrgNoChanges())
 
-    findFirstMember,
-
-    addMember: (input, memberLimit) =>
-      Effect.gen(function* () {
-        const user = yield* dbErr(db.query.users.findFirst({ where: { id: input.userId } }))
-        if (!user)
-          return yield* Effect.fail(new OrgUserNotFound())
-
-        const existingMember = yield* dbErr(
-          db.query.members.findFirst({
-            where: { organizationId: input.organizationId, userId: input.userId },
-          }),
-        )
-        if (existingMember)
-          return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
-
-        const org = yield* dbErr(
-          db.query.organizations.findFirst({ where: { id: input.organizationId } }),
-        )
-        if (!org)
-          return yield* Effect.fail(new OrganizationNotFound())
-
-        if (memberLimit !== undefined) {
-          const c = yield* dbErr(
-            db.$count(members, eq(members.organizationId, input.organizationId)),
+          const [org] = yield* dbErr(
+            db.update(organizations)
+              .set({
+                ...input,
+                metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+                updatedAt: new Date(),
+              } as never)
+              .where(eq(organizations.id, id))
+              .returning(),
           )
-          if (c >= memberLimit)
-            return yield* Effect.fail(new MemberLimitReached())
-        }
+          if (!org)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'update returned no row' }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'OrganizationUpdated',
+            orgId: id,
+            changes: input as Record<string, unknown>,
+          }))
+          return org
+        }),
 
-        const validRole = yield* ensureValidRole(input.role)
+      remove: id =>
+        Effect.gen(function* () {
+          yield* findOrgById(id)
 
-        const [member] = yield* dbErr(db.insert(members).values({
-          ...input,
-          role: validRole,
-          createdAt: new Date(),
-        }).returning())
-        if (!member)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'member insert returned no row' }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'MemberAdded',
-          orgId: input.organizationId,
-          userId: input.userId,
-          role: validRole,
-        }))
-        return member
-      }),
+          const [org] = yield* dbErr(
+            db.delete(organizations).where(eq(organizations.id, id)).returning(),
+          )
+          if (!org)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'delete returned no row' }))
+          yield* Effect.forkDetach(events.publish({ _tag: 'OrganizationDeleted', orgId: id }))
+          return org
+        }),
 
-    removeMember: (input, scope) =>
-      Effect.gen(function* () {
-        const { memberId, organizationId } = input
+      // ── Members ──────────────────────────────────────────────────────
 
-        const member = yield* dbErr(
-          db.query.members.findFirst({ where: { id: memberId, organizationId } }),
-        )
-        if (!member)
-          return yield* Effect.fail(new MemberNotFound())
+      listMembers: (organizationId, config) =>
+        Effect.gen(function* () {
+          const merged = { ...config, where: { ...config?.where, organizationId } }
+          const rows = yield* dbErr(db.query.members.findMany(merged))
+          return rows
+        }),
 
-        const creatorRole = scope?.creatorRole ?? 'owner'
-        const memberRoles = (member.role as string).split(',')
-        if (memberRoles.includes(creatorRole)) {
-          const ownerCount = yield* dbErr(db.$count(members, and(
-            like(members.role, `%${creatorRole}%`),
-            eq(members.organizationId, organizationId),
-          )))
-          if (ownerCount <= 1)
-            return yield* Effect.fail(new CannotRemoveLastOwner())
-        }
+      findFirstMember,
 
-        const [removed] = yield* dbErr(
-          db.delete(members).where(and(
-            eq(members.id, member.id),
-            eq(members.organizationId, organizationId),
-          )).returning(),
-        )
-        if (!removed)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'member delete returned no row' }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'MemberRemoved',
-          orgId: organizationId,
-          userId: (removed).userId as number,
-        }))
-        return removed
-      }),
+      addMember: (input, memberLimit) =>
+        Effect.gen(function* () {
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: input.userId } }))
+          if (!user)
+            return yield* Effect.fail(new OrgUserNotFound())
 
-    updateMemberRole: (input, scope) =>
-      Effect.gen(function* () {
-        const existing = yield* dbErr(
-          db.query.members.findFirst({
-            where: { id: input.id, organizationId: input.organizationId },
-          }),
-        )
-        if (!existing)
-          return yield* Effect.fail(new MemberNotFound())
+          const existingMember = yield* dbErr(
+            db.query.members.findFirst({
+              where: { organizationId: input.organizationId, userId: input.userId },
+            }),
+          )
+          if (existingMember)
+            return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
 
-        const creatorRole = scope?.creatorRole ?? 'owner'
-        const newRoles = typeof input.role === 'string' ? input.role.split(',').map(r => r.trim()) : input.role
-        const settingCreatorRole = newRoles.includes(creatorRole)
-        const updatingCreator = (existing.role as string).split(',').includes(creatorRole)
+          const org = yield* dbErr(
+            db.query.organizations.findFirst({ where: { id: input.organizationId } }),
+          )
+          if (!org)
+            return yield* Effect.fail(new OrganizationNotFound())
 
-        // Promotion-to-owner is restricted: only existing owners can grant
-        // the owner role. Demoting the last owner is also rejected — the
-        // resolver should authorise actor-bound permissions before calling.
-        if (settingCreatorRole && !updatingCreator)
-          return yield* Effect.fail(new CannotPromoteToOwner())
-        if (!settingCreatorRole && updatingCreator) {
-          const ownerCount = yield* dbErr(db.$count(members, and(
-            like(members.role, `%${creatorRole}%`),
-            eq(members.organizationId, input.organizationId),
-          )))
-          if (ownerCount <= 1)
-            return yield* Effect.fail(new CannotLeaveAsLastOwner())
-        }
+          if (memberLimit !== undefined) {
+            const c = yield* dbErr(
+              db.$count(members, eq(members.organizationId, input.organizationId)),
+            )
+            if (c >= memberLimit)
+              return yield* Effect.fail(new MemberLimitReached())
+          }
 
-        const validatedRole = yield* ensureValidRole(newRoles)
+          const validRole = yield* ensureValidRole(input.role)
 
-        const [member] = yield* dbErr(
-          db.update(members).set({ role: validatedRole }).where(eq(members.id, input.id)).returning(),
-        )
-        if (!member)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'member update returned no row' }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'MemberRoleChanged',
-          orgId: input.organizationId,
-          userId: (existing).userId as number,
-          previousRole: existing.role as string,
-          newRole: validatedRole,
-        }))
-        return member
-      }),
+          const [member] = yield* dbErr(db.insert(members).values({
+            ...input,
+            role: validRole,
+            createdAt: new Date(),
+          }).returning())
+          if (!member)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'member insert returned no row' }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'MemberAdded',
+            orgId: input.organizationId,
+            userId: input.userId,
+            role: validRole,
+          }))
+          return member
+        }),
 
-    // ── Invitations ──────────────────────────────────────────────────
+      removeMember: (input, scope) =>
+        Effect.gen(function* () {
+          const { memberId, organizationId } = input
 
-    getInvitation: id =>
-      Effect.gen(function* () {
-        const row = yield* dbErr(db.query.invitations.findFirst({ where: { id } }))
-        if (!row)
-          return yield* Effect.fail(new InvitationNotFound())
-        return row
-      }),
+          const member = yield* dbErr(
+            db.query.members.findFirst({ where: { id: memberId, organizationId } }),
+          )
+          if (!member)
+            return yield* Effect.fail(new MemberNotFound())
 
-    listInvitations: (organizationId, config) =>
-      Effect.gen(function* () {
-        const merged = { ...config, where: { ...config?.where, organizationId } }
-        const rows = yield* dbErr(db.query.invitations.findMany(merged))
-        return rows
-      }),
+          const creatorRole = scope?.creatorRole ?? ownerRole
+          const memberRoles = (member.role as string).split(',')
+          if (memberRoles.includes(creatorRole)) {
+            const ownerCount = yield* dbErr(db.$count(members, and(
+              like(members.role, `%${creatorRole}%`),
+              eq(members.organizationId, organizationId),
+            )))
+            if (ownerCount <= 1)
+              return yield* Effect.fail(new CannotRemoveLastOwner())
+          }
 
-    listUserInvitations: (email, config) =>
-      Effect.gen(function* () {
-        const merged = {
-          ...config,
-          where: { ...config?.where, email, status: 'pending' as const },
-        }
-        const rows = yield* dbErr(db.query.invitations.findMany(merged))
-        return rows
-      }),
+          const [removed] = yield* dbErr(
+            db.delete(members).where(and(
+              eq(members.id, member.id),
+              eq(members.organizationId, organizationId),
+            )).returning(),
+          )
+          if (!removed)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'member delete returned no row' }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'MemberRemoved',
+            orgId: organizationId,
+            userId: (removed).userId as number,
+          }))
+          return removed
+        }),
 
-    cancelInvitation: id =>
-      Effect.gen(function* () {
-        const existing = yield* dbErr(
-          db.query.invitations.findFirst({ where: { id } }),
-        )
-        if (!existing)
-          return yield* Effect.fail(new InvitationNotFound())
+      updateMemberRole: (input, scope) =>
+        Effect.gen(function* () {
+          const existing = yield* dbErr(
+            db.query.members.findFirst({
+              where: { id: input.id, organizationId: input.organizationId },
+            }),
+          )
+          if (!existing)
+            return yield* Effect.fail(new MemberNotFound())
 
-        const [invitation] = yield* dbErr(
-          db.update(invitations).set({ status: 'cancelled' }).where(eq(invitations.id, id)).returning(),
-        )
-        if (!invitation)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
-        return invitation
-      }),
+          const creatorRole = scope?.creatorRole ?? ownerRole
+          const newRoles = typeof input.role === 'string' ? input.role.split(',').map(r => r.trim()) : input.role
+          const settingCreatorRole = newRoles.includes(creatorRole)
+          const updatingCreator = (existing.role as string).split(',').includes(creatorRole)
 
-    createInvitation: input =>
-      Effect.gen(function* () {
-        yield* findOrgById(input.organizationId)
-        const validRole = yield* ensureValidRole(input.role)
+          // Promotion-to-owner is restricted: only existing owners can grant
+          // the owner role. Demoting the last owner is also rejected — the
+          // resolver should authorise actor-bound permissions before calling.
+          if (settingCreatorRole && !updatingCreator)
+            return yield* Effect.fail(new CannotPromoteToOwner())
+          if (!settingCreatorRole && updatingCreator) {
+            const ownerCount = yield* dbErr(db.$count(members, and(
+              like(members.role, `%${creatorRole}%`),
+              eq(members.organizationId, input.organizationId),
+            )))
+            if (ownerCount <= 1)
+              return yield* Effect.fail(new CannotLeaveAsLastOwner())
+          }
 
-        const existingMember = yield* dbErr(db.query.members.findFirst({
-          where: { organizationId: input.organizationId, user: { email: input.email } },
-        }))
-        if (existingMember)
-          return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
+          const validatedRole = yield* ensureValidRole(newRoles)
 
-        const pending = yield* dbErr(db.query.invitations.findFirst({
-          where: { organizationId: input.organizationId, email: input.email, status: 'pending' },
-        }))
-        if (pending) {
-          if (!input.resend)
-            return yield* Effect.fail(new InvitationAlreadyExists())
-          // resend: refresh the expiry window on the EXISTING invitation, then
-          // re-publish `InvitationCreated` for it. No other column changes.
-          const [refreshed] = yield* dbErr(db.update(invitations)
-            .set({ expiresAt: new Date(Date.now() + Duration.toMillis(INVITATION_DURATION)) })
-            .where(eq(invitations.id, pending.id))
-            .returning())
-          if (!refreshed)
-            return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation resend update returned no row' }))
-          // `role` is always set at insert time; the `??` only satisfies the column's `string | null` type.
+          const [member] = yield* dbErr(
+            db.update(members).set({ role: validatedRole }).where(eq(members.id, input.id)).returning(),
+          )
+          if (!member)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'member update returned no row' }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'MemberRoleChanged',
+            orgId: input.organizationId,
+            userId: (existing).userId as number,
+            previousRole: existing.role as string,
+            newRole: validatedRole,
+          }))
+          return member
+        }),
+
+      // ── Invitations ──────────────────────────────────────────────────
+
+      getInvitation: id =>
+        Effect.gen(function* () {
+          const row = yield* dbErr(db.query.invitations.findFirst({ where: { id } }))
+          if (!row)
+            return yield* Effect.fail(new InvitationNotFound())
+          return row
+        }),
+
+      listInvitations: (organizationId, config) =>
+        Effect.gen(function* () {
+          const merged = { ...config, where: { ...config?.where, organizationId } }
+          const rows = yield* dbErr(db.query.invitations.findMany(merged))
+          return rows
+        }),
+
+      listUserInvitations: (email, config) =>
+        Effect.gen(function* () {
+          const merged = {
+            ...config,
+            where: { ...config?.where, email, status: 'pending' as const },
+          }
+          const rows = yield* dbErr(db.query.invitations.findMany(merged))
+          return rows
+        }),
+
+      cancelInvitation: id =>
+        Effect.gen(function* () {
+          const existing = yield* dbErr(
+            db.query.invitations.findFirst({ where: { id } }),
+          )
+          if (!existing)
+            return yield* Effect.fail(new InvitationNotFound())
+
+          const [invitation] = yield* dbErr(
+            db.update(invitations).set({ status: 'cancelled' }).where(eq(invitations.id, id)).returning(),
+          )
+          if (!invitation)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
+          return invitation
+        }),
+
+      createInvitation: input =>
+        Effect.gen(function* () {
+          yield* findOrgById(input.organizationId)
+          const validRole = yield* ensureValidRole(input.role)
+
+          const existingMember = yield* dbErr(db.query.members.findFirst({
+            where: { organizationId: input.organizationId, user: { email: input.email } },
+          }))
+          if (existingMember)
+            return yield* Effect.fail(new MemberAlreadyExists({ member: existingMember }))
+
+          const pending = yield* dbErr(db.query.invitations.findFirst({
+            where: { organizationId: input.organizationId, email: input.email, status: 'pending' },
+          }))
+          if (pending) {
+            if (!input.resend)
+              return yield* Effect.fail(new InvitationAlreadyExists())
+            // resend: refresh the expiry window on the EXISTING invitation, then
+            // re-publish `InvitationCreated` for it. No other column changes.
+            const [refreshed] = yield* dbErr(db.update(invitations)
+              .set({ expiresAt: new Date(Date.now() + Duration.toMillis(INVITATION_DURATION)) })
+              .where(eq(invitations.id, pending.id))
+              .returning())
+            if (!refreshed)
+              return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation resend update returned no row' }))
+            // `role` is always set at insert time; the `??` only satisfies the column's `string | null` type.
+            yield* Effect.forkDetach(events.publish({
+              _tag: 'InvitationCreated',
+              invitationId: refreshed.id,
+              orgId: input.organizationId,
+              email: input.email,
+              role: refreshed.role ?? (validRole as string),
+              inviterId: refreshed.inviterId,
+            }))
+            return refreshed
+          }
+
+          const now = new Date()
+          const [invitation] = yield* dbErr(db.insert(invitations).values({
+            organizationId: input.organizationId,
+            email: input.email,
+            role: validRole as string,
+            status: 'pending',
+            inviterId: input.inviterId,
+            expiresAt: new Date(now.getTime() + Duration.toMillis(INVITATION_DURATION)),
+            createdAt: now,
+          }).returning())
+          if (!invitation)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation insert returned no row' }))
+
           yield* Effect.forkDetach(events.publish({
             _tag: 'InvitationCreated',
-            invitationId: refreshed.id,
+            invitationId: invitation.id,
             orgId: input.organizationId,
             email: input.email,
-            role: refreshed.role ?? (validRole as string),
-            inviterId: refreshed.inviterId,
+            role: validRole as string,
+            inviterId: input.inviterId,
           }))
-          return refreshed
-        }
+          return invitation
+        }),
 
-        const now = new Date()
-        const [invitation] = yield* dbErr(db.insert(invitations).values({
-          organizationId: input.organizationId,
-          email: input.email,
-          role: validRole as string,
-          status: 'pending',
-          inviterId: input.inviterId,
-          expiresAt: new Date(now.getTime() + Duration.toMillis(INVITATION_DURATION)),
-          createdAt: now,
-        }).returning())
-        if (!invitation)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation insert returned no row' }))
+      acceptInvitation: (invitationId, userId) =>
+        Effect.gen(function* () {
+          const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
+          if (!inv)
+            return yield* Effect.fail(new InvitationNotFound())
+          if (inv.status !== 'pending')
+            return yield* Effect.fail(new InvitationNotPending())
+          if (inv.expiresAt.getTime() <= Date.now())
+            return yield* Effect.fail(new InvitationExpired())
 
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'InvitationCreated',
-          invitationId: invitation.id,
-          orgId: input.organizationId,
-          email: input.email,
-          role: validRole as string,
-          inviterId: input.inviterId,
-        }))
-        return invitation
-      }),
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          if (!user)
+            return yield* Effect.fail(new OrgUserNotFound())
+          if (user.email !== inv.email)
+            return yield* Effect.fail(new InvitationEmailMismatch())
 
-    acceptInvitation: (invitationId, userId) =>
-      Effect.gen(function* () {
-        const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
-        if (!inv)
-          return yield* Effect.fail(new InvitationNotFound())
-        if (inv.status !== 'pending')
-          return yield* Effect.fail(new InvitationNotPending())
-        if (inv.expiresAt.getTime() <= Date.now())
-          return yield* Effect.fail(new InvitationExpired())
+          const existing = yield* dbErr(db.query.members.findFirst({
+            where: { organizationId: inv.organizationId, userId },
+          }))
+          if (existing)
+            return yield* Effect.fail(new MemberAlreadyExists({ member: existing }))
 
-        const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
-        if (!user)
-          return yield* Effect.fail(new OrgUserNotFound())
-        if (user.email !== inv.email)
-          return yield* Effect.fail(new InvitationEmailMismatch())
+          const result = yield* dbErr(db.transaction(tx =>
+            Effect.gen(function* () {
+              const [m] = yield* tx.insert(members).values({
+                organizationId: inv.organizationId,
+                userId,
+                role: inv.role ?? 'org:member',
+                createdAt: new Date(),
+              }).returning()
+              if (!m)
+                return yield* Effect.fail(new Error('member insert returned no row'))
+              const [accepted] = yield* tx.update(invitations)
+                .set({ status: 'accepted' })
+                .where(eq(invitations.id, invitationId))
+                .returning()
+              if (!accepted)
+                return yield* Effect.fail(new Error('invitation update returned no row'))
+              return { member: m, invitation: accepted }
+            }),
+          ))
 
-        const existing = yield* dbErr(db.query.members.findFirst({
-          where: { organizationId: inv.organizationId, userId },
-        }))
-        if (existing)
-          return yield* Effect.fail(new MemberAlreadyExists({ member: existing }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'MemberAdded',
+            orgId: inv.organizationId,
+            userId,
+            role: result.member.role,
+          }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'InvitationAccepted',
+            invitationId,
+            orgId: inv.organizationId,
+            userId,
+          }))
+          return result
+        }),
 
-        const result = yield* dbErr(db.transaction(tx =>
-          Effect.gen(function* () {
-            const [m] = yield* tx.insert(members).values({
-              organizationId: inv.organizationId,
-              userId,
-              role: inv.role ?? 'org:member',
-              createdAt: new Date(),
-            }).returning()
-            if (!m)
-              return yield* Effect.fail(new Error('member insert returned no row'))
-            const [accepted] = yield* tx.update(invitations)
-              .set({ status: 'accepted' })
-              .where(eq(invitations.id, invitationId))
-              .returning()
-            if (!accepted)
-              return yield* Effect.fail(new Error('invitation update returned no row'))
-            return { member: m, invitation: accepted }
-          }),
-        ))
+      rejectInvitation: (invitationId, userId) =>
+        Effect.gen(function* () {
+          const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
+          if (!inv)
+            return yield* Effect.fail(new InvitationNotFound())
+          if (inv.status !== 'pending')
+            return yield* Effect.fail(new InvitationNotPending())
 
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'MemberAdded',
-          orgId: inv.organizationId,
-          userId,
-          role: result.member.role,
-        }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'InvitationAccepted',
-          invitationId,
-          orgId: inv.organizationId,
-          userId,
-        }))
-        return result
-      }),
+          // Note: expiry is not enforced on rejection — a user may reject a lapsed invite.
+          const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
+          if (!user)
+            return yield* Effect.fail(new OrgUserNotFound())
+          if (user.email !== inv.email)
+            return yield* Effect.fail(new InvitationEmailMismatch())
 
-    rejectInvitation: (invitationId, userId) =>
-      Effect.gen(function* () {
-        const inv = yield* dbErr(db.query.invitations.findFirst({ where: { id: invitationId } }))
-        if (!inv)
-          return yield* Effect.fail(new InvitationNotFound())
-        if (inv.status !== 'pending')
-          return yield* Effect.fail(new InvitationNotPending())
+          const [rejected] = yield* dbErr(db.update(invitations)
+            .set({ status: 'rejected' })
+            .where(eq(invitations.id, invitationId))
+            .returning())
+          if (!rejected)
+            return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'InvitationRejected',
+            invitationId,
+            orgId: inv.organizationId,
+          }))
+          return rejected
+        }),
 
-        // Note: expiry is not enforced on rejection — a user may reject a lapsed invite.
-        const user = yield* dbErr(db.query.users.findFirst({ where: { id: userId } }))
-        if (!user)
-          return yield* Effect.fail(new OrgUserNotFound())
-        if (user.email !== inv.email)
-          return yield* Effect.fail(new InvitationEmailMismatch())
+      // ── Permissions ──────────────────────────────────────────────────
 
-        const [rejected] = yield* dbErr(db.update(invitations)
-          .set({ status: 'rejected' })
-          .where(eq(invitations.id, invitationId))
-          .returning())
-        if (!rejected)
-          return yield* Effect.fail(new OrgDbFailed({ cause: 'invitation update returned no row' }))
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'InvitationRejected',
-          invitationId,
-          orgId: inv.organizationId,
-        }))
-        return rejected
-      }),
+      hasPermission: input =>
+        Effect.gen(function* () {
+          if (input.allowCreatorAllPermissions && input.role.split(',').includes(input.creatorRole ?? ownerRole))
+            return true
 
-    // ── Permissions ──────────────────────────────────────────────────
+          // Live role set at request time — includes domains registered by other
+          // modules' `onStart` (e.g. stock-location), which the old
+          // construction-time snapshot missed (→ their perms always denied).
+          const roles = yield* access.roles
+          let acRoles: { [x: string]: AccessRole | undefined } = Object.assign({}, roles)
 
-    hasPermission: input =>
-      Effect.gen(function* () {
-        if (input.allowCreatorAllPermissions && input.role.split(',').includes(input.creatorRole ?? 'owner'))
-          return true
-
-        // Live role set at request time — includes domains registered by other
-        // modules' `onStart` (e.g. stock-location), which the old
-        // construction-time snapshot missed (→ their perms always denied).
-        const roles = yield* access.roles
-        let acRoles: { [x: string]: AccessRole | undefined } = Object.assign({}, roles)
-
-        if (input.dynamicAccessControl) {
+          if (input.dynamicAccessControl) {
           // TODO: this is a naive implementation that re-fetches all org roles on every permission check when
           // `dynamicAccessControl` is enabled. A more efficient approach would be to only fetch the relevant org's roles,
           // and to cache them with an appropriate invalidation strategy (e.g. subscribe to role change events).
-        }
+          }
 
-        if (input.useMemoryCache)
-          acRoles = cacheOrgRoles.get(input.orgId) ?? acRoles
-        cacheOrgRoles.set(input.orgId, acRoles)
+          if (input.useMemoryCache)
+            acRoles = cacheOrgRoles.get(input.orgId) ?? acRoles
+          cacheOrgRoles.set(input.orgId, acRoles)
 
-        return yield* access.checkPermission(
-          input.role,
-          input.permissions,
-          role => Effect.sync(() => acRoles[role]),
-          input.connector,
-        )
-      }),
+          return yield* access.checkPermission(
+            input.role,
+            input.permissions,
+            role => Effect.sync(() => acRoles[role]),
+            input.connector,
+          )
+        }),
+    })
   })
-})
+}
 
-/** Live layer. */
-export const layer = Layer.effect(OrganizationService, make)
+/** Live layer, parameterized by the org-owner role name (from `authConfig`). */
+export const makeLayer = (ownerRole: string) => Layer.effect(OrganizationService, make(ownerRole))
+
+/** Back-compat default-valued layer for tests that don't wire `authConfig`. */
+export const layer = makeLayer('org:owner')

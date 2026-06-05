@@ -2,11 +2,11 @@
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import authModule from '@czo/auth'
+import { Organization } from '@czo/auth/services'
 import { decodeGlobalID } from '@czo/kit/graphql'
 import { bootTestApp } from '@czo/kit/testing'
 import { Effect, Exit, Scope } from 'effect'
-import authModule from '../../../auth/src/index'
-import { Organization } from '../../../auth/src/services'
 import stockLocationModule from '../index'
 
 const here = dirname(fileURLToPath(import.meta.url))

@@ -81,6 +81,8 @@ export class AccountConfig extends Context.Service<
     readonly changeEmailTtl: Duration.Duration
     readonly gracePeriod: Duration.Duration
     readonly sendOldEmailNotificationOnChange: boolean
+    /** Org-owner role name (from `authConfig`); matched by the sole-owner guard. */
+    readonly orgOwnerRole: string
   }
 >()('@czo/auth/AccountConfig') {}
 
@@ -93,6 +95,7 @@ export function makeAccountConfigLayer(input: {
   changeEmailTtl?: Duration.Duration
   gracePeriod?: Duration.Duration
   sendOldEmailNotificationOnChange?: boolean
+  orgOwnerRole?: string
 }): Layer.Layer<AccountConfig> {
   return Layer.succeed(AccountConfig, {
     passwordResetTtl: input.passwordResetTtl ?? PASSWORD_RESET_TTL,
@@ -103,6 +106,7 @@ export function makeAccountConfigLayer(input: {
     changeEmailTtl: input.changeEmailTtl ?? CHANGE_EMAIL_TTL,
     gracePeriod: input.gracePeriod ?? ACCOUNT_GRACE_PERIOD,
     sendOldEmailNotificationOnChange: input.sendOldEmailNotificationOnChange ?? true,
+    orgOwnerRole: input.orgOwnerRole ?? 'org:owner',
   })
 }
 
@@ -507,9 +511,9 @@ export const layer = Layer.effect(
           .where(and(
             eq(members.userId, input.userId),
             // Roles are stored namespaced + comma-joined (e.g. `org:owner`), so
-            // match a substring — an exact `'owner'` never matches (the org
-            // membership owner is `org:owner`). Mirrors OrganizationService.
-            like(members.role, '%owner%'),
+            // match the configured owner role as a substring. Mirrors
+            // OrganizationService's owner-count guards.
+            like(members.role, `%${config.orgOwnerRole}%`),
           )),
       )
 
@@ -521,7 +525,7 @@ export const layer = Layer.effect(
               .from(members)
               .where(and(
                 eq(members.organizationId, m.organizationId),
-                like(members.role, '%owner%'),
+                like(members.role, `%${config.orgOwnerRole}%`),
               )),
           )
           const ownerCount = ownerCountRows[0]?.cnt ?? 0
