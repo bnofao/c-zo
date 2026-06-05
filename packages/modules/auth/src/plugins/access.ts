@@ -1,7 +1,7 @@
 import type { HierarchyLevel } from '../services/access'
 
 export const ORGANIZATION_STATEMENTS = {
-  organization: ['update', 'delete'],
+  organization: ['read', 'update', 'delete'],
   member: ['read', 'create', 'update', 'delete'],
   invitation: ['read', 'create', 'cancel'],
 } as const
@@ -15,34 +15,50 @@ export const API_KEY_STATEMENTS = {
   'api-key': ['create', 'read', 'update', 'delete'],
 } as const
 
-export const ORGANIZATION_HIERARCHY: HierarchyLevel<typeof ORGANIZATION_STATEMENTS>[] = [
-  {
-    name: 'org:member',
-    permissions: {},
-  },
-  {
-    name: 'org:viewer',
-    permissions: {
-      organization: [],
-      member: ['read'],
-      invitation: ['read'],
+/**
+ * Build the organization role hierarchy, parameterized by the owner role name.
+ * The value flows from `authConfig.orgOwnerRole` (env `AUTH_ORG_OWNER_ROLE`,
+ * default `org:owner`) so the registered hierarchy level — whose `name` must
+ * equal the value stored in `members.role`, or `ensureValidRole` rejects it —
+ * stays in sync with the grant/guard sites. Only the owner tier is
+ * configurable; the lower tiers are structural.
+ */
+export function makeOrganizationHierarchy(
+  ownerRole: string,
+): HierarchyLevel<typeof ORGANIZATION_STATEMENTS>[] {
+  return [
+    {
+      name: 'org:member',
+      permissions: {},
     },
-  },
-  {
-    name: 'org:admin',
-    permissions: {
-      organization: ['update'],
-      member: ['create', 'update', 'delete'],
-      invitation: ['create', 'cancel'],
+    {
+      name: 'org:viewer',
+      permissions: {
+        organization: ['read'],
+        member: ['read'],
+        invitation: ['read'],
+      },
     },
-  },
-  {
-    name: 'org:owner',
-    permissions: {
-      organization: ['delete'],
+    {
+      name: 'org:admin',
+      permissions: {
+        organization: ['update'],
+        member: ['create', 'update', 'delete'],
+        invitation: ['create', 'cancel'],
+      },
     },
-  },
-]
+    {
+      name: ownerRole,
+      permissions: {
+        organization: ['delete'],
+      },
+    },
+  ]
+}
+
+/** Back-compat default-valued hierarchy for tests that don't wire `authConfig`. */
+export const ORGANIZATION_HIERARCHY: HierarchyLevel<typeof ORGANIZATION_STATEMENTS>[]
+  = makeOrganizationHierarchy('org:owner')
 
 export const ADMIN_HIERARCHY: HierarchyLevel<typeof ADMIN_STATEMENTS>[] = [
   {

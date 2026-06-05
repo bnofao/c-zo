@@ -25,7 +25,7 @@ import {
   API_KEY_STATEMENTS,
   APPS_HIERARCHY,
   APPS_STATEMENTS,
-  ORGANIZATION_HIERARCHY,
+  makeOrganizationHierarchy,
   ORGANIZATION_STATEMENTS,
 } from './plugins/access'
 import { DEFAULT_ACTOR_RESTRICTIONS } from './plugins/actor'
@@ -107,7 +107,10 @@ export default defineModule(() => {
     const baseUrl = yield* Config.string('BASE_URL').pipe(Config.withDefault('http://localhost:4000'))
     const requireEmailVerification = yield* Config.boolean('AUTH_REQUIRE_EMAIL_VERIFICATION').pipe(Config.withDefault(false))
     const sendVerificationOnSignUp = yield* Config.boolean('AUTH_SEND_VERIFICATION_ON_SIGN_UP').pipe(Config.withDefault(true))
-    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp }
+    // The org-owner role name: names the top hierarchy level, is granted to org
+    // creators, and is matched by the sole-owner guards. Single source of truth.
+    const orgOwnerRole = yield* Config.string('AUTH_ORG_OWNER_ROLE').pipe(Config.withDefault('org:owner'))
+    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole }
   })
 
   // `Layer.unwrap` bridges runtime (reading Config) to build-time
@@ -120,14 +123,14 @@ export default defineModule(() => {
     // their own `composeApp.startup`. We freeze in our own `onStart`,
     // which runs after all module startups.
     const accessOptions = [
-      { name: 'organization', statements: ORGANIZATION_STATEMENTS, hierarchy: ORGANIZATION_HIERARCHY },
+      { name: 'organization', statements: ORGANIZATION_STATEMENTS, hierarchy: makeOrganizationHierarchy(cfg.orgOwnerRole) },
       { name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY },
       { name: 'api-key', statements: API_KEY_STATEMENTS, hierarchy: API_KEY_HIERARCHY },
       { name: 'apps', statements: APPS_STATEMENTS, hierarchy: APPS_HIERARCHY },
     ] as const
     const AccessServiceLive = Access.makeLayer(accessOptions as never, false)
 
-    const OrganizationServiceLive = Organization.layer
+    const OrganizationServiceLive = Organization.makeLayer(cfg.orgOwnerRole)
     // AuthActorService's registry is closed at construction — no post-boot
     // extension path. Eager freeze keeps the invariant honest.
     const AuthActorServiceLive = Actor.makeLayer(DEFAULT_ACTOR_RESTRICTIONS, true)
@@ -136,7 +139,10 @@ export default defineModule(() => {
     // from the env-backed `Config.Wrap`; all cookie tuning lives in
     // `services/cookie.ts`. SessionService also requires DrizzleDb +
     // Persistence — shared infra provided at the app surface by composeApp.
-    const sessionLayer = Session.layer.pipe(Layer.provide(Cookie.layerConfigService))
+    // `provideMerge` (not `provide`) so `CookieService` is ALSO exported to the
+    // merged module runtime: the `/api/auth/sign-out` route handler resolves it
+    // directly via `event.context.runEffect` (private `provide` → 500).
+    const sessionLayer = Session.layer.pipe(Layer.provideMerge(Cookie.layerConfigService))
 
     const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer(undefined)
 
@@ -144,6 +150,7 @@ export default defineModule(() => {
       baseUrl: cfg.baseUrl,
       requireEmailVerification: cfg.requireEmailVerification,
       sendVerificationOnSignUp: cfg.sendVerificationOnSignUp,
+      orgOwnerRole: cfg.orgOwnerRole,
     })
 
     return Layer.mergeAll(
