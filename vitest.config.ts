@@ -20,6 +20,7 @@ export default defineConfig({
           '@pothos/plugin-scope-auth',
           '@pothos/plugin-validation',
           '@pothos/plugin-tracing',
+          '@pothos/plugin-directives',
           'graphql-scalars',
         ],
       },

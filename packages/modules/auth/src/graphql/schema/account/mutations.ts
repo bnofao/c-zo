@@ -22,6 +22,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
     }) },
     {
       errors: { types: [] },
+      directives: { rateLimit: { limit: 5, duration: 60 } },
       resolve: async (_root, { input }, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
@@ -66,6 +67,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
     {
       errors: { types: [] },
       authScopes: { auth: true },
+      directives: { rateLimit: { limit: 5, duration: 60 } },
       resolve: async (_root, _input, ctx) => {
         const userId = Number(ctx.auth.user!.id)
         await ctx.runEffect(
@@ -133,6 +135,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
     {
       errors: { types: [IncorrectCurrentPassword] },
       authScopes: { auth: true },
+      directives: { rateLimit: { limit: 5, duration: 60 } },
       resolve: async (_root, { input }, ctx) => {
         const userId = Number(ctx.auth.user!.id)
         await ctx.runEffect(

@@ -8,4 +8,4 @@ const BodySchema = Schema.Struct({
   actorType: Schema.optional(Schema.String),
 })
 
-export const signInHandler = makeCredentialHandler(BodySchema, signIn)
+export const signInHandler = makeCredentialHandler('signin', BodySchema, signIn)

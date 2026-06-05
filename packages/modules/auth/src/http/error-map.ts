@@ -24,6 +24,7 @@ const STATUS_BY_TAG: Record<string, number> = {
   CredentialDbFailed: 500,
   ActorProviderFailed: 500,
   InvalidRequestBody: 400,
+  RateLimiterError: 429,
 }
 
 export function httpStatusForError(error: unknown): number {
@@ -46,6 +47,8 @@ export interface ErrorResponseBody {
  * runtime `cause` can never leak — see `.claude/rules/security.md`.
  */
 export function errorResponseBody(error: unknown): ErrorResponseBody {
+  if ((error as { _tag?: string } | null)?._tag === 'RateLimiterError')
+    return { error: 'RATE_LIMITED' }
   const code = (error as { code?: string } | null)?.code ?? 'ERROR'
   return error instanceof InvalidRequestBody
     ? { error: code, details: formatIssue(error.issue).issues }
