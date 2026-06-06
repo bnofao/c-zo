@@ -75,6 +75,24 @@ export interface BuildAppOptions {
    * `DrizzleDb` so the booted app talks to an ephemeral container.
    */
   readonly db?: Layer.Layer<DrizzleDb, unknown, never>
+  /**
+   * Host-provided cross-cutting services (canonically a real `EmailService`
+   * transport — `@czo/kit/email/smtp` `fromEnv`). Wired into TWO contexts, both
+   * load-bearing:
+   *  - `provideMerge`'d UNDER the module layers (alongside `DrizzleLayer`) — so
+   *    subscriber fibers forked with `Effect.forkScoped` *during* module-layer
+   *    construction carry the service in their build context;
+   *  - merged into `appLayer` — so the service is also in the runtime OUTPUT
+   *    context that `runEffect` / `ctx.runEffect` resolve against at request
+   *    time. Without this, `Effect.serviceOption(EmailService)` at send time
+   *    returns `None` (the module-layer fold is cast to `Layer<never,never,never>`,
+   *    so the service never reaches the surface from `provideMerge` alone).
+   * It's the SAME layer reference in both spots, so Effect's by-reference layer
+   * memoization builds it once (a stateful transport pool is acquired once).
+   * Omitted in dev/test → optional services stay absent and subscribers skip
+   * (e.g. emails log-and-skip).
+   */
+  readonly services?: Layer.Layer<any, unknown, never>
   readonly httpApp?: H3 | (() => H3)
   readonly extend?: (httpApp: H3) => Effect.Effect<void, never, never>
   readonly graphQLApp?: (schema: GraphQLSchema) => YogaServerInstance<Record<string, any>, GraphQLContextMap>
@@ -208,9 +226,15 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   // construction. `provideMerge` keeps `DrizzleDb` in the layer's
   // outputs so the rest of the program (main effect, resolvers) can
   // still pull it.
-  const moduleLayers = moduleLayersRaw.pipe(Layer.provideMerge(DrizzleLayer))
+  const moduleLayers = moduleLayersRaw.pipe(
+    Layer.provideMerge(
+      options.services ? Layer.mergeAll(DrizzleLayer, options.services) : DrizzleLayer,
+    ),
+  )
 
-  const appLayer = Layer.mergeAll(moduleLayers, GraphQLBuilderLayer, RateLimiterLive)
+  const appLayer = options.services
+    ? Layer.mergeAll(moduleLayers, GraphQLBuilderLayer, RateLimiterLive, options.services)
+    : Layer.mergeAll(moduleLayers, GraphQLBuilderLayer, RateLimiterLive)
 
   // 5. Lifecycle effects. R defaults to `never` on `Module`, so onStart
   //    /onStarted/onStop are already `Effect<void>` — no cast needed.

@@ -94,13 +94,15 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 ## EmailService — transport réel
 
-### B10. SMTP / SES drop-in pour `EmailService`
+### B10. SMTP / SES drop-in pour `EmailService` — ✅ FAIT (SMTP, `feat/b10-smtp-email`)
 
-**État :** SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModuleConfig.email.layer` accepte un override mais aucun impl SMTP/SES n'est livré.
+**Résolu :** transport SMTP livré via nodemailer. `@czo/kit/email/smtp` expose `emailServiceFromTransporter` (couture pure), `smtpLayer` (Config-driven : `SMTP_HOST/PORT/SECURE/USER/PASSWORD` + `EMAIL_FROM`, transporter poolé scopé fermé au teardown) et `fromEnv` (sélection `EMAIL_TRANSPORT` logging|smtp). `buildApp` gagne une option générique `services?` câblée à DEUX endroits (provideMerge sous les modules **et** merge dans `appLayer`) pour que l'`EmailService` hôte atteigne les fibers subscribers d'auth ET le contexte runtime de `ctx.runEffect` — sinon `serviceOption` renvoie `None` au moment de l'envoi (le fold de module est casté `Layer<never,never,never>`). `apps/life` merge `Email.fromEnv`. Tests : unit (mapping + sélection via ConfigProvider injecté — `process.env` est snapshotté par Effect), intégration Mailpit (Testcontainers, en CI) et e2e auth prouvant la chaîne sign-up → email de vérification à travers l'injection. SES (AWS SDK) reste **hors-scope** (SMTP couvre SES-SMTP) ; retry/dead-letter relèvera du sprint jobs (B5/B9).
 
-**Travail :** Créer `@czo/kit/email/smtp` (nodemailer) + `@czo/kit/email/ses` (AWS SDK). 1 layer par transport.
+<details><summary>État d'origine (2026-05-25)</summary>
 
-**Priorité :** bloquant pour la prod auth.
+SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModuleConfig.email.layer` accepte un override mais aucun impl SMTP/SES n'est livré. Travail prévu : `@czo/kit/email/smtp` (nodemailer) + `@czo/kit/email/ses` (AWS SDK), 1 layer par transport. Priorité : bloquant pour la prod auth.
+
+</details>
 
 ---
 

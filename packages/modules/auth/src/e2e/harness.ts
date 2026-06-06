@@ -1,3 +1,4 @@
+import type { Layer } from 'effect'
 /**
  * Shared E2E harness for the auth module's GraphQL + REST surface.
  * Boots [auth] on a Testcontainers Postgres via bootTestApp and drives the real
@@ -47,7 +48,7 @@ export interface AuthHarness {
   readonly setMemberRole: (orgNumericId: number, userId: number, role: string) => Promise<void>
 }
 
-export async function bootAuthApp(): Promise<AuthHarness> {
+export async function bootAuthApp(opts?: { readonly services?: Layer.Layer<any, unknown, never> }): Promise<AuthHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -55,7 +56,11 @@ export async function bootAuthApp(): Promise<AuthHarness> {
 
   const scope = await Effect.runPromise(Scope.make())
   const app = (await Effect.runPromise(
-    bootTestApp({ modules: [authModule], migrations: [AUTH_MIGRATIONS] })
+    bootTestApp({
+      modules: [authModule],
+      migrations: [AUTH_MIGRATIONS],
+      ...(opts?.services ? { buildOptions: { services: opts.services } } : {}),
+    })
       .pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

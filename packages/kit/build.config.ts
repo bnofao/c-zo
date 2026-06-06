@@ -16,6 +16,7 @@ export default defineBuildConfig({
     'src/index',
     'src/module/index',
     'src/email/index',
+    'src/email/smtp',
     'src/openapi/index',
     'src/graphql/index',
     'src/db/index',
