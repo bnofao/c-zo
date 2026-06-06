@@ -29,6 +29,10 @@ export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBu
   // ── StockLocation node ─────────────────────────────────────────────────────
   builder.drizzleNode('stockLocations', {
     name: 'StockLocation',
+    // Always load all columns so the `node(id:)` guard (graphql/node-guards.ts)
+    // can read `organizationId` to scope the read, regardless of the client's
+    // field selection.
+    select: true,
     id: { column: l => l.id },
     fields: t => ({
       handle: t.exposeString('handle'),

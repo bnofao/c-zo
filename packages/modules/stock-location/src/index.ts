@@ -17,7 +17,7 @@
 import type { Layer } from 'effect'
 import { Access } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
-import { registerStockLocationSchema } from '@czo/stock-location/graphql'
+import { registerStockLocationSchema, stockLocationNodeGuards } from '@czo/stock-location/graphql'
 import { stockLocationRelations } from '@czo/stock-location/relations'
 import * as stockLocationSchema from '@czo/stock-location/schema'
 import { StockLocationModuleLive } from '@czo/stock-location/services'
@@ -55,6 +55,9 @@ export default defineModule(() => ({
     contribution: builder => registerStockLocationSchema(builder as never),
     // Authorization reuses auth's `permission` scope (registered by the auth
     // module's `authScope`); no stock-location-specific scope is needed.
+    // The `StockLocation` node guard org-scopes the global `node(id:)` path so
+    // it's never a weaker read than `stockLocation(id:)`.
+    nodeGuards: stockLocationNodeGuards,
   },
   onStart: Effect.gen(function* () {
     const access = yield* Access.AccessService
