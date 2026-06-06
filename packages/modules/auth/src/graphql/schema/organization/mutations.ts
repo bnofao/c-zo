@@ -1,5 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '../..'
-import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
+import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
 import { OrganizationService } from '../../../services/organization'
@@ -89,7 +89,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'updateOrganization',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'Organization', required: true }),
         name: t.string({ validate: z.string().max(255).nullable().optional() }),
         slug: t.string({ validate: slugSchema.optional() }),
         logo: t.string({ validate: z.url().optional() }),
@@ -110,7 +110,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         permission: {
           resource: 'organization',
           actions: ['update'],
-          organization: Number(decodeGlobalID(args.input.id).id),
+          organization: Number(args.input.id.id),
         },
       }),
       resolve: async (_root, { input }, ctx) => {
@@ -118,7 +118,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         // Drizzle `SET` (it's a string global id, the PK is an int identity, so
         // `SET id = 'Org:..'` errors). Only the updatable fields go through.
         const { id: globalId, ...rest } = input
-        const orgId = Number(decodeGlobalID(globalId).id)
+        const orgId = Number(globalId.id)
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {
@@ -145,7 +145,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'deleteOrganization',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'Organization', required: true }),
       }),
     },
     {
@@ -154,12 +154,11 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         permission: {
           resource: 'organization',
           actions: ['delete'],
-          organization: Number(decodeGlobalID(args.input.id).id),
+          organization: Number(args.input.id.id),
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
-        const orgId = Number(id)
+        const orgId = Number(input.id.id)
 
         await ctx.runEffect(
           Effect.gen(function* () {
@@ -182,7 +181,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'inviteMember',
     {
       inputFields: t => ({
-        organizationId: t.id({ required: true }),
+        organizationId: t.globalID({ for: 'Organization', required: true }),
         email: t.string({ required: true }),
         role: t.string({ required: true }),
         resend: t.boolean({ required: false }),
@@ -194,14 +193,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         permission: {
           resource: 'invitation',
           actions: ['create'],
-          organization: Number(decodeGlobalID(args.input.organizationId).id),
+          organization: Number(args.input.organizationId.id),
         },
       }),
       resolve: async (_root, { input }, ctx) => {
         // The `permission` authScope (Task 6) rejects anonymous requests,
         // non-members, and members lacking `invitation:create` in THIS org
         // before `resolve` runs — so `ctx.auth!.user!` is sound.
-        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const orgId = input.organizationId.id
         const invitation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -227,14 +226,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── acceptInvitation ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'acceptInvitation',
-    { inputFields: t => ({ invitationId: t.id({ required: true }) }) },
+    { inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
     {
       errors: { types: [InvitationNotFound, InvitationNotPending, InvitationExpired, InvitationEmailMismatch, MemberAlreadyExists, OrgUserNotFound] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
         // `resolve` runs, so `ctx.auth!.user!` below is sound.
-        const { id: invitationId } = decodeGlobalID(input.invitationId)
+        const invitationId = input.invitationId.id
         const { invitation, member } = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -255,14 +254,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── rejectInvitation ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'rejectInvitation',
-    { inputFields: t => ({ invitationId: t.id({ required: true }) }) },
+    { inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
     {
       errors: { types: [InvitationNotFound, InvitationNotPending, InvitationEmailMismatch, OrgUserNotFound] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
         // `resolve` runs, so `ctx.auth!.user!` below is sound.
-        const { id: invitationId } = decodeGlobalID(input.invitationId)
+        const invitationId = input.invitationId.id
         const invitation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -284,7 +283,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'cancelInvitation',
     {
       inputFields: t => ({
-        invitationId: t.id({ required: true }),
+        invitationId: t.globalID({ for: 'Invitation', required: true }),
       }),
     },
     {
@@ -295,7 +294,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       // require auth and defer to the resolver's InvitationNotFound (404),
       // rather than masking existence as a 403.
       authScopes: async (_parent, args, ctx) => {
-        const { id } = decodeGlobalID(args.input.invitationId)
+        const id = args.input.invitationId.id
         const organization = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -310,7 +309,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         return { permission: { resource: 'invitation', actions: ['cancel'], organization } }
       },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.invitationId)
+        const id = input.invitationId.id
         await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -330,14 +329,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── leaveOrganization ────────────────────────────────────────────────────
   builder.relayMutationField(
     'leaveOrganization',
-    { inputFields: t => ({ organizationId: t.id({ required: true }) }) },
+    { inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: true }) }) },
     {
       errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
         // `resolve` runs, so `ctx.auth!.user!` below is sound.
-        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const orgId = input.organizationId.id
         await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -359,13 +358,13 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── setActiveOrganization ─────────────────────────────────────────────────
   builder.relayMutationField(
     'setActiveOrganization',
-    { inputFields: t => ({ organizationId: t.id({ required: false }) }) },
+    { inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: false }) }) },
     {
       errors: { types: [NotAMember] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         const orgId = input.organizationId
-          ? Number(decodeGlobalID(input.organizationId).id)
+          ? Number(input.organizationId.id)
           : null
         // `auth` authScope guarantees ctx.auth.user; the session-context contributor
         // populates ctx.auth from one `ResolvedSession`, so when `user` is present
@@ -397,8 +396,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'removeMember',
     {
       inputFields: t => ({
-        memberId: t.id({ required: true }),
-        organizationId: t.id({ required: true }),
+        memberId: t.globalID({ for: 'Member', required: true }),
+        organizationId: t.globalID({ for: 'Organization', required: true }),
       }),
     },
     {
@@ -407,12 +406,12 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         permission: {
           resource: 'member',
           actions: ['delete'],
-          organization: Number(decodeGlobalID(args.input.organizationId).id),
+          organization: Number(args.input.organizationId.id),
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const { id: memberId } = decodeGlobalID(input.memberId)
-        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const memberId = input.memberId.id
+        const orgId = input.organizationId.id
 
         await ctx.runEffect(
           Effect.gen(function* () {
@@ -438,8 +437,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'updateMemberRole',
     {
       inputFields: t => ({
-        memberId: t.id({ required: true }),
-        organizationId: t.id({ required: true }),
+        memberId: t.globalID({ for: 'Member', required: true }),
+        organizationId: t.globalID({ for: 'Organization', required: true }),
         role: t.string({ required: true }),
       }),
     },
@@ -456,12 +455,12 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         permission: {
           resource: 'member',
           actions: ['update'],
-          organization: Number(decodeGlobalID(args.input.organizationId).id),
+          organization: Number(args.input.organizationId.id),
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const { id: memberId } = decodeGlobalID(input.memberId)
-        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const memberId = input.memberId.id
+        const orgId = input.organizationId.id
 
         const result = await ctx.runEffect(
           Effect.gen(function* () {

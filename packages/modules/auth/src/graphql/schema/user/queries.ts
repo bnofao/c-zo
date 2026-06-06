@@ -1,5 +1,4 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import { decodeGlobalID } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { UserService } from '../../../services/user'
 
@@ -12,11 +11,11 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
       type: 'users',
       nullable: true,
       args: {
-        id: t.arg.id({ required: true }),
+        id: t.arg.globalID({ for: 'User', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (_query, _root, args, ctx) => {
-        const { id } = decodeGlobalID(args.id)
+        const id = args.id.id
         // Treat UserNotFound as null (query semantics) — only DB errors propagate.
         const program = Effect.gen(function* () {
           const svc = yield* UserService

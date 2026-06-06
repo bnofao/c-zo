@@ -1,5 +1,4 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import { decodeGlobalID } from '@czo/kit/graphql'
 import { Duration, Effect } from 'effect'
 import {
   CannotChainImpersonation,
@@ -18,7 +17,7 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
     'startImpersonation',
     {
       inputFields: t => ({
-        targetUserId: t.id({ required: true }),
+        targetUserId: t.globalID({ for: 'User', required: true }),
         ttl: t.int(),
         reason: t.string(),
       }),
@@ -38,8 +37,7 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
       resolve: async (_root, { input }, ctx) => {
         const adminId = Number(ctx.auth.user!.id)
         const adminToken = ctx.auth.session!.token
-        const { id: targetIdRaw } = decodeGlobalID(input.targetUserId)
-        const targetUserId = Number(targetIdRaw)
+        const targetUserId = Number(input.targetUserId.id)
 
         const { result, cookie } = await ctx.runEffect(
           Effect.gen(function* () {

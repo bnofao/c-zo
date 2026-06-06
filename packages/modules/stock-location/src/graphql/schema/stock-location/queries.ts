@@ -15,10 +15,10 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
       type: 'stockLocations',
       nullable: true,
       args: {
-        id: t.arg.globalID({ required: true }),
+        id: t.arg.globalID({ for: 'StockLocation', required: true }),
       },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.id.id)
+        const organization = await loadOrganizationId(ctx, Number(args.id.id))
         // Unknown id → require auth and let the nullable field resolve to null
         // (the service NotFound is collapsed below), rather than a gate 403.
         if (organization == null)
@@ -54,7 +54,7 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
       }),
       args: {
         /** Organization to list within. Listing is always tenant-scoped. */
-        organizationId: t.arg.globalID({ required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
         /** Free-text search across `name` and `handle` (case-insensitive substring). */
         search: t.arg.string(),
         where: t.arg({ type: 'StockLocationWhereInput' }),

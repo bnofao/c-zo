@@ -1,5 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import { decodeGlobalID, ForbiddenError, ValidationError } from '@czo/kit/graphql'
+import { ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
 import { Session, User } from '../../../services'
@@ -26,7 +26,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'updateUser',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
         name: t.string({ validate: z.string().max(225).min(1).transform(name => name?.trim()) }),
         role: t.stringList(),
       }),
@@ -43,7 +43,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'user', actions: ['update'] } },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
 
         if (input.role) {
@@ -128,7 +128,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'banUser',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
         reason: t.string(),
         expiresIn: t.int(),
       }),
@@ -138,7 +138,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
         const authUser = ctx.auth?.user as User.User
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
 
         const result = await ctx.runEffect(
@@ -162,14 +162,14 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'unbanUser',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
       }),
     },
     {
       errors: { types: [UserNotFound, UserNotBanned] },
       authScopes: { permission: { resource: 'user', actions: ['ban'] } },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
         const actorId = Number((ctx.auth?.user as User.User).id)
 
@@ -194,7 +194,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'setRole',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
         role: t.string({ required: true }),
       }),
     },
@@ -202,7 +202,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       errors: { types: [ForbiddenError, UserNotFound, InvalidRole, CannotDemoteSelf] },
       authScopes: { permission: { resource: 'user', actions: ['set-role'] } },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
@@ -228,7 +228,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'setUserPassword',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
         newPassword: t.string({
           required: true,
           validate: passwordSchema,
@@ -239,7 +239,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       errors: { types: [UserNotFound, PasswordHashFailed] },
       authScopes: { permission: { resource: 'user', actions: ['set-password'] } },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
 
         await ctx.runEffect(
@@ -264,14 +264,14 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'removeUser',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
       }),
     },
     {
       errors: { types: [UserNotFound, CannotRemoveSelf] },
       authScopes: { permission: { resource: 'user', actions: ['delete'] } },
       resolve: async (_root, { input }, ctx) => {
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const userId = Number(id)
         const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
@@ -324,7 +324,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     'revokeSessions',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'User', required: true }),
       }),
     },
     {
@@ -333,7 +333,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
         await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* Session.SessionService
-            yield* svc.revokeAllForUser(Number(input.id))
+            yield* svc.revokeAllForUser(Number(input.id.id))
           }),
         )
         return { success: true }

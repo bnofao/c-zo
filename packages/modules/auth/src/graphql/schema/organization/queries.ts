@@ -1,5 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '../..'
-import { decodeGlobalID, UnauthenticatedError } from '@czo/kit/graphql'
+import { UnauthenticatedError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import { OrganizationService } from '../../../services/organization'
 
@@ -12,12 +12,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       type: 'organizations',
       nullable: true,
       args: {
-        id: t.arg.id({ required: true }),
+        id: t.arg.globalID({ for: 'Organization', required: true }),
       },
       // Org-scoped: the org IS the resource. Unknown id → require auth and let
       // the nullable field resolve to null (resolver catches OrganizationNotFound).
       authScopes: async (_parent, args, ctx) => {
-        const { id } = decodeGlobalID(args.id)
+        const id = args.id.id
         const organization = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -32,7 +32,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
         return { permission: { resource: 'organization', actions: ['read'], organization } }
       },
       resolve: async (_query, _root, args, ctx) => {
-        const { id } = decodeGlobalID(args.id)
+        const id = args.id.id
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.findFirst({ where: { id: Number(id) } })
@@ -98,17 +98,17 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
     t.drizzleConnection({
       type: 'members',
       args: {
-        organizationId: t.arg.id({ required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
       },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'member',
           actions: ['read'],
-          organization: Number(decodeGlobalID(args.organizationId).id),
+          organization: Number(args.organizationId.id),
         },
       }),
       resolve: async (query, _root, args, ctx) => {
-        const { id } = decodeGlobalID(args.organizationId)
+        const id = args.organizationId.id
         return await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -124,12 +124,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
       type: 'invitations',
       nullable: true,
       args: {
-        id: t.arg.id({ required: true }),
+        id: t.arg.globalID({ for: 'Invitation', required: true }),
       },
       // Org-scoped: the org is derived from the invitation. Unknown id →
       // require auth and let the nullable field resolve to null.
       authScopes: async (_parent, args, ctx) => {
-        const { id } = decodeGlobalID(args.id)
+        const id = args.id.id
         const organization = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
@@ -144,7 +144,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
         return { permission: { resource: 'invitation', actions: ['read'], organization } }
       },
       resolve: async (_query, _root, args, ctx) => {
-        const { id } = decodeGlobalID(args.id)
+        const id = args.id.id
         const program = Effect.gen(function* () {
           const svc = yield* OrganizationService
           return yield* svc.getInvitation(Number(id))
@@ -158,17 +158,17 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
     t.drizzleConnection({
       type: 'invitations',
       args: {
-        organizationId: t.arg.id({ required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
       },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'invitation',
           actions: ['read'],
-          organization: Number(decodeGlobalID(args.organizationId).id),
+          organization: Number(args.organizationId.id),
         },
       }),
       resolve: async (query, _root, args, ctx) => {
-        const { id } = decodeGlobalID(args.organizationId)
+        const id = args.organizationId.id
         return await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
