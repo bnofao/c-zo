@@ -145,7 +145,9 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** moyenne — comble le gap d'autz à l'exécution (les `authScopes`/node-guards d'auth et stock-location ne sont prouvés qu'au build SDL aujourd'hui).
 
-### B16. Valider le typename des global IDs (`globalID({ for })`) dans `@czo/auth` et `@czo/stock-location`
+### B16. Valider le typename des global IDs (`globalID({ for })`) dans `@czo/auth` et `@czo/stock-location` — ✅ FAIT (`feat/b16-globalid-validation`)
+
+**Résolu :** migration de tous les sites `decodeGlobalID(x).id` vers `t.globalID({ for })` / `t.arg.globalID({ for })` — `@czo/auth` (user, organization, impersonation ; api-key fait via B17/#109) + `@czo/stock-location`. Helpers d'autz (`loadOrganizationId`) prennent désormais un id **numérique**. Fixe au passage 2 bugs latents : (1) `loadOrganizationId` double-décodait dans `stockLocation(id:)` (→ `it.fails` du test "reads it back" levé, maintenant vert) ; (2) `revokeSessions` faisait `Number(input.id)` sur un global id (→ `NaN`). Test de régression ajouté (`user(id:)` avec un id `Organization` → rejeté). auth 209/215 (6 api-key skip), stock-location 7/7, attribute 55/55, types + lint clean.
 
 **État :** `@czo/attribute` a migré tous ses inputs/args d'id relay de `t.field({ type: 'ID' })` + `decodeGlobalID(x).id` vers `t.globalID({ for })` / `t.globalIDList` / `t.arg.globalID` → le **typename est validé au bord GraphQL** (un id de mauvais type → erreur de validation, plus silencieusement décodé), et les helpers d'autz prennent des ids **numériques**. Les autres modules ont encore l'ancien pattern :
 - **`@czo/auth`** — ~50 sites `decodeGlobalID(...).id` sur 7 fichiers (`user`, `organization`, `api-key`, `impersonation` × queries+mutations). Ids tous **intra-module** (User, Organization, Session, ApiKey, Member, Invitation) → `for` résout sans couplage cross-module.

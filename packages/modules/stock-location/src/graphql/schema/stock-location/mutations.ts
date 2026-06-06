@@ -1,6 +1,6 @@
 import type { StockLocationGraphQLSchemaBuilder } from '@czo/stock-location/graphql'
 import { OptimisticLockError } from '@czo/kit/db'
-import { decodeGlobalID, ValidationError } from '@czo/kit/graphql'
+import { ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
 import {
@@ -22,7 +22,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'createStockLocation',
     {
       inputFields: t => ({
-        organizationId: t.field({ type: 'ID', required: true }),
+        organizationId: t.globalID({ for: 'Organization', required: true }),
         name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()) }),
         handle: t.string({ validate: handleSchema.optional() }),
         isDefault: t.boolean(),
@@ -37,12 +37,12 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
         permission: {
           resource: 'stock-location',
           actions: ['create'],
-          organization: Number(decodeGlobalID(args.input.organizationId).id),
+          organization: Number(args.input.organizationId.id),
         },
       }),
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id: orgId } = decodeGlobalID(input.organizationId)
+        const orgId = input.organizationId.id
         const handle = input.handle ?? generateHandle(input.name)
 
         const stockLocation = await ctx.runEffect(
@@ -78,7 +78,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'updateStockLocation',
     {
       inputFields: t => ({
-        id: t.field({ type: 'ID', required: true }),
+        id: t.globalID({ for: 'StockLocation', required: true }),
         version: t.int({ required: true }),
         name: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional() }),
         handle: t.string({ validate: handleSchema.optional() }),
@@ -89,7 +89,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     {
       errors: { types: [ValidationError, StockLocationNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.input.id)
+        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
         // rather than masking existence as a 403 (org-permission needs an org).
         if (organization == null)
@@ -98,7 +98,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const stockLocation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* StockLocationService
@@ -132,14 +132,14 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'deleteStockLocation',
     {
       inputFields: t => ({
-        id: t.field({ type: 'ID', required: true }),
+        id: t.globalID({ for: 'StockLocation', required: true }),
         version: t.int({ required: true }),
       }),
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.input.id)
+        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
         // rather than masking existence as a 403 (org-permission needs an org).
         if (organization == null)
@@ -148,7 +148,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const stockLocation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* StockLocationService
@@ -170,14 +170,14 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'forceDeleteStockLocation',
     {
       inputFields: t => ({
-        id: t.field({ type: 'ID', required: true }),
+        id: t.globalID({ for: 'StockLocation', required: true }),
         version: t.int({ required: true }),
       }),
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.input.id)
+        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
         // rather than masking existence as a 403 (org-permission needs an org).
         if (organization == null)
@@ -186,7 +186,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const stockLocation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* StockLocationService
@@ -208,7 +208,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'setStockLocationStatus',
     {
       inputFields: t => ({
-        id: t.field({ type: 'ID', required: true }),
+        id: t.globalID({ for: 'StockLocation', required: true }),
         version: t.int({ required: true }),
         isActive: t.boolean({ required: true }),
       }),
@@ -216,7 +216,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.input.id)
+        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
         // rather than masking existence as a 403 (org-permission needs an org).
         if (organization == null)
@@ -225,7 +225,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const stockLocation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* StockLocationService
@@ -247,14 +247,14 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
     'setDefaultStockLocation',
     {
       inputFields: t => ({
-        id: t.field({ type: 'ID', required: true }),
+        id: t.globalID({ for: 'StockLocation', required: true }),
         version: t.int({ required: true }),
       }),
     },
     {
       errors: { types: [StockLocationNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, args.input.id)
+        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
         // rather than masking existence as a 403 (org-permission needs an org).
         if (organization == null)
@@ -263,7 +263,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
-        const { id } = decodeGlobalID(input.id)
+        const id = input.id.id
         const stockLocation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* StockLocationService

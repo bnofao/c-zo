@@ -65,6 +65,21 @@ describe('user-admin (E2E)', () => {
     expect(res.errors).toBeTruthy()
   })
 
+  it('rejects user(id:) with a non-User global ID (globalID for-validation)', async () => {
+    const admin = await adminActor(h, 'user-gid-mismatch@ex.com')
+    // An Organization global ID where a User id is required → Pothos `for: 'User'`
+    // rejects it at the schema boundary (top-level error) instead of silently
+    // decoding it and querying the wrong numeric id (the manual-decode gap B16 closed).
+    const res = await h.gql(
+      `query ($id: ID!) { user(id: $id) { id email } }`,
+      { id: encodeGlobalID('Organization', '1') },
+      admin.token,
+      admin.ip,
+    )
+    expect(res.errors).toBeTruthy()
+    expect(res.data?.user ?? null).toBeNull()
+  })
+
   it('admin lists users and bans a victim', async () => {
     const admin = await adminActor(h, 'user-admin-list@ex.com')
     const victim = await h.signUp('user-victim-ban@ex.com', 'Victim', 'password123!')

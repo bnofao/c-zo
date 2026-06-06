@@ -63,16 +63,13 @@ describe('stock-location (E2E)', () => {
   }, 120_000)
   afterAll(() => h.close())
 
-  // FINDING: blocked by the missing-migration bug above. Encodes intended behaviour.
-  // FINDING (stock-location relay-id bug — NOT fixed, deferred): the
-  // `createStockLocation` mutation returns `stockLocation.id` as the RAW integer
-  // (e.g. `1`) instead of a relay GLOBAL id, so feeding it back into
-  // `stockLocation(id:)` fails with "Invalid global ID: 1". (`StockLocation` is a
-  // `drizzleNode` with a global `id`, but the mutation payload exposes the raw
-  // id.) Asserts the intended behaviour, `it.fails` until the mutation returns a
-  // global id. The migration fix (table creation) is verified — this is a
-  // separate relay-layer gap.
-  it.fails('creates a stock-location within an org and reads it back', async () => {
+  // Fixed by B16. The earlier `it.fails` mis-attributed the failure to the
+  // mutation returning a raw int id; the real cause was `stockLocation(id:)`'s
+  // authz calling `loadOrganizationId(ctx, args.id.id)` with the already-decoded
+  // numeric, which `decodeGlobalID`'d it AGAIN → "Invalid global ID" threw. The
+  // `globalID({ for })` migration makes the helper take the numeric directly, so
+  // `created.id` (a valid global id) round-trips through `stockLocation(id:)`.
+  it('creates a stock-location within an org and reads it back', async () => {
     const { u, org } = await orgWithAccess(h, 'sl-create@ex.com', 'sl-create')
     const created = await createLocation(h, u, org, 'Main Warehouse')
     expect(created.id).toBeTruthy()
