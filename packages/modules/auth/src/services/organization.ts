@@ -563,8 +563,17 @@ function make(ownerRole: string) {
 
       listMembers: (organizationId, config) =>
         Effect.gen(function* () {
-          const merged = { ...config, where: { ...config?.where, organizationId } }
-          const rows = yield* dbErr(db.query.members.findMany(merged))
+          // Exclude members whose user is soft-deleted (B3): a `deleteAccount`
+          // soft-deletes the user but leaves the member row, so without this
+          // filter a deleted user keeps appearing in the org member list. The
+          // `members → user` relation (relations.ts) lets RQBv2 push the
+          // `deletedAt IS NULL` predicate as an EXISTS sibling of `where`.
+          // Inlined (not a `const`) so the `findMany` param type keeps
+          // `isNull: true` literal rather than widening to `boolean`.
+          const rows = yield* dbErr(db.query.members.findMany({
+            ...config,
+            where: { ...config?.where, organizationId, user: { deletedAt: { isNull: true } } },
+          }))
           return rows
         }),
 

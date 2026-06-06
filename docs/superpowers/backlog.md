@@ -32,18 +32,15 @@ Pas inventoriés. SP-C a nettoyé `@czo/auth` uniquement. Probablement même pat
 
 ## Auth — features déférées
 
-### B3. Filtrer `users.deletedAt IS NULL` dans services existants (suivi SP6)
+### B3. Filtrer `users.deletedAt IS NULL` dans services existants (suivi SP6) — ✅ FAIT (#107 + `fix/b3-soft-delete-listmembers`)
 
-**État :** SP6 ajoute `users.deletedAt` (soft-delete) mais seul `AccountService` consulte ce champ. Le reste des services (`UserService.findFirst/findMany`, `OrganizationService.findFirstMember`, `SessionService.create`, etc.) ne filtrent pas — un soft-deleted user reste visible comme actif partout sauf via les flows SP6.
+**Résolu :** l'essentiel a atterri en **#107** (`3722104b`, mergé) — `excludeDeleted?: boolean` (default true) sur `UserService.findFirst/findMany` via le helper `withDeletedFilter`, filtres `isNull(deletedAt)` sur les lookups de session (+ walk-up impersonation), signIn (credential), et org create/addMember/accept/reject ; `restoreAccount` garde sa requête directe non filtrée. 7 tests d'intégration. Le **dernier trou** (impact #2 : `listMembers` listait encore les membres dont le user est soft-deleted, car `deleteAccount` soft-delete le user mais laisse la ligne `members`) est fermé ici : `OrganizationService.listMembers` AND-merge `user: { deletedAt: { isNull: true } }` (relation `members → user`, poussée en EXISTS par RQBv2). +1 test. auth 217/217, types + lint clean.
 
-**Impact :**
-- Admin `removeUser` (hard delete) sur user soft-deleted → fonctionne (mais redondant)
-- `OrganizationService.listMembers` → soft-deleted apparaît dans la liste des membres
-- `findFirst({where: {email}})` → soft-deleted email match (mais le pattern d'unique constraint le bloque déjà à l'insert)
+<details><summary>Constat d'origine (2026-05-25)</summary>
 
-**Travail :** Audit tous les call sites `findFirst({where: {id|email}})` et décider par site si filter `deletedAt IS NULL`. Probablement ajouter `excludeDeleted?: boolean` (default true) sur `UserService.findFirst`. ~10-15 sites.
+SP6 ajoute `users.deletedAt` (soft-delete) mais seul `AccountService` consulte ce champ. Reste des services ne filtraient pas. Impact : (1) admin `removeUser` sur soft-deleted → redondant ; (2) `listMembers` → soft-deleted dans la liste ; (3) `findFirst({where:{email}})` → match (mais bloqué à l'insert par l'unique constraint).
 
-**Priorité :** moyenne — bug seulement quand un user soft-deleted existe ET un autre flow le consulte. Cohérent à traiter en sprint dédié "soft-delete propagation" une fois SP6 stable.
+</details>
 
 ### B4. `change-email` admin path
 
@@ -109,9 +106,11 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** seulement si demande UX explicite.
 
-### B12. GraphQL-wide rate-limit
+### B12. GraphQL-wide rate-limit — ✅ FAIT (#106, `feat/b12-rate-limit`)
 
-**État :** SP5 risques : "sprint séparé". Cooldown 60s côté tokens (password-reset, email-verification, change-email) est insuffisant pour DoS générique (e.g. mutation `signIn` peut être bruteforced sans gate).
+**Résolu :** rate-limiting livré — REST via Effect `RateLimiter`, GraphQL via la directive Pothos `@rateLimit` (le transformer CJS vit dans `assembleApp`, pas `buildSchema`). Mergé en #106.
+
+**État (origine) :** SP5 risques : "sprint séparé". Cooldown 60s côté tokens (password-reset, email-verification, change-email) est insuffisant pour DoS générique (e.g. mutation `signIn` peut être bruteforced sans gate).
 
 **Travail :** Intégrer `@graphql-yoga/plugin-rate-limit` ou équivalent custom basé sur le `EventBus` + Redis. Tagger les mutations sensibles.
 
@@ -133,9 +132,11 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** basse — seulement si un client non-navigateur consomme l'impersonation.
 
-### B15. Tests E2E GraphQL pour `@czo/auth` et `@czo/stock-location`
+### B15. Tests E2E GraphQL pour `@czo/auth` et `@czo/stock-location` — ✅ FAIT (#108, `feat/b15-e2e-tests`)
 
-**État :** le module `@czo/attribute` a désormais une suite E2E qui boote la vraie app (`[auth, attribute]`) sur Testcontainers via le harness `bootTestApp` (`@czo/kit/testing`) et tape le vrai handler fetch (`/api/auth/**` + `/graphql`), avec vraie autz — voir `packages/modules/attribute/src/e2e/` (`harness.ts` + `node-authz` / `queries` / `attribute-mutations` / `value-mutations`). `auth` et `stock-location` n'ont, eux, que des tests d'intégration **au niveau service** ; leur surface GraphQL (resolvers, décodage relay, enforcement des `authScopes`/node-guards, mapping erreur→union) n'est pas couverte E2E.
+**Résolu :** suites E2E livrées pour `auth` et `stock-location` via `bootTestApp` (Testcontainers + vrai handler fetch). A surfacé + FIXÉ 5 bugs auth (sign-out CookieService, 3× org authz, deleteAccount owner-role) + le format de migration stock-location. Les gaps relais découverts au passage (api-key inachevé, 2 trous relais SL) ont été déférés → traités depuis en **B17** (#109), **B16** (#110) et **B18** (#111). Mergé en #108.
+
+**État (origine) :** le module `@czo/attribute` a désormais une suite E2E qui boote la vraie app (`[auth, attribute]`) sur Testcontainers via le harness `bootTestApp` (`@czo/kit/testing`) et tape le vrai handler fetch (`/api/auth/**` + `/graphql`), avec vraie autz — voir `packages/modules/attribute/src/e2e/` (`harness.ts` + `node-authz` / `queries` / `attribute-mutations` / `value-mutations`). `auth` et `stock-location` n'ont, eux, que des tests d'intégration **au niveau service** ; leur surface GraphQL (resolvers, décodage relay, enforcement des `authScopes`/node-guards, mapping erreur→union) n'est pas couverte E2E.
 
 **Travail :**
 - **`@czo/auth`** : suite E2E via `bootTestApp([auth])` (auth boote seul) — sign-up/in/out (REST `/api/auth/**`), puis mutations/queries org (createOrganization, invitations, membres/rôles), API keys, account flows (change-email, delete/restore), impersonation. Couvrir les paliers d'autz (permission org vs rôle global) et les refus.
