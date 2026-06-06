@@ -147,7 +147,7 @@ export interface BuiltApp {
    * `httpApp.fetch(request)`, and GraphQL via `yoga.fetch(request)` directly
    * (the production `fromNodeHandler` mount can't run on the web-fetch path).
    */
-  readonly assembleApp: Effect.Effect<{ httpApp: H3, runEffect: <A, E>(e: Effect.Effect<A, E, any>) => Promise<A>, yoga: YogaServerInstance<{ pendingCookies?: string[] }, GraphQLContextMap> }, never, GraphQLBuilder | DrizzleDb>
+  readonly assembleApp: Effect.Effect<{ httpApp: H3, runEffect: <A, E>(e: Effect.Effect<A, E, any>) => Promise<A>, yoga: YogaServerInstance<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap> }, never, GraphQLBuilder | DrizzleDb>
   /**
    * The composed app `Layer` (module services + `DrizzleDb` + `GraphQLBuilder`).
    * `@czo/kit/testing` can `Layer.buildWithScope(appLayer, scope)` then
@@ -306,7 +306,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
       )
     })
 
-    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ pendingCookies?: string[] }, GraphQLContextMap>({
+    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>({
       schema: gqlSchema,
       context: async (initialContext) => {
         // Yoga owns the Node response and never flushes the h3 `event.res`, so
@@ -317,9 +317,14 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
         const setCookie = (serialized: string): void => {
           pendingCookies.push(serialized)
         }
+        const pendingHeaders = initialContext.pendingHeaders ?? []
+        const setHeader = (name: string, value: string): void => {
+          pendingHeaders.push([name, value])
+        }
         // Expose on the systemContext so context contributors can queue cookies
-        // while the context is still being built (e.g. session-token rotation).
-        Object.assign(initialContext, { setCookie })
+        // and headers while the context is still being built (e.g. session-token
+        // rotation).
+        Object.assign(initialContext, { setCookie, setHeader })
         const userCtx = await runEffect(graphQLBuilder.buildContext(initialContext))
         // Mirror the REST path's trusted-proxy resolution. The socket peer is the
         // Node request's `socket.remoteAddress` (present under the production
@@ -331,7 +336,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
           socketIp,
           trustedProxyHops,
         )
-        return { ...userCtx, runEffect, setCookie, clientIp }
+        return { ...userCtx, runEffect, setCookie, setHeader, clientIp }
       },
       plugins: [
         {
@@ -339,6 +344,9 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
             const pending = (serverContext as { pendingCookies?: string[] })?.pendingCookies ?? []
             for (const value of pending)
               response.headers.append('set-cookie', value)
+            const pendingHeaders = (serverContext as { pendingHeaders?: Array<[string, string]> })?.pendingHeaders ?? []
+            for (const [name, value] of pendingHeaders)
+              response.headers.append(name, value)
           },
         },
       ],

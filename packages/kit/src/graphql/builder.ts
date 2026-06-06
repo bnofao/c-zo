@@ -99,6 +99,12 @@ export interface GraphQLContextMap {
    * appends every queued value to the outgoing response headers.
    */
   setCookie: (serialized: string) => void
+  /**
+   * Queue an arbitrary response header (e.g. `X-Session-Token` on session
+   * rotation for Bearer clients). Mirrors `setCookie`; the kit Yoga `onResponse`
+   * hook flushes queued headers onto the outgoing response.
+   */
+  readonly setHeader: (name: string, value: string) => void
   readonly clientIp?: string
 }
 

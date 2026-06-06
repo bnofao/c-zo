@@ -10,12 +10,13 @@ import { DrizzleDb } from '@czo/kit/db'
 import { EmailService } from '@czo/kit/email'
 import { and, count, eq, gt, like } from 'drizzle-orm'
 import { Context, Data, Duration, Effect, Layer, Option, Stream } from 'effect'
-import { ACCOUNT_GRACE_PERIOD, CHANGE_EMAIL_TTL, EMAIL_VERIFICATION_TTL, PASSWORD_RESET_TTL } from '../constants'
+import { ACCOUNT_GRACE_PERIOD, CHANGE_EMAIL_TTL, EMAIL_VERIFICATION_TTL, ENUM_TIMING_BUDGET, PASSWORD_RESET_TTL } from '../constants'
 import { accounts, members, users, verifications } from '../database/schema'
 import { AuthEvents } from './events/auth'
 import { PasswordService } from './password'
 import { SessionService } from './session'
-import { UserNotFound, UserService } from './user'
+import { UserService } from './user'
+import { constantTime } from './utils/constant-time'
 import { CREDENTIAL_PROVIDER, updateCredentialPassword } from './utils/credential-account'
 
 // ─── Tagged errors ──────────────────────────────────────────────────────
@@ -68,6 +69,13 @@ export class AccountUnrecoverable extends Data.TaggedError('AccountUnrecoverable
   get message() { return 'Account is no longer recoverable (grace period elapsed)' }
 }
 
+export class NoCredentialAccount extends Data.TaggedError('NoCredentialAccount')<{
+  readonly userId: number
+}> {
+  readonly code = 'NO_CREDENTIAL_ACCOUNT'
+  get message() { return 'User has no credential account (password-based sign-in is unavailable)' }
+}
+
 // ─── Config Tag ─────────────────────────────────────────────────────────
 
 export class AccountConfig extends Context.Service<
@@ -83,6 +91,7 @@ export class AccountConfig extends Context.Service<
     readonly sendOldEmailNotificationOnChange: boolean
     /** Org-owner role name (from `authConfig`); matched by the sole-owner guard. */
     readonly orgOwnerRole: string
+    readonly enumTimingBudget: Duration.Duration
   }
 >()('@czo/auth/AccountConfig') {}
 
@@ -96,6 +105,7 @@ export function makeAccountConfigLayer(input: {
   gracePeriod?: Duration.Duration
   sendOldEmailNotificationOnChange?: boolean
   orgOwnerRole?: string
+  enumTimingBudget?: Duration.Duration
 }): Layer.Layer<AccountConfig> {
   return Layer.succeed(AccountConfig, {
     passwordResetTtl: input.passwordResetTtl ?? PASSWORD_RESET_TTL,
@@ -107,6 +117,7 @@ export function makeAccountConfigLayer(input: {
     gracePeriod: input.gracePeriod ?? ACCOUNT_GRACE_PERIOD,
     sendOldEmailNotificationOnChange: input.sendOldEmailNotificationOnChange ?? true,
     orgOwnerRole: input.orgOwnerRole ?? 'org:owner',
+    enumTimingBudget: input.enumTimingBudget ?? ENUM_TIMING_BUDGET,
   })
 }
 
@@ -127,7 +138,7 @@ export class AccountService extends Context.Service<
       readonly currentSessionToken: string
       readonly currentPassword: string
       readonly newPassword: string
-    }) => Effect.Effect<void, UserNotFound | IncorrectCurrentPassword | PasswordHashFailed | AccountDbFailed | SessionStoreFailed>
+    }) => Effect.Effect<void, NoCredentialAccount | IncorrectCurrentPassword | PasswordHashFailed | AccountDbFailed | SessionStoreFailed>
 
     readonly requestEmailChange: (input: {
       readonly userId: number
@@ -251,20 +262,22 @@ export const layer = Layer.effect(
     // ── flow handlers ──
 
     const requestPasswordReset = Effect.fn('account.requestPasswordReset')(function* (email: string) {
-      const target = yield* usersSvc.findFirst({ where: { email } }).pipe(
-        Effect.orElseSucceed(() => null),
-      )
-      if (!target)
-        return
-      const raw = yield* writeToken('password-reset', target.id, config.passwordResetTtl)
-      if (raw === null)
-        return
-      yield* Effect.forkDetach(events.publish({
-        _tag: 'PasswordResetRequested',
-        userId: target.id,
-        email: target.email,
-        token: raw,
-        expiresAt: new Date(Date.now() + Duration.toMillis(config.passwordResetTtl)),
+      yield* constantTime(config.enumTimingBudget, Effect.gen(function* () {
+        const target = yield* usersSvc.findFirst({ where: { email } }).pipe(
+          Effect.orElseSucceed(() => null),
+        )
+        if (!target)
+          return
+        const raw = yield* writeToken('password-reset', target.id, config.passwordResetTtl)
+        if (raw === null)
+          return
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'PasswordResetRequested',
+          userId: target.id,
+          email: target.email,
+          token: raw,
+          expiresAt: new Date(Date.now() + Duration.toMillis(config.passwordResetTtl)),
+        }))
       }))
     })
 
@@ -301,22 +314,24 @@ export const layer = Layer.effect(
     })
 
     const requestEmailVerification = Effect.fn('account.requestEmailVerification')(function* (userId: number) {
-      const target = yield* usersSvc.findFirst({ where: { id: userId } }).pipe(
-        Effect.orElseSucceed(() => null),
-      )
-      if (!target)
-        return
-      if (target.emailVerified)
-        return
-      const raw = yield* writeToken('email-verification', target.id, config.emailVerificationTtl)
-      if (raw === null)
-        return
-      yield* Effect.forkDetach(events.publish({
-        _tag: 'EmailVerificationRequested',
-        userId: target.id,
-        email: target.email,
-        token: raw,
-        expiresAt: new Date(Date.now() + Duration.toMillis(config.emailVerificationTtl)),
+      yield* constantTime(config.enumTimingBudget, Effect.gen(function* () {
+        const target = yield* usersSvc.findFirst({ where: { id: userId } }).pipe(
+          Effect.orElseSucceed(() => null),
+        )
+        if (!target)
+          return
+        if (target.emailVerified)
+          return
+        const raw = yield* writeToken('email-verification', target.id, config.emailVerificationTtl)
+        if (raw === null)
+          return
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'EmailVerificationRequested',
+          userId: target.id,
+          email: target.email,
+          token: raw,
+          expiresAt: new Date(Date.now() + Duration.toMillis(config.emailVerificationTtl)),
+        }))
       }))
     })
 
@@ -357,7 +372,7 @@ export const layer = Layer.effect(
       )
       const acct = acctRows[0] ?? null
       if (!acct || !acct.password)
-        return yield* Effect.fail(new UserNotFound())
+        return yield* Effect.fail(new NoCredentialAccount({ userId: input.userId }))
 
       const ok = yield* passwords.verify(acct.password, input.currentPassword)
       if (!ok)
@@ -409,31 +424,33 @@ export const layer = Layer.effect(
       currentPassword?: string
       newEmail: string
     }) {
-      // Find the user to get old email
-      const target = yield* usersSvc.findFirst({ where: { id: input.userId } }).pipe(
-        Effect.orElseSucceed(() => null),
-      )
-      if (!target)
-        return
-      if (target.deletedAt !== null)
-        return // soft-deleted: no-op, anti-information
+      yield* constantTime(config.enumTimingBudget, Effect.gen(function* () {
+        // Find the user to get old email
+        const target = yield* usersSvc.findFirst({ where: { id: input.userId } }).pipe(
+          Effect.orElseSucceed(() => null),
+        )
+        if (!target)
+          return
+        if (target.deletedAt !== null)
+          return // soft-deleted: no-op, anti-information
 
-      yield* verifyCredentialPasswordIfPresent(input.userId, input.currentPassword)
+        yield* verifyCredentialPasswordIfPresent(input.userId, input.currentPassword)
 
-      // Encode newEmail into the identifier so confirmEmailChange can decode it
-      const encoded = Buffer.from(input.newEmail).toString('base64url')
-      const identifier = `change-email:${input.userId}:${encoded}`
-      const raw = yield* writeToken('change-email', input.userId, config.changeEmailTtl, identifier)
-      if (raw === null)
-        return
+        // Encode newEmail into the identifier so confirmEmailChange can decode it
+        const encoded = Buffer.from(input.newEmail).toString('base64url')
+        const identifier = `change-email:${input.userId}:${encoded}`
+        const raw = yield* writeToken('change-email', input.userId, config.changeEmailTtl, identifier)
+        if (raw === null)
+          return
 
-      yield* Effect.forkDetach(events.publish({
-        _tag: 'EmailChangeRequested',
-        userId: input.userId,
-        oldEmail: target.email,
-        newEmail: input.newEmail,
-        token: raw,
-        expiresAt: new Date(Date.now() + Duration.toMillis(config.changeEmailTtl)),
+        yield* Effect.forkDetach(events.publish({
+          _tag: 'EmailChangeRequested',
+          userId: input.userId,
+          oldEmail: target.email,
+          newEmail: input.newEmail,
+          token: raw,
+          expiresAt: new Date(Date.now() + Duration.toMillis(config.changeEmailTtl)),
+        }))
       }))
     })
 

@@ -108,9 +108,11 @@ SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModule
 
 ## Améliorations différées (faible priorité)
 
-### B11. `NoCredentialAccount` tagged error
+### B11. `NoCredentialAccount` tagged error — ✅ FAIT (`feat/b11-b13-b14-auth-hardening`)
 
-**État :** `changePassword` (SP5) et `requestEmailChange`/`deleteAccount` (SP6) retournent `UserNotFound` (SP5) ou succès silencieux (SP6 hybride pwd policy) sur user OAuth-only. Confusant pour le front si l'UX veut un message dédié.
+**Résolu :** `changePassword` lève désormais `NoCredentialAccount { userId }` (au lieu de `UserNotFound`) quand l'user n'a pas de row `accounts(providerId='credential')` ; enregistré comme erreur GraphQL (`NoCredentialAccountError`) sur la mutation. Portée limitée à `changePassword` : `requestEmailChange`/`deleteAccount` restent inchangés — leur `verifyCredentialPasswordIfPresent` skip le check pour un user OAuth-only, qui DOIT garder ces ops (les bloquer serait un bug). Test d'intégration mis à jour.
+
+**État (origine) :** `changePassword` (SP5) et `requestEmailChange`/`deleteAccount` (SP6) retournent `UserNotFound` (SP5) ou succès silencieux (SP6 hybride pwd policy) sur user OAuth-only. Confusant pour le front si l'UX veut un message dédié.
 
 **Travail :** Nouveau tagged error `NoCredentialAccount { userId }` levé quand le user n'a pas de row `accounts(providerId='credential')`. Mutations correspondantes l'exposent.
 
@@ -126,15 +128,17 @@ SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModule
 
 **Priorité :** moyenne — bloquant si exposition publique sans WAF.
 
-### B13. Anti-enum timing leak mitigation
+### B13. Anti-enum timing leak mitigation — ✅ FAIT (`feat/b11-b13-b14-auth-hardening`)
 
-`requestPasswordReset` / `requestEmailVerification` / `requestEmailChange` peuvent leak l'existence d'un compte via timing (lookup user ~10ms vs ~30ms si trouve + insert + publish). Acceptable SP5/SP6 ; si pen-test exige, ajouter `Effect.sleep(Random.next(50, 100))` côté happy path pour normaliser.
+**Résolu :** les 3 flows `request*` sont enrobés d'un helper `constantTime(budget, eff)` (`services/utils/constant-time.ts`) qui exécute le corps puis dort le reliquat jusqu'à un budget fixe — la latence ne révèle plus l'existence d'un compte (le travail lourd était déjà `forkDetach`, seul le delta d'un insert de token variait). Budget configurable `AUTH_ENUM_TIMING_BUDGET_MS` (défaut 250ms) via `authConfig` → `AccountConfig.enumTimingBudget`. Helper testé au `TestClock` (pas-fini-à-budget−1, fini-à-budget, erreur préservée) ; budget=0 dans les tests d'intégration pour ne pas les ralentir.
 
-**Priorité :** seulement si threat model l'exige.
+**État (origine) :** `requestPasswordReset` / `requestEmailVerification` / `requestEmailChange` peuvent leak l'existence d'un compte via timing (lookup user ~10ms vs ~30ms si trouve + insert + publish). Acceptable SP5/SP6 ; si pen-test exige, normaliser le timing.
 
-### B14. Rotation de token pour clients Bearer-only
+### B14. Rotation de token pour clients Bearer-only — ✅ FAIT (`feat/b11-b13-b14-auth-hardening`)
 
-**État :** Le contributeur de contexte (`graphql/session-context.ts`) accepte désormais le token de session via `Authorization: Bearer <token>` (méthode `SessionService.readBearerToken`, priorité sur le cookie). Mais la rotation — quand `resolve` walk-up d'un enfant d'impersonation expiré vers le parent et que `resolved.session.token !== token` — ne propage le nouveau token que via `ctx.setCookie` (Set-Cookie). Un client **purement Bearer** (pas de cookie : API, mobile) ignore le Set-Cookie et continuerait donc à présenter l'ancien token après un walk-up.
+**Résolu :** kit gagne un seam générique `setHeader(name, value)` sur le contexte GraphQL (miroir de `setCookie`, flush en `onResponse`). À la rotation (`resolved.session.token !== token`), `session-context` émet désormais `X-Session-Token: <nouveau token>` **uniquement quand le token entrant venait de `Authorization: Bearer`** (les clients cookie gardent Set-Cookie) → un client purement Bearer peut ré-adopter le token tourné. Tests unit (stub `SessionService`) : Bearer → header + cookie ; cookie → cookie seul.
+
+**État (origine) :** Le contributeur de contexte (`graphql/session-context.ts`) accepte désormais le token de session via `Authorization: Bearer <token>` (méthode `SessionService.readBearerToken`, priorité sur le cookie). Mais la rotation — quand `resolve` walk-up d'un enfant d'impersonation expiré vers le parent et que `resolved.session.token !== token` — ne propage le nouveau token que via `ctx.setCookie` (Set-Cookie). Un client **purement Bearer** (pas de cookie : API, mobile) ignore le Set-Cookie et continuerait donc à présenter l'ancien token après un walk-up.
 
 **Impact :** borné — la rotation ne survient qu'au terme d'une impersonation (flow surtout navigateur). Un client Bearer en cours d'impersonation après expiration de l'enfant garderait le token enfant jusqu'à ce qu'il en redemande un.
 

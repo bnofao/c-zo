@@ -37,3 +37,10 @@ export const CHANGE_EMAIL_TTL: Duration.Duration = Duration.hours(24)
 
 /** Grace period for self-deleted accounts. = restore token TTL. Override via AuthModuleConfig.account.gracePeriod. */
 export const ACCOUNT_GRACE_PERIOD: Duration.Duration = Duration.days(30)
+
+/**
+ * Constant-time budget for the account-enumeration flows (`requestPasswordReset`
+ * etc.). Each flow pads its response up to this budget so account existence is
+ * not inferable from latency. Override via `AUTH_ENUM_TIMING_BUDGET_MS`.
+ */
+export const ENUM_TIMING_BUDGET: Duration.Duration = Duration.millis(250)

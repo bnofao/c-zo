@@ -9,8 +9,9 @@ import {
   InvalidEmailChangeToken,
   InvalidEmailVerificationToken,
   InvalidPasswordResetToken,
+  NoCredentialAccount,
 } from '../../../services/account'
-import { PasswordHashFailed, UserNotFound } from '../../../services/user'
+import { PasswordHashFailed } from '../../../services/user'
 import { emailSchema } from '../../../services/utils/email-schema'
 import { passwordSchema } from '../../../services/utils/password-schema'
 
@@ -105,7 +106,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
       newPassword: t.string({ required: true, validate: passwordSchema }),
     }) },
     {
-      errors: { types: [UserNotFound, IncorrectCurrentPassword, PasswordHashFailed] },
+      errors: { types: [NoCredentialAccount, IncorrectCurrentPassword, PasswordHashFailed] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         const userId = Number(ctx.auth.user!.id)

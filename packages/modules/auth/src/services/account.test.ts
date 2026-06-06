@@ -38,7 +38,7 @@ const UserLive = User.layer.pipe(
   Layer.provide(Layer.mergeAll(UserEventsMod.layer, AccessSeedLayer, Password.layer)),
 )
 
-const AccountConfigLive = Account.makeAccountConfigLayer({ baseUrl: 'https://test.example.com' })
+const AccountConfigLive = Account.makeAccountConfigLayer({ baseUrl: 'https://test.example.com', enumTimingBudget: Duration.zero })
 
 // Capture email sends for assertions.
 const EmailMockState: { sends: Email.SendEmailInput[] } = { sends: [] }
@@ -73,6 +73,7 @@ const TestLayerNoAutoVerify = Account.layer.pipe(
     Account.makeAccountConfigLayer({
       baseUrl: 'https://test.example.com',
       sendVerificationOnSignUp: false,
+      enumTimingBudget: Duration.zero,
     }),
     EmailMockLayer,
   )),
@@ -399,7 +400,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('AccountServic
       expect((err as { _tag: string })._tag).toBe('IncorrectCurrentPassword')
     }))
 
-  it.effect('changePassword OAuth-only user (no credential account) → UserNotFound', () =>
+  it.effect('changePassword on an OAuth-only user (no credential account) → NoCredentialAccount', () =>
     Effect.gen(function* () {
       yield* truncateAuth
       const u = yield* seedUser() // no credential account inserted
@@ -413,7 +414,7 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('AccountServic
         currentPassword: 'anything',
         newPassword: 'NewPass1!',
       }).pipe(Effect.flip)
-      expect((err as { _tag: string })._tag).toBe('UserNotFound')
+      expect(err._tag).toBe('NoCredentialAccount')
     }))
 
   // requestEmailChange
