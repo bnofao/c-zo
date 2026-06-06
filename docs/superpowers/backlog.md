@@ -157,7 +157,9 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** basse — défense en profondeur, pas d'exploit ; pattern + patch déjà prouvés sur attribute.
 
-### B17. Compléter la surface GraphQL `api-key` (feature inachevée SP3)
+### B17. Compléter la surface GraphQL `api-key` (feature inachevée SP3) — ✅ FAIT (`feat/b17-api-key-graphql`)
+
+**Résolu :** `ApiKeyService.create` retourne désormais `{ apiKey, plain }` (le secret one-time ; le hash reste en DB) ; le resolver `createApiKey` surface `plain` ; schéma ré-enregistré (`graphql/schema/index.ts`) ; imports normalisés en relatif. Suite E2E dé-skippée → 6/6 verte (auth 214/214, attribute 55/55, types + lint clean).
 
 **État :** révélé par les E2E B15. La surface GraphQL api-key existe (`graphql/schema/api-key/{errors,types,inputs,queries,mutations}.ts` + scope `apiKeyOwner` dans `scopes.ts`) mais est **inachevée et désactivée** :
 1. `registerApiKeySchema(builder)` est **commenté** dans `graphql/schema/index.ts` (depuis la migration Pothos #101) → aucune des mutations/queries api-key (`createApiKey`, `updateApiKey`, `removeApiKey`, `myApiKeys`, `apiKey`, `organizationApiKeys`) n'existe dans le schéma.

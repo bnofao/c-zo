@@ -164,7 +164,7 @@ export class ApiKeyService extends Context.Service<
     readonly create: (
       input: CreateApiKeyInput,
       opts: CreateApiKeyOptions,
-    ) => Effect.Effect<ApiKey, RefillPairRequired | DbFailed>
+    ) => Effect.Effect<{ apiKey: ApiKey, plain: string }, RefillPairRequired | DbFailed>
 
     readonly update: (
       id: number,
@@ -378,7 +378,9 @@ const make = Effect.gen(function* () {
           referenceId: row.referenceId,
         }))
 
-        return { ...row, key }
+        // `row.key` is the stored HASH; `key` is the one-time plaintext secret —
+        // return them separately so the secret never masquerades as the row's key.
+        return { apiKey: row, plain: key }
       }),
 
     update: (id, input) =>
