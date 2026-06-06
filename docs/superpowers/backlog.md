@@ -8,21 +8,29 @@ Topics non traités identifiés en revue spec SP1→SP5 + follow-ups SP6. Ordre 
 
 ## Infrastructure — modules dépendants
 
-### B1. `@czo/kit/effect` — restant en production (post-SP-C)
+### B1. `@czo/kit/effect` — restant en production (post-SP-C) — ⚠️ PÉRIMÉ / clos (2026-06-06)
 
-**État :** Côté `@czo/auth` purgé (SP-C, commit `635d7a81`). Reste en production dans :
+**Réévaluation (2026-06-06) :** l'inventaire d'origine ci-dessous est faux depuis la migration `defineModule` de stock-location et la suppression du module `@czo/kit/effect`. État réel aujourd'hui :
 
-- `packages/modules/app/src/listeners/webhook.listener.ts` — 4 sites `runEffect(useRuntime(), DrizzleDb)`
-- `packages/modules/app/src/graphql/schema/app/queries.ts` — 3 sites
-- `packages/modules/app/build.config.ts` — externals listing
-- `packages/modules/stock-location/src/plugins/index.ts` — `registerEffectLayer` + `useRuntime`
-- `packages/modules/stock-location/src/graphql/context-factory.ts` — `useRuntime` dans le contexte GraphQL
+- **`@czo/kit/effect` n'existe plus** comme module — `runEffect` / `useRuntime` vivent dans `@czo/kit/db`. Plus aucun import `@czo/kit/effect` dans le code (seul un *string* dans `app/build.config.ts` externals, inerte).
+- **`@czo/stock-location` : déjà propre** — `plugins/index.ts` + `graphql/context-factory.ts` (les seuls sites cités) ont été supprimés à la migration `defineModule` ; zéro usage `useRuntime`/`registerEffectLayer`.
+- **Seul reste : `@czo/app`** — module **orphelin** (importé par aucune app/manifest), **34 erreurs de types**, référence du code mort (`@czo/auth/types`, `@czo/auth/events`, supprimés au SP1) et une API Pothos pré-kit-v2. Ses 3 `runEffect(useRuntime(), DrizzleDb) as any` (`graphql/schema/app/queries.ts`) sont le dernier vestige kit/effect-era — mais le module entier prédate tous les patterns actuels.
 
-**Options :**
-- (a) **Restaurer** `@czo/kit/effect` comme thin shim autour de `ManagedRuntime` (~50 LOC, retire le rouge import). Solution la plus rapide.
-- (b) **Migrer** `@czo/app` et `@czo/stock-location` au pattern Effect-native (`ctx.runEffect` + `Layer.mergeAll` au boot). Aligne sur `@czo/auth` SP1+, mais sprint dédié.
+**Décision (utilisateur, 2026-06-06) :** **laisser `@czo/app` tel quel** et clore B1 comme périmé. Ni restaurer un shim (le module est mort) ni réécrire `@czo/app` (réécriture complète, pas un swap kit/effect) tant que la feature « app/marketplace install » n'est pas au roadmap. `@czo/app` reste la baseline check-types (~34 err) jusqu'à un sprint marketplace dédié — voir B2.
 
-**Recommandation :** (a) maintenant, (b) au prochain sprint feature touchant ces modules.
+<details><summary>Inventaire d'origine (2026-05-25, périmé)</summary>
+
+Côté `@czo/auth` purgé (SP-C, commit `635d7a81`). Restait (à l'époque) en production dans :
+
+- `packages/modules/app/src/listeners/webhook.listener.ts` — 4 sites `runEffect(useRuntime(), DrizzleDb)` *(fichier supprimé depuis)*
+- `packages/modules/app/src/graphql/schema/app/queries.ts` — 3 sites *(seul reste réel)*
+- `packages/modules/app/build.config.ts` — externals listing *(string inerte)*
+- `packages/modules/stock-location/src/plugins/index.ts` — `registerEffectLayer` + `useRuntime` *(fichier supprimé)*
+- `packages/modules/stock-location/src/graphql/context-factory.ts` — `useRuntime` *(fichier supprimé)*
+
+Options envisagées : (a) restaurer `@czo/kit/effect` en thin shim ; (b) migrer `@czo/app` + `@czo/stock-location` au pattern Effect-native. → caduques : stock-location est déjà migré, `@czo/app` est orphelin.
+
+</details>
 
 ### B2. Tests legacy de `@czo/app` et `@czo/stock-location`
 
