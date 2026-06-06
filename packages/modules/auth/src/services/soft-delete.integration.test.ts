@@ -253,4 +253,23 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('soft-delete f
       const restored = yield* db.query.users.findFirst({ where: { id: u.id } })
       expect(restored?.deletedAt).toBeNull()
     }))
+
+  it.effect('OrganizationService.listMembers excludes a member whose user is soft-deleted', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const live = yield* seedUser({ email: 'member-live@x.com' })
+      const dead = yield* seedUser({ email: 'member-dead@x.com' })
+      const org = yield* seedOrganization(`org-${live.id}`)
+      const orgService = yield* Organization.OrganizationService
+
+      // Both join as members while live, then one user is soft-deleted.
+      yield* orgService.addMember({ organizationId: org.id, userId: live.id, role: 'org:member' })
+      yield* orgService.addMember({ organizationId: org.id, userId: dead.id, role: 'org:member' })
+      yield* softDelete(dead.id)
+
+      const rows = yield* orgService.listMembers(org.id)
+      const userIds = rows.map(m => m.userId)
+      expect(userIds).toContain(live.id)
+      expect(userIds).not.toContain(dead.id)
+    }))
 })
