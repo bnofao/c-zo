@@ -5,6 +5,7 @@ import type { CreateStockLocationAddressInput, StockLocation } from '../services
 // and object refs (`'Organization'`) resolve against the shared interfaces.
 import '@czo/auth/graphql'
 
+export { stockLocationNodeGuards } from './node-guards'
 export { registerStockLocationSchema, type StockLocationBuilder } from './schema'
 
 export type StockLocationGraphQLSchemaBuilder = SchemaBuilder<Relations>

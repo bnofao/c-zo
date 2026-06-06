@@ -172,7 +172,9 @@ Hors-scope SP1. Better-auth gère encore Google/GitHub via `socialConfig`. Pas d
 
 **Priorité :** moyenne — feature exposée mais non-fonctionnelle ; petit contrat de service à étendre.
 
-### B18. Relay `StockLocation` : global id depuis les mutations + node-guard org-scopé
+### B18. Relay `StockLocation` : global id depuis les mutations + node-guard org-scopé — ✅ FAIT (`feat/b18-stock-location-node-guard`)
+
+**Résolu :** les deux trous relais sont fermés. (1) Le global id du payload de mutation round-trip déjà — fixé par **B16** (le double-décode de `loadOrganizationId` était la vraie cause du "Invalid global ID", pas un id brut ; le test "creates … reads it back" est vert depuis B16). (2) Ajout d'un node-guard `StockLocation` (`graphql/node-guards.ts`) câblé via `graphql.nodeGuards`, retournant **exactement** le scope de la query par-id (`{ permission: { resource: 'stock-location', actions: ['read'], organization: row.organizationId } }`) → `node(id:)` n'est plus un chemin de lecture plus faible que `stockLocation(id:)` ; un non-membre est refusé (deny-as-null) sur la stock-location d'un autre org. `select: true` ajouté au `drizzleNode` pour garantir `organizationId` au guard. Le `it.fails` restant est flippé en `it` vert. stock-location 7/7, types + lint clean.
 
 **État :** révélé par les E2E B15 (2 `it.fails` dans `stock-location.e2e.test.ts`). Deux trous relais :
 1. `createStockLocation` retourne `stockLocation.id` en **entier brut** (ex. `1`) au lieu d'un global id relay → re-injecter cet id dans `stockLocation(id:)` / `node(id:)` échoue "Invalid global ID: 1". (`StockLocation` est pourtant un `drizzleNode` avec un `id` global ; le payload de mutation expose l'id brut.)

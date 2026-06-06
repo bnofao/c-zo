@@ -12,10 +12,12 @@ import { bootStockLocationApp } from './harness'
 // Drizzle schema). The table is created on boot and CRUD/scoping/optimistic-lock
 // tests below pass.
 //
-// TWO relay-layer FINDINGS remain (deferred, marked `it.fails` on the two tests
-// that hit them — see their inline comments): (1) `createStockLocation` returns
-// `stockLocation.id` as the RAW integer, not a relay global id; (2) the module
-// registers no node-guard for `StockLocation`, so `node(id:)` is not org-scoped.
+// Both former relay-layer FINDINGS are now FIXED (B16 + B18): (1) the
+// `created.id` global id round-trips through `stockLocation(id:)` once the authz
+// helper stopped double-decoding (B16); (2) the module now registers a
+// `StockLocation` node-guard (`graphql/node-guards.ts`), so `node(id:)` is
+// org-scoped — a non-member can no longer read another org's location by global
+// id (B18). Both tests below are plain `it`.
 
 const FULL_ROLE = 'org:owner,stock-loc:viewer,stock-loc:manager,stock-loc:admin'
 
@@ -165,14 +167,11 @@ describe('stock-location (E2E)', () => {
     expect(denied.errors).toBeTruthy()
   })
 
-  // FINDING: blocked by the missing-migration bug above. Encodes intended behaviour.
-  // FINDING (NOT fixed, deferred): two gaps make this fail — (1) the same
-  // raw-id-from-mutation bug above (node(id:) needs a global id), and (2) the
-  // stock-location module registers NO node-guard for `StockLocation`, so a
-  // non-member could read another org's location via `node(id:)` (cross-org
-  // leak) — unlike `attribute`, which registers `graphql.nodeGuards`. Asserts
-  // the intended behaviour, `it.fails` until both are addressed.
-  it.fails('reads a StockLocation via node(id:) — member ok, non-member denied', async () => {
+  // Fixed by B16 + B18: the global id round-trips through `node(id:)` (B16), and
+  // the `StockLocation` node-guard org-scopes the read so a non-member is denied
+  // (deny-as-null) on another org's location (B18), mirroring `attribute`'s
+  // node-guards.
+  it('reads a StockLocation via node(id:) — member ok, non-member denied', async () => {
     const { u, org } = await orgWithAccess(h, 'sl-node@ex.com', 'sl-node')
     const created = await createLocation(h, u, org, 'Node Warehouse')
 
