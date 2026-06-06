@@ -8,6 +8,7 @@ import {
   InvalidEmailChangeToken,
   InvalidEmailVerificationToken,
   InvalidPasswordResetToken,
+  NoCredentialAccount,
 } from '../../../services/account'
 
 export function registerAccountErrors(builder: AuthGraphQLSchemaBuilder): void {
@@ -19,4 +20,5 @@ export function registerAccountErrors(builder: AuthGraphQLSchemaBuilder): void {
   registerError(builder, InvalidAccountRestoreToken, { name: 'InvalidAccountRestoreTokenError' })
   registerError(builder, CannotDeleteWithOwnedOrgs, { name: 'CannotDeleteWithOwnedOrgsError' })
   registerError(builder, AccountUnrecoverable, { name: 'AccountUnrecoverableError' })
+  registerError(builder, NoCredentialAccount, { name: 'NoCredentialAccountError' })
 }

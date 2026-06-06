@@ -4,7 +4,7 @@ import { DrizzleDb } from '@czo/kit/db'
 import * as Email from '@czo/kit/email'
 import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
-import { Effect, Fiber, Layer, Stream } from 'effect'
+import { Duration, Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, organizations, users } from '../database/schema'
 import { InvalidCredentials, signIn } from '../http/credential'
@@ -56,7 +56,7 @@ const OrganizationLive = Organization.layer.pipe(
   Layer.provide(Layer.mergeAll(AccessSeedLayer, OrganizationEvents.layer)),
 )
 
-const AccountConfigLive = Account.makeAccountConfigLayer({ baseUrl: 'https://test.example.com' })
+const AccountConfigLive = Account.makeAccountConfigLayer({ baseUrl: 'https://test.example.com', enumTimingBudget: Duration.zero })
 
 const EmailMockLayer: Layer.Layer<Email.EmailService> = Layer.succeed(Email.EmailService, {
   send: () => Effect.void,

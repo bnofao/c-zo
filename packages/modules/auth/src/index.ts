@@ -15,7 +15,7 @@ import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, ApiKeyEvents, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
-import { Config, Effect, Layer } from 'effect'
+import { Config, Duration, Effect, Layer } from 'effect'
 import { makeSessionContextContributor } from './graphql/session-context'
 import { authRoutes } from './http/routes'
 import {
@@ -110,7 +110,8 @@ export default defineModule(() => {
     // The org-owner role name: names the top hierarchy level, is granted to org
     // creators, and is matched by the sole-owner guards. Single source of truth.
     const orgOwnerRole = yield* Config.string('AUTH_ORG_OWNER_ROLE').pipe(Config.withDefault('org:owner'))
-    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole }
+    const enumTimingBudgetMs = yield* Config.int('AUTH_ENUM_TIMING_BUDGET_MS').pipe(Config.withDefault(250))
+    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole, enumTimingBudgetMs }
   })
 
   // `Layer.unwrap` bridges runtime (reading Config) to build-time
@@ -151,6 +152,7 @@ export default defineModule(() => {
       requireEmailVerification: cfg.requireEmailVerification,
       sendVerificationOnSignUp: cfg.sendVerificationOnSignUp,
       orgOwnerRole: cfg.orgOwnerRole,
+      enumTimingBudget: Duration.millis(cfg.enumTimingBudgetMs),
     })
 
     return Layer.mergeAll(
