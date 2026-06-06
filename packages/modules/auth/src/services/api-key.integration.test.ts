@@ -106,12 +106,11 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
       const { input, opts } = userKeyInput(userId)
       const created = yield* svc.create(input, opts)
 
-      expect(created.reference).toBe('user')
-      expect(created.referenceId).toBe(userId)
-      // `key` on the returned row is the plain key (service patches it back),
-      // but the DB stores the hash — verify the two differ.
-      expect(created.key).toBeTruthy()
-      expect(created.name).toBe('test-key')
+      expect(created.apiKey.reference).toBe('user')
+      expect(created.apiKey.referenceId).toBe(userId)
+      // `plain` is the one-time plaintext secret; the DB stores only the hash.
+      expect(created.plain).toBeTruthy()
+      expect(created.apiKey.name).toBe('test-key')
     }))
 
   it.effect('create — ORGANIZATION scope succeeds when caller is a member', () =>
@@ -127,8 +126,8 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
         { reference: 'organization' },
       )
 
-      expect(created.reference).toBe('organization')
-      expect(created.referenceId).toBe(orgId)
+      expect(created.apiKey.reference).toBe('organization')
+      expect(created.apiKey.referenceId).toBe(orgId)
     }))
 
   // ── update ────────────────────────────────────────────────────────────────
@@ -145,10 +144,10 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
       const { input, opts } = userKeyInput(userId)
       const created = yield* svc.create(input, opts)
 
-      const updated = yield* svc.update(created.id, { name: 'renamed' })
+      const updated = yield* svc.update(created.apiKey.id, { name: 'renamed' })
 
       expect(updated.name).toBe('renamed')
-      expect(updated.id).toBe(created.id)
+      expect(updated.id).toBe(created.apiKey.id)
     }))
 
   // ── remove ────────────────────────────────────────────────────────────────
@@ -162,7 +161,7 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
       const { input, opts } = userKeyInput(userId)
       const created = yield* svc.create(input, opts)
 
-      const result = yield* svc.remove(created.id)
+      const result = yield* svc.remove(created.apiKey.id)
       expect(result).toBe(true)
 
       // Confirm it's gone via findFirst.
@@ -191,12 +190,12 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
         {},
       )
 
-      // `created.key` holds the plain key (service patches it back after insert).
-      const verified = yield* svc.verify(created.key, {
+      // `created.plain` is the one-time plaintext secret returned at creation.
+      const verified = yield* svc.verify(created.plain, {
         permissions: { posts: ['read'] },
       })
 
-      expect(verified.id).toBe(created.id)
+      expect(verified.id).toBe(created.apiKey.id)
     }))
 
   it.effect('verify — granted permissions ⊉ required → Unauthorized', () =>
@@ -217,7 +216,7 @@ layer(TestLayer, { timeout: 120_000 })('ApiKeyService integration', (it) => {
         {},
       )
 
-      const err = yield* svc.verify(created.key, {
+      const err = yield* svc.verify(created.plain, {
         permissions: { posts: ['write'] },
       }).pipe(Effect.flip)
 

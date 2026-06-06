@@ -15,7 +15,8 @@ export type ApiKeyOwnerType = (typeof apiKeyOwnerTypeValues)[number]
  */
 export interface ApiKeyOwnerInput {
   type: ApiKeyOwnerType
-  id: string
+  /** Relay global ID, decoded + type-validated by Pothos (`User` | `Organization`). */
+  id: { typename: string, id: string }
 }
 
 export function registerApiKeyInputs(builder: AuthGraphQLSchemaBuilder): void {
@@ -26,7 +27,10 @@ export function registerApiKeyInputs(builder: AuthGraphQLSchemaBuilder): void {
   builder.inputType('ApiKeyOwnerInput', {
     fields: t => ({
       type: t.field({ type: ApiKeyOwnerTypeRef, required: true }),
-      id: t.id({ required: true }),
+      // Pothos decodes + validates the global ID is a `User` or `Organization`
+      // (rejects malformed/other types at the schema boundary); the resolver
+      // additionally checks the decoded typename matches `type`.
+      id: t.globalID({ for: ['User', 'Organization'], required: true }),
     }),
   })
 }

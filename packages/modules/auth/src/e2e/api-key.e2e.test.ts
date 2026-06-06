@@ -25,24 +25,11 @@ function createInput(ownerGid: string, ownerType: 'USER' | 'ORGANIZATION', name:
   }
 }
 
-// SKIPPED — the api-key GraphQL surface is an UNFINISHED feature (SP3 was
-// paused), deferred out of B15 to a dedicated completion task. Two gaps:
-//  1. `registerApiKeySchema(builder)` is commented out in
-//     `src/graphql/schema/index.ts`, so the whole api-key surface
-//     (create/update/remove/myApiKeys/apiKey/organizationApiKeys) is absent
-//     from the running schema.
-//  2. Even when registered, `createApiKey` returns `plain: null`
-//     (`api-key/mutations.ts`) because `ApiKeyService.create` discards the
-//     generated plaintext (returns only the hashed `ApiKey` row) — so created
-//     keys are unusable (the client never receives the secret).
-// This suite is written + verified correct against the intended behaviour
-// (with the schema enabled it runs 5/6; the 6th needs the plaintext returned).
-// Un-skip once the api-key surface is completed (register schema + return the
-// one-time plaintext from `create`). The api-key schema files also import their
-// services via `@czo/auth/services/*` subpaths (vs the relative imports every
-// other domain uses) — normalize those to relative when completing, so the
-// suite resolves under vitest.
-describe.skip('api-key (E2E) — DEFERRED: api-key GraphQL surface unfinished (see note)', () => {
+// The api-key GraphQL surface (create/update/remove/myApiKeys/apiKey/
+// organizationApiKeys) was completed in B17: the schema is registered in
+// `src/graphql/schema/index.ts`, `ApiKeyService.create` returns the one-time
+// plaintext as `{ apiKey, plain }`, and the resolver surfaces it as `plain`.
+describe('api-key (E2E)', () => {
   let h: AuthHarness
   beforeAll(async () => {
     h = await bootAuthApp()
@@ -74,6 +61,25 @@ describe.skip('api-key (E2E) — DEFERRED: api-key GraphQL surface unfinished (s
     )
     expect(res.errors).toBeTruthy()
     expect(res.data?.createApiKey ?? null).toBeNull()
+  })
+
+  it('rejects an owner global ID whose type mismatches the discriminator', async () => {
+    const user = await h.signUp('ak-mismatch@ex.com', 'Mismatch', 'password123!')
+    // type=USER but the id is an Organization global ID — the resolver requires
+    // the decoded typename to match `type`, so this is rejected (no NaN/garbage).
+    // ValidationError is a typed error → it surfaces as a non-Success union
+    // member in `data`, not in the top-level `errors` array.
+    const res = await h.gql(
+      `mutation ($i: CreateApiKeyInput!) { createApiKey(input: $i) {
+        __typename
+        ... on CreateApiKeySuccess { data { plain } }
+      } }`,
+      { i: createInput(encodeGlobalID('Organization', String(user.userId)), 'USER', 'Bad', 'bad') },
+      user.token,
+      user.ip,
+    )
+    expect(res.data.createApiKey.__typename).not.toBe('CreateApiKeySuccess')
+    expect(res.data?.createApiKey?.data?.plain ?? null).toBeNull()
   })
 
   it('myApiKeys — a user sees their own key', async () => {

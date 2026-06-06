@@ -1,7 +1,7 @@
 import type { AuthGraphQLSchemaBuilder } from '../../.'
-import { ApiKeyNotFound, ApiKeyService, NoChanges, RefillPairRequired } from '@czo/auth/services/api-key'
-import { decodeGlobalID, UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
+import { UnauthenticatedError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
+import { ApiKeyNotFound, ApiKeyService, NoChanges, RefillPairRequired } from '../../../services/api-key'
 
 // ─── API Key Mutations ────────────────────────────────────────────────────────
 
@@ -29,18 +29,28 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
           ownerType: args.input.owner.type,
-          ownerId: Number(decodeGlobalID(args.input.owner.id).id),
+          ownerId: Number(args.input.owner.id.id),
           action: 'create' as const,
         },
       }),
       resolve: async (_root, { input }, ctx) => {
         const owner = input.owner
 
+        // Pothos already validated the global ID is a `User`/`Organization`;
+        // also require its type to match the `type` discriminator.
+        const expectedTypename = owner.type === 'USER' ? 'User' : 'Organization'
+        if (owner.id.typename !== expectedTypename) {
+          throw new ValidationError(
+            [{ path: 'owner.id', message: `must be a ${expectedTypename} global ID`, code: 'type_mismatch' }],
+            'owner.id does not match owner.type',
+          )
+        }
+
         const reference = owner.type === 'USER' ? 'user' : 'organization'
-        const referenceId = Number(decodeGlobalID(owner.id).id)
+        const referenceId = Number(owner.id.id)
         const { owner: _owner, ...rest } = input
 
-        const apiKey = await ctx.runEffect(
+        const { apiKey, plain } = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* ApiKeyService
             return yield* svc.create(
@@ -58,7 +68,8 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
           }),
         )
 
-        return { apiKey, plain: null as string | null }
+        // `plain` is the one-time secret — only ever returned here, at creation.
+        return { apiKey, plain }
       },
     },
     {
@@ -74,7 +85,7 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     'updateApiKey',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'ApiKey', required: true }),
         name: t.string({ required: false }),
         enabled: t.boolean({ required: false }),
         remaining: t.int({ required: false }),
@@ -90,12 +101,12 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
       errors: { types: [ValidationError, UnauthenticatedError, ApiKeyNotFound, NoChanges, RefillPairRequired] },
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
-          keyId: Number(decodeGlobalID(args.input.id).id),
+          keyId: Number(args.input.id.id),
           action: 'update' as const,
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const keyId = Number(decodeGlobalID(input.id).id)
+        const keyId = Number(input.id.id)
 
         const apiKey = await ctx.runEffect(
           Effect.gen(function* () {
@@ -120,19 +131,19 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     'removeApiKey',
     {
       inputFields: t => ({
-        id: t.id({ required: true }),
+        id: t.globalID({ for: 'ApiKey', required: true }),
       }),
     },
     {
       errors: { types: [UnauthenticatedError, ApiKeyNotFound] },
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
-          keyId: Number(decodeGlobalID(args.input.id).id),
+          keyId: Number(args.input.id.id),
           action: 'delete' as const,
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        const keyId = Number(decodeGlobalID(input.id).id)
+        const keyId = Number(input.id.id)
 
         await ctx.runEffect(
           Effect.gen(function* () {

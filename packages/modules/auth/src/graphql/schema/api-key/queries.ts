@@ -1,8 +1,8 @@
 import type { AuthGraphQLSchemaBuilder } from '../../index'
-import { ApiKeyService } from '@czo/auth/services/api-key'
-import { OrganizationService } from '@czo/auth/services/organization'
-import { decodeGlobalID, UnauthenticatedError } from '@czo/kit/graphql'
+import { UnauthenticatedError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
+import { ApiKeyService } from '../../../services/api-key'
+import { OrganizationService } from '../../../services/organization'
 
 // ─── API Key Queries ──────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
       type: 'apikeys',
       nullable: true,
       args: {
-        id: t.arg.id({ required: true }),
+        id: t.arg.globalID({ for: 'ApiKey', required: true }),
       },
       authScopes: { auth: true },
       resolve: async (_query, _root, args, ctx) => {
@@ -21,7 +21,7 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
         if (!user)
           throw new UnauthenticatedError()
 
-        const keyId = Number(decodeGlobalID(String(args.id)).id)
+        const keyId = Number(args.id.id)
         const program = Effect.gen(function* () {
           const svc = yield* ApiKeyService
           const key = yield* svc.findFirst({ where: { id: keyId } }).pipe(
@@ -67,17 +67,17 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
     t.drizzleConnection({
       type: 'apikeys',
       args: {
-        organizationId: t.arg.id({ required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
       },
       authScopes: (_parent: unknown, args) => ({
         permission: {
           resource: 'api-key',
           actions: ['read'],
-          organization: Number(decodeGlobalID(args.organizationId).id),
+          organization: Number(args.organizationId.id),
         },
       }),
       resolve: async (query, _root, args, ctx) => {
-        const orgId = Number(decodeGlobalID(String(args.organizationId)).id)
+        const orgId = Number(args.organizationId.id)
         const program = Effect.gen(function* () {
           const svc = yield* ApiKeyService
           return yield* svc.findMany(query({

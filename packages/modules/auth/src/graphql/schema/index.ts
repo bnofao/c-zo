@@ -1,6 +1,6 @@
 import type { SchemaBuilder } from '@czo/kit/graphql'
 import { registerAccountSchema } from './account'
-// import { registerApiKeySchema } from './api-key'
+import { registerApiKeySchema } from './api-key'
 import { registerImpersonationSchema } from './impersonation'
 import { registerOrganizationSchema } from './organization'
 // import { registerTwoFactorSchema } from './two-factor'
@@ -11,6 +11,6 @@ export function registerAuthSchema(builder: SchemaBuilder): void {
   registerOrganizationSchema(builder)
   registerImpersonationSchema(builder)
   registerAccountSchema(builder)
-  // registerApiKeySchema(builder)
+  registerApiKeySchema(builder)
   // registerTwoFactorSchema(builder)
 }
