@@ -17,6 +17,7 @@
     "@czo/auth": "workspace:*",
     "@czo/channel": "workspace:*",
     "@czo/kit": "workspace:*",
+    "@czo/price": "workspace:*",
     "@czo/stock-location": "workspace:*",
     "@effect/opentelemetry": "catalog:",
     "@opentelemetry/api": "catalog:common",

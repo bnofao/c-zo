@@ -12,6 +12,7 @@ import type { CzoModule } from '@czo/kit/module'
 import attributeModule from '@czo/attribute'
 import authModule from '@czo/auth'
 import channelModule from '@czo/channel'
+import priceModule from '@czo/price'
 import stockLocationModule from '@czo/stock-location'
 
 // Order matters: `buildApp` provides earlier modules to later ones (its
@@ -20,9 +21,12 @@ import stockLocationModule from '@czo/stock-location'
 // Attribute depends on auth's AccessService + permission scope, so it comes after
 // auth. Channel depends on both auth (AccessService) and stock-location
 // (StockLocationService), so it must come after both.
+// Price depends only on auth (AccessService + permission scope), so it just
+// needs to come after auth.
 export const modules: ReadonlyArray<CzoModule> = [
   authModule,
   attributeModule,
   stockLocationModule,
   channelModule,
+  priceModule,
 ]
