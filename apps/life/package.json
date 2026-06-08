@@ -15,6 +15,7 @@
   "dependencies": {
     "@czo/attribute": "workspace:*",
     "@czo/auth": "workspace:*",
+    "@czo/translation": "workspace:*",
     "@czo/channel": "workspace:*",
     "@czo/inventory": "workspace:*",
     "@czo/kit": "workspace:*",
