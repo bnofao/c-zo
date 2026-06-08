@@ -12,7 +12,7 @@ import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-validation'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { Context, Effect, Layer } from 'effect'
-import { DateTimeResolver, JSONObjectResolver } from 'graphql-scalars'
+import { DateTimeResolver, JSONObjectResolver, JSONResolver } from 'graphql-scalars'
 import z from 'zod'
 import { DrizzleDb } from '../db'
 import { ValidationError } from './errors'
@@ -78,6 +78,10 @@ export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Pa
   Scalars: {
     DateTime: { Input: Date | string, Output: Date }
     JSONObject: { Input: Record<string, any>, Output: Record<string, unknown> }
+    // `Input: any` (not `unknown`) so the scalar is usable on INPUT fields —
+    // Pothos constrains input shapes to `{} | null | undefined`, which `unknown`
+    // violates. `any` mirrors the `JSONObject` scalar's input typing.
+    JSON: { Input: any, Output: unknown }
     Date: { Input: Date | string, Output: Date }
     Time: { Input: Date | string, Output: Date }
   }
@@ -275,6 +279,7 @@ function setupBuilder<Relations extends RelationsEntry>(
   // Scalars
   builder.addScalarType('DateTime', DateTimeResolver, {})
   builder.addScalarType('JSONObject', JSONObjectResolver, {})
+  builder.addScalarType('JSON', JSONResolver, {})
   builder.addScalarType('Date', DateTimeResolver)
   builder.addScalarType('Time', DateTimeResolver)
   // Root types

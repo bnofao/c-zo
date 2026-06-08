@@ -12,6 +12,8 @@ import type { CzoModule } from '@czo/kit/module'
 import attributeModule from '@czo/attribute'
 import authModule from '@czo/auth'
 import channelModule from '@czo/channel'
+import inventoryModule from '@czo/inventory'
+import priceModule from '@czo/price'
 import stockLocationModule from '@czo/stock-location'
 import translationModule from '@czo/translation'
 
@@ -21,11 +23,15 @@ import translationModule from '@czo/translation'
 // Translation depends only on auth (AccessService) and precedes consumers.
 // Attribute depends on auth's AccessService + permission scope, so it comes after
 // auth. Channel depends on both auth (AccessService) and stock-location
-// (StockLocationService), so it must come after both.
+// (StockLocationService), so it must come after both. Price depends only on auth
+// (AccessService + permission scope), so it just needs to come after auth.
+// Inventory also depends on both auth and stock-location, so it comes after both.
 export const modules: ReadonlyArray<CzoModule> = [
   authModule,
   translationModule,
   attributeModule,
   stockLocationModule,
   channelModule,
+  priceModule,
+  inventoryModule,
 ]
