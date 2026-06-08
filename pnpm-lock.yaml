@@ -376,6 +376,9 @@ importers:
       '@czo/channel':
         specifier: workspace:*
         version: link:../../packages/modules/channel
+      '@czo/inventory':
+        specifier: workspace:*
+        version: link:../../packages/modules/inventory
       '@czo/kit':
         specifier: workspace:*
         version: link:../../packages/kit
@@ -861,6 +864,46 @@ importers:
         version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/modules/channel:
+    dependencies:
+      '@czo/kit':
+        specifier: workspace:*
+        version: link:../../kit
+      drizzle-orm:
+        specifier: catalog:common
+        version: 1.0.0-rc.3(@effect/sql-pg@4.0.0-beta.70(effect@4.0.0-beta.70))(@opentelemetry/api@1.9.1)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(@types/pg@8.20.0)(effect@4.0.0-beta.70)(mssql@11.0.1(@azure/core-client@1.10.1))(pg@8.20.0)(zod@4.3.6)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.70
+      zod:
+        specifier: catalog:common
+        version: 4.3.6
+    devDependencies:
+      '@czo/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@czo/stock-location':
+        specifier: workspace:*
+        version: link:../stock-location
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.70(effect@4.0.0-beta.70)(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@vitest/coverage-v8':
+        specifier: catalog:testing
+        version: 3.2.4(vitest@3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@workspace/eslint-config':
+        specifier: workspace:*
+        version: link:../../eslint-config
+      '@workspace/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      drizzle-kit:
+        specifier: catalog:dev
+        version: 1.0.0-rc.3
+      vitest:
+        specifier: catalog:testing
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
+
+  packages/modules/inventory:
     dependencies:
       '@czo/kit':
         specifier: workspace:*

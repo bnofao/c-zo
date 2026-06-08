@@ -16,6 +16,7 @@
     "@czo/attribute": "workspace:*",
     "@czo/auth": "workspace:*",
     "@czo/channel": "workspace:*",
+    "@czo/inventory": "workspace:*",
     "@czo/kit": "workspace:*",
     "@czo/price": "workspace:*",
     "@czo/stock-location": "workspace:*",
