@@ -9,8 +9,9 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
     t.drizzleField({
       type: 'priceSets',
       nullable: true,
+      description: 'Fetch a single price set by id. Requires `price:read` in the set\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
-        id: t.arg.globalID({ for: 'PriceSet', required: true }),
+        id: t.arg.globalID({ for: 'PriceSet', required: true, description: 'Relay global id of the PriceSet to fetch.' }),
       },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceSetOrganizationId(ctx, Number(args.id.id))
@@ -33,6 +34,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('priceSets', t =>
     t.drizzleConnection({
       type: 'priceSets',
+      description: 'Paginated (relay) connection over an organization\'s price sets. Requires `price:read` in that org.',
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'price',
@@ -41,7 +43,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
         },
       }),
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose price sets to list.' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
@@ -57,8 +59,9 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
     t.drizzleField({
       type: 'priceLists',
       nullable: true,
+      description: 'Fetch a single price list by id. Requires `price:read` in the list\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
-        id: t.arg.globalID({ for: 'PriceList', required: true }),
+        id: t.arg.globalID({ for: 'PriceList', required: true, description: 'Relay global id of the PriceList to fetch.' }),
       },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceListOrganizationId(ctx, Number(args.id.id))
@@ -81,6 +84,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('priceLists', t =>
     t.drizzleConnection({
       type: 'priceLists',
+      description: 'Paginated (relay) connection over an organization\'s price lists. Requires `price:read` in that org.',
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'price',
@@ -89,7 +93,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
         },
       }),
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose price lists to list.' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
@@ -107,13 +111,14 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
     t.field({
       type: 'CalculatedPrice',
       nullable: true,
+      description: 'Resolve the effective price for a price set in a given currency and buying context (the pricing engine). Public, but org-scoped inside the service: returns null when the price set does not belong to the given organization or no price applies. The result is a Base, Override, or Sale price.',
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
-        priceSetId: t.arg.globalID({ for: 'PriceSet', required: true }),
-        currencyCode: t.arg.string({ required: true }),
-        quantity: t.arg.int(),
-        at: t.arg({ type: 'DateTime' }),
-        attributes: t.arg({ type: ['PriceContextRuleInput'] }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization the price set must belong to.' }),
+        priceSetId: t.arg.globalID({ for: 'PriceSet', required: true, description: 'The price set to resolve a price for.' }),
+        currencyCode: t.arg.string({ required: true, description: 'ISO 4217 currency code to price in (e.g. `USD`).' }),
+        quantity: t.arg.int({ description: 'Purchase quantity, used to select quantity-tier prices; defaults to 1.' }),
+        at: t.arg({ type: 'DateTime', description: 'Point in time to evaluate price-list windows against; defaults to now.' }),
+        attributes: t.arg({ type: ['PriceContextRuleInput'], description: 'Buying-context attributes evaluated against price/list rules.' }),
       },
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(
@@ -142,13 +147,14 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('resolvePrices', t =>
     t.field({
       type: ['PriceResolution'],
+      description: 'Bulk variant of `resolvePrice`: resolve effective prices for many price sets at once (O(1) DB queries for N sets). Every requested id appears in the result; a foreign-org, unknown, or non-applicable set yields a `price: null` entry. Public, org-scoped inside the service.',
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
-        priceSetIds: t.arg.globalIDList({ for: 'PriceSet', required: true }),
-        currencyCode: t.arg.string({ required: true }),
-        quantity: t.arg.int(),
-        at: t.arg({ type: 'DateTime' }),
-        attributes: t.arg({ type: ['PriceContextRuleInput'] }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization the price sets must belong to.' }),
+        priceSetIds: t.arg.globalIDList({ for: 'PriceSet', required: true, description: 'The price sets to resolve prices for.' }),
+        currencyCode: t.arg.string({ required: true, description: 'ISO 4217 currency code to price in (e.g. `USD`).' }),
+        quantity: t.arg.int({ description: 'Purchase quantity, used to select quantity-tier prices; defaults to 1.' }),
+        at: t.arg({ type: 'DateTime', description: 'Point in time to evaluate price-list windows against; defaults to now.' }),
+        attributes: t.arg({ type: ['PriceContextRuleInput'], description: 'Buying-context attributes evaluated against price/list rules.' }),
       },
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(

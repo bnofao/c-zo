@@ -32,18 +32,19 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     'createPriceList',
     {
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: true }),
-        title: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()) }),
-        description: t.string(),
-        type: t.string({ required: true, validate: z.enum(['sale', 'override']) }),
-        status: t.string({ validate: z.enum(['draft', 'active']).optional() }),
-        startsAt: t.field({ type: 'DateTime' }),
-        endsAt: t.field({ type: 'DateTime' }),
-        rules: t.field({ type: ['PriceRuleInput'] }),
-        metadata: t.field({ type: 'JSONObject' }),
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'The organization that will own the new price list.' }),
+        title: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Human-readable name for the price list.' }),
+        description: t.string({ description: 'Optional freeform text describing the purpose of the price list.' }),
+        type: t.string({ required: true, validate: z.enum(['sale', 'override']), description: 'How the list applies: \'sale\' for promotional pricing or \'override\' to replace base prices.' }),
+        status: t.string({ validate: z.enum(['draft', 'active']).optional(), description: 'Lifecycle state of the list; defaults to \'draft\' when omitted.' }),
+        startsAt: t.field({ type: 'DateTime', description: 'When the list becomes eligible to apply; open-ended if omitted.' }),
+        endsAt: t.field({ type: 'DateTime', description: 'When the list stops applying; open-ended if omitted.' }),
+        rules: t.field({ type: ['PriceRuleInput'], description: 'Operator rules (attribute/operator/value predicates) deciding when the list applies.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary key-value data attached to the price list.' }),
       }),
     },
     {
+      description: 'Creates a new org-scoped price list, optionally seeding its applicability rules.',
       errors: { types: [ValidationError, InvalidPriceRule] },
       authScopes: (_parent, args) => ({
         permission: {
@@ -75,7 +76,7 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList }),
+        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList, description: 'The newly created price list.' }),
       }),
     },
   )
@@ -85,19 +86,20 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     'updatePriceList',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'PriceList', required: true }),
-        version: t.int({ required: true }),
-        title: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional() }),
-        description: t.string(),
-        type: t.string({ validate: z.enum(['sale', 'override']).optional() }),
-        status: t.string({ validate: z.enum(['draft', 'active']).optional() }),
-        startsAt: t.field({ type: 'DateTime' }),
-        endsAt: t.field({ type: 'DateTime' }),
-        rules: t.field({ type: ['PriceRuleInput'] }),
-        metadata: t.field({ type: 'JSONObject' }),
+        id: t.globalID({ for: 'PriceList', required: true, description: 'The price list to update.' }),
+        version: t.int({ required: true, description: 'Current version for optimistic-lock concurrency control.' }),
+        title: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional(), description: 'New human-readable name; unchanged when omitted.' }),
+        description: t.string({ description: 'New freeform descriptive text; unchanged when omitted.' }),
+        type: t.string({ validate: z.enum(['sale', 'override']).optional(), description: 'New application kind, \'sale\' or \'override\'; unchanged when omitted.' }),
+        status: t.string({ validate: z.enum(['draft', 'active']).optional(), description: 'New lifecycle state; unchanged when omitted.' }),
+        startsAt: t.field({ type: 'DateTime', description: 'New start of the applicability window; unchanged when omitted.' }),
+        endsAt: t.field({ type: 'DateTime', description: 'New end of the applicability window; unchanged when omitted.' }),
+        rules: t.field({ type: ['PriceRuleInput'], description: 'Replacement set of applicability rules; rules are left untouched when omitted.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'New arbitrary key-value data; unchanged when omitted.' }),
       }),
     },
     {
+      description: 'Updates an existing price list and optionally replaces its applicability rules, guarded by optimistic locking.',
       errors: { types: [ValidationError, PriceListNotFound, InvalidPriceRule, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceListOrganizationId(ctx, Number(args.input.id.id))
@@ -127,7 +129,7 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList }),
+        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList, description: 'The updated price list.' }),
       }),
     },
   )
@@ -137,11 +139,12 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     'deletePriceList',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'PriceList', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'PriceList', required: true, description: 'The price list to delete.' }),
+        version: t.int({ required: true, description: 'Current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      description: 'Soft-deletes a price list, marking it removed while preserving the record.',
       errors: { types: [PriceListNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceListOrganizationId(ctx, Number(args.input.id.id))
@@ -162,7 +165,7 @@ export function registerPriceListMutations(builder: PriceGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList }),
+        priceList: t.field({ type: 'PriceList', resolve: p => p.priceList, description: 'The soft-deleted price list.' }),
       }),
     },
   )
