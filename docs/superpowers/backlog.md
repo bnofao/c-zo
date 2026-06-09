@@ -224,9 +224,17 @@ SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModule
 
 **Priorité :** moyenne — bloquant avant d'exposer publiquement le storefront ; dépend d'un prérequis auth (clé = principal de requête).
 
-### B20. Descriptions GraphQL sur tous les modules (schéma auto-documenté en introspection / SDL)
+### B20. Descriptions GraphQL sur tous les modules (schéma auto-documenté en introspection / SDL) — ✅ FAIT (2026-06-09)
 
-**État (2026-06-09) :** `@czo/product` a désormais des descriptions GraphQL **complètes** — ~438 descriptions sur queries, mutations, types objets + champs, inputs, enums et **args**, en anglais, concises et *domain-aware*. C'est le **premier** module à en avoir → il **établit la convention**. Aucun autre module n'en a : **`@czo/auth`, `@czo/attribute`, `@czo/price`, `@czo/channel`, `@czo/inventory`, `@czo/translation`, `@czo/stock-location`**.
+**Résolu :** descriptions GraphQL anglaises déployées sur **tous les modules** — ~1390 au total, additif, zéro changement de comportement. Couvre types objets + champs/relations/connexions, queries, mutations (field + input + output), inputs/enums et **args**. Chaque module validé séparément (`check-types` + `lint --max-warnings 0` + `build` + tests E2E qui buildent le vrai schéma + `life check-types`). PRs squash-mergées à main : product **#120** (~438), attribute **#121** (~267), price **#122** (~151), channel **#123** (~67), inventory **#124** (~114), translation **#125** (~32), stock-location **#126** (~93), auth **#127** (~256, 5 domaines).
+
+**Réutilisable (livré) :** le helper `translatedField` (`@czo/translation/graphql`) accepte un `description?` optionnel (forwardé au field) et documente l'arg `locale` partagé — les champs localisés des modules consommateurs sont couverts côté arg.
+
+**Gotcha noté :** `lint:fix` retire à tort les `as any` nécessaires sur les refs d'enum utilisées comme types de champ dans `inputRef<T>` (filtres enum) → `check-types` casse. Valider `check-types` ET `lint --max-warnings 0` séparément ; ne pas faire confiance à `lint:fix` sur ces fichiers.
+
+<details><summary>État d'origine (2026-06-09, product seul)</summary>
+
+`@czo/product` a désormais des descriptions GraphQL **complètes** — ~438 descriptions sur queries, mutations, types objets + champs, inputs, enums et **args**, en anglais, concises et *domain-aware*. C'est le **premier** module à en avoir → il **établit la convention**. Aucun autre module n'en a : **`@czo/auth`, `@czo/attribute`, `@czo/price`, `@czo/channel`, `@czo/inventory`, `@czo/translation`, `@czo/stock-location`**.
 
 **Travail :** appliquer le même pattern, module par module — une `description` sur :
 - chaque **query/mutation field** (pour `relayMutationField` : clé `description` dans le 3ᵉ argument, à côté de `errors`/`authScopes`/`resolve`) ;
@@ -239,6 +247,8 @@ SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModule
 **Méthode prouvée sur product :** poser le template à la main (queries + inputs), puis dispatcher **1 subagent par fichier** (types + mutations) avec un guide de style partagé + le contexte domaine du fichier, et **revalider centralement** (`check-types` + `lint --max-warnings 0` + `build` + tests — les suites E2E *buildent le vrai schéma*, donc la SDL avec descriptions est prouvée valide). Additif uniquement, zéro changement de logique.
 
 **Priorité :** basse — pur DX/documentation, additif, aucun risque runtime. Bon candidat à enchaîner un module à la fois.
+
+</details>
 
 ---
 
