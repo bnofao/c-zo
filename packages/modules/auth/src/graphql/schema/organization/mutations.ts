@@ -4,6 +4,7 @@ import { Effect } from 'effect'
 import z from 'zod'
 import { OrganizationService } from '../../../services/organization'
 import { SessionService } from '../../../services/session'
+import { requireSessionToken, requireUserId } from '../../require-user'
 import {
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
@@ -201,9 +202,6 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         },
       }),
       resolve: async (_root, { input }, ctx) => {
-        // The `permission` authScope (Task 6) rejects anonymous requests,
-        // non-members, and members lacking `invitation:create` in THIS org
-        // before `resolve` runs — so `ctx.auth!.user!` is sound.
         const orgId = input.organizationId.id
         const invitation = await ctx.runEffect(
           Effect.gen(function* () {
@@ -212,7 +210,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
               organizationId: Number(orgId),
               email: input.email,
               role: input.role,
-              inviterId: Number(ctx.auth!.user!.id),
+              inviterId: requireUserId(ctx),
               resend: input.resend ?? undefined,
             })
           }),
@@ -235,13 +233,11 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       errors: { types: [InvitationNotFound, InvitationNotPending, InvitationExpired, InvitationEmailMismatch, MemberAlreadyExists, OrgUserNotFound] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
-        // `auth` authScope (Task 6) rejects anonymous requests before
-        // `resolve` runs, so `ctx.auth!.user!` below is sound.
         const invitationId = input.invitationId.id
         const { invitation, member } = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.acceptInvitation(Number(invitationId), Number(ctx.auth!.user!.id))
+            return yield* svc.acceptInvitation(Number(invitationId), requireUserId(ctx))
           }),
         )
         return { invitation, member }
@@ -263,13 +259,11 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       errors: { types: [InvitationNotFound, InvitationNotPending, InvitationEmailMismatch, OrgUserNotFound] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
-        // `auth` authScope (Task 6) rejects anonymous requests before
-        // `resolve` runs, so `ctx.auth!.user!` below is sound.
         const invitationId = input.invitationId.id
         const invitation = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
-            return yield* svc.rejectInvitation(Number(invitationId), Number(ctx.auth!.user!.id))
+            return yield* svc.rejectInvitation(Number(invitationId), requireUserId(ctx))
           }),
         )
         return { invitation }
@@ -338,14 +332,13 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
-        // `auth` authScope (Task 6) rejects anonymous requests before
-        // `resolve` runs, so `ctx.auth!.user!` below is sound.
         const orgId = input.organizationId.id
+        const userId = requireUserId(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* OrganizationService
             const membership = yield* svc.findFirstMember(Number(orgId), {
-              where: { userId: Number(ctx.auth!.user!.id) },
+              where: { userId },
             })
             return yield* svc.removeMember({
               memberId: membership.id,
@@ -370,11 +363,8 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         const orgId = input.organizationId
           ? Number(input.organizationId.id)
           : null
-        // `auth` authScope guarantees ctx.auth.user; the session-context contributor
-        // populates ctx.auth from one `ResolvedSession`, so when `user` is present
-        // `session` is too — `ctx.auth!.session!.token` is sound.
-        const token = ctx.auth!.session!.token
-        const userId = Number(ctx.auth!.user!.id)
+        const token = requireSessionToken(ctx)
+        const userId = requireUserId(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             if (orgId !== null) {
