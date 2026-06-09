@@ -26,22 +26,25 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     'createPrice',
     {
       inputFields: t => ({
-        priceSetId: t.globalID({ for: 'PriceSet', required: true }),
-        priceListId: t.globalID({ for: 'PriceList' }),
+        priceSetId: t.globalID({ for: 'PriceSet', required: true, description: 'The price set this price belongs to and whose organization gates the operation.' }),
+        priceListId: t.globalID({ for: 'PriceList', description: 'Optional price list this price is scoped to, such as a sale or customer-group override.' }),
         currencyCode: t.string({
           required: true,
           validate: z.string().length(3).transform(v => v.toLowerCase()),
+          description: 'ISO 4217 currency code the amount is denominated in.',
         }),
         amount: t.string({
           required: true,
           validate: z.string().regex(/^\d+(\.\d+)?$/),
+          description: 'The price amount as a decimal string, preserving precision.',
         }),
-        minQuantity: t.int(),
-        maxQuantity: t.int(),
-        rules: t.field({ type: ['PriceRuleInput'] }),
+        minQuantity: t.int({ description: 'Lowest quantity at which this price applies, for quantity-tier pricing.' }),
+        maxQuantity: t.int({ description: 'Highest quantity at which this price applies, for quantity-tier pricing.' }),
+        rules: t.field({ type: ['PriceRuleInput'], description: 'Operator rules that decide when this price applies, evaluated against the pricing context.' }),
       }),
     },
     {
+      description: 'Creates a price within a price set, optionally scoped to a price list and gated by operator rules.',
       errors: { types: [ValidationError, PriceSetNotFound, PriceListNotFound, InvalidPriceRule] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await ctx.runEffect(
@@ -78,7 +81,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     },
     {
       outputFields: t => ({
-        price: t.field({ type: 'Price', resolve: p => p.price }),
+        price: t.field({ type: 'Price', resolve: p => p.price, description: 'The newly created price.' }),
       }),
     },
   )
@@ -88,20 +91,23 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     'updatePrice',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Price', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'Price', required: true, description: 'The price to update.' }),
+        version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
         currencyCode: t.string({
           validate: z.string().length(3).transform(v => v.toLowerCase()).optional(),
+          description: 'New ISO 4217 currency code; leave unset to keep the current one.',
         }),
         amount: t.string({
           validate: z.string().regex(/^\d+(\.\d+)?$/).optional(),
+          description: 'New amount as a decimal string; leave unset to keep the current one.',
         }),
-        minQuantity: t.int(),
-        maxQuantity: t.int(),
-        rules: t.field({ type: ['PriceRuleInput'] }),
+        minQuantity: t.int({ description: 'New lowest quantity at which this price applies, for quantity-tier pricing.' }),
+        maxQuantity: t.int({ description: 'New highest quantity at which this price applies, for quantity-tier pricing.' }),
+        rules: t.field({ type: ['PriceRuleInput'], description: 'Replacement set of operator rules that decide when this price applies; leave unset to keep the current ones.' }),
       }),
     },
     {
+      description: 'Updates a price\'s amount, currency, quantity tiers, or operator rules, guarded by optimistic locking.',
       errors: { types: [ValidationError, PriceNotFound, InvalidPriceRule, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceOrganizationId(ctx, Number(args.input.id.id))
@@ -128,7 +134,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     },
     {
       outputFields: t => ({
-        price: t.field({ type: 'Price', resolve: p => p.price }),
+        price: t.field({ type: 'Price', resolve: p => p.price, description: 'The updated price.' }),
       }),
     },
   )
@@ -138,11 +144,12 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     'deletePrice',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Price', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'Price', required: true, description: 'The price to delete.' }),
+        version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      description: 'Soft-deletes a price, marking it removed while preserving the record, guarded by optimistic locking.',
       errors: { types: [PriceNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceOrganizationId(ctx, Number(args.input.id.id))
@@ -163,7 +170,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
     },
     {
       outputFields: t => ({
-        price: t.field({ type: 'Price', resolve: p => p.price }),
+        price: t.field({ type: 'Price', resolve: p => p.price, description: 'The soft-deleted price.' }),
       }),
     },
   )

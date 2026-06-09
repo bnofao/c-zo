@@ -13,11 +13,12 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
     'createPriceSet',
     {
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: true }),
-        metadata: t.field({ type: 'JSONObject' }),
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'Identifies the organization that will own the new price set.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Freeform key-value data to attach to the price set.' }),
       }),
     },
     {
+      description: 'Creates a new organization-scoped price set to hold prices for a single priceable thing.',
       errors: { types: [] },
       authScopes: (_parent, args) => ({
         permission: {
@@ -42,7 +43,7 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
     },
     {
       outputFields: t => ({
-        priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet }),
+        priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet, description: 'The newly created price set.' }),
       }),
     },
   )
@@ -52,11 +53,12 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
     'deletePriceSet',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'PriceSet', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'PriceSet', required: true, description: 'Identifies the price set to delete.' }),
+        version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      description: 'Soft-deletes an existing price set after verifying its version.',
       errors: { types: [PriceSetNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceSetOrganizationId(ctx, Number(args.input.id.id))
@@ -77,7 +79,7 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
     },
     {
       outputFields: t => ({
-        priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet }),
+        priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet, description: 'The price set as it stands after the soft delete.' }),
       }),
     },
   )
