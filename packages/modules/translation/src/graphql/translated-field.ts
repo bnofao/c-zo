@@ -24,12 +24,13 @@ export function pickTranslation<T extends { localeCode: string }>(
  */
 export function translatedField(
   t: any,
-  opts: { relation: string, field: string, base: (parent: any) => string | null, nullable?: boolean },
+  opts: { relation: string, field: string, base: (parent: any) => string | null, nullable?: boolean, description?: string },
 ) {
   return t.field({
     type: 'String',
     nullable: opts.nullable ?? false,
-    args: { locale: t.arg.string({ required: false }) },
+    ...(opts.description != null ? { description: opts.description } : {}),
+    args: { locale: t.arg.string({ required: false, description: 'BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.' }) },
     // Force the Pothos-drizzle plugin to load the pivot relation into the batched
     // parent query. We set `pothosDrizzleSelect` on the field extension directly
     // (the sink the plugin reads in `addFieldSelection`), rather than relying on
