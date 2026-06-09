@@ -14,8 +14,9 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
     t.drizzleField({
       type: 'inventoryItems',
       nullable: true,
+      description: 'Fetch a single inventory item by id. Requires `inventory:read` in the item\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
-        id: t.arg.globalID({ for: 'InventoryItem', required: true }),
+        id: t.arg.globalID({ for: 'InventoryItem', required: true, description: 'Relay global id of the InventoryItem to fetch.' }),
       },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.id.id))
@@ -42,6 +43,7 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
   builder.queryField('inventoryItems', t =>
     t.drizzleConnection({
       type: 'inventoryItems',
+      description: 'Paginated (relay) connection over an organization\'s inventory items, with optional free-text SKU search, filtering, and ordering. Always tenant-scoped; requires `inventory:read` in the given org.',
       // Org-scoped: the caller must hold `read` permission in the target org.
       // Listing is always bounded to a single organization (below) so it never
       // spans tenants.
@@ -54,11 +56,11 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
       }),
       args: {
         /** Organization to list within. Listing is always tenant-scoped. */
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose inventory items to list.' }),
         /** Free-text search across `sku` (case-insensitive substring). */
-        search: t.arg.string(),
-        where: t.arg({ type: 'InventoryItemWhereInput' }),
-        orderBy: t.arg({ type: ['InventoryItemOrderByInput'] }),
+        search: t.arg.string({ description: 'Free-text search across SKU (case-insensitive substring).' }),
+        where: t.arg({ type: 'InventoryItemWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['InventoryItemOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(

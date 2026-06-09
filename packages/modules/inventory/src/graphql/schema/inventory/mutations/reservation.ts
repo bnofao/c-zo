@@ -12,15 +12,16 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     'createReservation',
     {
       inputFields: t => ({
-        inventoryItemId: t.globalID({ for: 'InventoryItem', required: true }),
-        stockLocationId: t.globalID({ for: 'StockLocation', required: true }),
-        quantity: t.int({ required: true }),
-        lineItemId: t.string(),
-        description: t.string(),
-        metadata: t.field({ type: 'JSONObject' }),
+        inventoryItemId: t.globalID({ for: 'InventoryItem', required: true, description: 'The InventoryItem whose stock the reservation holds.' }),
+        stockLocationId: t.globalID({ for: 'StockLocation', required: true, description: 'The StockLocation at which the stock is reserved.' }),
+        quantity: t.int({ required: true, description: 'The number of units to hold, deducted from available stock at the location.' }),
+        lineItemId: t.string({ description: 'The order line item this reservation backs.' }),
+        description: t.string({ description: 'A free-text note explaining the reservation.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary key-value data attached to the reservation.' }),
       }),
     },
     {
+      description: 'Reserves a quantity of an inventory item at a stock location, reducing available stock until the reservation is released. Fails when available stock is insufficient.',
       errors: { types: [InventoryLevelNotFound, InsufficientInventory] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.inventoryItemId.id))
@@ -50,7 +51,7 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     },
     {
       outputFields: t => ({
-        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation }),
+        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation, description: 'The newly created reservation.' }),
       }),
     },
   )
@@ -60,14 +61,15 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     'updateReservation',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Reservation', required: true }),
-        quantity: t.int(),
-        lineItemId: t.string(),
-        description: t.string(),
-        metadata: t.field({ type: 'JSONObject' }),
+        id: t.globalID({ for: 'Reservation', required: true, description: 'The Reservation to update.' }),
+        quantity: t.int({ description: 'The new number of units to hold; adjusts available stock accordingly and fails if insufficient.' }),
+        lineItemId: t.string({ description: 'The order line item this reservation backs.' }),
+        description: t.string({ description: 'A free-text note explaining the reservation.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary key-value data attached to the reservation.' }),
       }),
     },
     {
+      description: 'Updates an existing reservation, optionally changing the reserved quantity and re-checking available stock. Fails when the new quantity exceeds available stock.',
       errors: { types: [ReservationNotFound, InsufficientInventory] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadReservationOrganizationId(ctx, Number(args.input.id.id))
@@ -93,7 +95,7 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     },
     {
       outputFields: t => ({
-        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation }),
+        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation, description: 'The updated reservation.' }),
       }),
     },
   )
@@ -103,10 +105,11 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     'deleteReservation',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Reservation', required: true }),
+        id: t.globalID({ for: 'Reservation', required: true, description: 'The Reservation to release.' }),
       }),
     },
     {
+      description: 'Releases a reservation, returning its held quantity to available stock at the location.',
       errors: { types: [ReservationNotFound] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadReservationOrganizationId(ctx, Number(args.input.id.id))
@@ -127,7 +130,7 @@ export function registerReservationMutations(builder: InventoryGraphQLSchemaBuil
     },
     {
       outputFields: t => ({
-        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation }),
+        reservation: t.field({ type: 'Reservation', resolve: p => p.reservation, description: 'The reservation that was released.' }),
       }),
     },
   )
