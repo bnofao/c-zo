@@ -15,15 +15,16 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     'createInventoryItem',
     {
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: true }),
-        sku: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()) }),
-        title: t.string(),
-        description: t.string(),
-        requiresShipping: t.boolean(),
-        metadata: t.field({ type: 'JSONObject' }),
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization that will own this inventory item.' }),
+        sku: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Stock-keeping unit identifying the item; must be unique within the organization.' }),
+        title: t.string({ description: 'Optional human-readable name for the item.' }),
+        description: t.string({ description: 'Optional longer description of the item.' }),
+        requiresShipping: t.boolean({ description: 'Whether fulfilling this item requires physical shipping.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary key-value metadata attached to the item.' }),
       }),
     },
     {
+      description: 'Creates a new stock-tracked inventory item owned by the given organization.',
       errors: { types: [ValidationError, SkuTaken] },
       authScopes: (_parent, args) => ({
         permission: {
@@ -52,7 +53,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     },
     {
       outputFields: t => ({
-        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item }),
+        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The newly created inventory item.' }),
       }),
     },
   )
@@ -62,16 +63,17 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     'updateInventoryItem',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'InventoryItem', required: true }),
-        version: t.int({ required: true }),
-        sku: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional() }),
-        title: t.string(),
-        description: t.string(),
-        requiresShipping: t.boolean(),
-        metadata: t.field({ type: 'JSONObject' }),
+        id: t.globalID({ for: 'InventoryItem', required: true, description: 'Global ID of the InventoryItem to update.' }),
+        version: t.int({ required: true, description: 'Current version of the item, used for optimistic-lock conflict detection.' }),
+        sku: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional(), description: 'New stock-keeping unit; must remain unique within the organization.' }),
+        title: t.string({ description: 'New human-readable name for the item.' }),
+        description: t.string({ description: 'New longer description of the item.' }),
+        requiresShipping: t.boolean({ description: 'Whether fulfilling this item requires physical shipping.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary key-value metadata to set on the item.' }),
       }),
     },
     {
+      description: 'Updates an existing inventory item, enforcing optimistic-lock version matching.',
       errors: { types: [ValidationError, InventoryItemNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.id.id))
@@ -100,7 +102,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     },
     {
       outputFields: t => ({
-        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item }),
+        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The updated inventory item.' }),
       }),
     },
   )
@@ -110,11 +112,12 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     'deleteInventoryItem',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'InventoryItem', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'InventoryItem', required: true, description: 'Global ID of the InventoryItem to delete.' }),
+        version: t.int({ required: true, description: 'Current version of the item, used for optimistic-lock conflict detection.' }),
       }),
     },
     {
+      description: 'Soft-deletes an inventory item, enforcing optimistic-lock version matching.',
       errors: { types: [InventoryItemNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.id.id))
@@ -137,7 +140,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
     },
     {
       outputFields: t => ({
-        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item }),
+        inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The soft-deleted inventory item.' }),
       }),
     },
   )

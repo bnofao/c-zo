@@ -14,18 +14,20 @@ const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder): void {
   const InventoryItemWhereInputRef = builder.inputRef<InventoryItemWhereInput>('InventoryItemWhereInput').implement({
+    description: 'Filter predicate for the `inventoryItems` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
-      sku: t.field({ type: 'StringFilterInput' }),
-      organizationId: t.field({ type: 'IntFilterInput' }),
-      requiresShipping: t.field({ type: 'BooleanFilterInput' }),
-      createdAt: t.field({ type: 'DateTimeFilterInput' }),
-      AND: t.field({ type: [InventoryItemWhereInputRef] }),
-      OR: t.field({ type: [InventoryItemWhereInputRef] }),
-      NOT: t.field({ type: InventoryItemWhereInputRef }),
+      sku: t.field({ type: 'StringFilterInput', description: 'Filter by SKU.' }),
+      organizationId: t.field({ type: 'IntFilterInput', description: 'Filter by owning organization id.' }),
+      requiresShipping: t.field({ type: 'BooleanFilterInput', description: 'Filter by the requiresShipping flag.' }),
+      createdAt: t.field({ type: 'DateTimeFilterInput', description: 'Filter by creation timestamp.' }),
+      AND: t.field({ type: [InventoryItemWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [InventoryItemWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: InventoryItemWhereInputRef, description: 'The sub-predicate must not match.' }),
     }),
   })
 
   const InventoryItemOrderFieldRef = builder.enumType('InventoryItemOrderField', {
+    description: 'A field the `inventoryItems` connection can be ordered by.',
     values: {
       SKU: { value: 'sku' },
       CREATED_AT: { value: 'createdAt' },
@@ -36,6 +38,7 @@ export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder):
   // `OrderDirection` by string name — that coupled the schema build to auth's
   // contribution running first and never type-checked across modules.
   const InventoryItemOrderDirectionRef = builder.enumType('InventoryItemOrderDirection', {
+    description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
       DESC: { value: 'desc' },
@@ -43,9 +46,10 @@ export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder):
   })
 
   builder.inputType('InventoryItemOrderByInput', {
+    description: 'One ordering clause for the `inventoryItems` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
-      field: t.field({ type: InventoryItemOrderFieldRef, required: true, validate: inventoryItemOrderFieldSchema }),
-      direction: t.field({ type: InventoryItemOrderDirectionRef, required: true, validate: orderDirectionSchema }),
+      field: t.field({ type: InventoryItemOrderFieldRef, required: true, validate: inventoryItemOrderFieldSchema, description: 'The item field to sort by.' }),
+      direction: t.field({ type: InventoryItemOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
     }),
   })
 }
