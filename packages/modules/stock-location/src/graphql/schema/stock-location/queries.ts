@@ -14,8 +14,9 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
     t.drizzleField({
       type: 'stockLocations',
       nullable: true,
+      description: 'Fetch a single stock location by id. Requires `stock-location:read` in the location\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
-        id: t.arg.globalID({ for: 'StockLocation', required: true }),
+        id: t.arg.globalID({ for: 'StockLocation', required: true, description: 'Relay global id of the StockLocation to fetch.' }),
       },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.id.id))
@@ -42,6 +43,7 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
   builder.queryField('stockLocations', t =>
     t.drizzleConnection({
       type: 'stockLocations',
+      description: 'Paginated (relay) connection over an organization\'s stock locations, with optional free-text search, filtering, and ordering. Always tenant-scoped; requires `stock-location:read` in the given org.',
       // Org-scoped: the caller must hold `read` permission in the target org.
       // Listing is always bounded to a single organization (below) so it never
       // spans tenants.
@@ -54,11 +56,11 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
       }),
       args: {
         /** Organization to list within. Listing is always tenant-scoped. */
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose stock locations to list.' }),
         /** Free-text search across `name` and `handle` (case-insensitive substring). */
-        search: t.arg.string(),
-        where: t.arg({ type: 'StockLocationWhereInput' }),
-        orderBy: t.arg({ type: ['StockLocationOrderByInput'] }),
+        search: t.arg.string({ description: 'Free-text search across name and handle (case-insensitive substring).' }),
+        where: t.arg({ type: 'StockLocationWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['StockLocationOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
