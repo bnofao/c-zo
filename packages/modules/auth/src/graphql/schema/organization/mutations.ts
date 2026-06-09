@@ -36,14 +36,15 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'createOrganization',
     {
       inputFields: t => ({
-        name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()) }),
-        slug: t.string({ required: true, validate: slugSchema }),
-        logo: t.string({ validate: z.url() }),
-        type: t.string(),
-        metadata: t.field({ type: 'JSONObject' }),
+        name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()), description: 'The display name for the new organization.' }),
+        slug: t.string({ required: true, validate: slugSchema, description: 'The unique URL-safe identifier for the organization; lowercase letters, numbers, and hyphens only.' }),
+        logo: t.string({ validate: z.url(), description: 'The URL of the organization\'s logo image.' }),
+        type: t.string({ description: 'An optional caller-defined classification of the organization.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Arbitrary JSON metadata to attach to the organization.' }),
       }),
     },
     {
+      description: 'Creates a new organization and makes the authenticated caller its owner.',
       errors: {
         types: [
           ValidationError,
@@ -79,7 +80,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     },
     {
       outputFields: t => ({
-        organization: t.field({ type: 'Organization', resolve: payload => payload.organization }),
+        organization: t.field({ type: 'Organization', resolve: payload => payload.organization, description: 'The newly created organization.' }),
       }),
     },
   )
@@ -89,15 +90,16 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'updateOrganization',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Organization', required: true }),
-        name: t.string({ validate: z.string().max(255).nullable().optional() }),
-        slug: t.string({ validate: slugSchema.optional() }),
-        logo: t.string({ validate: z.url().optional() }),
-        type: t.string(),
-        metadata: t.field({ type: 'JSONObject' }),
+        id: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to update.' }),
+        name: t.string({ validate: z.string().max(255).nullable().optional(), description: 'The new display name for the organization.' }),
+        slug: t.string({ validate: slugSchema.optional(), description: 'The new unique URL-safe identifier for the organization.' }),
+        logo: t.string({ validate: z.url().optional(), description: 'The new URL of the organization\'s logo image.' }),
+        type: t.string({ description: 'The new caller-defined classification of the organization.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'The new arbitrary JSON metadata to attach to the organization.' }),
       }),
     },
     {
+      description: 'Updates an existing organization; requires the organization:update permission within that organization.',
       errors: {
         types: [
           ValidationError,
@@ -135,7 +137,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     },
     {
       outputFields: t => ({
-        organization: t.field({ type: 'Organization', resolve: payload => payload.organization }),
+        organization: t.field({ type: 'Organization', resolve: payload => payload.organization, description: 'The organization after the update was applied.' }),
       }),
     },
   )
@@ -145,10 +147,11 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'deleteOrganization',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Organization', required: true }),
+        id: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to delete.' }),
       }),
     },
     {
+      description: 'Deletes an organization; requires the organization:delete permission within that organization.',
       errors: { types: [OrganizationNotFound] },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
@@ -171,7 +174,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     },
     {
       outputFields: t => ({
-        success: t.boolean({ resolve: payload => payload.success }),
+        success: t.boolean({ resolve: payload => payload.success, description: 'Whether the organization was successfully deleted.' }),
       }),
     },
   )
@@ -181,13 +184,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
     'inviteMember',
     {
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: true }),
-        email: t.string({ required: true }),
-        role: t.string({ required: true }),
-        resend: t.boolean({ required: false }),
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to invite the recipient to.' }),
+        email: t.string({ required: true, description: 'The email address to send the invitation to.' }),
+        role: t.string({ required: true, description: 'The role the recipient will be granted upon accepting the invitation.' }),
+        resend: t.boolean({ required: false, description: 'Whether to resend the invitation if one already exists for this email.' }),
       }),
     },
     {
+      description: 'Invites a user by email to join an organization; requires the invitation:create permission within that organization.',
       errors: { types: [OrganizationNotFound, OrgInvalidRole, MemberAlreadyExists, InvitationAlreadyExists] },
       authScopes: (_parent, args, _ctx) => ({
         permission: {

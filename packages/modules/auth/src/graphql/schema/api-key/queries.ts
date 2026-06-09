@@ -11,9 +11,10 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
   builder.queryField('apiKey', t =>
     t.drizzleField({
       type: 'apikeys',
+      description: 'Fetches a single API key by ID, returned only when the caller owns it or is a member of the owning organization.',
       nullable: true,
       args: {
-        id: t.arg.globalID({ for: 'ApiKey', required: true }),
+        id: t.arg.globalID({ for: 'ApiKey', required: true, description: 'Global ID of the API key to fetch.' }),
       },
       authScopes: { auth: true },
       resolve: async (_query, _root, args, ctx) => {
@@ -46,6 +47,7 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
   builder.queryField('myApiKeys', t =>
     t.drizzleConnection({
       type: 'apikeys',
+      description: 'Lists all API keys owned by the calling user.',
       authScopes: { auth: true },
       resolve: async (query, _root, _args, ctx) => {
         const user = ctx.auth?.user
@@ -66,8 +68,9 @@ export function registerApiKeyQueries(builder: AuthGraphQLSchemaBuilder): void {
   builder.queryField('organizationApiKeys', t =>
     t.drizzleConnection({
       type: 'apikeys',
+      description: 'Lists all API keys owned by the given organization, available to members with read permission on api-key.',
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'Global ID of the organization whose keys to list.' }),
       },
       authScopes: (_parent: unknown, args) => ({
         permission: {

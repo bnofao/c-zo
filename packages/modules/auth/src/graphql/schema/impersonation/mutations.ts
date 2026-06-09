@@ -17,12 +17,13 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
     'startImpersonation',
     {
       inputFields: t => ({
-        targetUserId: t.globalID({ for: 'User', required: true }),
-        ttl: t.int(),
-        reason: t.string(),
+        targetUserId: t.globalID({ for: 'User', required: true, description: 'The global ID of the user to impersonate.' }),
+        ttl: t.int({ description: 'Optional lifetime of the impersonation session, in seconds.' }),
+        reason: t.string({ description: 'Optional human-readable reason recorded for audit purposes.' }),
       }),
     },
     {
+      description: 'Starts impersonating another user. Requires the global user:impersonate permission; mints a child session whose parent_token links back to the admin\'s session.',
       errors: {
         types: [
           UserNotFound,
@@ -60,8 +61,8 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
     },
     {
       outputFields: t => ({
-        session: t.field({ type: 'Session', resolve: p => p.session }),
-        user: t.field({ type: 'User', resolve: p => p.user }),
+        session: t.field({ type: 'Session', resolve: p => p.session, description: 'The newly minted child session that acts as the impersonated user.' }),
+        user: t.field({ type: 'User', resolve: p => p.user, description: 'The target user now being impersonated.' }),
       }),
     },
   )
@@ -71,8 +72,9 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
     // No client input — the active session identifies the impersonation.
     // GraphQL forbids an empty input object and the relay plugin omits
     // `clientMutationId` globally, so declare it here as the single field.
-    { inputFields: t => ({ clientMutationId: t.string({ required: false }) }) },
+    { inputFields: t => ({ clientMutationId: t.string({ required: false, description: 'Optional client-supplied identifier echoed back by the relay mutation.' }) }) },
     {
+      description: 'Stops the active impersonation by walking back up to the parent (admin) session. Requires an active impersonation session.',
       errors: { types: [ImpersonationNotActive] },
       authScopes: { auth: true },
       resolve: async (_root, _input, ctx) => {
@@ -92,8 +94,8 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
     },
     {
       outputFields: t => ({
-        session: t.field({ type: 'Session', resolve: p => p.session }),
-        user: t.field({ type: 'User', resolve: p => p.user }),
+        session: t.field({ type: 'Session', resolve: p => p.session, description: 'The restored parent (admin) session.' }),
+        user: t.field({ type: 'User', resolve: p => p.user, description: 'The admin user the session reverts to.' }),
       }),
     },
   )

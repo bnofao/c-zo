@@ -52,40 +52,44 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
   // })
 
   const UserWhereInputRef = builder.inputRef<UserWhereInput>('UserWhereInput').implement({
+    description: 'Filter conditions for selecting users, combinable via the AND, OR, and NOT operators.',
     fields: t => ({
-      name: t.field({ type: 'StringFilterInput' }),
-      email: t.field({ type: 'StringFilterInput' }),
-      emailVerified: t.field({ type: 'BooleanFilterInput' }),
-      twoFactorEnabled: t.field({ type: 'BooleanFilterInput' }),
-      banned: t.field({ type: 'BooleanFilterInput' }),
-      banReason: t.field({ type: 'StringFilterInput' }),
-      banExpires: t.field({ type: 'DateTimeFilterInput' }),
-      createdAt: t.field({ type: 'DateTimeFilterInput' }),
-      AND: t.field({ type: [UserWhereInputRef] }),
-      OR: t.field({ type: [UserWhereInputRef] }),
-      NOT: t.field({ type: UserWhereInputRef }),
+      name: t.field({ description: 'Filter users by display name.', type: 'StringFilterInput' }),
+      email: t.field({ description: 'Filter users by email address.', type: 'StringFilterInput' }),
+      emailVerified: t.field({ description: 'Filter users by whether their email is verified.', type: 'BooleanFilterInput' }),
+      twoFactorEnabled: t.field({ description: 'Filter users by whether two-factor authentication is enabled.', type: 'BooleanFilterInput' }),
+      banned: t.field({ description: 'Filter users by whether they are currently banned.', type: 'BooleanFilterInput' }),
+      banReason: t.field({ description: 'Filter users by the recorded ban reason.', type: 'StringFilterInput' }),
+      banExpires: t.field({ description: 'Filter users by ban expiry timestamp.', type: 'DateTimeFilterInput' }),
+      createdAt: t.field({ description: 'Filter users by account creation timestamp.', type: 'DateTimeFilterInput' }),
+      AND: t.field({ description: 'Match users satisfying all of the given sub-filters.', type: [UserWhereInputRef] }),
+      OR: t.field({ description: 'Match users satisfying any of the given sub-filters.', type: [UserWhereInputRef] }),
+      NOT: t.field({ description: 'Match users that do not satisfy the given sub-filter.', type: UserWhereInputRef }),
     }),
   })
 
   const UserOrderFieldRef = builder.enumType('UserOrderField', {
+    description: 'Fields by which a list of users can be ordered.',
     values: {
-      NAME: { value: 'name' },
-      EMAIL: { value: 'email' },
-      CREATED_AT: { value: 'createdAt' },
+      NAME: { description: 'Order by display name.', value: 'name' },
+      EMAIL: { description: 'Order by email address.', value: 'email' },
+      CREATED_AT: { description: 'Order by account creation timestamp.', value: 'createdAt' },
     } as const,
   })
 
   const OrderDirectionRef = builder.enumType('OrderDirection', {
+    description: 'Direction in which results are sorted.',
     values: {
-      ASC: { value: 'asc' },
-      DESC: { value: 'desc' },
+      ASC: { description: 'Sort in ascending order.', value: 'asc' },
+      DESC: { description: 'Sort in descending order.', value: 'desc' },
     } as const,
   })
 
   builder.inputType('UserOrderByInput', {
+    description: 'Specifies a field and direction by which to order a list of users.',
     fields: t => ({
-      field: t.field({ type: UserOrderFieldRef, required: true, validate: userOrderFieldSchema }),
-      direction: t.field({ type: OrderDirectionRef, required: true, validate: orderDirectionSchema }),
+      field: t.field({ description: 'Field to order users by.', type: UserOrderFieldRef, required: true, validate: userOrderFieldSchema }),
+      direction: t.field({ description: 'Direction in which to sort the chosen field.', type: OrderDirectionRef, required: true, validate: orderDirectionSchema }),
     }),
   })
 
