@@ -42,37 +42,40 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   // already declares the correct TypeScript shape for callers.
 
   const AttributeTypeFilterRef = builder.inputRef<AttributeTypeFilter>('AttributeTypeFilterInput').implement({
+    description: 'Filter attributes by their type (AttributeType enum).',
     fields: t => ({
-      eq: t.field({ type: enums.AttributeType as any }),
-      ne: t.field({ type: enums.AttributeType as any }),
-      in: t.field({ type: [enums.AttributeType as any] }),
+      eq: t.field({ type: enums.AttributeType as any, description: 'Match attributes whose type equals this value.' }),
+      ne: t.field({ type: enums.AttributeType as any, description: 'Match attributes whose type differs from this value.' }),
+      in: t.field({ type: [enums.AttributeType as any], description: 'Match attributes whose type is any of these values.' }),
     }),
   })
 
   const AttributeUnitFilterRef = builder.inputRef<AttributeUnitFilter>('AttributeUnitFilterInput').implement({
+    description: 'Filter attributes by their unit (AttributeUnit enum).',
     fields: t => ({
-      eq: t.field({ type: enums.AttributeUnit as any }),
-      ne: t.field({ type: enums.AttributeUnit as any }),
-      in: t.field({ type: [enums.AttributeUnit as any] }),
+      eq: t.field({ type: enums.AttributeUnit as any, description: 'Match attributes whose unit equals this value.' }),
+      ne: t.field({ type: enums.AttributeUnit as any, description: 'Match attributes whose unit differs from this value.' }),
+      in: t.field({ type: [enums.AttributeUnit as any], description: 'Match attributes whose unit is any of these values.' }),
     }),
   })
 
   // ── AttributeWhereInput ───────────────────────────────────────────────────
 
   const AttributeWhereInputRef = builder.inputRef<AttributeWhereInput>('AttributeWhereInput').implement({
+    description: 'Filter predicate for the `attributes` connection. Field filters are AND-combined; use the AND/OR/NOT members to compose arbitrary boolean trees.',
     fields: t => ({
-      name: t.field({ type: 'StringFilterInput' }),
-      slug: t.field({ type: 'StringFilterInput' }),
-      referenceEntity: t.field({ type: 'StringFilterInput' }),
-      isRequired: t.field({ type: 'BooleanFilterInput' }),
-      isFilterable: t.field({ type: 'BooleanFilterInput' }),
-      type: t.field({ type: AttributeTypeFilterRef }),
-      unit: t.field({ type: AttributeUnitFilterRef }),
-      createdAt: t.field({ type: 'DateTimeFilterInput' }),
-      updatedAt: t.field({ type: 'DateTimeFilterInput' }),
-      AND: t.field({ type: [AttributeWhereInputRef] }),
-      OR: t.field({ type: [AttributeWhereInputRef] }),
-      NOT: t.field({ type: AttributeWhereInputRef }),
+      name: t.field({ type: 'StringFilterInput', description: 'Filter by attribute name.' }),
+      slug: t.field({ type: 'StringFilterInput', description: 'Filter by attribute slug.' }),
+      referenceEntity: t.field({ type: 'StringFilterInput', description: 'Filter by the referenced entity name (REFERENCE attributes).' }),
+      isRequired: t.field({ type: 'BooleanFilterInput', description: 'Filter by the isRequired flag.' }),
+      isFilterable: t.field({ type: 'BooleanFilterInput', description: 'Filter by the isFilterable flag.' }),
+      type: t.field({ type: AttributeTypeFilterRef, description: 'Filter by attribute type.' }),
+      unit: t.field({ type: AttributeUnitFilterRef, description: 'Filter by attribute unit.' }),
+      createdAt: t.field({ type: 'DateTimeFilterInput', description: 'Filter by creation timestamp.' }),
+      updatedAt: t.field({ type: 'DateTimeFilterInput', description: 'Filter by last-update timestamp.' }),
+      AND: t.field({ type: [AttributeWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [AttributeWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: AttributeWhereInputRef, description: 'The sub-predicate must not match.' }),
     }),
   })
 
@@ -82,6 +85,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   // enum contribution running first.
 
   const AttributeOrderFieldRef = builder.enumType('AttributeOrderField', {
+    description: 'A field the `attributes` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
       SLUG: { value: 'slug' },
@@ -91,6 +95,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   })
 
   const AttributeOrderDirectionRef = builder.enumType('AttributeOrderDirection', {
+    description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
       DESC: { value: 'desc' },
@@ -98,9 +103,10 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   })
 
   builder.inputType('AttributeOrderByInput', {
+    description: 'One ordering clause for the `attributes` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
-      field: t.field({ type: AttributeOrderFieldRef, required: true }),
-      direction: t.field({ type: AttributeOrderDirectionRef, required: true }),
+      field: t.field({ type: AttributeOrderFieldRef, required: true, description: 'The attribute field to sort by.' }),
+      direction: t.field({ type: AttributeOrderDirectionRef, required: true, description: 'Ascending or descending.' }),
     }),
   })
 }

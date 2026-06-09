@@ -17,16 +17,18 @@ export interface FileInfo {
 
 export function registerAttributeScalars(builder: AttributeGraphQLSchemaBuilder): void {
   builder.objectRef<FileInfo>('FileInfo').implement({
+    description: 'A file reference attached to an attribute value (swatch image or file value): a URL plus its MIME type.',
     fields: t => ({
-      url: t.exposeString('url'),
-      mimetype: t.exposeString('mimetype'),
+      url: t.exposeString('url', { description: 'URL of the file asset.' }),
+      mimetype: t.exposeString('mimetype', { description: 'MIME type of the file (e.g. `image/png`).' }),
     }),
   })
 
   builder.inputType('FileInfoInput', {
+    description: 'Write counterpart of FileInfo: the file URL and its MIME type to store on an attribute value.',
     fields: t => ({
-      url: t.string({ required: true }),
-      mimetype: t.string({ required: true }),
+      url: t.string({ required: true, description: 'URL of the file asset.' }),
+      mimetype: t.string({ required: true, description: 'MIME type of the file (e.g. `image/png`).' }),
     }),
   })
 }
