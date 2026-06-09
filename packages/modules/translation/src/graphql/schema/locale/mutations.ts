@@ -11,12 +11,13 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     'createLocale',
     {
       inputFields: t => ({
-        code: t.string({ required: true, validate: z.string().min(2).max(16).transform(v => v.trim().toLowerCase()) }),
-        name: t.string({ required: true, validate: z.string().min(1).max(128) }),
-        isActive: t.boolean(),
+        code: t.string({ required: true, validate: z.string().min(2).max(16).transform(v => v.trim().toLowerCase()), description: 'BCP-47 locale code; trimmed and lowercased. Must be unique in the registry.' }),
+        name: t.string({ required: true, validate: z.string().min(1).max(128), description: 'Human-readable display name of the locale.' }),
+        isActive: t.boolean({ description: 'Whether the locale is active on creation; defaults to the service default.' }),
       }),
     },
     {
+      description: 'Add a locale to the platform registry. Requires the global `locale:create` permission. Fails with LocaleCodeTaken if the code already exists.',
       errors: { types: [ValidationError, LocaleCodeTaken] },
       authScopes: () => ({ permission: { resource: 'locale', actions: ['create'] } }),
       resolve: async (_root, args, ctx) => {
@@ -29,7 +30,7 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     },
     {
       outputFields: t => ({
-        locale: t.field({ type: 'Locale', resolve: p => p.locale }),
+        locale: t.field({ type: 'Locale', resolve: p => p.locale, description: 'The newly created locale.' }),
       }),
     },
   )
@@ -38,13 +39,14 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     'updateLocale',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Locale', required: true }),
-        version: t.int({ required: true }),
-        name: t.string({ validate: z.string().min(1).max(128).optional() }),
-        isActive: t.boolean(),
+        id: t.globalID({ for: 'Locale', required: true, description: 'The Locale to update.' }),
+        version: t.int({ required: true, description: 'Optimistic-lock version; must match the current row or the update is rejected.' }),
+        name: t.string({ validate: z.string().min(1).max(128).optional(), description: 'New display name; omit to leave unchanged.' }),
+        isActive: t.boolean({ description: 'New active state; omit to leave unchanged.' }),
       }),
     },
     {
+      description: 'Update a locale\'s name or active state. Requires the global `locale:update` permission.',
       errors: { types: [ValidationError, LocaleNotFound, OptimisticLockError] },
       authScopes: () => ({ permission: { resource: 'locale', actions: ['update'] } }),
       resolve: async (_root, args, ctx) => {
@@ -57,7 +59,7 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     },
     {
       outputFields: t => ({
-        locale: t.field({ type: 'Locale', resolve: p => p.locale }),
+        locale: t.field({ type: 'Locale', resolve: p => p.locale, description: 'The updated locale.' }),
       }),
     },
   )
@@ -66,11 +68,12 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     'deleteLocale',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Locale', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'Locale', required: true, description: 'The Locale to soft-delete.' }),
+        version: t.int({ required: true, description: 'Optimistic-lock version; must match the current row or the delete is rejected.' }),
       }),
     },
     {
+      description: 'Soft-delete a locale from the registry. Requires the global `locale:delete` permission.',
       errors: { types: [LocaleNotFound, OptimisticLockError] },
       authScopes: () => ({ permission: { resource: 'locale', actions: ['delete'] } }),
       resolve: async (_root, args, ctx) => {
@@ -83,7 +86,7 @@ export function registerLocaleMutations(builder: TranslationGraphQLSchemaBuilder
     },
     {
       outputFields: t => ({
-        locale: t.field({ type: 'Locale', resolve: p => p.locale }),
+        locale: t.field({ type: 'Locale', resolve: p => p.locale, description: 'The soft-deleted locale.' }),
       }),
     },
   )
