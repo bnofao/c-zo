@@ -8,10 +8,11 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── user(id) — single user by ID ─────────────────────────────────────────
   builder.queryField('user', t =>
     t.drizzleField({
+      description: 'Fetches a single user by their global ID, returning null if no such user exists.',
       type: 'users',
       nullable: true,
       args: {
-        id: t.arg.globalID({ for: 'User', required: true }),
+        id: t.arg.globalID({ description: 'Global ID of the user to fetch.', for: 'User', required: true }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (_query, _root, args, ctx) => {
@@ -28,11 +29,12 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── users(connection) — paginated list with optional search ───────────────
   builder.queryField('users', t =>
     t.drizzleConnection({
+      description: 'Returns a paginated connection of users, with optional full-text search, filtering, and ordering.',
       type: 'users',
       args: {
-        search: t.arg.string(),
-        where: t.arg({ type: 'UserWhereInput' }),
-        orderBy: t.arg({ type: ['UserOrderByInput'] }),
+        search: t.arg.string({ description: 'Free-text term to search users by.' }),
+        where: t.arg({ description: 'Filter conditions restricting which users are returned.', type: 'UserWhereInput' }),
+        orderBy: t.arg({ description: 'Ordering criteria applied to the returned users.', type: ['UserOrderByInput'] }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query, _root, args, ctx) => {

@@ -10,9 +10,10 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('organization', t =>
     t.drizzleField({
       type: 'organizations',
+      description: 'Fetches a single organization by its global ID, returning null if it does not exist or is not accessible.',
       nullable: true,
       args: {
-        id: t.arg.globalID({ for: 'Organization', required: true }),
+        id: t.arg.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to fetch.' }),
       },
       // Org-scoped: the org IS the resource. Unknown id → require auth and let
       // the nullable field resolve to null (resolver catches OrganizationNotFound).
@@ -45,8 +46,9 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('organizations', t =>
     t.drizzleConnection({
       type: 'organizations',
+      description: 'Lists the organizations the authenticated caller is a member of, optionally filtered by name.',
       args: {
-        search: t.arg.string({ required: false }),
+        search: t.arg.string({ required: false, description: 'An optional case-insensitive substring to filter organizations by name.' }),
       },
       // "My organizations": any authenticated user lists the orgs they belong
       // to. There is no global `organization:list` capability, and listing all
@@ -77,8 +79,9 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('checkSlug', t =>
     t.field({
       type: 'Boolean',
+      description: 'Checks whether an organization slug is available, returning true if no organization already uses it.',
       args: {
-        slug: t.arg.string({ required: true }),
+        slug: t.arg.string({ required: true, description: 'The slug whose availability is being checked.' }),
       },
       // Pre-creation utility (no existing org to scope against), like
       // `createOrganization` — any authenticated user may check availability.
@@ -97,8 +100,9 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('members', t =>
     t.drizzleConnection({
       type: 'members',
+      description: 'Lists the members of an organization; requires read permission on members within that organization.',
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization whose members are listed.' }),
       },
       authScopes: (_parent, args) => ({
         permission: {
@@ -122,9 +126,10 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('invitation', t =>
     t.drizzleField({
       type: 'invitations',
+      description: 'Fetches a single invitation by its global ID, returning null if it does not exist or is not accessible.',
       nullable: true,
       args: {
-        id: t.arg.globalID({ for: 'Invitation', required: true }),
+        id: t.arg.globalID({ for: 'Invitation', required: true, description: 'The global ID of the invitation to fetch.' }),
       },
       // Org-scoped: the org is derived from the invitation. Unknown id →
       // require auth and let the nullable field resolve to null.
@@ -157,8 +162,9 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('invitations', t =>
     t.drizzleConnection({
       type: 'invitations',
+      description: 'Lists the invitations issued for an organization; requires read permission on invitations within that organization.',
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization whose invitations are listed.' }),
       },
       authScopes: (_parent, args) => ({
         permission: {
@@ -182,6 +188,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   builder.queryField('myInvitations', t =>
     t.drizzleConnection({
       type: 'invitations',
+      description: 'Lists the pending invitations addressed to the authenticated caller, matched by their email address.',
       // The caller's own invitations (matched by their email) — not org-scoped.
       authScopes: { auth: true },
       resolve: async (query, _root, _args, ctx) => {

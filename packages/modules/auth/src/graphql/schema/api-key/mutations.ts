@@ -11,20 +11,21 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     'createApiKey',
     {
       inputFields: t => ({
-        owner: t.field({ type: 'ApiKeyOwnerInput', required: true }),
-        name: t.string({ required: true }),
-        group: t.string({ required: true }),
-        prefix: t.string({ required: true }),
-        expiresIn: t.int({ required: false }),
-        remaining: t.int({ required: false }),
-        refillAmount: t.int({ required: false }),
-        refillInterval: t.int({ required: false }),
-        rateLimitEnabled: t.boolean({ required: false }),
-        rateLimitTimeWindow: t.int({ required: false }),
-        rateLimitMax: t.int({ required: false }),
+        owner: t.field({ type: 'ApiKeyOwnerInput', required: true, description: 'Entity that will own the new key, either a user or an organization.' }),
+        name: t.string({ required: true, description: 'Human-readable label for the new key.' }),
+        group: t.string({ required: true, description: 'Group the key belongs to, used to categorise related keys.' }),
+        prefix: t.string({ required: true, description: 'Non-secret prefix to prepend to the generated key.' }),
+        expiresIn: t.int({ required: false, description: 'Lifetime of the key in seconds; omit for a key that never expires.' }),
+        remaining: t.int({ required: false, description: 'Initial request budget; omit for an unlimited key.' }),
+        refillAmount: t.int({ required: false, description: 'Number of requests added to the budget at each refill interval.' }),
+        refillInterval: t.int({ required: false, description: 'Interval in milliseconds between automatic budget refills.' }),
+        rateLimitEnabled: t.boolean({ required: false, description: 'Whether to enforce request rate limiting on the key.' }),
+        rateLimitTimeWindow: t.int({ required: false, description: 'Length of the rate-limit window in milliseconds.' }),
+        rateLimitMax: t.int({ required: false, description: 'Maximum number of requests permitted within each rate-limit window.' }),
       }),
     },
     {
+      description: 'Creates a new API key for a user or organization and returns the one-time plaintext secret.',
       errors: { types: [ValidationError, UnauthenticatedError, RefillPairRequired] },
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
@@ -74,8 +75,8 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     },
     {
       outputFields: t => ({
-        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey }),
-        plain: t.string({ nullable: true, resolve: p => p.plain }),
+        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey, description: 'The newly created key, with its safe metadata.' }),
+        plain: t.string({ nullable: true, resolve: p => p.plain, description: 'The plaintext secret. It is shown only ONCE, here at creation, and can never be retrieved again; store it securely.' }),
       }),
     },
   )
@@ -85,19 +86,20 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     'updateApiKey',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'ApiKey', required: true }),
-        name: t.string({ required: false }),
-        enabled: t.boolean({ required: false }),
-        remaining: t.int({ required: false }),
-        expiresIn: t.int({ required: false }),
-        refillAmount: t.int({ required: false }),
-        refillInterval: t.int({ required: false }),
-        rateLimitEnabled: t.boolean({ required: false }),
-        rateLimitTimeWindow: t.int({ required: false }),
-        rateLimitMax: t.int({ required: false }),
+        id: t.globalID({ for: 'ApiKey', required: true, description: 'Global ID of the key to update.' }),
+        name: t.string({ required: false, description: 'New human-readable label for the key.' }),
+        enabled: t.boolean({ required: false, description: 'Whether the key should be active and accepted for authentication.' }),
+        remaining: t.int({ required: false, description: 'New remaining request budget.' }),
+        expiresIn: t.int({ required: false, description: 'New lifetime in seconds, measured from now.' }),
+        refillAmount: t.int({ required: false, description: 'New number of requests added to the budget at each refill interval.' }),
+        refillInterval: t.int({ required: false, description: 'New interval in milliseconds between automatic budget refills.' }),
+        rateLimitEnabled: t.boolean({ required: false, description: 'Whether to enforce request rate limiting on the key.' }),
+        rateLimitTimeWindow: t.int({ required: false, description: 'New length of the rate-limit window in milliseconds.' }),
+        rateLimitMax: t.int({ required: false, description: 'New maximum number of requests permitted within each rate-limit window.' }),
       }),
     },
     {
+      description: 'Updates the mutable settings of an existing API key.',
       errors: { types: [ValidationError, UnauthenticatedError, ApiKeyNotFound, NoChanges, RefillPairRequired] },
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
@@ -121,7 +123,7 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     },
     {
       outputFields: t => ({
-        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey }),
+        apiKey: t.field({ type: 'ApiKey', resolve: p => p.apiKey, description: 'The updated key, with its safe metadata.' }),
       }),
     },
   )
@@ -131,10 +133,11 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     'removeApiKey',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'ApiKey', required: true }),
+        id: t.globalID({ for: 'ApiKey', required: true, description: 'Global ID of the key to remove.' }),
       }),
     },
     {
+      description: 'Permanently removes an API key so it can no longer authenticate.',
       errors: { types: [UnauthenticatedError, ApiKeyNotFound] },
       authScopes: (_parent, args, _ctx) => ({
         apiKeyOwner: {
@@ -157,7 +160,7 @@ export function registerApiKeyMutations(builder: AuthGraphQLSchemaBuilder): void
     },
     {
       outputFields: t => ({
-        success: t.boolean({ resolve: p => p.success }),
+        success: t.boolean({ resolve: p => p.success, description: 'True when the key was removed.' }),
       }),
     },
   )

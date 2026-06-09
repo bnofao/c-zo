@@ -21,16 +21,18 @@ export interface ApiKeyOwnerInput {
 
 export function registerApiKeyInputs(builder: AuthGraphQLSchemaBuilder): void {
   const ApiKeyOwnerTypeRef = builder.enumType('ApiKeyOwnerType', {
+    description: 'Kind of entity that owns an API key.',
     values: Object.fromEntries(apiKeyOwnerTypeValues.map(v => [v, { value: v }])),
   })
 
   builder.inputType('ApiKeyOwnerInput', {
+    description: 'Identifies the entity that owns an API key, pairing the owner kind with its global ID.',
     fields: t => ({
-      type: t.field({ type: ApiKeyOwnerTypeRef, required: true }),
+      type: t.field({ type: ApiKeyOwnerTypeRef, required: true, description: 'Whether the owner is a user or an organization.' }),
       // Pothos decodes + validates the global ID is a `User` or `Organization`
       // (rejects malformed/other types at the schema boundary); the resolver
       // additionally checks the decoded typename matches `type`.
-      id: t.globalID({ for: ['User', 'Organization'], required: true }),
+      id: t.globalID({ for: ['User', 'Organization'], required: true, description: 'Global ID of the owning user or organization; its type must match the owner kind.' }),
     }),
   })
 }
