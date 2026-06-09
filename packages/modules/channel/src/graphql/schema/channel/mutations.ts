@@ -19,16 +19,17 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     'createChannel',
     {
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: true }),
-        name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()) }),
-        handle: t.string({ validate: handleSchema.optional() }),
-        description: t.string(),
-        isDefault: t.boolean(),
-        isActive: t.boolean(),
-        metadata: t.field({ type: 'JSONObject' }),
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'Identifies the owning Organization node under which the new sales channel is created.' }),
+        name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Human-readable display name of the sales channel.' }),
+        handle: t.string({ validate: handleSchema.optional(), description: 'URL-safe identifier, unique within the organization; derived from the name when omitted.' }),
+        description: t.string({ description: 'Optional longer description of the sales channel.' }),
+        isDefault: t.boolean({ description: 'Marks this channel as the organization\'s default; defaults to false when omitted.' }),
+        isActive: t.boolean({ description: 'Whether the channel is available for selling; defaults to true when omitted.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Freeform key-value metadata attached to the channel.' }),
       }),
     },
     {
+      description: 'Creates a new organization-scoped sales channel.',
       errors: { types: [ValidationError, ChannelHandleTaken] },
       authScopes: (_parent, args) => ({
         permission: {
@@ -61,7 +62,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        channel: t.field({ type: 'Channel', resolve: p => p.channel }),
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The newly created sales channel.' }),
       }),
     },
   )
@@ -71,17 +72,18 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     'updateChannel',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Channel', required: true }),
-        version: t.int({ required: true }),
-        name: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional() }),
-        handle: t.string({ validate: handleSchema.optional() }),
-        description: t.string(),
-        isActive: t.boolean(),
-        isDefault: t.boolean(),
-        metadata: t.field({ type: 'JSONObject' }),
+        id: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to update.' }),
+        version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
+        name: t.string({ validate: z.string().min(1).max(255).transform(v => v.trim()).optional(), description: 'New display name; left unchanged when omitted.' }),
+        handle: t.string({ validate: handleSchema.optional(), description: 'New URL-safe identifier, unique within the organization; left unchanged when omitted.' }),
+        description: t.string({ description: 'New description; left unchanged when omitted.' }),
+        isActive: t.boolean({ description: 'New availability state; left unchanged when omitted.' }),
+        isDefault: t.boolean({ description: 'New default-channel flag; left unchanged when omitted.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'New freeform metadata; left unchanged when omitted.' }),
       }),
     },
     {
+      description: 'Updates an existing sales channel\'s fields.',
       errors: { types: [ValidationError, ChannelNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
@@ -111,7 +113,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        channel: t.field({ type: 'Channel', resolve: p => p.channel }),
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The updated sales channel.' }),
       }),
     },
   )
@@ -121,11 +123,12 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     'deleteChannel',
     {
       inputFields: t => ({
-        id: t.globalID({ for: 'Channel', required: true }),
-        version: t.int({ required: true }),
+        id: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to soft-delete.' }),
+        version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      description: 'Soft-deletes a sales channel, marking it removed without erasing the row.',
       errors: { types: [ChannelNotFound, OptimisticLockError] },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
@@ -148,7 +151,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        channel: t.field({ type: 'Channel', resolve: p => p.channel }),
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The soft-deleted sales channel.' }),
       }),
     },
   )
@@ -163,11 +166,12 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     'addStockLocationsToChannel',
     {
       inputFields: t => ({
-        channelId: t.globalID({ for: 'Channel', required: true }),
-        stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true }),
+        channelId: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to link stock locations to.' }),
+        stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true, description: 'StockLocation nodes to associate with the channel as fulfilment sources.' }),
       }),
     },
     {
+      description: 'Associates one or more stock locations with a sales channel as fulfilment sources.',
       errors: { types: [ChannelNotFound, CrossOrgStockLocation] },
       authScopes: async (_p, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.channelId.id))
@@ -190,7 +194,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        channel: t.field({ type: 'Channel', resolve: p => p.channel }),
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The channel with its updated stock-location associations.' }),
       }),
     },
   )
@@ -200,11 +204,12 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     'removeStockLocationsFromChannel',
     {
       inputFields: t => ({
-        channelId: t.globalID({ for: 'Channel', required: true }),
-        stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true }),
+        channelId: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to unlink stock locations from.' }),
+        stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true, description: 'StockLocation nodes to disassociate from the channel.' }),
       }),
     },
     {
+      description: 'Removes one or more stock-location associations from a sales channel.',
       errors: { types: [ChannelNotFound] },
       authScopes: async (_p, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.channelId.id))
@@ -227,7 +232,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
     },
     {
       outputFields: t => ({
-        channel: t.field({ type: 'Channel', resolve: p => p.channel }),
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The channel with its updated stock-location associations.' }),
       }),
     },
   )

@@ -14,20 +14,22 @@ const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): void {
   const ChannelWhereInputRef = builder.inputRef<ChannelWhereInput>('ChannelWhereInput').implement({
+    description: 'Filter predicate for the `channels` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
-      name: t.field({ type: 'StringFilterInput' }),
-      handle: t.field({ type: 'StringFilterInput' }),
-      organizationId: t.field({ type: 'IntFilterInput' }),
-      isActive: t.field({ type: 'BooleanFilterInput' }),
-      isDefault: t.field({ type: 'BooleanFilterInput' }),
-      createdAt: t.field({ type: 'DateTimeFilterInput' }),
-      AND: t.field({ type: [ChannelWhereInputRef] }),
-      OR: t.field({ type: [ChannelWhereInputRef] }),
-      NOT: t.field({ type: ChannelWhereInputRef }),
+      name: t.field({ type: 'StringFilterInput', description: 'Filter by channel name.' }),
+      handle: t.field({ type: 'StringFilterInput', description: 'Filter by channel handle.' }),
+      organizationId: t.field({ type: 'IntFilterInput', description: 'Filter by owning organization id.' }),
+      isActive: t.field({ type: 'BooleanFilterInput', description: 'Filter by active state.' }),
+      isDefault: t.field({ type: 'BooleanFilterInput', description: 'Filter by default-channel flag.' }),
+      createdAt: t.field({ type: 'DateTimeFilterInput', description: 'Filter by creation timestamp.' }),
+      AND: t.field({ type: [ChannelWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [ChannelWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: ChannelWhereInputRef, description: 'The sub-predicate must not match.' }),
     }),
   })
 
   const ChannelOrderFieldRef = builder.enumType('ChannelOrderField', {
+    description: 'A field the `channels` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
       HANDLE: { value: 'handle' },
@@ -39,6 +41,7 @@ export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): voi
   // `OrderDirection` by string name — that coupled the schema build to auth's
   // contribution running first and never type-checked across modules.
   const ChannelOrderDirectionRef = builder.enumType('ChannelOrderDirection', {
+    description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
       DESC: { value: 'desc' },
@@ -46,9 +49,10 @@ export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): voi
   })
 
   builder.inputType('ChannelOrderByInput', {
+    description: 'One ordering clause for the `channels` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
-      field: t.field({ type: ChannelOrderFieldRef, required: true, validate: channelOrderFieldSchema }),
-      direction: t.field({ type: ChannelOrderDirectionRef, required: true, validate: orderDirectionSchema }),
+      field: t.field({ type: ChannelOrderFieldRef, required: true, validate: channelOrderFieldSchema, description: 'The channel field to sort by.' }),
+      direction: t.field({ type: ChannelOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
     }),
   })
 }

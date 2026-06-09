@@ -14,8 +14,9 @@ export function registerChannelQueries(builder: ChannelGraphQLSchemaBuilder): vo
     t.drizzleField({
       type: 'channels',
       nullable: true,
+      description: 'Fetch a single channel by id. Requires `channel:read` in the channel\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
-        id: t.arg.globalID({ for: 'Channel', required: true }),
+        id: t.arg.globalID({ for: 'Channel', required: true, description: 'Relay global id of the Channel to fetch.' }),
       },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.id.id))
@@ -42,6 +43,7 @@ export function registerChannelQueries(builder: ChannelGraphQLSchemaBuilder): vo
   builder.queryField('channels', t =>
     t.drizzleConnection({
       type: 'channels',
+      description: 'Paginated (relay) connection over an organization\'s channels, with optional free-text search, filtering, and ordering. Always tenant-scoped; requires `channel:read` in the given org.',
       // Org-scoped: the caller must hold `read` permission in the target org.
       // Listing is always bounded to a single organization (below) so it never
       // spans tenants.
@@ -54,11 +56,11 @@ export function registerChannelQueries(builder: ChannelGraphQLSchemaBuilder): vo
       }),
       args: {
         /** Organization to list within. Listing is always tenant-scoped. */
-        organizationId: t.arg.globalID({ for: 'Organization', required: true }),
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose channels to list.' }),
         /** Free-text search across `name` and `handle` (case-insensitive substring). */
-        search: t.arg.string(),
-        where: t.arg({ type: 'ChannelWhereInput' }),
-        orderBy: t.arg({ type: ['ChannelOrderByInput'] }),
+        search: t.arg.string({ description: 'Free-text search across name and handle (case-insensitive substring).' }),
+        where: t.arg({ type: 'ChannelWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['ChannelOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
