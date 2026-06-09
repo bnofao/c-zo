@@ -14,6 +14,7 @@ import authModule from '@czo/auth'
 import channelModule from '@czo/channel'
 import inventoryModule from '@czo/inventory'
 import priceModule from '@czo/price'
+import productModule from '@czo/product'
 import stockLocationModule from '@czo/stock-location'
 import translationModule from '@czo/translation'
 
@@ -26,6 +27,9 @@ import translationModule from '@czo/translation'
 // (StockLocationService), so it must come after both. Price depends only on auth
 // (AccessService + permission scope), so it just needs to come after auth.
 // Inventory also depends on both auth and stock-location, so it comes after both.
+// Product is the catalog hub: it grafts onto attribute, channel, inventory,
+// price, and translation (and reaches auth's AccessService + permission scope),
+// so it must come LAST — after every one of those providers.
 export const modules: ReadonlyArray<CzoModule> = [
   authModule,
   translationModule,
@@ -34,4 +38,5 @@ export const modules: ReadonlyArray<CzoModule> = [
   channelModule,
   priceModule,
   inventoryModule,
+  productModule,
 ]

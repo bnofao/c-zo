@@ -45,7 +45,7 @@ const CREATE_SL = `mutation ($i: CreateStockLocationInput!) {
 const CREATE_LEVEL = `mutation ($i: CreateInventoryLevelInput!) {
   createInventoryLevel(input: $i) {
     ... on CreateInventoryLevelSuccess { data { inventoryLevel { id stockedQuantity reservedQuantity } } }
-    ... on CrossOrgStockLocationError { inventoryItemId stockLocationId }
+    ... on InventoryCrossOrgStockLocationError { inventoryItemId stockLocationId }
     ... on LevelAlreadyExistsError { inventoryItemId stockLocationId }
   }
 }`

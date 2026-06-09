@@ -199,6 +199,47 @@ SP5 livre `@czo/kit/email` avec `loggingLayer` (dev/test seulement). `AuthModule
 
 **Priorité :** moyenne — #2 est une fuite cross-org (sécurité) ; #1 rend les ids de mutation inutilisables côté client.
 
+### B19. Accès storefront via *publishable API keys* (channel-scoped) — gate des lectures publiques produit
+
+**Contexte (2026-06-09) :** les lectures storefront de `@czo/product` (`productByHandle`, et les champs de greffe via `viewerOrg`) sont **publiques** (sans authScopes) — interim assumé. Objectif : les attribuer à un principal (clé d'app ou session) plutôt qu'à de l'anonyme total, façon Medusa (publishable key → sales channels → produits publiés).
+
+**Décision (utilisateur, 2026-06-09) :**
+- Le storefront s'authentifie avec une **clé publishable channel-scopée** : le front lit le catalogue avec sa clé, que l'utilisateur final soit connecté ou non. La clé porte **sa propre capacité étroite** (lecture des produits **publiés** dans ses channels) — **PAS** `product:read`.
+- Le back-office (membres d'org) garde `product:read` sur les reads admin.
+
+**Pourquoi pas simplement exiger `product:read` :**
+1. `product:read` est la perm admin — voit le non-publié + toutes les lignes base/org → une clé storefront sur-exposerait.
+2. Les permissions sont liées à l'**appartenance à une org** : un *shopper* connecté n'est pas membre de l'org vendeuse → il n'a pas `product:read`. Gater le storefront sur `product:read` bloquerait donc aussi les utilisateurs connectés (« connecté → a les perms » ne vaut que pour le back-office).
+
+**Prérequis qui N'EXISTE PAS encore (bloque l'item) :**
+- L'auth de requête est **session-only** : `auth/graphql/session-context.ts` (`makeSessionContextContributor`) ne résout qu'un token de session (Bearer/cookie) en `ctx.auth`. Une API key n'authentifie pas une requête.
+- `ApiKeyService.verify` existe mais n'est **branché nulle part** dans le contexte ; le scope `permission` (`auth/graphql/scopes.ts`) est session-only (`apiKeyOwner` ne gère que *qui peut gérer* les clés, pas la clé comme principal).
+
+**Travail :**
+1. Contributeur de contexte qui authentifie une requête par API key (header dédié) → principal (clé + son owner/scope).
+2. Notion de clé **publishable** *channel-scopée* + une capacité de lecture storefront (publié uniquement), distincte de `product:read`.
+3. Gater les queries storefront de `@czo/product` dessus + filtrer published-in-channel. Le back-office garde `product:read`.
+- Marqueur laissé dans `packages/modules/product/src/graphql/schema/product/queries.ts` (header « DEFERRED — storefront access gate ») pour éviter qu'un relecteur « corrige » les reads publics avec `product:read`.
+- Recoupe **B17** (surface GraphQL api-key) et **B3 (SP3)** (design api-key en pause).
+
+**Priorité :** moyenne — bloquant avant d'exposer publiquement le storefront ; dépend d'un prérequis auth (clé = principal de requête).
+
+### B20. Descriptions GraphQL sur tous les modules (schéma auto-documenté en introspection / SDL)
+
+**État (2026-06-09) :** `@czo/product` a désormais des descriptions GraphQL **complètes** — ~438 descriptions sur queries, mutations, types objets + champs, inputs, enums et **args**, en anglais, concises et *domain-aware*. C'est le **premier** module à en avoir → il **établit la convention**. Aucun autre module n'en a : **`@czo/auth`, `@czo/attribute`, `@czo/price`, `@czo/channel`, `@czo/inventory`, `@czo/translation`, `@czo/stock-location`**.
+
+**Travail :** appliquer le même pattern, module par module — une `description` sur :
+- chaque **query/mutation field** (pour `relayMutationField` : clé `description` dans le 3ᵉ argument, à côté de `errors`/`authScopes`/`resolve`) ;
+- chaque **champ de type objet** (`drizzleNode({ description })` + `t.expose*`/`t.relation`/`t.relatedConnection({ description })`) ;
+- chaque **input field**, **enum**, et **arg** (`t.arg.*({ description })`).
+- Anglais, concis, factuel, présent ; ajouter du sens (scope, nullabilité, sémantique), pas paraphraser le nom.
+
+**Réutilisable :** le helper `translatedField` (`@czo/translation/graphql`) accepte désormais un `description?` optionnel (forwardé au field) et documente l'arg `locale` partagé — donc les champs localisés de tous les modules consommateurs sont déjà couverts côté arg.
+
+**Méthode prouvée sur product :** poser le template à la main (queries + inputs), puis dispatcher **1 subagent par fichier** (types + mutations) avec un guide de style partagé + le contexte domaine du fichier, et **revalider centralement** (`check-types` + `lint --max-warnings 0` + `build` + tests — les suites E2E *buildent le vrai schéma*, donc la SDL avec descriptions est prouvée valide). Additif uniquement, zéro changement de logique.
+
+**Priorité :** basse — pur DX/documentation, additif, aucun risque runtime. Bon candidat à enchaîner un module à la fois.
+
 ---
 
 ## Historique des items résolus
