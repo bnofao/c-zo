@@ -44,9 +44,10 @@ export function registerAttributeQueries(builder: AttributeGraphQLSchemaBuilder)
     t.drizzleField({
       type: 'attributes',
       nullable: true,
+      description: 'Fetch a single attribute by relay id or by slug. Access is gated on `attribute:read` for the looked-up row\'s own scope: a platform (org-null) attribute needs the global role, an org-owned one needs the role in its org. Returns null when no match is visible.',
       args: {
-        id: t.arg.globalID({ for: 'Attribute' }),
-        slug: t.arg.string(),
+        id: t.arg.globalID({ for: 'Attribute', description: 'Relay global id of the Attribute to fetch. Provide either id or slug.' }),
+        slug: t.arg.string({ description: 'Slug of the attribute to fetch. Provide either id or slug.' }),
       },
       // The org is derived from the looked-up row itself (by id or slug), not
       // client-supplied — see `attributeReadScope`. The fetch is therefore
@@ -79,14 +80,15 @@ export function registerAttributeQueries(builder: AttributeGraphQLSchemaBuilder)
   builder.queryField('attributes', t =>
     t.drizzleConnection({
       type: 'attributes',
+      description: 'Paginated (relay) connection over attributes visible to the caller. Omitting `organizationId` lists platform (org-null) attributes and needs the global `attribute:read` role; supplying it lists platform ∪ that org\'s attributes and needs `attribute:read` in that org.',
       // A list has no single row to derive an org from, so the org is the
       // EXPLICIT optional `organizationId` arg: omitted → platform only;
       // supplied → requires `attribute:read` in that org (see `orgAuthScope`).
       authScopes: (_root, args) => orgAuthScope(args.organizationId),
       args: {
-        organizationId: t.arg.globalID({ for: 'Organization' }),
-        where: t.arg({ type: 'AttributeWhereInput' }),
-        orderBy: t.arg({ type: ['AttributeOrderByInput'] }),
+        organizationId: t.arg.globalID({ for: 'Organization', description: 'Optional viewer organization; widens visibility to platform ∪ that org. Omit for platform-only.' }),
+        where: t.arg({ type: 'AttributeWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['AttributeOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
       },
       resolve: async (query, _root, args, ctx) =>
         ctx.runEffect(
