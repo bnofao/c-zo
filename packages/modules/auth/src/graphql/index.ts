@@ -46,6 +46,12 @@ declare module '@czo/kit/graphql' {
       | { ownerType: 'USER' | 'ORGANIZATION', ownerId: number, action: 'create' }
   }
 
+  interface BuilderSubGraphs {
+    account: true
+    org: true
+    admin: true
+  }
+
   interface SchemaBuilderRefs {
   }
 }

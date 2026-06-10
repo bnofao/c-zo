@@ -29,6 +29,7 @@ export function registerPriceInputs(builder: PriceGraphQLSchemaBuilder): void {
   // Buying-context attribute: { attribute, value } — no operator (operators live on rules).
   builder.inputType('PriceContextRuleInput', {
     description: 'One attribute of the buying context supplied to price resolution (e.g. region or customer group). Rules on candidate prices are evaluated against these.',
+    subGraphs: ['public'],
     fields: t => ({
       attribute: t.string({ required: true, description: 'Name of the context attribute.' }),
       value: t.field({ type: 'JSON', required: true, description: 'The context attribute\'s value (a JSON scalar).' }),

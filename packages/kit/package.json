@@ -141,6 +141,7 @@
     "@pothos/plugin-errors": "catalog:",
     "@pothos/plugin-relay": "catalog:",
     "@pothos/plugin-scope-auth": "catalog:",
+    "@pothos/plugin-sub-graph": "catalog:",
     "@pothos/plugin-tracing": "catalog:",
     "@pothos/plugin-validation": "catalog:",
     "change-case": "catalog:common",
