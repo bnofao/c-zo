@@ -28,23 +28,26 @@ export {
 }
 
 export function registerApiKeyErrors(builder: any): void {
-  registerError(builder, InvalidApiKey, { name: 'InvalidApiKeyError' })
-  registerError(builder, KeyDisabled, { name: 'ApiKeyDisabledError' })
+  registerError(builder, InvalidApiKey, { name: 'InvalidApiKeyError', subGraphs: ['account', 'org'] })
+  registerError(builder, KeyDisabled, { name: 'ApiKeyDisabledError', subGraphs: ['account', 'org'] })
   registerError(builder, KeyExpired, {
     name: 'ApiKeyExpiredError',
+    subGraphs: ['account', 'org'],
     fields: t => ({ keyId: t.exposeID('keyId') }),
   })
-  registerError(builder, ApiKeyUnauthorized, { name: 'ApiKeyUnauthorizedError' })
+  registerError(builder, ApiKeyUnauthorized, { name: 'ApiKeyUnauthorizedError', subGraphs: ['account', 'org'] })
   registerError(builder, RateLimited, {
     name: 'ApiKeyRateLimitedError',
+    subGraphs: ['account', 'org'],
     fields: t => ({ tryAgainIn: t.exposeInt('tryAgainIn') }),
   })
   registerError(builder, Misconfigured, {
     name: 'ApiKeyMisconfiguredError',
+    subGraphs: ['account', 'org'],
     fields: t => ({ reason: t.exposeString('reason') }),
   })
-  registerError(builder, UsageExceeded, { name: 'ApiKeyUsageExceededError' })
-  registerError(builder, ApiKeyNotFound, { name: 'ApiKeyNotFoundError' })
-  registerError(builder, NoChanges, { name: 'ApiKeyNoChangesError' })
-  registerError(builder, RefillPairRequired, { name: 'ApiKeyRefillPairRequiredError' })
+  registerError(builder, UsageExceeded, { name: 'ApiKeyUsageExceededError', subGraphs: ['account', 'org'] })
+  registerError(builder, ApiKeyNotFound, { name: 'ApiKeyNotFoundError', subGraphs: ['account', 'org'] })
+  registerError(builder, NoChanges, { name: 'ApiKeyNoChangesError', subGraphs: ['account', 'org'] })
+  registerError(builder, RefillPairRequired, { name: 'ApiKeyRefillPairRequiredError', subGraphs: ['account', 'org'] })
 }

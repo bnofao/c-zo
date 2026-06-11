@@ -9,6 +9,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   // ── organization(id) — single org by ID ──────────────────────────────────
   builder.queryField('organization', t =>
     t.drizzleField({
+      subGraphs: ['org'],
       type: 'organizations',
       description: 'Fetches a single organization by its global ID, returning null if it does not exist or is not accessible.',
       nullable: true,
@@ -45,6 +46,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   // ── organizations(connection) — paginated list ────────────────────────────
   builder.queryField('organizations', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'organizations',
       description: 'Lists the organizations the authenticated caller is a member of, optionally filtered by name.',
       args: {
@@ -73,11 +75,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
         })
         return ctx.runEffect(program)
       },
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── checkSlug(slug) — verify organization slug availability ───────────────
   builder.queryField('checkSlug', t =>
     t.field({
+      subGraphs: ['org'],
       type: 'Boolean',
       description: 'Checks whether an organization slug is available, returning true if no organization already uses it.',
       args: {
@@ -99,6 +102,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   // ── members(organizationId) — list members of an org ─────────────────────
   builder.queryField('members', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'members',
       description: 'Lists the members of an organization; requires read permission on members within that organization.',
       args: {
@@ -120,11 +124,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
           }),
         )
       },
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── invitation(id) — single invitation by ID ─────────────────────────────
   builder.queryField('invitation', t =>
     t.drizzleField({
+      subGraphs: ['org'],
       type: 'invitations',
       description: 'Fetches a single invitation by its global ID, returning null if it does not exist or is not accessible.',
       nullable: true,
@@ -161,6 +166,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   // ── invitations(organizationId) — list invitations for an org ────────────
   builder.queryField('invitations', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'invitations',
       description: 'Lists the invitations issued for an organization; requires read permission on invitations within that organization.',
       args: {
@@ -182,11 +188,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
           }),
         )
       },
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── myInvitations — invitations for the authenticated user ────────────────
   builder.queryField('myInvitations', t =>
     t.drizzleConnection({
+      subGraphs: ['account'],
       type: 'invitations',
       description: 'Lists the pending invitations addressed to the authenticated caller, matched by their email address.',
       // The caller's own invitations (matched by their email) — not org-scoped.
@@ -203,7 +210,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
           }),
         )
       },
-    }))
+    }, { subGraphs: ['account'] }, { subGraphs: ['account'] }))
 
   // `activeMember` and `activeMemberRole` (session-aware organization helpers)
   // are deferred — they need request-scoped session context not yet plumbed

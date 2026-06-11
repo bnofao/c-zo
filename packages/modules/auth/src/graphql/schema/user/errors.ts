@@ -30,18 +30,19 @@ export {
 }
 
 export function registerUserErrors(builder: any): void {
-  registerError(builder, UserNotFound, { name: 'UserNotFoundError' })
-  registerError(builder, UserAlreadyExists, { name: 'UserAlreadyExistsError' })
+  registerError(builder, UserNotFound, { name: 'UserNotFoundError', subGraphs: ['admin'] })
+  registerError(builder, UserAlreadyExists, { name: 'UserAlreadyExistsError', subGraphs: ['admin'] })
   registerError(builder, InvalidRole, {
     name: 'InvalidRoleError',
+    subGraphs: ['admin'],
     fields: t => ({ role: t.exposeString('role') }),
   })
-  registerError(builder, CannotBanSelf, { name: 'CannotBanSelfError' })
-  registerError(builder, CannotDemoteSelf, { name: 'CannotDemoteSelfError' })
-  registerError(builder, CannotRemoveSelf, { name: 'CannotRemoveSelfError' })
-  registerError(builder, UserAlreadyBanned, { name: 'UserAlreadyBannedError' })
-  registerError(builder, UserNotBanned, { name: 'UserNotBannedError' })
-  registerError(builder, UserNoChanges, { name: 'UserNoChangesError' })
-  registerError(builder, PasswordHashFailed, { name: 'PasswordHashFailedError' })
-  registerError(builder, CredentialLinkFailed, { name: 'CredentialLinkFailedError' })
+  registerError(builder, CannotBanSelf, { name: 'CannotBanSelfError', subGraphs: ['admin'] })
+  registerError(builder, CannotDemoteSelf, { name: 'CannotDemoteSelfError', subGraphs: ['admin'] })
+  registerError(builder, CannotRemoveSelf, { name: 'CannotRemoveSelfError', subGraphs: ['admin'] })
+  registerError(builder, UserAlreadyBanned, { name: 'UserAlreadyBannedError', subGraphs: ['admin'] })
+  registerError(builder, UserNotBanned, { name: 'UserNotBannedError', subGraphs: ['admin'] })
+  registerError(builder, UserNoChanges, { name: 'UserNoChangesError', subGraphs: ['admin'] })
+  registerError(builder, PasswordHashFailed, { name: 'PasswordHashFailedError', subGraphs: ['account', 'admin'] })
+  registerError(builder, CredentialLinkFailed, { name: 'CredentialLinkFailedError', subGraphs: ['admin'] })
 }

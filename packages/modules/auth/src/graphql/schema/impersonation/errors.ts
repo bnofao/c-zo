@@ -10,10 +10,10 @@ import {
 } from '../../../services/impersonation'
 
 export function registerImpersonationErrors(builder: AuthGraphQLSchemaBuilder): void {
-  registerError(builder, CannotImpersonateSelf, { name: 'CannotImpersonateSelfError' })
-  registerError(builder, CannotImpersonateAdmin, { name: 'CannotImpersonateAdminError' })
-  registerError(builder, CannotImpersonateBannedUser, { name: 'CannotImpersonateBannedUserError' })
-  registerError(builder, CannotChainImpersonation, { name: 'CannotChainImpersonationError' })
-  registerError(builder, ImpersonationTtlTooLong, { name: 'ImpersonationTtlTooLongError' })
-  registerError(builder, ImpersonationNotActive, { name: 'ImpersonationNotActiveError' })
+  registerError(builder, CannotImpersonateSelf, { name: 'CannotImpersonateSelfError', subGraphs: ['admin'] })
+  registerError(builder, CannotImpersonateAdmin, { name: 'CannotImpersonateAdminError', subGraphs: ['admin'] })
+  registerError(builder, CannotImpersonateBannedUser, { name: 'CannotImpersonateBannedUserError', subGraphs: ['admin'] })
+  registerError(builder, CannotChainImpersonation, { name: 'CannotChainImpersonationError', subGraphs: ['admin'] })
+  registerError(builder, ImpersonationTtlTooLong, { name: 'ImpersonationTtlTooLongError', subGraphs: ['admin'] })
+  registerError(builder, ImpersonationNotActive, { name: 'ImpersonationNotActiveError', subGraphs: ['admin'] })
 }

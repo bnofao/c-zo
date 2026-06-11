@@ -44,7 +44,7 @@ export function authScopes(ctx: GraphQLContextMap) {
     },
     apiKeyOwner: async (
       input:
-        | { keyId: number, action: 'update' | 'delete' }
+        | { keyId: number, action: 'read' | 'update' | 'delete' }
         | { ownerType: 'USER' | 'ORGANIZATION', ownerId: number, action: 'create' },
     ) => {
       const userId = ctx?.auth?.user?.id
@@ -80,6 +80,13 @@ export function authScopes(ctx: GraphQLContextMap) {
 
           if (ownerType === 'user') {
             return String(ownerId) === String(userId)
+          }
+
+          // org-owned key: reads mirror the apiKey(id) query (any member of the
+          // owning org); writes (update/delete) still require the api-key permission.
+          if (input.action === 'read') {
+            const org = yield* OrganizationService
+            return yield* org.checkMembership(ownerId, Number(userId))
           }
 
           // organization — defer to org-scoped permission check

@@ -1,4 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
+import type { SessionRow } from '../../../services/user'
 
 // User sub-module — Pothos type definitions
 //
@@ -15,25 +16,27 @@ import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 
 export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
   // ── Session type (admin-scoped view) ──────────────────────────────────────
-  builder.objectRef('Session').implement({
+  builder.objectRef<SessionRow>('Session').implement({
+    subGraphs: ['admin'],
     description: 'An authenticated session belonging to a user, viewed in an admin-scoped context.',
     fields: t => ({
-      id: t.id({ description: 'Unique identifier of the session.', resolve: (s: any) => s.id }),
-      userId: t.string({ description: 'Identifier of the user that owns this session.', resolve: (s: any) => s.userId }),
-      expiresAt: t.field({ description: 'Timestamp at which the session expires and is no longer valid.', type: 'DateTime', resolve: (s: any) => s.expiresAt }),
-      createdAt: t.field({ description: 'Timestamp at which the session was created.', type: 'DateTime', resolve: (s: any) => s.createdAt }),
-      ipAddress: t.string({ description: 'IP address from which the session was established.', resolve: (s: any) => s.ipAddress ?? null, nullable: true }),
-      userAgent: t.string({ description: 'User-agent string of the client that established the session.', resolve: (s: any) => s.userAgent ?? null, nullable: true }),
-      impersonatedBy: t.string({ description: 'Identifier of the admin user impersonating the session owner, if this is an impersonation session.', resolve: (s: any) => s.impersonatedBy ?? null, nullable: true }),
-      actorType: t.string({ description: 'Type of actor that owns the session, distinguishing users from other principals.', resolve: (s: any) => s.actorType }),
+      id: t.id({ description: 'Unique identifier of the session.', resolve: s => s.id }),
+      userId: t.string({ description: 'Identifier of the user that owns this session.', resolve: s => String(s.userId) }),
+      expiresAt: t.field({ description: 'Timestamp at which the session expires and is no longer valid.', type: 'DateTime', resolve: s => s.expiresAt }),
+      createdAt: t.field({ description: 'Timestamp at which the session was created.', type: 'DateTime', resolve: s => s.createdAt }),
+      ipAddress: t.string({ description: 'IP address from which the session was established.', resolve: s => s.ipAddress, nullable: true }),
+      userAgent: t.string({ description: 'User-agent string of the client that established the session.', resolve: s => s.userAgent, nullable: true }),
+      impersonatedBy: t.string({ description: 'Identifier of the admin user impersonating the session owner, if this is an impersonation session.', resolve: s => s.impersonatedBy, nullable: true }),
+      actorType: t.string({ description: 'Type of actor that owns the session, distinguishing users from other principals.', resolve: s => s.actorType }),
     }),
   })
 
   // ── User node ─────────────────────────────────────────────────────────────
   builder.drizzleNode('users', {
     name: 'User',
+    subGraphs: ['admin'],
     description: 'A platform account, identified globally and distinct from per-organization memberships.',
-    id: { column: (u: any) => u.id },
+    id: { column: u => u.id },
     fields: t => ({
       name: t.exposeString('name', { description: 'Display name of the user.' }),
       email: t.exposeString('email', { description: 'Email address used to identify and contact the user.' }),

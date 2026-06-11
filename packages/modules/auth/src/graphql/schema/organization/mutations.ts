@@ -4,6 +4,7 @@ import { Effect } from 'effect'
 import z from 'zod'
 import { OrganizationService } from '../../../services/organization'
 import { SessionService } from '../../../services/session'
+import { sg } from '../subgraphs'
 import {
   CannotLeaveAsLastOwner,
   CannotPromoteToOwner,
@@ -31,10 +32,14 @@ const slugSchema = z.string().min(3, 'Slug must be at least 3 characters').max(5
 // ─── Organization Mutations ───────────────────────────────────────────────────
 
 export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder): void {
+  const O = sg('org')
+  const ACC = sg('account')
+
   // ── createOrganization ────────────────────────────────────────────────────
   builder.relayMutationField(
     'createOrganization',
     {
+      ...O.input,
       inputFields: t => ({
         name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()), description: 'The display name for the new organization.' }),
         slug: t.string({ required: true, validate: slugSchema, description: 'The unique URL-safe identifier for the organization; lowercase letters, numbers, and hyphens only.' }),
@@ -44,6 +49,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       }),
     },
     {
+      ...O.field,
       description: 'Creates a new organization and makes the authenticated caller its owner.',
       errors: {
         types: [
@@ -52,6 +58,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           OrganizationSlugTaken,
           OrganizationLimitReached,
         ],
+        ...O.errorOpts,
       },
       // Creating an org is a global capability — there is no existing org to
       // scope membership against, so `permission` (which would fall back to a
@@ -79,6 +86,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         organization: t.field({ type: 'Organization', resolve: payload => payload.organization, description: 'The newly created organization.' }),
       }),
@@ -89,6 +97,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'updateOrganization',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to update.' }),
         name: t.string({ validate: z.string().max(255).nullable().optional(), description: 'The new display name for the organization.' }),
@@ -99,6 +108,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       }),
     },
     {
+      ...O.field,
       description: 'Updates an existing organization; requires the organization:update permission within that organization.',
       errors: {
         types: [
@@ -107,6 +117,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           OrganizationSlugTaken,
           OrgNoChanges,
         ],
+        ...O.errorOpts,
       },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
@@ -136,6 +147,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         organization: t.field({ type: 'Organization', resolve: payload => payload.organization, description: 'The organization after the update was applied.' }),
       }),
@@ -146,13 +158,15 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'deleteOrganization',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to delete.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Deletes an organization; requires the organization:delete permission within that organization.',
-      errors: { types: [OrganizationNotFound] },
+      errors: { types: [OrganizationNotFound], ...O.errorOpts },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
           resource: 'organization',
@@ -173,6 +187,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: payload => payload.success, description: 'Whether the organization was successfully deleted.' }),
       }),
@@ -183,6 +198,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'inviteMember',
     {
+      ...O.input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'The global ID of the organization to invite the recipient to.' }),
         email: t.string({ required: true, description: 'The email address to send the invitation to.' }),
@@ -191,8 +207,9 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       }),
     },
     {
+      ...O.field,
       description: 'Invites a user by email to join an organization; requires the invitation:create permission within that organization.',
-      errors: { types: [OrganizationNotFound, OrgInvalidRole, MemberAlreadyExists, InvitationAlreadyExists] },
+      errors: { types: [OrganizationNotFound, OrgInvalidRole, MemberAlreadyExists, InvitationAlreadyExists], ...O.errorOpts },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
           resource: 'invitation',
@@ -221,6 +238,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
       }),
@@ -230,9 +248,10 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── acceptInvitation ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'acceptInvitation',
-    { inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
+    { ...ACC.input, inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
     {
-      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationExpired, InvitationEmailMismatch, MemberAlreadyExists, OrgUserNotFound] },
+      ...ACC.field,
+      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationExpired, InvitationEmailMismatch, MemberAlreadyExists, OrgUserNotFound], ...ACC.errorOpts },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
@@ -248,6 +267,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...ACC.payload,
       outputFields: t => ({
         invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
         member: t.field({ type: 'Member', resolve: p => p.member }),
@@ -258,9 +278,10 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── rejectInvitation ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'rejectInvitation',
-    { inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
+    { ...ACC.input, inputFields: t => ({ invitationId: t.globalID({ for: 'Invitation', required: true }) }) },
     {
-      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationEmailMismatch, OrgUserNotFound] },
+      ...ACC.field,
+      errors: { types: [InvitationNotFound, InvitationNotPending, InvitationEmailMismatch, OrgUserNotFound], ...ACC.errorOpts },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
@@ -276,6 +297,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...ACC.payload,
       outputFields: t => ({
         invitation: t.field({ type: 'Invitation', resolve: p => p.invitation }),
       }),
@@ -286,12 +308,14 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'cancelInvitation',
     {
+      ...O.input,
       inputFields: t => ({
         invitationId: t.globalID({ for: 'Invitation', required: true }),
       }),
     },
     {
-      errors: { types: [InvitationNotFound] },
+      ...O.field,
+      errors: { types: [InvitationNotFound], ...O.errorOpts },
       // Cancelling is org-scoped: the caller needs `invitation:cancel` in the
       // org that owns the invitation. The org is derived from the invitation
       // itself (the input only carries `invitationId`). Unknown invitation →
@@ -324,6 +348,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: payload => payload.success }),
       }),
@@ -333,9 +358,10 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   // ── leaveOrganization ────────────────────────────────────────────────────
   builder.relayMutationField(
     'leaveOrganization',
-    { inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: true }) }) },
+    { ...ACC.input, inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: true }) }) },
     {
-      errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
+      ...ACC.field,
+      errors: { types: [MemberNotFound, CannotRemoveLastOwner], ...ACC.errorOpts },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         // `auth` authScope (Task 6) rejects anonymous requests before
@@ -356,15 +382,16 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+    { ...ACC.payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
   )
 
   // ── setActiveOrganization ─────────────────────────────────────────────────
   builder.relayMutationField(
     'setActiveOrganization',
-    { inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: false }) }) },
+    { ...ACC.input, inputFields: t => ({ organizationId: t.globalID({ for: 'Organization', required: false }) }) },
     {
-      errors: { types: [NotAMember] },
+      ...ACC.field,
+      errors: { types: [NotAMember], ...ACC.errorOpts },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
         const orgId = input.organizationId
@@ -392,20 +419,22 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
+    { ...ACC.payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success }) }) },
   )
 
   // ── removeMember ──────────────────────────────────────────────────────────
   builder.relayMutationField(
     'removeMember',
     {
+      ...O.input,
       inputFields: t => ({
         memberId: t.globalID({ for: 'Member', required: true }),
         organizationId: t.globalID({ for: 'Organization', required: true }),
       }),
     },
     {
-      errors: { types: [MemberNotFound, CannotRemoveLastOwner] },
+      ...O.field,
+      errors: { types: [MemberNotFound, CannotRemoveLastOwner], ...O.errorOpts },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
           resource: 'member',
@@ -430,6 +459,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: payload => payload.success }),
       }),
@@ -440,6 +470,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'updateMemberRole',
     {
+      ...O.input,
       inputFields: t => ({
         memberId: t.globalID({ for: 'Member', required: true }),
         organizationId: t.globalID({ for: 'Organization', required: true }),
@@ -447,6 +478,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       }),
     },
     {
+      ...O.field,
       errors: {
         types: [
           MemberNotFound,
@@ -454,6 +486,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           CannotPromoteToOwner,
           CannotLeaveAsLastOwner,
         ],
+        ...O.errorOpts,
       },
       authScopes: (_parent, args, _ctx) => ({
         permission: {
@@ -481,6 +514,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         member: t.field({ type: 'Member', resolve: payload => payload.member }),
       }),

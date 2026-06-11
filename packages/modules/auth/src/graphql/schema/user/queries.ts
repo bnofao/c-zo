@@ -8,6 +8,7 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── user(id) — single user by ID ─────────────────────────────────────────
   builder.queryField('user', t =>
     t.drizzleField({
+      subGraphs: ['admin'],
       description: 'Fetches a single user by their global ID, returning null if no such user exists.',
       type: 'users',
       nullable: true,
@@ -29,6 +30,7 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
   // ── users(connection) — paginated list with optional search ───────────────
   builder.queryField('users', t =>
     t.drizzleConnection({
+      subGraphs: ['admin'],
       description: 'Returns a paginated connection of users, with optional full-text search, filtering, and ordering.',
       type: 'users',
       args: {
@@ -49,5 +51,5 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
         })
         return ctx.runEffect(program)
       },
-    }))
+    }, { subGraphs: ['admin'] }, { subGraphs: ['admin'] }))
 }

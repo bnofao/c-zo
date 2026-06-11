@@ -22,14 +22,16 @@ interface ErrorRefs {
 export interface RegisterErrorOptions {
   name: string
   fields?: (t: any) => Record<string, any>
+  subGraphs?: readonly string[]
 }
 
 /**
  * Register the standard GraphQL error types on a Pothos builder.
  * Called automatically by initBuilder().
  */
-export function registerErrorTypes(builder: AnyBuilder): void {
+export function registerErrorTypes(builder: AnyBuilder, subGraphs: readonly string[] = []): void {
   const ErrorInterface = builder.interfaceRef('Error').implement({
+    subGraphs,
     fields: (t: any) => ({
       message: t.exposeString('message'),
       code: t.string({ resolve: (e: any) => e.code }),
@@ -37,6 +39,7 @@ export function registerErrorTypes(builder: AnyBuilder): void {
   })
 
   const FieldErrorObject = builder.objectRef('FieldError').implement({
+    subGraphs,
     fields: (t: any) => ({
       path: t.exposeString('path'),
       message: t.exposeString('message'),
@@ -48,6 +51,7 @@ export function registerErrorTypes(builder: AnyBuilder): void {
 
   registerError(builder, ValidationError, {
     name: 'ValidationError',
+    subGraphs,
     fields: (t: any) => ({
       fields: t.field({ type: [FieldErrorObject], resolve: (e: any) => e.fields }),
     }),
@@ -55,6 +59,7 @@ export function registerErrorTypes(builder: AnyBuilder): void {
 
   registerError(builder, NotFoundError, {
     name: 'NotFoundError',
+    subGraphs,
     fields: (t: any) => ({
       resource: t.exposeString('resource'),
       id: t.id({ resolve: (e: any) => String(e.id) }),
@@ -63,6 +68,7 @@ export function registerErrorTypes(builder: AnyBuilder): void {
 
   registerError(builder, ConflictError, {
     name: 'ConflictError',
+    subGraphs,
     fields: (t: any) => ({
       resource: t.exposeString('resource'),
       conflictField: t.exposeString('conflictField'),
@@ -71,15 +77,17 @@ export function registerErrorTypes(builder: AnyBuilder): void {
 
   registerError(builder, ForbiddenError, {
     name: 'ForbiddenError',
+    subGraphs,
     fields: (t: any) => ({
       requiredPermission: t.exposeString('requiredPermission'),
     }),
   })
 
-  registerError(builder, UnauthenticatedError, { name: 'UnauthenticatedError' })
+  registerError(builder, UnauthenticatedError, { name: 'UnauthenticatedError', subGraphs })
 
   registerError(builder, OptimisticLockError, {
     name: 'OptimisticLockError',
+    subGraphs,
     fields: (t: any) => ({
       entityId: t.field({ type: 'ID', resolve: (e: any) => String(e.entityId) }),
       expectedVersion: t.exposeInt('expectedVersion'),
@@ -119,5 +127,6 @@ export function registerError(
     name: opts.name,
     interfaces: [getErrorInterface(builder)],
     fields: opts.fields ?? ((_t: any) => ({})),
+    ...(opts.subGraphs ? { subGraphs: opts.subGraphs } : {}),
   })
 }

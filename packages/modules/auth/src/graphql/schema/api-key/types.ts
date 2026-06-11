@@ -13,6 +13,7 @@ import type { AuthGraphQLSchemaBuilder } from '../../index'
 export function registerApiKeyTypes(builder: AuthGraphQLSchemaBuilder): void {
   builder.drizzleNode('apikeys', {
     name: 'ApiKey',
+    subGraphs: ['account', 'org'],
     description: 'A credential that authenticates a client. It is owned by either a user or an organization. The secret is stored hashed and never exposed; only safe metadata is returned here.',
     id: { column: k => k.id },
     fields: t => ({

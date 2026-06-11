@@ -181,14 +181,18 @@ export function makeGraphQLBuilder(
             const db = yield* DrizzleDb
             const builder = setupBuilder(db, relations, authScope, nodeGuards, subGraphNames)
 
-            stringFilterInputRef(builder)
-            booleanFilterInputRef(builder)
-            dateTimeFilterInputRef(builder)
-            dateFilterInputRef(builder)
-            timeFilterInputRef(builder)
-            intFilterInputRef(builder)
-            floatFilterInputRef(builder)
-            idFilterInputRef(builder)
+            // Shared filter inputs are infrastructure types referenced by every
+            // module's WHERE inputs across audiences, so they must appear in every
+            // served sub-graph (same rationale as scalars / relay Node).
+            const filterSubGraphs = { subGraphs: subGraphNames as SubGraphName[] }
+            stringFilterInputRef(builder, filterSubGraphs)
+            booleanFilterInputRef(builder, filterSubGraphs)
+            dateTimeFilterInputRef(builder, filterSubGraphs)
+            dateFilterInputRef(builder, filterSubGraphs)
+            timeFilterInputRef(builder, filterSubGraphs)
+            intFilterInputRef(builder, filterSubGraphs)
+            floatFilterInputRef(builder, filterSubGraphs)
+            idFilterInputRef(builder, filterSubGraphs)
 
             for (const contribute of contributions) contribute(builder)
 
@@ -275,11 +279,13 @@ function setupBuilder<Relations extends RelationsEntry>(
       clientMutationId: 'omit',
       cursorType: 'String',
       pageInfoTypeOptions: { subGraphs: subGraphNames as SubGraphName[] },
+      nodeTypeOptions: { subGraphs: subGraphNames as SubGraphName[] },
       // Per-node() authorization: a module registers `graphql.nodeGuards` keyed by
       // GraphQL type name. The guard runs ONLY on the `node(id:)`/`nodes(ids:)`
       // path (never connections or mutation returns), so it closes cross-org
       // node() reads without conflicting with field/connection authScopes.
       nodeQueryOptions: {
+        subGraphs: subGraphNames as SubGraphName[],
         resolve: async (_parent, { id }, ctx, _info, resolveNode) => {
           const guard = nodeGuards[id.typename]
           if (!guard)
@@ -291,6 +297,7 @@ function setupBuilder<Relations extends RelationsEntry>(
         },
       },
       nodesQueryOptions: {
+        subGraphs: subGraphNames as SubGraphName[],
         resolve: async (_parent, { ids }, ctx, _info, resolveNodes) => {
           const rows = await resolveNodes(ids)
           return Promise.all(rows.map(async (row, i) => {
@@ -366,7 +373,7 @@ function setupBuilder<Relations extends RelationsEntry>(
   builder.mutationType({ subGraphs: subGraphNames as SubGraphName[], defaultSubGraphsForFields: [] })
 
   // Shared error types
-  registerErrorTypes(builder)
+  registerErrorTypes(builder, subGraphNames as SubGraphName[])
 
   return builder
 }
@@ -445,8 +452,9 @@ export interface StringFilter extends LogicalFilter<StringFilter> {
   notIn?: string[] | null
 }
 
-function stringFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function stringFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<StringFilter>('StringFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.string(),
       ne: t.string(),
@@ -468,8 +476,9 @@ export interface BooleanFilter extends LogicalFilter<BooleanFilter> {
   eq?: boolean | null
 }
 
-function booleanFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function booleanFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<BooleanFilter>('BooleanFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.boolean(),
       OR: t.field({ type: [ref] }),
@@ -491,8 +500,9 @@ export interface DateTimeFilter extends LogicalFilter<DateTimeFilter> {
   notIn?: (Date | string)[] | null
 }
 
-function dateTimeFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function dateTimeFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<DateTimeFilter>('DateTimeFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.field({ type: 'DateTime' }),
       ne: t.field({ type: 'DateTime' }),
@@ -521,8 +531,9 @@ export interface DateFilter extends LogicalFilter<DateFilter> {
   notIn?: (Date | string)[] | null
 }
 
-function dateFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function dateFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<DateFilter>('DateFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.field({ type: 'Date' }),
       ne: t.field({ type: 'Date' }),
@@ -551,8 +562,9 @@ export interface TimeFilter extends LogicalFilter<TimeFilter> {
   notIn?: (Date | string)[] | null
 }
 
-function timeFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function timeFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<TimeFilter>('TimeFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.field({ type: 'Time' }),
       ne: t.field({ type: 'Time' }),
@@ -581,8 +593,9 @@ export interface IntFilter extends LogicalFilter<IntFilter> {
   notIn?: number[] | null
 }
 
-function intFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function intFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<IntFilter>('IntFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.int(),
       ne: t.int(),
@@ -611,8 +624,9 @@ export interface FloatFilter extends LogicalFilter<FloatFilter> {
   notIn?: number[] | null
 }
 
-function floatFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function floatFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<FloatFilter>('FloatFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.float(),
       ne: t.float(),
@@ -636,8 +650,9 @@ export interface IDFilter extends LogicalFilter<IDFilter> {
   notIn?: string[] | null
 }
 
-function idFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>) {
+function idFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<IDFilter>('IDFilterInput').implement({
+    ...opts,
     fields: t => ({
       eq: t.id(),
       in: t.idList(),

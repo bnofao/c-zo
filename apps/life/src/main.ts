@@ -58,6 +58,7 @@ const built = buildApp({
     // jsonPath/uiPath default to /openapi.json and /reference.
     // Gated off when NODE_ENV === 'production'.
   },
+  subGraphs: ['public', 'account', 'org', 'admin'],
   // Pre-mount routes that need no runtime access. Anything requiring
   // module services per request should live in the owning module's
   // `http` hook.

@@ -9,6 +9,7 @@ const slugSchema = z.string().min(3, 'Slug must be at least 3 characters').max(5
 
 export function registerOrganizationInputs(builder: AuthGraphQLSchemaBuilder): void {
   builder.inputType('OrganizationCreateData', {
+    subGraphs: ['org'],
     description: 'The fields required to create a new organization.',
     // validate: createOrganizationSchema,
     fields: t => ({
@@ -21,6 +22,7 @@ export function registerOrganizationInputs(builder: AuthGraphQLSchemaBuilder): v
   })
 
   builder.inputType('OrganizationUpdateData', {
+    subGraphs: ['org'],
     description: 'The fields that may be changed when updating an existing organization; omitted fields are left unchanged.',
     fields: t => ({
       name: t.string({ validate: z.string().max(255).nullable().optional(), description: 'The new display name for the organization.' }),
@@ -32,6 +34,7 @@ export function registerOrganizationInputs(builder: AuthGraphQLSchemaBuilder): v
   })
 
   builder.inputType('OrganizationInvitationData', {
+    subGraphs: ['org'],
     description: 'The fields required to invite a user to join an organization.',
     // validate: createOrgInvitationSchema,
     fields: t => ({

@@ -3,7 +3,6 @@ import type { ApiKey, Organization, User } from '@czo/auth/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { ResolvedSession } from '../services/session'
 import type { SessionRow } from '../services/user'
-import type { ApiKeyOwnerInput } from './schema/api-key/inputs'
 
 export { registerAuthSchema } from './schema'
 export { authScopes } from './scopes'
@@ -22,7 +21,6 @@ declare module '@czo/kit/graphql' {
   interface BuilderSchemaInputs {
     UserWhereInput: UserWhereInput
     UserOrderByInput: OrderByInput<'email' | 'name' | 'createdAt'>
-    ApiKeyOwnerInput: ApiKeyOwnerInput
   }
 
   interface BuilderSchemaObjects {
@@ -42,7 +40,7 @@ declare module '@czo/kit/graphql' {
       organization?: number
     }
     apiKeyOwner:
-      | { keyId: number, action: 'update' | 'delete' }
+      | { keyId: number, action: 'read' | 'update' | 'delete' }
       | { ownerType: 'USER' | 'ORGANIZATION', ownerId: number, action: 'create' }
   }
 
