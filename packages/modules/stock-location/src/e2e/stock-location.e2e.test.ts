@@ -40,6 +40,12 @@ const DELETE = `mutation ($i: DeleteStockLocationInput!) {
 const READ = `query ($id: ID!) { stockLocation(id: $id) { id name } }`
 const LIST = `query ($org: ID!) { stockLocations(organizationId: $org) { edges { node { id name } } } }`
 const NODE = `query ($id: ID!) { node(id: $id) { ... on StockLocation { id name } } }`
+const ADDRESS_NODE = `query ($id: ID!) { node(id: $id) { ... on StockLocationAddress { id city } } }`
+const CREATE_WITH_ADDRESS = `mutation ($i: CreateStockLocationInput!) {
+  createStockLocation(input: $i) {
+    ... on CreateStockLocationSuccess { data { stockLocation { id address { id city } } } }
+  }
+}`
 
 interface Actor { token: string, userId: number, ip: string }
 interface Org { orgGlobalId: string, orgNumericId: number }
@@ -56,6 +62,18 @@ async function createLocation(h: SlHarness, u: Actor, org: Org, name: string) {
   expect(res.errors).toBeUndefined()
   const sl = res.data.createStockLocation.data.stockLocation
   return { id: sl.id as string, name: sl.name as string, version: sl.version as number }
+}
+
+async function createLocationWithAddress(h: SlHarness, u: Actor, org: Org, name: string, city: string) {
+  const res = await h.gql(
+    CREATE_WITH_ADDRESS,
+    { i: { organizationId: org.orgGlobalId, name, address: { addressLine1: '1 Main St', city, countryCode: 'US' } } },
+    u.token,
+    u.ip,
+  )
+  expect(res.errors).toBeUndefined()
+  const sl = res.data.createStockLocation.data.stockLocation
+  return { locationId: sl.id as string, addressId: sl.address.id as string, city: sl.address.city as string }
 }
 
 describe('stock-location (E2E)', () => {
@@ -185,5 +203,27 @@ describe('stock-location (E2E)', () => {
     const res = await h.gql(NODE, { id: created.id }, stranger.u.token, stranger.u.ip)
     const denied = Boolean(res.errors) || (res.data?.node ?? null) === null
     expect(denied).toBe(true)
+  })
+
+  // The address node has no own `organizationId`, so its node-guard gates on the
+  // parent location's org (loaded via the node's `select.with.stockLocation`). A
+  // member of the owning org reads it (incl. the `city` field, proving the
+  // exposed columns still resolve under the relation `select`); a non-member is
+  // denied (deny-as-null), closing the cross-org leak via the global id.
+  it('reads a StockLocationAddress via node(id:) — member ok, non-member denied', async () => {
+    const { u, org } = await orgWithAccess(h, 'sl-addr-node@ex.com', 'sl-addr-node')
+    const created = await createLocationWithAddress(h, u, org, 'Addr Warehouse', 'Springfield')
+
+    const asMember = await h.gql(ADDRESS_NODE, { id: created.addressId }, u.token, u.ip)
+    expect(asMember.errors).toBeUndefined()
+    expect(asMember.data.node).not.toBeNull()
+    expect(asMember.data.node.id).toBe(created.addressId)
+    expect(asMember.data.node.city).toBe('Springfield')
+
+    // Non-member: the node guard denies (deny-as-null).
+    const stranger = await orgWithAccess(h, 'sl-addr-node-stranger@ex.com', 'sl-addr-node-stranger')
+    const denied = await h.gql(ADDRESS_NODE, { id: created.addressId }, stranger.u.token, stranger.u.ip)
+    expect(denied.data.node).toBeNull()
+    expect(denied.errors).toBeUndefined()
   })
 })
