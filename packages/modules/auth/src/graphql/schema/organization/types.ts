@@ -12,7 +12,7 @@ export function registerOrganizationTypes(builder: AuthGraphQLSchemaBuilder): vo
   // ── Organization node ─────────────────────────────────────────────────────
   builder.drizzleNode('organizations', {
     name: 'Organization',
-    subGraphs: ['org'],
+    subGraphs: ['account', 'org'],
     description: 'A tenant that groups members, invitations, and all org-scoped data under a unique slug.',
     id: { column: o => o.id },
     fields: t => ({

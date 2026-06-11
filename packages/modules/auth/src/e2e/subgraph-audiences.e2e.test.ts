@@ -40,28 +40,33 @@ describe('graphQL audience sub-graphs', () => {
   it('/graphql/org exposes org management ops + queries (silent-drop guard)', async () => {
     const q = await fieldNames('/graphql/org', 'Query')
     const m = await fieldNames('/graphql/org', 'Mutation')
-    for (const f of ['organization', 'organizations', 'members', 'checkSlug', 'invitation', 'invitations', 'organizationApiKeys'])
+    for (const f of ['organization', 'members', 'invitation', 'invitations', 'organizationApiKeys'])
       expect(q).toContain(f)
-    for (const f of ['createOrganization', 'updateOrganization', 'deleteOrganization', 'inviteMember', 'removeMember', 'updateMemberRole', 'cancelInvitation'])
+    for (const f of ['updateOrganization', 'deleteOrganization', 'inviteMember', 'removeMember', 'updateMemberRole', 'cancelInvitation'])
       expect(m).toContain(f)
   })
 
-  it('/graphql/org omits the account self-ops and admin ops (isolation)', async () => {
+  it('/graphql/org omits the pre-membership account ops and admin ops (isolation)', async () => {
     const m = await fieldNames('/graphql/org', 'Mutation')
-    for (const f of ['acceptInvitation', 'leaveOrganization', 'setActiveOrganization', 'createUser']) expect(m).not.toContain(f)
+    // createOrganization is `{ auth: true }` (no org yet) → account, not org.
+    for (const f of ['createOrganization', 'acceptInvitation', 'leaveOrganization', 'setActiveOrganization', 'createUser']) expect(m).not.toContain(f)
+    expect(await fieldNames('/graphql/org', 'Query')).not.toContain('checkSlug')
   })
 
   it('/graphql/account exposes account mutations + self org-ops + myInvitations (silent-drop guard)', async () => {
     const q = await fieldNames('/graphql/account', 'Query')
     const m = await fieldNames('/graphql/account', 'Mutation')
-    expect(q).toContain('myInvitations')
-    for (const f of ['changePassword', 'requestPasswordReset', 'resetPassword', 'requestEmailVerification', 'verifyEmail', 'requestEmailChange', 'confirmEmailChange', 'deleteAccount', 'restoreAccount', 'acceptInvitation', 'rejectInvitation', 'leaveOrganization', 'setActiveOrganization'])
+    // `organizations`/`checkSlug` are pre-membership/"my orgs" reads (`{ auth: true }`) → account.
+    for (const f of ['myInvitations', 'organizations', 'checkSlug'])
+      expect(q).toContain(f)
+    // `createOrganization` is `{ auth: true }` (the caller becomes owner) → account.
+    for (const f of ['changePassword', 'requestPasswordReset', 'resetPassword', 'requestEmailVerification', 'verifyEmail', 'requestEmailChange', 'confirmEmailChange', 'deleteAccount', 'restoreAccount', 'acceptInvitation', 'rejectInvitation', 'leaveOrganization', 'setActiveOrganization', 'createOrganization'])
       expect(m).toContain(f)
   })
 
   it('/graphql/account omits org-management + admin ops (isolation)', async () => {
     const m = await fieldNames('/graphql/account', 'Mutation')
-    for (const f of ['inviteMember', 'createOrganization', 'createUser', 'banUser']) expect(m).not.toContain(f)
+    for (const f of ['inviteMember', 'updateOrganization', 'createUser', 'banUser']) expect(m).not.toContain(f)
   })
 
   it('api-key ops are split per audience (account personal vs org)', async () => {

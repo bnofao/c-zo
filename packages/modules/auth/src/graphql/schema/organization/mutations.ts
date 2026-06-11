@@ -39,7 +39,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
   builder.relayMutationField(
     'createOrganization',
     {
-      ...O.input,
+      ...ACC.input,
       inputFields: t => ({
         name: t.string({ required: true, validate: z.string().max(255).min(1).transform(name => name.trim()), description: 'The display name for the new organization.' }),
         slug: t.string({ required: true, validate: slugSchema, description: 'The unique URL-safe identifier for the organization; lowercase letters, numbers, and hyphens only.' }),
@@ -49,7 +49,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       }),
     },
     {
-      ...O.field,
+      ...ACC.field,
       description: 'Creates a new organization and makes the authenticated caller its owner.',
       errors: {
         types: [
@@ -58,7 +58,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
           OrganizationSlugTaken,
           OrganizationLimitReached,
         ],
-        ...O.errorOpts,
+        ...ACC.errorOpts,
       },
       // Creating an org is a global capability — there is no existing org to
       // scope membership against, so `permission` (which would fall back to a
@@ -86,7 +86,7 @@ export function registerOrganizationMutations(builder: AuthGraphQLSchemaBuilder)
       },
     },
     {
-      ...O.payload,
+      ...ACC.payload,
       outputFields: t => ({
         organization: t.field({ type: 'Organization', resolve: payload => payload.organization, description: 'The newly created organization.' }),
       }),

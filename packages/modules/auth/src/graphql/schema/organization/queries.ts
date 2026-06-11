@@ -46,7 +46,7 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
   // ── organizations(connection) — paginated list ────────────────────────────
   builder.queryField('organizations', t =>
     t.drizzleConnection({
-      subGraphs: ['org'],
+      subGraphs: ['account'],
       type: 'organizations',
       description: 'Lists the organizations the authenticated caller is a member of, optionally filtered by name.',
       args: {
@@ -75,12 +75,12 @@ export function registerOrganizationQueries(builder: AuthGraphQLSchemaBuilder): 
         })
         return ctx.runEffect(program)
       },
-    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
+    }, { subGraphs: ['account'] }, { subGraphs: ['account'] }))
 
   // ── checkSlug(slug) — verify organization slug availability ───────────────
   builder.queryField('checkSlug', t =>
     t.field({
-      subGraphs: ['org'],
+      subGraphs: ['account'],
       type: 'Boolean',
       description: 'Checks whether an organization slug is available, returning true if no organization already uses it.',
       args: {

@@ -51,10 +51,10 @@ export function registerOrganizationErrors(builder: any): void {
   registerError(builder, OrganizationNotFound, { name: 'OrganizationNotFoundError', subGraphs: ['org'] })
   registerError(builder, OrganizationSlugTaken, {
     name: 'OrganizationSlugTakenError',
-    subGraphs: ['org'],
+    subGraphs: ['account', 'org'],
     fields: t => ({ slug: t.exposeString('slug') }),
   })
-  registerError(builder, OrganizationLimitReached, { name: 'OrganizationLimitReachedError', subGraphs: ['org'] })
+  registerError(builder, OrganizationLimitReached, { name: 'OrganizationLimitReachedError', subGraphs: ['account', 'org'] })
   registerError(builder, OrgUserNotFound, { name: 'OrganizationUserNotFoundError', subGraphs: ['account', 'org'] })
   registerError(builder, NotAMember, { name: 'NotAMemberError', subGraphs: ['account', 'org'] })
   registerError(builder, MemberNotFound, { name: 'MemberNotFoundError', subGraphs: ['account', 'org'] })
