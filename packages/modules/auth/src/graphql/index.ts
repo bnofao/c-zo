@@ -12,6 +12,17 @@ export type AuthGraphQLSchemaBuilder = SchemaBuilder<Relations>
 export interface AuthContext {
   session: ResolvedSession['session'] | null
   user?: ResolvedSession['user']
+  /**
+   * Present when the request authenticated via an `x-api-key` header instead of
+   * a session (mutually exclusive with an authenticated `user`). Carries the
+   * key's owner org and its `permissions` grid; the `permission` scope
+   * authorizes against this. `organizationId` is null for a user-owned key.
+   */
+  apiKey?: {
+    id: number
+    organizationId: number | null
+    permissions: Record<string, string[]>
+  }
 }
 
 declare module '@czo/kit/graphql' {

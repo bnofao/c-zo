@@ -14,6 +14,7 @@ import {
 import { PasswordHashFailed } from '../../../services/user'
 import { emailSchema } from '../../../services/utils/email-schema'
 import { passwordSchema } from '../../../services/utils/password-schema'
+import { requireSessionToken, requireUserId } from '../../require-user'
 
 export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): void {
   builder.relayMutationField(
@@ -73,7 +74,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
       authScopes: { auth: true },
       directives: { rateLimit: { limit: 5, duration: 60 } },
       resolve: async (_root, _input, ctx) => {
-        const userId = Number(ctx.auth.user!.id)
+        const userId = requireUserId(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             yield* (yield* AccountService).requestEmailVerification(userId)
@@ -114,8 +115,8 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
       errors: { types: [NoCredentialAccount, IncorrectCurrentPassword, PasswordHashFailed] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
-        const userId = Number(ctx.auth.user!.id)
-        const currentSessionToken = ctx.auth.session!.token
+        const userId = requireUserId(ctx)
+        const currentSessionToken = requireSessionToken(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             yield* (yield* AccountService).changePassword({
@@ -144,7 +145,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
       authScopes: { auth: true },
       directives: { rateLimit: { limit: 5, duration: 60 } },
       resolve: async (_root, { input }, ctx) => {
-        const userId = Number(ctx.auth.user!.id)
+        const userId = requireUserId(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             yield* (yield* AccountService).requestEmailChange({
@@ -194,7 +195,7 @@ export function registerAccountMutations(builder: AuthGraphQLSchemaBuilder): voi
       errors: { types: [IncorrectCurrentPassword, CannotDeleteWithOwnedOrgs] },
       authScopes: { auth: true },
       resolve: async (_root, { input }, ctx) => {
-        const userId = Number(ctx.auth.user!.id)
+        const userId = requireUserId(ctx)
         await ctx.runEffect(
           Effect.gen(function* () {
             yield* (yield* AccountService).deleteAccount({

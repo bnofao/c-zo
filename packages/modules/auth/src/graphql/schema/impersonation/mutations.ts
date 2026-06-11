@@ -11,6 +11,7 @@ import {
 } from '../../../services/impersonation'
 import { SessionService } from '../../../services/session'
 import { UserNotFound } from '../../../services/user'
+import { requireSessionToken, requireUserId } from '../../require-user'
 
 export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder): void {
   builder.relayMutationField(
@@ -36,8 +37,8 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
       },
       authScopes: { permission: { resource: 'user', actions: ['impersonate'] } },
       resolve: async (_root, { input }, ctx) => {
-        const adminId = Number(ctx.auth.user!.id)
-        const adminToken = ctx.auth.session!.token
+        const adminId = requireUserId(ctx)
+        const adminToken = requireSessionToken(ctx)
         const targetUserId = Number(input.targetUserId.id)
 
         const { result, cookie } = await ctx.runEffect(
@@ -78,7 +79,7 @@ export function registerImpersonationMutations(builder: AuthGraphQLSchemaBuilder
       errors: { types: [ImpersonationNotActive] },
       authScopes: { auth: true },
       resolve: async (_root, _input, ctx) => {
-        const currentToken = ctx.auth.session!.token
+        const currentToken = requireSessionToken(ctx)
         const { result, cookie } = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* ImpersonationService

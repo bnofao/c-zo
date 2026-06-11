@@ -1,5 +1,6 @@
 import type { GraphQLContextMap } from '@czo/kit/graphql'
 import { Effect } from 'effect'
+import { AccessService } from '../services/access'
 import { ApiKeyService } from '../services/api-key'
 import { OrganizationService } from '../services/organization'
 import { UserService } from '../services/user'
@@ -12,11 +13,24 @@ export function authScopes(ctx: GraphQLContextMap) {
       { resource: string, actions: string[], organization?: number },
     ) => {
       const userId = ctx?.auth?.user?.id
-      if (!userId)
+      const apiKey = ctx?.auth?.apiKey
+      if (!userId && !apiKey)
         return false
 
       return ctx.runEffect(
         Effect.gen(function* () {
+          // ── API-key principal (no session user). v1: org-owned keys satisfy
+          //    org-scoped checks only; authorize via the key's own grid. ──────
+          if (!userId && apiKey) {
+            if (organization == null)
+              return false
+            if (apiKey.organizationId == null || apiKey.organizationId !== organization)
+              return false
+            const access = yield* AccessService
+            return yield* access.authorize(apiKey.permissions, { [resource]: actions })
+          }
+
+          // ── Session user (unchanged behaviour) ──────────────────────────
           if (organization != null) {
             // Org-scoped: authorize against the TARGET org using the actor's
             // member role IN that org. Non-member / roleless member → deny.

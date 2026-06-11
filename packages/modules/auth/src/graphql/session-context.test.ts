@@ -5,11 +5,24 @@ import { expect, it, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { users } from '../database/schema'
+import { ApiKeyService } from '../services/api-key'
 import * as Cookie from '../services/cookie'
 import * as AuthEventsMod from '../services/events/auth'
 import * as Session from '../services/session'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
-import { makeSessionContextContributor } from './session-context'
+import { makeAuthContextContributor } from './session-context'
+
+// The contributor's `R` now includes `ApiKeyService` (api-key header branch).
+// None of these tests send an `x-api-key` header, so `verify` is never called —
+// a stub whose methods throw if reached satisfies the requirement.
+const apiKeyStub = Layer.succeed(
+  ApiKeyService,
+  new Proxy({}, {
+    get() {
+      throw new Error('ApiKeyService not expected in session-context tests')
+    },
+  }) as unknown as ApiKeyService['Service'],
+)
 
 const cookieLayer = Cookie.layer({
   name: 'czo.session',
@@ -19,9 +32,10 @@ const cookieLayer = Cookie.layer({
 const TestLayer = Session.layer.pipe(
   Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEventsMod.layer)),
   Layer.provideMerge(AuthPostgresLayer),
+  Layer.merge(apiKeyStub),
 )
 
-const contribute = makeSessionContextContributor()
+const contribute = makeAuthContextContributor()
 
 layer(TestLayer, { timeout: 120_000 })('session-context contributor', (it) => {
   it.effect('no cookie → anonymous { auth: { session: null } }', () =>
@@ -74,7 +88,7 @@ it.effect('Bearer-sourced rotation sets X-Session-Token AND the cookie', () =>
       request: new Request('http://x', { headers: { authorization: 'Bearer child-token' } }),
       setCookie: (s: string) => { cookies.push(s) },
       setHeader: (n: string, v: string) => { headers.push([n, v]) },
-    }).pipe(Effect.provide(stubSession('parent-token')))
+    }).pipe(Effect.provide(Layer.merge(stubSession('parent-token'), apiKeyStub)))
     expect(headers).toContainEqual(['X-Session-Token', 'parent-token'])
     expect(cookies.length).toBe(1)
   }))
@@ -87,7 +101,7 @@ it.effect('cookie-sourced rotation sets only the cookie, NOT X-Session-Token', (
       request: new Request('http://x', { headers: { cookie: 'czo.session=child-token' } }),
       setCookie: (s: string) => { cookies.push(s) },
       setHeader: (n: string, v: string) => { headers.push([n, v]) },
-    }).pipe(Effect.provide(stubSession('parent-token')))
+    }).pipe(Effect.provide(Layer.merge(stubSession('parent-token'), apiKeyStub)))
     expect(headers.length).toBe(0)
     expect(cookies.length).toBe(1)
   }))

@@ -16,7 +16,7 @@ import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, ApiKeyEvents, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
 import { Config, Duration, Effect, Layer } from 'effect'
-import { makeSessionContextContributor } from './graphql/session-context'
+import { makeAuthContextContributor } from './graphql/session-context'
 import { authRoutes } from './http/routes'
 import {
   ADMIN_HIERARCHY,
@@ -208,7 +208,7 @@ export default defineModule(() => {
     graphql: {
       contribution: builder => registerAuthSchema(builder),
       authScope: authScopes,
-      contexts: makeSessionContextContributor(),
+      contexts: makeAuthContextContributor(),
     },
     // Credential endpoints (sign-up/in/out) are declared as `routes` so they
     // surface in the OpenAPI document; see `./http/routes`.
