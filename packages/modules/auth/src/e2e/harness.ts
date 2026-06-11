@@ -1,9 +1,10 @@
-import type { Layer } from 'effect'
 /**
  * Shared E2E harness for the auth module's GraphQL + REST surface.
  * Boots [auth] on a Testcontainers Postgres via bootTestApp and drives the real
  * h3/Yoga fetch handler. Plain vitest describe/it use it via beforeAll/afterAll.
  */
+import type { SubGraphName } from '@czo/kit/graphql'
+import type { Layer } from 'effect'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -48,18 +49,23 @@ export interface AuthHarness {
   readonly setMemberRole: (orgNumericId: number, userId: number, role: string) => Promise<void>
 }
 
-export async function bootAuthApp(opts?: { readonly services?: Layer.Layer<any, unknown, never> }): Promise<AuthHarness> {
+export async function bootAuthApp(opts?: { readonly services?: Layer.Layer<any, unknown, never>, readonly subGraphs?: ReadonlyArray<SubGraphName> }): Promise<AuthHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
   process.env.AUTH_APP = 'test'
+
+  const buildOptions = {
+    ...(opts?.services ? { services: opts.services } : {}),
+    ...(opts?.subGraphs ? { subGraphs: opts.subGraphs } : {}),
+  }
 
   const scope = await Effect.runPromise(Scope.make())
   const app = (await Effect.runPromise(
     bootTestApp({
       modules: [authModule],
       migrations: [AUTH_MIGRATIONS],
-      ...(opts?.services ? { buildOptions: { services: opts.services } } : {}),
+      ...(Object.keys(buildOptions).length > 0 ? { buildOptions } : {}),
     })
       .pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp

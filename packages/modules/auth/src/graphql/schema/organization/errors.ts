@@ -48,29 +48,31 @@ export {
 }
 
 export function registerOrganizationErrors(builder: any): void {
-  registerError(builder, OrganizationNotFound, { name: 'OrganizationNotFoundError' })
+  registerError(builder, OrganizationNotFound, { name: 'OrganizationNotFoundError', subGraphs: ['org'] })
   registerError(builder, OrganizationSlugTaken, {
     name: 'OrganizationSlugTakenError',
+    subGraphs: ['account', 'org'],
     fields: t => ({ slug: t.exposeString('slug') }),
   })
-  registerError(builder, OrganizationLimitReached, { name: 'OrganizationLimitReachedError' })
-  registerError(builder, OrgUserNotFound, { name: 'OrganizationUserNotFoundError' })
-  registerError(builder, NotAMember, { name: 'NotAMemberError' })
-  registerError(builder, MemberNotFound, { name: 'MemberNotFoundError' })
-  registerError(builder, MemberAlreadyExists, { name: 'MemberAlreadyExistsError' })
-  registerError(builder, MemberLimitReached, { name: 'MemberLimitReachedError' })
-  registerError(builder, CannotRemoveLastOwner, { name: 'CannotRemoveLastOwnerError' })
-  registerError(builder, CannotPromoteToOwner, { name: 'CannotPromoteToOwnerError' })
-  registerError(builder, CannotLeaveAsLastOwner, { name: 'CannotLeaveAsLastOwnerError' })
+  registerError(builder, OrganizationLimitReached, { name: 'OrganizationLimitReachedError', subGraphs: ['account', 'org'] })
+  registerError(builder, OrgUserNotFound, { name: 'OrganizationUserNotFoundError', subGraphs: ['account', 'org'] })
+  registerError(builder, NotAMember, { name: 'NotAMemberError', subGraphs: ['account', 'org'] })
+  registerError(builder, MemberNotFound, { name: 'MemberNotFoundError', subGraphs: ['account', 'org'] })
+  registerError(builder, MemberAlreadyExists, { name: 'MemberAlreadyExistsError', subGraphs: ['account', 'org'] })
+  registerError(builder, MemberLimitReached, { name: 'MemberLimitReachedError', subGraphs: ['org'] })
+  registerError(builder, CannotRemoveLastOwner, { name: 'CannotRemoveLastOwnerError', subGraphs: ['account', 'org'] })
+  registerError(builder, CannotPromoteToOwner, { name: 'CannotPromoteToOwnerError', subGraphs: ['org'] })
+  registerError(builder, CannotLeaveAsLastOwner, { name: 'CannotLeaveAsLastOwnerError', subGraphs: ['org'] })
   registerError(builder, OrgInvalidRole, {
     name: 'OrganizationInvalidRoleError',
+    subGraphs: ['org'],
     fields: t => ({ role: t.exposeString('role') }),
   })
-  registerError(builder, InvitationNotFound, { name: 'InvitationNotFoundError' })
-  registerError(builder, InvitationExpired, { name: 'InvitationExpiredError' })
-  registerError(builder, InvitationAlreadyExists, { name: 'InvitationAlreadyExistsError' })
-  registerError(builder, InvitationLimitReached, { name: 'InvitationLimitReachedError' })
-  registerError(builder, InvitationNotPending, { name: 'InvitationNotPendingError' })
-  registerError(builder, InvitationEmailMismatch, { name: 'InvitationEmailMismatchError' })
-  registerError(builder, OrgNoChanges, { name: 'OrganizationNoChangesError' })
+  registerError(builder, InvitationNotFound, { name: 'InvitationNotFoundError', subGraphs: ['account', 'org'] })
+  registerError(builder, InvitationExpired, { name: 'InvitationExpiredError', subGraphs: ['account', 'org'] })
+  registerError(builder, InvitationAlreadyExists, { name: 'InvitationAlreadyExistsError', subGraphs: ['org'] })
+  registerError(builder, InvitationLimitReached, { name: 'InvitationLimitReachedError', subGraphs: ['org'] })
+  registerError(builder, InvitationNotPending, { name: 'InvitationNotPendingError', subGraphs: ['account', 'org'] })
+  registerError(builder, InvitationEmailMismatch, { name: 'InvitationEmailMismatchError', subGraphs: ['account', 'org'] })
+  registerError(builder, OrgNoChanges, { name: 'OrganizationNoChangesError', subGraphs: ['org'] })
 }

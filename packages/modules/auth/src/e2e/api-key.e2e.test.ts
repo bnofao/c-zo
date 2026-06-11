@@ -1,24 +1,34 @@
 import type { AuthHarness } from './harness'
-import { encodeGlobalID } from '@czo/kit/graphql'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bootAuthApp } from './harness'
 
+// Account (personal) variants — owner is implicitly the session user.
 const CREATE = `mutation ($i: CreateApiKeyInput!) { createApiKey(input: $i) {
   ... on CreateApiKeySuccess { data { apiKey { id name } plain } } } }`
 const UPDATE = `mutation ($i: UpdateApiKeyInput!) { updateApiKey(input: $i) {
   ... on UpdateApiKeySuccess { data { apiKey { id name } } } } }`
 const REMOVE = `mutation ($i: RemoveApiKeyInput!) { removeApiKey(input: $i) {
   ... on RemoveApiKeySuccess { data { success } } } }`
+// Org variants — owner is the given organization.
+const CREATE_ORG = `mutation ($i: CreateOrganizationApiKeyInput!) { createOrganizationApiKey(input: $i) {
+  ... on CreateOrganizationApiKeySuccess { data { apiKey { id name } plain } } } }`
 const MY_KEYS = `query { myApiKeys { edges { node { id name } } } }`
 const ORG_KEYS = `query ($id: ID!) { organizationApiKeys(organizationId: $id) {
   edges { node { id name } } } }`
 
-const userGid = (numericId: number) => encodeGlobalID('User', String(numericId))
-const orgInput = (gid: string) => ({ type: 'ORGANIZATION', id: gid })
-
-function createInput(ownerGid: string, ownerType: 'USER' | 'ORGANIZATION', name: string, slug: string) {
+/** Personal (account) create input — owner is the session user. */
+function createInput(name: string, slug: string) {
   return {
-    owner: { type: ownerType, id: ownerGid },
+    name,
+    group: 'default',
+    prefix: slug,
+  }
+}
+
+/** Org-scoped create input. */
+function createOrgInput(organizationId: string, name: string, slug: string) {
+  return {
+    organizationId,
     name,
     group: 'default',
     prefix: slug,
@@ -36,11 +46,11 @@ describe('api-key (E2E)', () => {
   }, 120_000)
   afterAll(() => h.close())
 
-  it('a user creates a USER-owned key for themselves', async () => {
+  it('a user creates a personal key for themselves', async () => {
     const user = await h.signUp('ak-self@ex.com', 'Self', 'password123!')
     const res = await h.gql(
       CREATE,
-      { i: createInput(userGid(user.userId), 'USER', 'My Key', 'mk') },
+      { i: createInput('My Key', 'mk') },
       user.token,
       user.ip,
     )
@@ -50,43 +60,11 @@ describe('api-key (E2E)', () => {
     expect(res.data.createApiKey.data.plain.length).toBeGreaterThan(0)
   })
 
-  it('cross-owner denial — user B cannot create a key owned by user A', async () => {
-    const a = await h.signUp('ak-cross-a@ex.com', 'A', 'password123!')
-    const b = await h.signUp('ak-cross-b@ex.com', 'B', 'password123!')
-    const res = await h.gql(
-      CREATE,
-      { i: createInput(userGid(a.userId), 'USER', 'Stolen', 'st') },
-      b.token,
-      b.ip,
-    )
-    expect(res.errors).toBeTruthy()
-    expect(res.data?.createApiKey ?? null).toBeNull()
-  })
-
-  it('rejects an owner global ID whose type mismatches the discriminator', async () => {
-    const user = await h.signUp('ak-mismatch@ex.com', 'Mismatch', 'password123!')
-    // type=USER but the id is an Organization global ID — the resolver requires
-    // the decoded typename to match `type`, so this is rejected (no NaN/garbage).
-    // ValidationError is a typed error → it surfaces as a non-Success union
-    // member in `data`, not in the top-level `errors` array.
-    const res = await h.gql(
-      `mutation ($i: CreateApiKeyInput!) { createApiKey(input: $i) {
-        __typename
-        ... on CreateApiKeySuccess { data { plain } }
-      } }`,
-      { i: createInput(encodeGlobalID('Organization', String(user.userId)), 'USER', 'Bad', 'bad') },
-      user.token,
-      user.ip,
-    )
-    expect(res.data.createApiKey.__typename).not.toBe('CreateApiKeySuccess')
-    expect(res.data?.createApiKey?.data?.plain ?? null).toBeNull()
-  })
-
   it('myApiKeys — a user sees their own key', async () => {
     const user = await h.signUp('ak-list@ex.com', 'Lister', 'password123!')
     const created = await h.gql(
       CREATE,
-      { i: createInput(userGid(user.userId), 'USER', 'Listed Key', 'lk') },
+      { i: createInput('Listed Key', 'lk') },
       user.token,
       user.ip,
     )
@@ -102,7 +80,7 @@ describe('api-key (E2E)', () => {
     const user = await h.signUp('ak-mutate@ex.com', 'Mutator', 'password123!')
     const created = await h.gql(
       CREATE,
-      { i: createInput(userGid(user.userId), 'USER', 'Before', 'bf') },
+      { i: createInput('Before', 'bf') },
       user.token,
       user.ip,
     )
@@ -127,7 +105,7 @@ describe('api-key (E2E)', () => {
     const stranger = await h.signUp('ak-stranger@ex.com', 'Stranger', 'password123!')
     const created = await h.gql(
       CREATE,
-      { i: createInput(userGid(owner.userId), 'USER', 'Private', 'pv') },
+      { i: createInput('Private', 'pv') },
       owner.token,
       owner.ip,
     )
@@ -173,14 +151,14 @@ describe('api-key (E2E)', () => {
 
     // The member can create an org-owned key.
     const created = await h.gql(
-      CREATE,
-      { i: createInput(orgGlobalId, 'ORGANIZATION', 'Org Key', 'ok') },
+      CREATE_ORG,
+      { i: createOrgInput(orgGlobalId, 'Org Key', 'ok') },
       member.token,
       member.ip,
     )
     expect(created.errors).toBeUndefined()
-    expect(created.data.createApiKey.data.apiKey.id).toBeTruthy()
-    const keyId: string = created.data.createApiKey.data.apiKey.id
+    expect(created.data.createOrganizationApiKey.data.apiKey.id).toBeTruthy()
+    const keyId: string = created.data.createOrganizationApiKey.data.apiKey.id
 
     // The member can list org keys (api-key:read).
     const listed = await h.gql(ORG_KEYS, { id: orgGlobalId }, member.token, member.ip)
@@ -195,12 +173,12 @@ describe('api-key (E2E)', () => {
 
     // A non-member cannot create an org-owned key either.
     const deniedCreate = await h.gql(
-      CREATE,
-      { i: { ...createInput(orgGlobalId, 'ORGANIZATION', 'Sneaky', 'sn'), owner: orgInput(orgGlobalId) } },
+      CREATE_ORG,
+      { i: createOrgInput(orgGlobalId, 'Sneaky', 'sn') },
       outsider.token,
       outsider.ip,
     )
     expect(deniedCreate.errors).toBeTruthy()
-    expect(deniedCreate.data?.createApiKey ?? null).toBeNull()
+    expect(deniedCreate.data?.createOrganizationApiKey ?? null).toBeNull()
   })
 })

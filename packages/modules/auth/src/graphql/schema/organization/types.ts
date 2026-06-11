@@ -12,6 +12,7 @@ export function registerOrganizationTypes(builder: AuthGraphQLSchemaBuilder): vo
   // ── Organization node ─────────────────────────────────────────────────────
   builder.drizzleNode('organizations', {
     name: 'Organization',
+    subGraphs: ['account', 'org'],
     description: 'A tenant that groups members, invitations, and all org-scoped data under a unique slug.',
     id: { column: o => o.id },
     fields: t => ({
@@ -28,6 +29,10 @@ export function registerOrganizationTypes(builder: AuthGraphQLSchemaBuilder): vo
   // ── Member node ───────────────────────────────────────────────────────────
   builder.drizzleNode('members', {
     name: 'Member',
+    subGraphs: ['account', 'org'],
+    // `select: true` so the node-guard's `organizationId` is loaded regardless
+    // of the client's field selection (see graphql/node-guards.ts).
+    select: true,
     description: 'A membership linking a user to an organization with a role that defines their permissions within it.',
     id: { column: m => m.id },
     fields: t => ({
@@ -41,6 +46,10 @@ export function registerOrganizationTypes(builder: AuthGraphQLSchemaBuilder): vo
   // ── Invitation node ───────────────────────────────────────────────────────
   builder.drizzleNode('invitations', {
     name: 'Invitation',
+    subGraphs: ['account', 'org'],
+    // `select: true` so the node-guard's `organizationId` + `email` are loaded
+    // regardless of the client's field selection (see graphql/node-guards.ts).
+    select: true,
     description: 'An invitation for an email address to join an organization with a given role, tracked through its lifecycle.',
     id: { column: i => i.id },
     fields: t => ({

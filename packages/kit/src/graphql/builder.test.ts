@@ -1,11 +1,13 @@
 import type { GraphQLSchema } from 'graphql'
 import { it as itEffect } from '@effect/vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { Effect, Layer } from 'effect'
+import { Data, Effect, Layer } from 'effect'
 import { assertValidSchema } from 'graphql'
 import { describe, expect } from 'vitest'
 import { DrizzleDb } from '../db'
 import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
+import { ValidationError } from './errors'
+import { registerError } from './errors/builders'
 
 /**
  * The Pothos drizzle plugin only needs `db` as a client reference while
@@ -250,5 +252,82 @@ describe('makeGraphQLBuilder — relay connection inside a sub-graph', () => {
     expect(schema.getQueryType()!.getFields().things).toBeUndefined()
     expect(schema.getType('QueryThingsConnection')).toBeUndefined()
     expect(schema.getType('Thing')).toBeUndefined()
+  })
+})
+
+describe('makeGraphQLBuilder — relay mutation inside a sub-graph', () => {
+  class ThingFailed extends Data.TaggedError('ThingFailed')<{ message: string }> {
+    readonly code = 'THING_FAILED'
+  }
+
+  const withMutation = [
+    (b: any) => {
+      registerError(b, ThingFailed, { name: 'ThingFailed', subGraphs: ['public'] })
+      // A served sub-graph always carries at least one query field (its Query root
+      // is never empty, unlike Mutation which `dropEmptyRootTypes` removes). Tag one
+      // into `public` so this isolated mutation-only fixture still validates.
+      b.queryField('thingPing', (t: any) =>
+        t.string({ subGraphs: ['public'], resolve: () => 'pong' }))
+      b.relayMutationField(
+        'doThing',
+        { subGraphs: ['public'], inputFields: (t: any) => ({ name: t.string({ required: true }) }) },
+        {
+          subGraphs: ['public'],
+          errors: {
+            types: [ValidationError, ThingFailed],
+            union: { subGraphs: ['public'] },
+            result: { subGraphs: ['public'] },
+          },
+          resolve: () => ({ ok: true }),
+        },
+        { subGraphs: ['public'], outputFields: (t: any) => ({ ok: t.boolean({ resolve: (p: any) => p.ok }) }) },
+      )
+    },
+  ]
+
+  itEffect('public sub-graph contains the mutation + its Input/Payload/Result/Success + shared error, and validates', async () => {
+    const schema = await buildSchema(withMutation, 'public')
+    expect(() => assertValidSchema(schema)).not.toThrow()
+    expect(schema.getMutationType()!.getFields().doThing).toBeDefined()
+    expect(schema.getType('DoThingInput')).toBeDefined()
+    expect(schema.getType('DoThingPayload')).toBeDefined()
+    expect(schema.getType('DoThingResult')).toBeDefined()
+    expect(schema.getType('DoThingSuccess')).toBeDefined()
+    expect(schema.getType('ValidationError')).toBeDefined()
+    expect(schema.getType('ThingFailed')).toBeDefined()
+  })
+
+  itEffect('admin sub-graph (mutation not tagged into it) omits the mutation and its generated types', async () => {
+    const schema = await buildSchema(withMutation, 'admin')
+    expect(schema.getMutationType()?.getFields().doThing).toBeUndefined()
+    expect(schema.getType('DoThingPayload')).toBeUndefined()
+  })
+
+  itEffect('node(id:) query + Node interface are present in a served sub-graph', async () => {
+    // The relay `node`/`nodes` query + `Node` interface are created lazily by the
+    // plugin on the first `nodeInterfaceRef()` call — i.e. when a relay node is
+    // registered. Register one (tagged into `public`) so the shared relay infra
+    // materializes; the `nodeTypeOptions`/`nodeQueryOptions` `subGraphs` tags then
+    // keep `Node` + `node` in the served sub-graph.
+    const withNode = [
+      (b: any) => {
+        const Thing = b.objectRef('NodeThing')
+        b.node(
+          Thing,
+          {
+            subGraphs: ['public'],
+            id: { resolve: (x: any) => x.id },
+            loadOne: (id: string) => ({ id }),
+          },
+          (t: any) => ({ name: t.string({ resolve: () => 'n' }) }),
+        )
+        b.queryField('nodePing', (t: any) =>
+          t.string({ subGraphs: ['public'], resolve: () => 'pong' }))
+      },
+    ]
+    const schema = await buildSchema(withNode, 'public')
+    expect(() => assertValidSchema(schema)).not.toThrow()
+    expect(schema.getType('Node')).toBeDefined()
+    expect(schema.getQueryType()!.getFields().node).toBeDefined()
   })
 })

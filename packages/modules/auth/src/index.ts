@@ -16,6 +16,7 @@ import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, ApiKeyEvents, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
 import { Config, Duration, Effect, Layer } from 'effect'
+import { authNodeGuards } from './graphql/node-guards'
 import { makeSessionContextContributor } from './graphql/session-context'
 import { authRoutes } from './http/routes'
 import {
@@ -209,6 +210,7 @@ export default defineModule(() => {
       contribution: builder => registerAuthSchema(builder),
       authScope: authScopes,
       contexts: makeSessionContextContributor(),
+      nodeGuards: authNodeGuards,
     },
     // Credential endpoints (sign-up/in/out) are declared as `routes` so they
     // surface in the OpenAPI document; see `./http/routes`.

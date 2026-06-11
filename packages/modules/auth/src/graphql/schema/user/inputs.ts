@@ -52,6 +52,7 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
   // })
 
   const UserWhereInputRef = builder.inputRef<UserWhereInput>('UserWhereInput').implement({
+    subGraphs: ['admin'],
     description: 'Filter conditions for selecting users, combinable via the AND, OR, and NOT operators.',
     fields: t => ({
       name: t.field({ description: 'Filter users by display name.', type: 'StringFilterInput' }),
@@ -69,6 +70,7 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
   })
 
   const UserOrderFieldRef = builder.enumType('UserOrderField', {
+    subGraphs: ['admin'],
     description: 'Fields by which a list of users can be ordered.',
     values: {
       NAME: { description: 'Order by display name.', value: 'name' },
@@ -78,6 +80,7 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
   })
 
   const OrderDirectionRef = builder.enumType('OrderDirection', {
+    subGraphs: ['admin'],
     description: 'Direction in which results are sorted.',
     values: {
       ASC: { description: 'Sort in ascending order.', value: 'asc' },
@@ -86,6 +89,7 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
   })
 
   builder.inputType('UserOrderByInput', {
+    subGraphs: ['admin'],
     description: 'Specifies a field and direction by which to order a list of users.',
     fields: t => ({
       field: t.field({ description: 'Field to order users by.', type: UserOrderFieldRef, required: true, validate: userOrderFieldSchema }),
