@@ -2,6 +2,7 @@ import type { GraphQLSchema } from 'graphql'
 import { it as itEffect } from '@effect/vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Effect, Layer } from 'effect'
+import { assertValidSchema } from 'graphql'
 import { describe, expect } from 'vitest'
 import { DrizzleDb } from '../db'
 import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
@@ -27,15 +28,20 @@ const DrizzleDbLayer = Layer.succeed(DrizzleDb, db as never)
  */
 function buildSchema(
   contributions: ReadonlyArray<Parameters<typeof makeGraphQLBuilder>[0][number]> = [],
+  subGraph?: 'public' | 'account' | 'org' | 'admin',
 ): Promise<GraphQLSchema> {
   const layer = Layer.merge(
-    makeGraphQLBuilder(contributions, [], [], {} as never),
+    // 6th arg = the runtime sub-graph-names list (root + PageInfo tagging). Tests
+    // build several sub-graphs, so pass all four; production passes the served set.
+    // Kit's `SubGraphName` is only `'public'` until auth augments `BuilderSubGraphs`
+    // (later task), so the extra names are cast through at these call sites.
+    makeGraphQLBuilder(contributions, [], [], {} as never, {}, ['public', 'account', 'org', 'admin'] as never),
     DrizzleDbLayer,
   )
   return Effect.runPromise(
     Effect.gen(function* () {
       const builder = yield* GraphQLBuilder
-      return yield* builder.buildSchema()
+      return yield* builder.buildSchema(subGraph as never)
     }).pipe(Effect.provide(layer)),
   )
 }
@@ -136,4 +142,113 @@ describe('makeGraphQLBuilder — Effect context contributors', () => {
       [],
       {} as never,
     ))))
+})
+
+describe('makeGraphQLBuilder — sub-graphs (opt-in / default-none)', () => {
+  // A contribution adding one public-tagged query field and one untagged field.
+  const fields = [
+    (b: any) => {
+      b.queryField('publicPing', (t: any) =>
+        t.string({ subGraphs: ['public'], resolve: () => 'pong' }))
+      b.queryField('secretPing', (t: any) =>
+        t.string({ resolve: () => 'shh' }))
+    },
+  ]
+
+  itEffect('full schema (no subGraph) contains BOTH tagged and untagged fields', async () => {
+    const schema = await buildSchema(fields)
+    const q = schema.getQueryType()!.getFields()
+    expect(q.publicPing).toBeDefined()
+    expect(q.secretPing).toBeDefined()
+  })
+
+  itEffect('public sub-graph contains the tagged field and OMITS the untagged field', async () => {
+    const schema = await buildSchema(fields, 'public')
+    const qt = schema.getQueryType()
+    expect(qt).toBeDefined()
+    const q = qt!.getFields()
+    expect(q.publicPing).toBeDefined()
+    expect(q.secretPing).toBeUndefined()
+  })
+
+  itEffect('account sub-graph (nothing tagged into it) has a Query type but none of the fields', async () => {
+    const schema = await buildSchema(fields, 'account')
+    const qt = schema.getQueryType()
+    expect(qt).toBeDefined()
+    const q = qt!.getFields()
+    expect(q.publicPing).toBeUndefined()
+    expect(q.secretPing).toBeUndefined()
+  })
+
+  itEffect('public sub-graph builds a field whose ARGUMENT is a custom scalar (DateTime)', async () => {
+    const withScalarArg = [
+      (b: any) => {
+        b.queryField('publicAt', (t: any) =>
+          t.string({
+            subGraphs: ['public'],
+            args: { at: t.arg({ type: 'DateTime' }) },
+            resolve: () => 'ok',
+          }))
+      },
+    ]
+    const schema = await buildSchema(withScalarArg, 'public')
+    expect(schema.getQueryType()!.getFields().publicAt).toBeDefined()
+    expect(schema.getType('DateTime')).toBeDefined()
+  })
+
+  itEffect('public sub-graph with no tagged mutation drops the (empty) Mutation root so the schema validates', async () => {
+    const schema = await buildSchema(fields, 'public')
+    // The sub-graph plugin keeps Mutation in every sub-graph but filters its
+    // fields; an empty Mutation object would fail GraphQL validation. It must be
+    // dropped, while Query (with the tagged field) survives.
+    expect(schema.getMutationType()).toBeUndefined()
+    expect(() => assertValidSchema(schema)).not.toThrow()
+    expect(schema.getQueryType()!.getFields().publicPing).toBeDefined()
+  })
+})
+
+describe('makeGraphQLBuilder — relay connection inside a sub-graph', () => {
+  const withConnection = [
+    (b: any) => {
+      const Thing = b.objectRef('Thing')
+      Thing.implement({
+        subGraphs: ['public'],
+        fields: (t: any) => ({
+          id: t.exposeID('id'),
+          name: t.exposeString('name'),
+        }),
+      })
+      b.queryField('things', (t: any) =>
+        t.connection(
+          {
+            type: Thing,
+            subGraphs: ['public'],
+            authScopes: { public: true }, // a scope-auth gate co-located with the sub-graph tag
+            resolve: () => ({
+              edges: [],
+              pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+            }),
+          },
+          { subGraphs: ['public'] }, // connection-type options
+          { subGraphs: ['public'] }, // edge-type options
+        ))
+    },
+  ]
+
+  itEffect('public sub-graph includes the connection field + Connection/Edge/PageInfo types', async () => {
+    const schema = await buildSchema(withConnection, 'public')
+    const q = schema.getQueryType()!.getFields()
+    expect(q.things).toBeDefined()
+    expect(schema.getType('QueryThingsConnection')).toBeDefined()
+    expect(schema.getType('QueryThingsConnectionEdge')).toBeDefined()
+    expect(schema.getType('PageInfo')).toBeDefined()
+    expect(schema.getType('Thing')).toBeDefined()
+  })
+
+  itEffect('a sub-graph with nothing tagged omits the connection AND its generated types', async () => {
+    const schema = await buildSchema(withConnection, 'admin')
+    expect(schema.getQueryType()!.getFields().things).toBeUndefined()
+    expect(schema.getType('QueryThingsConnection')).toBeUndefined()
+    expect(schema.getType('Thing')).toBeUndefined()
+  })
 })

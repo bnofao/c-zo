@@ -150,6 +150,7 @@ export function registerPriceTypes(builder: PriceGraphQLSchemaBuilder): void {
 
   // ── CalculatedPrice union ──────────────────────────────────────────────────
   const BasePriceRef = builder.objectRef<Extract<CalculatedPrice, { _tag: 'Base' }>>('BasePrice').implement({
+    subGraphs: ['public'],
     description: 'A resolved price taken directly from the price set, with no price list applied.',
     fields: t => ({
       amount: t.exposeString('amount', { description: 'The effective amount, as a decimal string.' }),
@@ -158,6 +159,7 @@ export function registerPriceTypes(builder: PriceGraphQLSchemaBuilder): void {
     }),
   })
   const OverridePriceRef = builder.objectRef<Extract<CalculatedPrice, { _tag: 'Override' }>>('OverridePrice').implement({
+    subGraphs: ['public'],
     description: 'A resolved price where an OVERRIDE price list replaced the base price.',
     fields: t => ({
       amount: t.exposeString('amount', { description: 'The effective (overriding) amount, as a decimal string.' }),
@@ -167,6 +169,7 @@ export function registerPriceTypes(builder: PriceGraphQLSchemaBuilder): void {
     }),
   })
   const SalePriceRef = builder.objectRef<Extract<CalculatedPrice, { _tag: 'Sale' }>>('SalePrice').implement({
+    subGraphs: ['public'],
     description: 'A resolved price where a SALE price list discounted the base price; exposes both the sale and original amounts.',
     fields: t => ({
       amount: t.exposeString('amount', { description: 'The effective (sale) amount, as a decimal string.' }),
@@ -177,6 +180,7 @@ export function registerPriceTypes(builder: PriceGraphQLSchemaBuilder): void {
     }),
   })
   builder.unionType('CalculatedPrice', {
+    subGraphs: ['public'],
     description: 'The effective price returned by price resolution: a BasePrice (no list), an OverridePrice (override list), or a SalePrice (sale list).',
     types: [BasePriceRef, OverridePriceRef, SalePriceRef],
     resolveType: v => (v._tag === 'Base' ? 'BasePrice' : v._tag === 'Override' ? 'OverridePrice' : 'SalePrice'),
@@ -184,6 +188,7 @@ export function registerPriceTypes(builder: PriceGraphQLSchemaBuilder): void {
 
   // ── PriceResolution — one entry per requested set in the bulk `resolvePrices` ─
   builder.objectRef<{ priceSetId: number, price: CalculatedPrice | null }>('PriceResolution').implement({
+    subGraphs: ['public'],
     description: 'One entry of a bulk `resolvePrices` result: the requested price set and its resolved price (null when none applied or the set is out of scope).',
     fields: t => ({
       priceSetId: t.id({ resolve: r => encodeGlobalID('PriceSet', String(r.priceSetId)), description: 'Relay global id of the requested price set.' }),

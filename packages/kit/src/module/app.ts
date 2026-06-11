@@ -17,7 +17,7 @@ import type { DrizzleDb } from '@czo/kit/db'
  * Tests skip `runApp` and consume `built.program` directly via
  * `Effect.runPromiseExit` (typically with a `port: 0` override).
  */
-import type { GraphQLContextMap } from '@czo/kit/graphql'
+import type { GraphQLContextMap, SubGraphName } from '@czo/kit/graphql'
 import type { GraphQLSchema } from 'graphql'
 import type { YogaServerInstance } from 'graphql-yoga'
 import type { RelationsEntry, SchemaRegistryShape } from '../db'
@@ -69,6 +69,14 @@ const { rateLimitDirectiveTransformer } = rateLimitDirective({
 
 export interface BuildAppOptions {
   readonly modules: ReadonlyArray<Module>
+  /**
+   * Audience sub-graphs to serve as dedicated endpoints at `/graphql/<name>`,
+   * in addition to the full `/graphql`. Default `['public']`. Each is a
+   * filtered view of the same builder (opt-in tagging; see the sub-graph spec).
+   * This same list is threaded into the builder so the Query/Mutation roots +
+   * PageInfo are tagged into exactly these names.
+   */
+  readonly subGraphs?: ReadonlyArray<SubGraphName>
   /**
    * Override the database layer. Production omits this (DB comes from env via
    * `DrizzleDbLayer ⊕ DatabaseConfigFromEnv`). Tests inject a Testcontainers
@@ -147,7 +155,7 @@ export interface BuiltApp {
    * `httpApp.fetch(request)`, and GraphQL via `yoga.fetch(request)` directly
    * (the production `fromNodeHandler` mount can't run on the web-fetch path).
    */
-  readonly assembleApp: Effect.Effect<{ httpApp: H3, runEffect: <A, E>(e: Effect.Effect<A, E, any>) => Promise<A>, yoga: YogaServerInstance<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap> }, never, GraphQLBuilder | DrizzleDb>
+  readonly assembleApp: Effect.Effect<{ httpApp: H3, runEffect: <A, E>(e: Effect.Effect<A, E, any>) => Promise<A>, yoga: YogaServerInstance<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>, subYogas: ReadonlyArray<YogaServerInstance<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>> }, never, GraphQLBuilder | DrizzleDb>
   /**
    * The composed app `Layer` (module services + `DrizzleDb` + `GraphQLBuilder`).
    * `@czo/kit/testing` can `Layer.buildWithScope(appLayer, scope)` then
@@ -213,12 +221,14 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     Layer.provide(SchemaRegistryLayer),
     Layer.provide(DatabaseConfigFromEnv),
   )
+  const servedSubGraphs: ReadonlyArray<SubGraphName> = options.subGraphs ?? ['public']
   const GraphQLBuilderLayer = makeGraphQLBuilder(
     graphQLContributions,
     graphQLContexts,
     authScopes,
     relations,
     nodeGuards,
+    servedSubGraphs,
   ).pipe(Layer.provide(DrizzleLayer))
 
   // Wire DrizzleLayer INTO moduleLayers so module-internal services
@@ -306,8 +316,13 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
       )
     })
 
-    const yoga = options.graphQLApp?.(gqlSchema) ?? createYoga<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>({
-      schema: gqlSchema,
+    // One Yoga per schema. The context closure (runEffect + per-request
+    // cookies/headers/clientIp) is identical across endpoints; only the schema
+    // and the mounted path differ. `graphqlEndpoint` must match the mount path
+    // so Yoga's own routing accepts the request.
+    const makeYoga = (schema: GraphQLSchema, endpoint: string) => createYoga<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>({
+      schema,
+      graphqlEndpoint: endpoint,
       context: async (initialContext) => {
         // Yoga owns the Node response and never flushes the h3 `event.res`, so
         // cookies cannot be set through the event. Instead, resolvers (and the
@@ -352,7 +367,20 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
       ],
     })
 
+    // Full schema at /graphql (transition mount). A host override still applies
+    // to the full schema.
+    const yoga = options.graphQLApp?.(gqlSchema) ?? makeYoga(gqlSchema, '/graphql')
     httpApp.all(yoga.graphqlEndpoint, fromNodeHandler(yoga))
+
+    // One dedicated endpoint per served sub-graph — a filtered view of the same
+    // builder, through the same `rateLimitDirectiveTransformer` as the full mount.
+    const subYogas: Array<ReturnType<typeof makeYoga>> = []
+    for (const name of servedSubGraphs) {
+      const subSchema = rateLimitDirectiveTransformer(yield* graphQLBuilder.buildSchema(name))
+      const subYoga = makeYoga(subSchema, `/graphql/${name}`)
+      httpApp.all(subYoga.graphqlEndpoint, fromNodeHandler(subYoga))
+      subYogas.push(subYoga)
+    }
 
     // Modules register their own routes / middlewares.
     for (const m of options.modules) {
@@ -386,7 +414,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     if (options.extend)
       yield* options.extend(httpApp)
 
-    return { httpApp, runEffect, yoga }
+    return { httpApp, runEffect, yoga, subYogas }
   })
 
   const main = Effect.gen(function* () {

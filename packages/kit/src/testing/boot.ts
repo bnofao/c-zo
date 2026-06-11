@@ -107,9 +107,14 @@ export function bootTestApp(options: BootTestAppOptions): Effect.Effect<BootTest
       // keeps the production GraphQL mount untouched — the split lives here.
       fetch: async (req: Request): Promise<Response> => {
         const { pathname } = new URL(req.url)
-        if (pathname !== assembled.yoga.graphqlEndpoint)
+        // The full /graphql and each /graphql/<name> sub-graph are served in-process
+        // by their own Yoga (the production `fromNodeHandler` mount doesn't run on
+        // h3's web-fetch path). Everything else (e.g. /api/auth/**) goes through h3.
+        const graphql = [assembled.yoga, ...assembled.subYogas]
+          .find(y => y.graphqlEndpoint === pathname)
+        if (!graphql)
           return assembled.httpApp.fetch(req)
-        const res = await assembled.yoga.fetch(req)
+        const res = await graphql.fetch(req)
         return new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers })
       },
       runEffect: assembled.runEffect,

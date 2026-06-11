@@ -1,5 +1,5 @@
 import type { RelationsEntry } from '@czo/kit/db'
-import type { GraphQLSchema } from 'graphql'
+import type { GraphQLObjectType, GraphQLSchema } from 'graphql'
 import type { Database } from '../db'
 import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
@@ -8,6 +8,7 @@ import DrizzlePlugin from '@pothos/plugin-drizzle'
 import ErrorsPlugin from '@pothos/plugin-errors'
 import RelayPlugin from '@pothos/plugin-relay'
 import ScopeAuthPlugin from '@pothos/plugin-scope-auth'
+import SubGraphPlugin from '@pothos/plugin-sub-graph'
 import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-validation'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -17,6 +18,21 @@ import z from 'zod'
 import { DrizzleDb } from '../db'
 import { ValidationError } from './errors'
 import { registerErrorTypes } from './errors/builders'
+
+/**
+ * Audience sub-graph names. Kit owns only the platform baseline `public` so that
+ * non-auth modules can tag `['public']` without depending on auth. Auth augments
+ * this with the principal-derived names (`account`/`org`/`admin`) via
+ * `declare module '@czo/kit/graphql'` — exactly like `BuilderAuthScopes`.
+ * A field/type tagged `subGraphs: [...]` appears only in the named sub-graph
+ * schemas (plus the internal full schema); an UNTAGGED field is in NONE of them
+ * (opt-in, default-none). See docs/superpowers/specs/2026-06-10-graphql-subgraphs-design.md.
+ */
+export interface BuilderSubGraphs {
+  public: true
+}
+
+export type SubGraphName = keyof BuilderSubGraphs
 
 /**
  * A per-type `node(id:)` authorization guard. A module registers guards via
@@ -69,6 +85,7 @@ export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
 
 export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Partial<PothosSchemaTypes.UserSchemaTypes> {
   Context: GraphQLContextMap
+  SubGraphs: SubGraphName
   Directives: {
     rateLimit: {
       locations: 'FIELD_DEFINITION'
@@ -138,7 +155,7 @@ export class GraphQLBuilder extends Context.Service<GraphQLBuilder, {
   // readonly contributions: Effect.Effect<ReadonlyArray<(builder: SchemaBuilder) => void>>
   // readonly authScope: Effect.Effect<ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>>
   readonly buildContext: (systemContext: unknown) => Effect.Effect<GraphQLContextMap, unknown, any>
-  readonly buildSchema: () => Effect.Effect<GraphQLSchema, never, DrizzleDb>
+  readonly buildSchema: (subGraph?: SubGraphName) => Effect.Effect<GraphQLSchema, never, DrizzleDb>
 }>()('@czo/kit/GraphQLBuilder') {}
 
 export function makeGraphQLBuilder(
@@ -147,6 +164,7 @@ export function makeGraphQLBuilder(
   authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
   relations: RelationsEntry,
   nodeGuards: Record<string, NodeGuard> = {},
+  subGraphNames: ReadonlyArray<SubGraphName> = ['public'],
 ) {
   return Layer.effect(
     GraphQLBuilder,
@@ -158,10 +176,10 @@ export function makeGraphQLBuilder(
           const parts = yield* Effect.all(contexts.map(ctx => ctx(systemContext)), { concurrency: 'unbounded' })
           return Object.assign({}, ...parts)
         }),
-        buildSchema: () =>
+        buildSchema: (subGraph?: SubGraphName) =>
           Effect.gen(function* () {
             const db = yield* DrizzleDb
-            const builder = setupBuilder(db, relations, authScope, nodeGuards)
+            const builder = setupBuilder(db, relations, authScope, nodeGuards, subGraphNames)
 
             stringFilterInputRef(builder)
             booleanFilterInputRef(builder)
@@ -174,11 +192,58 @@ export function makeGraphQLBuilder(
 
             for (const contribute of contributions) contribute(builder)
 
-            return builder.toSchema()
+            if (!subGraph)
+              return builder.toSchema()
+            // The sub-graph plugin keeps the Query/Mutation roots in every
+            // sub-graph (they're tagged into all of them) but filters their
+            // fields. A sub-graph with no tagged mutation thus yields an EMPTY
+            // Mutation root, which `assertValidSchema` (run by Yoga per request)
+            // rejects with "Type Mutation must define one or more fields." Drop
+            // any root type that filtered down to zero fields so the served
+            // sub-graph schema validates.
+            return dropEmptyRootTypes(builder.toSchema({ subGraph }))
           }),
       })
     }),
   )
+}
+
+/**
+ * Rebuild `schema` without an empty Mutation/Subscription root. The sub-graph
+ * plugin keeps these roots in every sub-graph (they're tagged into all of them)
+ * but filters their fields, so a sub-graph with no tagged mutation ends up with
+ * an empty Mutation object — which `assertValidSchema` (run by Yoga per request)
+ * rejects with "Type Mutation must define one or more fields." Query is left
+ * untouched: a schema must always declare one, and a served sub-graph carries at
+ * least one tagged query field.
+ */
+function dropEmptyRootTypes(schema: GraphQLSchema): GraphQLSchema {
+  const isEmptyRoot = (root: GraphQLObjectType | null | undefined): boolean =>
+    !!root && Object.keys(root.getFields()).length === 0
+  const config = schema.toConfig()
+  const droppedNames = new Set<string>()
+  const drop = (root: GraphQLObjectType | null | undefined): GraphQLObjectType | undefined => {
+    if (isEmptyRoot(root)) {
+      droppedNames.add(root!.name)
+      return undefined
+    }
+    return root ?? undefined
+  }
+  const mutation = drop(config.mutation)
+  const subscription = drop(config.subscription)
+  // Reuse the constructor of the SOURCE schema rather than importing
+  // `GraphQLSchema` here: kit's bundle and the consuming app can resolve
+  // distinct physical `graphql` instances, and constructing across realms
+  // throws "Cannot use GraphQLObjectType ... from another module or realm".
+  const SchemaCtor = schema.constructor as typeof GraphQLSchema
+  return new SchemaCtor({
+    ...config,
+    mutation,
+    subscription,
+    // `assertValidSchema` validates every entry in `types`, so the empty root
+    // object must be removed from the type list too — not just unreferenced.
+    types: config.types.filter(t => !droppedNames.has(t.name)),
+  })
 }
 
 function setupBuilder<Relations extends RelationsEntry>(
@@ -186,6 +251,7 @@ function setupBuilder<Relations extends RelationsEntry>(
   relations: Relations,
   authScope: ReadonlyArray<(ctx: GraphQLContextMap) => Record<string, unknown>>,
   nodeGuards: Record<string, NodeGuard>,
+  subGraphNames: ReadonlyArray<SubGraphName>,
 ) {
   const builder = new PothosSchemaBuilder<BuilderSchemaTypes<Relations>>({
     defaultFieldNullability: false,
@@ -197,6 +263,7 @@ function setupBuilder<Relations extends RelationsEntry>(
       ValidationPlugin,
       DirectivesPlugin,
       TracingPlugin,
+      SubGraphPlugin,
       // ...(opts.extraPlugins ?? []),
     ],
     // The drizzle plugin's model-loader is promise-based (`query.then(...)`), so
@@ -207,6 +274,7 @@ function setupBuilder<Relations extends RelationsEntry>(
     relay: {
       clientMutationId: 'omit',
       cursorType: 'String',
+      pageInfoTypeOptions: { subGraphs: subGraphNames as SubGraphName[] },
       // Per-node() authorization: a module registers `graphql.nodeGuards` keyed by
       // GraphQL type name. The guard runs ONLY on the `node(id:)`/`nodes(ids:)`
       // path (never connections or mutation returns), so it closes cross-org
@@ -273,18 +341,29 @@ function setupBuilder<Relations extends RelationsEntry>(
         )
       },
     },
+    subGraphs: {
+      // Opt-in / default-none: a type belongs to a sub-graph only when tagged;
+      // an object type's fields inherit the type's sub-graphs (no per-field tag).
+      defaultForTypes: [],
+      fieldsInheritFromTypes: true,
+    },
     // ...(opts.extraPluginOptions ?? {}),
   })
 
-  // Scalars
-  builder.addScalarType('DateTime', DateTimeResolver, {})
-  builder.addScalarType('JSONObject', JSONObjectResolver, {})
-  builder.addScalarType('JSON', JSONResolver, {})
-  builder.addScalarType('Date', DateTimeResolver)
-  builder.addScalarType('Time', DateTimeResolver)
-  // Root types
-  builder.queryType({})
-  builder.mutationType({})
+  // Scalars — shared infra types live in every known sub-graph (like the relay
+  // PageInfo), so a sub-graph field referencing them as an arg/return type resolves.
+  const scalarSubGraphs = { subGraphs: subGraphNames as SubGraphName[] }
+  builder.addScalarType('DateTime', DateTimeResolver, scalarSubGraphs)
+  builder.addScalarType('JSONObject', JSONObjectResolver, scalarSubGraphs)
+  builder.addScalarType('JSON', JSONResolver, scalarSubGraphs)
+  builder.addScalarType('Date', DateTimeResolver, scalarSubGraphs)
+  builder.addScalarType('Time', DateTimeResolver, scalarSubGraphs)
+  // Root types live in every KNOWN sub-graph (so each filtered schema has a
+  // Query/Mutation), but operations OPT IN: defaultSubGraphsForFields=[] means an
+  // untagged query/mutation field is in none of them. `subGraphNames` is the
+  // runtime list threaded from buildApp (the served set) — see Step 6.
+  builder.queryType({ subGraphs: subGraphNames as SubGraphName[], defaultSubGraphsForFields: [] })
+  builder.mutationType({ subGraphs: subGraphNames as SubGraphName[], defaultSubGraphsForFields: [] })
 
   // Shared error types
   registerErrorTypes(builder)

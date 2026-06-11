@@ -6,6 +6,7 @@ export function registerLocaleQueries(builder: TranslationGraphQLSchemaBuilder):
   builder.queryField('locales', t =>
     t.drizzleConnection({
       type: 'locales',
+      subGraphs: ['public'],
       description: 'Paginated (relay) connection over the platform locale registry. Public read.',
       args: { activeOnly: t.arg.boolean({ description: 'When true, return only active locales; defaults to false (all).' }) },
       resolve: async (query, _root, args, ctx) =>
@@ -31,6 +32,7 @@ export function registerLocaleQueries(builder: TranslationGraphQLSchemaBuilder):
   builder.queryField('defaultLocale', t =>
     t.drizzleField({
       type: 'locales',
+      subGraphs: ['public'],
       nullable: true,
       description: 'The platform default locale, used as the fallback when a translation is missing. Null if none is configured. Public read.',
       resolve: async (_query, _root, _args, ctx) =>

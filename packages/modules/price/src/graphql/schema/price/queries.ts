@@ -110,6 +110,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('resolvePrice', t =>
     t.field({
       type: 'CalculatedPrice',
+      subGraphs: ['public'],
       nullable: true,
       description: 'Resolve the effective price for a price set in a given currency and buying context (the pricing engine). Public, but org-scoped inside the service: returns null when the price set does not belong to the given organization or no price applies. The result is a Base, Override, or Sale price.',
       args: {
@@ -147,6 +148,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('resolvePrices', t =>
     t.field({
       type: ['PriceResolution'],
+      subGraphs: ['public'],
       description: 'Bulk variant of `resolvePrice`: resolve effective prices for many price sets at once (O(1) DB queries for N sets). Every requested id appears in the result; a foreign-org, unknown, or non-applicable set yields a `price: null` entry. Public, org-scoped inside the service.',
       args: {
         organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization the price sets must belong to.' }),
