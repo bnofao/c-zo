@@ -4,22 +4,26 @@ import { Effect } from 'effect'
 import { PriceService } from '../../../../services/price'
 import { loadPriceSetOrganizationId } from '../authz'
 import { PriceSetNotFound } from '../errors'
+import { sg } from '../subgraphs'
 
 // ─── PriceSet Mutations ───────────────────────────────────────────────────────
 
 export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): void {
+  const O = sg('org')
   // ── createPriceSet ────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createPriceSet',
     {
+      ...O.input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Identifies the organization that will own the new price set.' }),
         metadata: t.field({ type: 'JSONObject', description: 'Freeform key-value data to attach to the price set.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Creates a new organization-scoped price set to hold prices for a single priceable thing.',
-      errors: { types: [] },
+      errors: { types: [], ...O.errorOpts },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'price',
@@ -42,6 +46,7 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet, description: 'The newly created price set.' }),
       }),
@@ -52,14 +57,16 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
   builder.relayMutationField(
     'deletePriceSet',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'PriceSet', required: true, description: 'Identifies the price set to delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Soft-deletes an existing price set after verifying its version.',
-      errors: { types: [PriceSetNotFound, OptimisticLockError] },
+      errors: { types: [PriceSetNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceSetOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -78,6 +85,7 @@ export function registerPriceSetMutations(builder: PriceGraphQLSchemaBuilder): v
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         priceSet: t.field({ type: 'PriceSet', resolve: p => p.priceSet, description: 'The price set as it stands after the soft delete.' }),
       }),

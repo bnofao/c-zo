@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { PriceService } from '../../../../services/price'
 import { loadPriceOrganizationId } from '../authz'
 import { InvalidPriceRule, PriceListNotFound, PriceNotFound, PriceSetNotFound } from '../errors'
+import { sg } from '../subgraphs'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -21,10 +22,12 @@ function mapRules(rules: ReadonlyArray<{ attribute: string, operator: unknown, v
 // ─── Price Mutations ──────────────────────────────────────────────────────────
 
 export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder): void {
+  const O = sg('org')
   // ── createPrice ───────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createPrice',
     {
+      ...O.input,
       inputFields: t => ({
         priceSetId: t.globalID({ for: 'PriceSet', required: true, description: 'The price set this price belongs to and whose organization gates the operation.' }),
         priceListId: t.globalID({ for: 'PriceList', description: 'Optional price list this price is scoped to, such as a sale or customer-group override.' }),
@@ -44,8 +47,9 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
       }),
     },
     {
+      ...O.field,
       description: 'Creates a price within a price set, optionally scoped to a price list and gated by operator rules.',
-      errors: { types: [ValidationError, PriceSetNotFound, PriceListNotFound, InvalidPriceRule] },
+      errors: { types: [ValidationError, PriceSetNotFound, PriceListNotFound, InvalidPriceRule], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await ctx.runEffect(
           Effect.gen(function* () {
@@ -80,6 +84,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         price: t.field({ type: 'Price', resolve: p => p.price, description: 'The newly created price.' }),
       }),
@@ -90,6 +95,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
   builder.relayMutationField(
     'updatePrice',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Price', required: true, description: 'The price to update.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
@@ -107,8 +113,9 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
       }),
     },
     {
+      ...O.field,
       description: 'Updates a price\'s amount, currency, quantity tiers, or operator rules, guarded by optimistic locking.',
-      errors: { types: [ValidationError, PriceNotFound, InvalidPriceRule, OptimisticLockError] },
+      errors: { types: [ValidationError, PriceNotFound, InvalidPriceRule, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -133,6 +140,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         price: t.field({ type: 'Price', resolve: p => p.price, description: 'The updated price.' }),
       }),
@@ -143,14 +151,16 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
   builder.relayMutationField(
     'deletePrice',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Price', required: true, description: 'The price to delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Soft-deletes a price, marking it removed while preserving the record, guarded by optimistic locking.',
-      errors: { types: [PriceNotFound, OptimisticLockError] },
+      errors: { types: [PriceNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadPriceOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -169,6 +179,7 @@ export function registerPriceMutationsInner(builder: PriceGraphQLSchemaBuilder):
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         price: t.field({ type: 'Price', resolve: p => p.price, description: 'The soft-deleted price.' }),
       }),
