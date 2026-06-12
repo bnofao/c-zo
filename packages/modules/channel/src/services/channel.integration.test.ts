@@ -73,6 +73,18 @@ layer(TestLayer, { timeout: 120_000 })('ChannelService', (it) => {
       expect(err._tag).toBe('ChannelHandleTaken')
     }))
 
+  it.effect('creates a platform channel (organizationId null) and enforces unique platform handle', () =>
+    Effect.gen(function* () {
+      yield* truncateChannel
+      const svc = yield* Channel.ChannelService
+      const a = yield* svc.create({ organizationId: null, name: 'Global Web', handle: 'global-web' })
+      expect(a.organizationId).toBeNull()
+      const dup = yield* svc.create({ organizationId: null, name: 'Dup', handle: 'global-web' }).pipe(Effect.flip)
+      expect(dup._tag).toBe('ChannelHandleTaken')
+      const orgCh = yield* svc.create({ organizationId: 1, name: 'Org Web', handle: 'global-web' })
+      expect(orgCh.organizationId).toBe(1)
+    }))
+
   it.effect('addStockLocations links a same-org location; rejects cross-org', () =>
     Effect.gen(function* () {
       yield* truncateChannel

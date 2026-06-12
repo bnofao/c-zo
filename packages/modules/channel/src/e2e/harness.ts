@@ -1,9 +1,10 @@
 /** Shared E2E harness for channel: boots [auth, stock-location, channel]. */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import authModule from '@czo/auth'
-import { Organization } from '@czo/auth/services'
+import { Organization, User } from '@czo/auth/services'
 import { decodeGlobalID } from '@czo/kit/graphql'
 import { bootTestApp } from '@czo/kit/testing'
 import stockLocationModule from '@czo/stock-location'
@@ -33,9 +34,11 @@ export interface ChannelHarness {
   readonly signUp: (email: string, name: string, password: string) => Promise<SignedUpUser>
   readonly createOrganization: (token: string, name: string, slug: string, ip?: string) => Promise<{ orgGlobalId: string, orgNumericId: number }>
   readonly setMemberRole: (orgNumericId: number, userId: number, role: string) => Promise<void>
+  readonly grantGlobalRole: (userId: number, role: string) => Promise<void>
+  readonly signIn: (email: string, password: string, ip?: string) => Promise<Response>
 }
 
-export async function bootChannelApp(): Promise<ChannelHarness> {
+export async function bootChannelApp(opts?: { readonly subGraphs?: ReadonlyArray<SubGraphName> }): Promise<ChannelHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -43,7 +46,11 @@ export async function bootChannelApp(): Promise<ChannelHarness> {
 
   const scope = await Effect.runPromise(Scope.make())
   const app = (await Effect.runPromise(
-    bootTestApp({ modules: [authModule, stockLocationModule, channelModule], migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS, CHANNEL_MIGRATIONS] })
+    bootTestApp({
+      modules: [authModule, stockLocationModule, channelModule],
+      migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS, CHANNEL_MIGRATIONS],
+      ...(opts?.subGraphs ? { buildOptions: { subGraphs: opts.subGraphs } } : {}),
+    })
       .pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 
@@ -104,10 +111,23 @@ export async function bootChannelApp(): Promise<ChannelHarness> {
       yield* org.updateMemberRole({ id: member.id, organizationId: orgNumericId, role })
     })).then(() => undefined)
 
+  const grantGlobalRole: ChannelHarness['grantGlobalRole'] = (userId, role) =>
+    app.runEffect(Effect.gen(function* () {
+      const users = yield* User.UserService
+      yield* users.setRole(userId, role)
+    })).then(() => undefined)
+
+  const signIn: ChannelHarness['signIn'] = (email, password, ip) =>
+    app.fetch(new Request(`${AUTH_URL}/sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(ip ? { 'x-forwarded-for': ip } : {}) },
+      body: JSON.stringify({ email, password }),
+    }))
+
   const close = async () => {
     await app.close()
     await Effect.runPromise(Scope.close(scope, Exit.void))
   }
 
-  return { app, close, gql, signUp, createOrganization, setMemberRole }
+  return { app, close, gql, signUp, createOrganization, setMemberRole, grantGlobalRole, signIn }
 }

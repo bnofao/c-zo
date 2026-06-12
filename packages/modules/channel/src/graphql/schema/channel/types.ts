@@ -14,6 +14,7 @@ export function registerChannelTypes(builder: ChannelGraphQLSchemaBuilder): void
   // ── Channel node ───────────────────────────────────────────────────────────
   builder.drizzleNode('channels', {
     name: 'Channel',
+    subGraphs: ['org', 'admin'],
     description: 'An organization-scoped sales channel — a storefront or market through which products are sold and published. Links to the stock locations that fulfil it.',
     // Always load all columns so the `node(id:)` guard (graphql/node-guards.ts)
     // can read `organizationId` to scope the read, regardless of the client's

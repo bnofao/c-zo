@@ -1,8 +1,9 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const channels = pgTable('channels', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({ startWith: 1, increment: 1 }),
-  organizationId: integer('organization_id').notNull(),
+  organizationId: integer('organization_id'),
   handle: text('handle').notNull(),
   name: text('name').notNull(),
   description: text('description'),
@@ -16,6 +17,7 @@ export const channels = pgTable('channels', {
 }, t => [
   index('channels_organization_id_idx').on(t.organizationId),
   unique('channels_org_handle_uniq').on(t.organizationId, t.handle),
+  uniqueIndex('channels_platform_handle_uniq').on(t.handle).where(sql`organization_id IS NULL`),
 ])
 
 export const channelStockLocations = pgTable('channel_stock_locations', {
