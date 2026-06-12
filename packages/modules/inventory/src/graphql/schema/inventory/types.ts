@@ -19,6 +19,7 @@ import type { InventoryGraphQLSchemaBuilder } from '../..'
 export function registerInventoryTypes(builder: InventoryGraphQLSchemaBuilder): void {
   // ── InventoryItem node ─────────────────────────────────────────────────────
   builder.drizzleNode('inventoryItems', {
+    subGraphs: ['org'],
     name: 'InventoryItem',
     description: 'An organization-scoped, stock-tracked unit (one per SKU, e.g. a product variant\'s stockable unit). Its stock is tracked per location via InventoryLevels and held by Reservations.',
     // Always load all columns so the `node(id:)` guard (graphql/node-guards.ts)
@@ -59,6 +60,7 @@ export function registerInventoryTypes(builder: InventoryGraphQLSchemaBuilder): 
 
   // ── InventoryLevel node ────────────────────────────────────────────────────
   builder.drizzleNode('inventoryLevels', {
+    subGraphs: ['org'],
     name: 'InventoryLevel',
     description: 'The stock of one inventory item at one stock location: stocked, reserved, and incoming quantities, with available derived as stocked − reserved.',
     select: true,
@@ -89,6 +91,7 @@ export function registerInventoryTypes(builder: InventoryGraphQLSchemaBuilder): 
 
   // ── Reservation node ───────────────────────────────────────────────────────
   builder.drizzleNode('reservations', {
+    subGraphs: ['org'],
     name: 'Reservation',
     description: 'A hold on a quantity of an inventory item at a stock location, backing a pending order line; it raises the level\'s reservedQuantity (lowering available) until released.',
     select: true,

@@ -6,14 +6,18 @@ import z from 'zod'
 import { InventoryService } from '../../../../services/inventory'
 import { loadItemOrganizationId } from '../authz'
 import { InventoryItemNotFound, SkuTaken } from '../errors'
+import { sg } from '../subgraphs'
 
 // ─── InventoryItem Mutations ──────────────────────────────────────────────────
 
 export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBuilder): void {
+  const O = sg('org')
+
   // ── createInventoryItem ───────────────────────────────────────────────────
   builder.relayMutationField(
     'createInventoryItem',
     {
+      ...O.input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization that will own this inventory item.' }),
         sku: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Stock-keeping unit identifying the item; must be unique within the organization.' }),
@@ -24,8 +28,9 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
       }),
     },
     {
+      ...O.field,
       description: 'Creates a new stock-tracked inventory item owned by the given organization.',
-      errors: { types: [ValidationError, SkuTaken] },
+      errors: { types: [ValidationError, SkuTaken], ...O.errorOpts },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'inventory',
@@ -52,6 +57,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The newly created inventory item.' }),
       }),
@@ -62,6 +68,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
   builder.relayMutationField(
     'updateInventoryItem',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'InventoryItem', required: true, description: 'Global ID of the InventoryItem to update.' }),
         version: t.int({ required: true, description: 'Current version of the item, used for optimistic-lock conflict detection.' }),
@@ -73,8 +80,9 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
       }),
     },
     {
+      ...O.field,
       description: 'Updates an existing inventory item, enforcing optimistic-lock version matching.',
-      errors: { types: [ValidationError, InventoryItemNotFound, OptimisticLockError] },
+      errors: { types: [ValidationError, InventoryItemNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -101,6 +109,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The updated inventory item.' }),
       }),
@@ -111,14 +120,16 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
   builder.relayMutationField(
     'deleteInventoryItem',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'InventoryItem', required: true, description: 'Global ID of the InventoryItem to delete.' }),
         version: t.int({ required: true, description: 'Current version of the item, used for optimistic-lock conflict detection.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Soft-deletes an inventory item, enforcing optimistic-lock version matching.',
-      errors: { types: [InventoryItemNotFound, OptimisticLockError] },
+      errors: { types: [InventoryItemNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -139,6 +150,7 @@ export function registerInventoryItemMutations(builder: InventoryGraphQLSchemaBu
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryItem: t.field({ type: 'InventoryItem', resolve: p => p.item, description: 'The soft-deleted inventory item.' }),
       }),
