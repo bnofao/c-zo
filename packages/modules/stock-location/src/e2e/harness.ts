@@ -1,4 +1,5 @@
 /** Shared E2E harness for stock-location: boots [auth, stock-location]. */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -33,15 +34,21 @@ export interface SlHarness {
   readonly setMemberRole: (orgNumericId: number, userId: number, role: string) => Promise<void>
 }
 
-export async function bootStockLocationApp(): Promise<SlHarness> {
+export async function bootStockLocationApp(opts?: { readonly subGraphs?: ReadonlyArray<SubGraphName> }): Promise<SlHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
   process.env.AUTH_APP = 'test'
 
+  const buildOptions = opts?.subGraphs ? { subGraphs: opts.subGraphs } : undefined
+
   const scope = await Effect.runPromise(Scope.make())
   const app = (await Effect.runPromise(
-    bootTestApp({ modules: [authModule, stockLocationModule], migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS] })
+    bootTestApp({
+      modules: [authModule, stockLocationModule],
+      migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS],
+      ...(buildOptions ? { buildOptions } : {}),
+    })
       .pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

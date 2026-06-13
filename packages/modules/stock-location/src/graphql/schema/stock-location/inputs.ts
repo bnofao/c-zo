@@ -24,6 +24,7 @@ const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaBuilder): void {
   builder.inputType('CreateStockLocationAddressInput', {
+    subGraphs: ['org'],
     description: 'Postal address to set when creating a stock location.',
     validate: stockLocationAddressSchema,
     fields: t => ({
@@ -38,6 +39,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
   })
 
   builder.inputType('UpdateStockLocationAddressInput', {
+    subGraphs: ['org'],
     description: 'Partial postal address to update on a stock location; omitted fields are left unchanged.',
     validate: stockLocationAddressSchema.partial(),
     fields: t => ({
@@ -52,6 +54,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
   })
 
   const StockLocationWhereInputRef = builder.inputRef<StockLocationWhereInput>('StockLocationWhereInput').implement({
+    subGraphs: ['org'],
     description: 'Filter predicate for the `stockLocations` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
       name: t.field({ type: 'StringFilterInput', description: 'Filter by location name.' }),
@@ -67,6 +70,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
   })
 
   const StockLocationOrderFieldRef = builder.enumType('StockLocationOrderField', {
+    subGraphs: ['org'],
     description: 'A field the `stockLocations` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
@@ -79,6 +83,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
   // `OrderDirection` by string name — that coupled the schema build to auth's
   // contribution running first and never type-checked across modules.
   const StockLocationOrderDirectionRef = builder.enumType('StockLocationOrderDirection', {
+    subGraphs: ['org'],
     description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
@@ -87,6 +92,7 @@ export function registerStockLocationInputs(builder: StockLocationGraphQLSchemaB
   })
 
   builder.inputType('StockLocationOrderByInput', {
+    subGraphs: ['org'],
     description: 'One ordering clause for the `stockLocations` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
       field: t.field({ type: StockLocationOrderFieldRef, required: true, validate: stockLocationOrderFieldSchema, description: 'The location field to sort by.' }),

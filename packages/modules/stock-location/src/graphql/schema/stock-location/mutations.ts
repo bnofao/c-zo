@@ -7,6 +7,7 @@ import {
   generateHandle,
   StockLocationService,
 } from '../../../services/stock-location'
+import { sg } from '../subgraphs'
 import { loadOrganizationId } from './authz'
 import { HandleTaken, StockLocationNotFound } from './errors'
 
@@ -17,10 +18,13 @@ const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {
 // ─── Stock Location Mutations ─────────────────────────────────────────────────
 
 export function registerStockLocationMutations(builder: StockLocationGraphQLSchemaBuilder): void {
+  const O = sg('org')
+
   // ── createStockLocation ───────────────────────────────────────────────────
   builder.relayMutationField(
     'createStockLocation',
     {
+      ...O.input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization that will own this stock location.' }),
         name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Human-readable display name for the location, such as a warehouse or store name.' }),
@@ -32,8 +36,9 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       }),
     },
     {
+      ...O.field,
       description: 'Creates a new organization-scoped stock location, optionally with an address.',
-      errors: { types: [ValidationError, HandleTaken] },
+      errors: { types: [ValidationError, HandleTaken], ...O.errorOpts },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'stock-location',
@@ -68,6 +73,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The newly created stock location.' }),
       }),
@@ -78,6 +84,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
   builder.relayMutationField(
     'updateStockLocation',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'StockLocation', required: true, description: 'Global ID of the StockLocation to update.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
@@ -88,8 +95,9 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       }),
     },
     {
+      ...O.field,
       description: 'Updates an existing stock location\'s fields and optionally its address, guarded by optimistic locking.',
-      errors: { types: [ValidationError, StockLocationNotFound, OptimisticLockError] },
+      errors: { types: [ValidationError, StockLocationNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -123,6 +131,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The updated stock location.' }),
       }),
@@ -133,14 +142,16 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
   builder.relayMutationField(
     'deleteStockLocation',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'StockLocation', required: true, description: 'Global ID of the StockLocation to soft-delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Soft-deletes a stock location, marking it as removed while preserving the record.',
-      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      errors: { types: [StockLocationNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -162,6 +173,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The soft-deleted stock location.' }),
       }),
@@ -172,14 +184,16 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
   builder.relayMutationField(
     'forceDeleteStockLocation',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'StockLocation', required: true, description: 'Global ID of the StockLocation to permanently delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Permanently deletes a stock location and cascades to its related records.',
-      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      errors: { types: [StockLocationNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -201,6 +215,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The permanently deleted stock location.' }),
       }),
@@ -211,6 +226,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
   builder.relayMutationField(
     'setStockLocationStatus',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'StockLocation', required: true, description: 'Global ID of the StockLocation whose active status is changing.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
@@ -218,8 +234,9 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       }),
     },
     {
+      ...O.field,
       description: 'Activates or deactivates a stock location.',
-      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      errors: { types: [StockLocationNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -241,6 +258,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The stock location with its updated active status.' }),
       }),
@@ -251,14 +269,16 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
   builder.relayMutationField(
     'setDefaultStockLocation',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({ for: 'StockLocation', required: true, description: 'Global ID of the StockLocation to mark as the organization\'s default.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...O.field,
       description: 'Sets a stock location as the organization\'s default, unsetting the previous default.',
-      errors: { types: [StockLocationNotFound, OptimisticLockError] },
+      errors: { types: [StockLocationNotFound, OptimisticLockError], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
         // Unknown id → require auth and defer to the service's NotFound (404),
@@ -280,6 +300,7 @@ export function registerStockLocationMutations(builder: StockLocationGraphQLSche
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         stockLocation: t.field({ type: 'StockLocation', resolve: p => p.stockLocation, description: 'The stock location now marked as the organization\'s default.' }),
       }),

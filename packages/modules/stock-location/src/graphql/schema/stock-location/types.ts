@@ -12,6 +12,12 @@ export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBu
   // ── StockLocationAddress node ──────────────────────────────────────────────
   builder.drizzleNode('stockLocationAddresses', {
     name: 'StockLocationAddress',
+    subGraphs: ['org'],
+    // Load the parent location's org so the `node(id:)` guard (graphql/node-guards.ts)
+    // can scope the read, regardless of the client's field selection — the address
+    // has no own `organizationId` column. The plugin unions this with the columns
+    // referenced by the exposed fields, so those still resolve.
+    select: { with: { stockLocation: { columns: { organizationId: true } } } },
     description: 'The postal address of a stock location.',
     id: { column: a => a.id },
     fields: t => ({
@@ -30,6 +36,7 @@ export function registerStockLocationTypes(builder: StockLocationGraphQLSchemaBu
   // ── StockLocation node ─────────────────────────────────────────────────────
   builder.drizzleNode('stockLocations', {
     name: 'StockLocation',
+    subGraphs: ['org'],
     description: 'An organization-scoped physical inventory location (warehouse, store) that holds and fulfils stock.',
     // Always load all columns so the `node(id:)` guard (graphql/node-guards.ts)
     // can read `organizationId` to scope the read, regardless of the client's

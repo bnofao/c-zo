@@ -11,9 +11,10 @@ export {
 }
 
 export function registerStockLocationErrors(builder: StockLocationGraphQLSchemaBuilder): void {
-  registerError(builder, StockLocationNotFound, { name: 'StockLocationNotFoundError' })
+  registerError(builder, StockLocationNotFound, { name: 'StockLocationNotFoundError', subGraphs: ['org'] })
   registerError(builder, HandleTaken, {
     name: 'StockLocationHandleTakenError',
+    subGraphs: ['org'],
     fields: t => ({ handle: t.exposeString('handle') }),
   })
 }

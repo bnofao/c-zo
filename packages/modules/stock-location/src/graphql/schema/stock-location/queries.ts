@@ -13,6 +13,7 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
   builder.queryField('stockLocation', t =>
     t.drizzleField({
       type: 'stockLocations',
+      subGraphs: ['org'],
       nullable: true,
       description: 'Fetch a single stock location by id. Requires `stock-location:read` in the location\'s owning organization. Returns null if not found or soft-deleted.',
       args: {
@@ -43,6 +44,7 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
   builder.queryField('stockLocations', t =>
     t.drizzleConnection({
       type: 'stockLocations',
+      subGraphs: ['org'],
       description: 'Paginated (relay) connection over an organization\'s stock locations, with optional free-text search, filtering, and ordering. Always tenant-scoped; requires `stock-location:read` in the given org.',
       // Org-scoped: the caller must hold `read` permission in the target org.
       // Listing is always bounded to a single organization (below) so it never
@@ -94,5 +96,5 @@ export function registerStockLocationQueries(builder: StockLocationGraphQLSchema
             }))
           }),
         ) as Promise<any>,
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 }
