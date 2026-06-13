@@ -13,13 +13,15 @@ export {
 }
 
 export function registerChannelErrors(builder: ChannelGraphQLSchemaBuilder): void {
-  registerError(builder, ChannelNotFound, { name: 'ChannelNotFoundError' })
+  registerError(builder, ChannelNotFound, { name: 'ChannelNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, ChannelHandleTaken, {
     name: 'ChannelHandleTakenError',
+    subGraphs: ['org', 'admin'],
     fields: t => ({ handle: t.exposeString('handle') }),
   })
   registerError(builder, CrossOrgStockLocation, {
     name: 'CrossOrgStockLocationError',
+    subGraphs: ['org'],
     fields: t => ({
       channelId: t.exposeInt('channelId'),
       stockLocationId: t.exposeInt('stockLocationId'),

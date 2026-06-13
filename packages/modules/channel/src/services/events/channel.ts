@@ -12,26 +12,26 @@ export type ChannelEvent
   = | {
     readonly _tag: 'ChannelCreated'
     readonly id: number
-    readonly organizationId: number
+    readonly organizationId: number | null
     readonly handle: string
     readonly name: string
   }
   | {
     readonly _tag: 'ChannelUpdated'
     readonly id: number
-    readonly organizationId: number
+    readonly organizationId: number | null
     readonly changes: ReadonlyArray<string>
   }
   | {
     readonly _tag: 'ChannelDeleted'
     readonly id: number
-    readonly organizationId: number
+    readonly organizationId: number | null
     readonly handle: string
   }
   | {
     readonly _tag: 'ChannelStockLocationsChanged'
     readonly id: number
-    readonly organizationId: number
+    readonly organizationId: number | null
     readonly added: ReadonlyArray<number>
     readonly removed: ReadonlyArray<number>
   }

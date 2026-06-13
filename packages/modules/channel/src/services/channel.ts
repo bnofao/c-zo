@@ -49,7 +49,7 @@ export type ChannelError
 // ─── Input types ─────────────────────────────────────────────────────────────
 
 export interface CreateChannelInput {
-  organizationId: number
+  organizationId: number | null
   name: string
   handle: string
   description?: string | null
@@ -205,7 +205,7 @@ const make = Effect.gen(function* () {
         const existing = yield* dbErr(db.query.channels.findFirst({
           columns: { id: true },
           where: {
-            organizationId: input.organizationId,
+            organizationId: input.organizationId === null ? { isNull: true } : input.organizationId,
             handle: input.handle,
             deletedAt: { isNull: true },
           },

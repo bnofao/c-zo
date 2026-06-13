@@ -4,8 +4,9 @@ import { ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
 import { ChannelService, generateHandle } from '../../../services/channel'
-import { loadOrganizationId } from './authz'
+import { channelPermission, channelTierScope, loadChannelTier, loadOrganizationId } from './authz'
 import { ChannelHandleTaken, ChannelNotFound, CrossOrgStockLocation } from './errors'
+import { sg } from './subgraphs'
 
 const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {
   message: 'Handle must be lowercase letters, digits, or hyphens only',
@@ -14,10 +15,15 @@ const handleSchema = z.string().regex(/^[a-z0-9-]+$/, {
 // ─── Channel Mutations ────────────────────────────────────────────────────────
 
 export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): void {
+  const ORG = sg('org')
+  const ADMIN = sg('admin')
+  const BOTH = sg('org', 'admin')
+
   // ── createChannel ─────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createChannel',
     {
+      ...ORG.input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Identifies the owning Organization node under which the new sales channel is created.' }),
         name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Human-readable display name of the sales channel.' }),
@@ -29,8 +35,9 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       }),
     },
     {
+      ...ORG.field,
       description: 'Creates a new organization-scoped sales channel.',
-      errors: { types: [ValidationError, ChannelHandleTaken] },
+      errors: { types: [ValidationError, ChannelHandleTaken], ...ORG.errorOpts },
       authScopes: (_parent, args) => ({
         permission: {
           resource: 'channel',
@@ -61,8 +68,57 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       },
     },
     {
+      ...ORG.payload,
       outputFields: t => ({
         channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The newly created sales channel.' }),
+      }),
+    },
+  )
+
+  // ── createPlatformChannel ─────────────────────────────────────────────────
+  builder.relayMutationField(
+    'createPlatformChannel',
+    {
+      ...ADMIN.input,
+      inputFields: t => ({
+        name: t.string({ required: true, validate: z.string().min(1).max(255).transform(v => v.trim()), description: 'Human-readable display name of the sales channel.' }),
+        handle: t.string({ validate: handleSchema.optional(), description: 'URL-safe identifier, unique among platform channels; derived from the name when omitted.' }),
+        description: t.string({ description: 'Optional longer description of the sales channel.' }),
+        isDefault: t.boolean({ description: 'Marks this channel as the platform default; defaults to false when omitted.' }),
+        isActive: t.boolean({ description: 'Whether the channel is available for selling; defaults to true when omitted.' }),
+        metadata: t.field({ type: 'JSONObject', description: 'Freeform key-value metadata attached to the channel.' }),
+      }),
+    },
+    {
+      ...ADMIN.field,
+      description: 'Creates a platform-wide channel (no owning organization), manageable only by a platform operator.',
+      errors: { types: [ValidationError, ChannelHandleTaken], ...ADMIN.errorOpts },
+      authScopes: channelPermission('create', null),
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const handle = input.handle ?? generateHandle(input.name)
+
+        const channel = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ChannelService
+            return yield* svc.create({
+              organizationId: null,
+              name: input.name,
+              handle,
+              description: input.description ?? undefined,
+              isDefault: input.isDefault ?? undefined,
+              isActive: input.isActive ?? undefined,
+              metadata: input.metadata,
+            })
+          }),
+        )
+        return { channel }
+      },
+    },
+    {
+      ...ADMIN.payload,
+      outputFields: t => ({
+        channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The newly created platform channel.' }),
       }),
     },
   )
@@ -71,6 +127,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
   builder.relayMutationField(
     'updateChannel',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to update.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
@@ -83,15 +140,15 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates an existing sales channel\'s fields.',
-      errors: { types: [ValidationError, ChannelNotFound, OptimisticLockError] },
+      errors: { types: [ValidationError, ChannelNotFound, OptimisticLockError], ...BOTH.errorOpts },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
-        // Unknown id → require auth and defer to the service's NotFound (404),
-        // rather than masking existence as a 403 (org-permission needs an org).
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'channel', actions: ['update'], organization } }
+        // Tier-aware: platform rows (org null) gate on the GLOBAL `channel:update`
+        // role, org rows on `channel:update` in their org. Unknown id (undefined)
+        // → `{ auth: true }`, deferring to the service's NotFound (404).
+        const tier = await loadChannelTier(ctx, Number(args.input.id.id))
+        return channelTierScope(tier, 'update')
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -112,6 +169,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The updated sales channel.' }),
       }),
@@ -122,21 +180,22 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
   builder.relayMutationField(
     'deleteChannel',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to soft-delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Soft-deletes a sales channel, marking it removed without erasing the row.',
-      errors: { types: [ChannelNotFound, OptimisticLockError] },
+      errors: { types: [ChannelNotFound, OptimisticLockError], ...BOTH.errorOpts },
       authScopes: async (_parent, args, ctx) => {
-        const organization = await loadOrganizationId(ctx, Number(args.input.id.id))
-        // Unknown id → require auth and defer to the service's NotFound (404),
-        // rather than masking existence as a 403 (org-permission needs an org).
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'channel', actions: ['delete'], organization } }
+        // Tier-aware: platform rows (org null) gate on the GLOBAL `channel:delete`
+        // role, org rows on `channel:delete` in their org. Unknown id (undefined)
+        // → `{ auth: true }`, deferring to the service's NotFound (404).
+        const tier = await loadChannelTier(ctx, Number(args.input.id.id))
+        return channelTierScope(tier, 'delete')
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -150,6 +209,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The soft-deleted sales channel.' }),
       }),
@@ -165,14 +225,16 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
   builder.relayMutationField(
     'addStockLocationsToChannel',
     {
+      ...ORG.input,
       inputFields: t => ({
         channelId: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to link stock locations to.' }),
         stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true, description: 'StockLocation nodes to associate with the channel as fulfilment sources.' }),
       }),
     },
     {
+      ...ORG.field,
       description: 'Associates one or more stock locations with a sales channel as fulfilment sources.',
-      errors: { types: [ChannelNotFound, CrossOrgStockLocation] },
+      errors: { types: [ChannelNotFound, CrossOrgStockLocation], ...ORG.errorOpts },
       authScopes: async (_p, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.channelId.id))
         if (organization == null)
@@ -193,6 +255,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       },
     },
     {
+      ...ORG.payload,
       outputFields: t => ({
         channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The channel with its updated stock-location associations.' }),
       }),
@@ -203,14 +266,16 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
   builder.relayMutationField(
     'removeStockLocationsFromChannel',
     {
+      ...ORG.input,
       inputFields: t => ({
         channelId: t.globalID({ for: 'Channel', required: true, description: 'Identifies the Channel node to unlink stock locations from.' }),
         stockLocationIds: t.globalIDList({ for: 'StockLocation', required: true, description: 'StockLocation nodes to disassociate from the channel.' }),
       }),
     },
     {
+      ...ORG.field,
       description: 'Removes one or more stock-location associations from a sales channel.',
-      errors: { types: [ChannelNotFound] },
+      errors: { types: [ChannelNotFound], ...ORG.errorOpts },
       authScopes: async (_p, args, ctx) => {
         const organization = await loadOrganizationId(ctx, Number(args.input.channelId.id))
         if (organization == null)
@@ -231,6 +296,7 @@ export function registerChannelMutations(builder: ChannelGraphQLSchemaBuilder): 
       },
     },
     {
+      ...ORG.payload,
       outputFields: t => ({
         channel: t.field({ type: 'Channel', resolve: p => p.channel, description: 'The channel with its updated stock-location associations.' }),
       }),

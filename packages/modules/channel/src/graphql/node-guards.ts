@@ -7,21 +7,17 @@
 // resolver, never on the `channels` connection (already gated by its own
 // `permission` authScope) nor on mutation returns.
 //
-// It derives the row's owning org and gates via auth's `permission` scope —
-// i.e. the SAME scope as `channel(id:)`, so `node()` is never a weaker
-// read path than the by-id query. `select: true` on the node (types.ts)
-// guarantees `organizationId` is loaded for the guard regardless of the
-// client's field selection. A denied node resolves to null (existence is not
-// leaked).
+// It derives the row's tier and gates via auth's `permission` scope — i.e. the
+// SAME scope as `channel(id:)`, so `node()` is never a weaker read path than the
+// by-id query. Tier-aware: a platform row (org `null`) gates on the GLOBAL
+// `channel:read` role; an org row gates on `channel:read` in its org.
+// `select: true` on the node (types.ts) guarantees `organizationId` is loaded
+// for the guard regardless of the client's field selection. A denied node
+// resolves to null (existence is not leaked).
 
 import type { NodeGuard } from '@czo/kit/graphql'
+import { channelPermission } from './schema/channel/authz'
 
 export const channelNodeGuards: Record<string, NodeGuard> = {
-  Channel: (row: { organizationId: number }) => ({
-    permission: {
-      resource: 'channel',
-      actions: ['read'],
-      organization: row.organizationId,
-    },
-  }),
+  Channel: (row: { organizationId: number | null }) => channelPermission('read', row.organizationId),
 }

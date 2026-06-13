@@ -14,6 +14,7 @@ const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): void {
   const ChannelWhereInputRef = builder.inputRef<ChannelWhereInput>('ChannelWhereInput').implement({
+    subGraphs: ['org', 'admin'],
     description: 'Filter predicate for the `channels` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
       name: t.field({ type: 'StringFilterInput', description: 'Filter by channel name.' }),
@@ -29,6 +30,7 @@ export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): voi
   })
 
   const ChannelOrderFieldRef = builder.enumType('ChannelOrderField', {
+    subGraphs: ['org', 'admin'],
     description: 'A field the `channels` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
@@ -41,6 +43,7 @@ export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): voi
   // `OrderDirection` by string name — that coupled the schema build to auth's
   // contribution running first and never type-checked across modules.
   const ChannelOrderDirectionRef = builder.enumType('ChannelOrderDirection', {
+    subGraphs: ['org', 'admin'],
     description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
@@ -49,6 +52,7 @@ export function registerChannelInputs(builder: ChannelGraphQLSchemaBuilder): voi
   })
 
   builder.inputType('ChannelOrderByInput', {
+    subGraphs: ['org', 'admin'],
     description: 'One ordering clause for the `channels` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
       field: t.field({ type: ChannelOrderFieldRef, required: true, validate: channelOrderFieldSchema, description: 'The channel field to sort by.' }),
