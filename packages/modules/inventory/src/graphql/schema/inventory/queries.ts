@@ -12,6 +12,7 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
   // filtering AND selection-aware reads both apply.
   builder.queryField('inventoryItem', t =>
     t.drizzleField({
+      subGraphs: ['org'],
       type: 'inventoryItems',
       nullable: true,
       description: 'Fetch a single inventory item by id. Requires `inventory:read` in the item\'s owning organization. Returns null if not found or soft-deleted.',
@@ -42,6 +43,7 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
   // ── inventoryItems — paginated connection with search/where/orderBy ────────
   builder.queryField('inventoryItems', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'inventoryItems',
       description: 'Paginated (relay) connection over an organization\'s inventory items, with optional free-text SKU search, filtering, and ordering. Always tenant-scoped; requires `inventory:read` in the given org.',
       // Org-scoped: the caller must hold `read` permission in the target org.
@@ -89,5 +91,5 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
             }))
           }),
         ) as Promise<any>,
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 }

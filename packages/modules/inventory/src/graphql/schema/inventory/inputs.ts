@@ -14,6 +14,7 @@ const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder): void {
   const InventoryItemWhereInputRef = builder.inputRef<InventoryItemWhereInput>('InventoryItemWhereInput').implement({
+    subGraphs: ['org'],
     description: 'Filter predicate for the `inventoryItems` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
       sku: t.field({ type: 'StringFilterInput', description: 'Filter by SKU.' }),
@@ -27,6 +28,7 @@ export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder):
   })
 
   const InventoryItemOrderFieldRef = builder.enumType('InventoryItemOrderField', {
+    subGraphs: ['org'],
     description: 'A field the `inventoryItems` connection can be ordered by.',
     values: {
       SKU: { value: 'sku' },
@@ -38,6 +40,7 @@ export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder):
   // `OrderDirection` by string name — that coupled the schema build to auth's
   // contribution running first and never type-checked across modules.
   const InventoryItemOrderDirectionRef = builder.enumType('InventoryItemOrderDirection', {
+    subGraphs: ['org'],
     description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
@@ -46,6 +49,7 @@ export function registerInventoryInputs(builder: InventoryGraphQLSchemaBuilder):
   })
 
   builder.inputType('InventoryItemOrderByInput', {
+    subGraphs: ['org'],
     description: 'One ordering clause for the `inventoryItems` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
       field: t.field({ type: InventoryItemOrderFieldRef, required: true, validate: inventoryItemOrderFieldSchema, description: 'The item field to sort by.' }),

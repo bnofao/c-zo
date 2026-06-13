@@ -1,4 +1,5 @@
 /** Shared E2E harness for inventory: boots [auth, stock-location, inventory]. */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +36,16 @@ export interface InventoryHarness {
   readonly setMemberRole: (orgNumericId: number, userId: number, role: string) => Promise<void>
 }
 
-export async function bootInventoryApp(): Promise<InventoryHarness> {
+export interface BootInventoryOptions {
+  /**
+   * Which audience sub-graphs to serve at `/graphql/<name>` (in addition to the
+   * full `/graphql`). Defaults to the kit default `['public']`; pass
+   * `['public', 'org']` to exercise the inventory `org` sub-graph endpoint.
+   */
+  readonly subGraphs?: ReadonlyArray<SubGraphName>
+}
+
+export async function bootInventoryApp(options: BootInventoryOptions = {}): Promise<InventoryHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -43,7 +53,11 @@ export async function bootInventoryApp(): Promise<InventoryHarness> {
 
   const scope = await Effect.runPromise(Scope.make())
   const app = (await Effect.runPromise(
-    bootTestApp({ modules: [authModule, stockLocationModule, inventoryModule], migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS, INVENTORY_MIGRATIONS] })
+    bootTestApp({
+      modules: [authModule, stockLocationModule, inventoryModule],
+      migrations: [AUTH_MIGRATIONS, SL_MIGRATIONS, INVENTORY_MIGRATIONS],
+      ...(options.subGraphs ? { buildOptions: { subGraphs: options.subGraphs } } : {}),
+    })
       .pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

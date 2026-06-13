@@ -11,14 +11,18 @@ import {
   LevelAlreadyExists,
   LevelHasReservations,
 } from '../errors'
+import { sg } from '../subgraphs'
 
 // ─── InventoryLevel Mutations ─────────────────────────────────────────────────
 
 export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaBuilder): void {
+  const O = sg('org')
+
   // ── createInventoryLevel ──────────────────────────────────────────────────
   builder.relayMutationField(
     'createInventoryLevel',
     {
+      ...O.input,
       inputFields: t => ({
         inventoryItemId: t.globalID({
           for: 'InventoryItem',
@@ -39,8 +43,9 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       }),
     },
     {
+      ...O.field,
       description: 'Creates the inventory level recording an item\'s stock at a stock location, requiring the inventory:update permission in the item\'s organization.',
-      errors: { types: [InventoryItemNotFound, CrossOrgStockLocation, LevelAlreadyExists] },
+      errors: { types: [InventoryItemNotFound, CrossOrgStockLocation, LevelAlreadyExists], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadItemOrganizationId(ctx, Number(args.input.inventoryItemId.id))
         if (organization == null)
@@ -66,6 +71,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryLevel: t.field({
           type: 'InventoryLevel',
@@ -80,6 +86,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
   builder.relayMutationField(
     'setInventoryLevel',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({
           for: 'InventoryLevel',
@@ -99,8 +106,9 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       }),
     },
     {
+      ...O.field,
       description: 'Sets absolute quantities on an inventory level, requiring the inventory:update permission in the item\'s organization and a matching version.',
-      errors: { types: [InventoryLevelNotFound, OptimisticLockError, InsufficientStock] },
+      errors: { types: [InventoryLevelNotFound, OptimisticLockError, InsufficientStock], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadLevelOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -122,6 +130,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryLevel: t.field({
           type: 'InventoryLevel',
@@ -136,6 +145,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
   builder.relayMutationField(
     'adjustInventoryStock',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({
           for: 'InventoryLevel',
@@ -149,8 +159,9 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       }),
     },
     {
+      ...O.field,
       description: 'Adjusts an inventory level\'s on-hand quantity by a relative delta, requiring the inventory:update permission in the item\'s organization.',
-      errors: { types: [InventoryLevelNotFound, InsufficientStock] },
+      errors: { types: [InventoryLevelNotFound, InsufficientStock], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadLevelOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -169,6 +180,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryLevel: t.field({
           type: 'InventoryLevel',
@@ -183,6 +195,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
   builder.relayMutationField(
     'deleteInventoryLevel',
     {
+      ...O.input,
       inputFields: t => ({
         id: t.globalID({
           for: 'InventoryLevel',
@@ -192,8 +205,9 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       }),
     },
     {
+      ...O.field,
       description: 'Deletes an inventory level, requiring the inventory:delete permission in the item\'s organization; fails if the level still has reservations.',
-      errors: { types: [InventoryLevelNotFound, LevelHasReservations] },
+      errors: { types: [InventoryLevelNotFound, LevelHasReservations], ...O.errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadLevelOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -212,6 +226,7 @@ export function registerInventoryLevelMutations(builder: InventoryGraphQLSchemaB
       },
     },
     {
+      ...O.payload,
       outputFields: t => ({
         inventoryLevel: t.field({
           type: 'InventoryLevel',
