@@ -42,6 +42,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   // already declares the correct TypeScript shape for callers.
 
   const AttributeTypeFilterRef = builder.inputRef<AttributeTypeFilter>('AttributeTypeFilterInput').implement({
+    subGraphs: ['org', 'admin'],
     description: 'Filter attributes by their type (AttributeType enum).',
     fields: t => ({
       eq: t.field({ type: enums.AttributeType as any, description: 'Match attributes whose type equals this value.' }),
@@ -51,6 +52,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   })
 
   const AttributeUnitFilterRef = builder.inputRef<AttributeUnitFilter>('AttributeUnitFilterInput').implement({
+    subGraphs: ['org', 'admin'],
     description: 'Filter attributes by their unit (AttributeUnit enum).',
     fields: t => ({
       eq: t.field({ type: enums.AttributeUnit as any, description: 'Match attributes whose unit equals this value.' }),
@@ -62,6 +64,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   // ── AttributeWhereInput ───────────────────────────────────────────────────
 
   const AttributeWhereInputRef = builder.inputRef<AttributeWhereInput>('AttributeWhereInput').implement({
+    subGraphs: ['org', 'admin'],
     description: 'Filter predicate for the `attributes` connection. Field filters are AND-combined; use the AND/OR/NOT members to compose arbitrary boolean trees.',
     fields: t => ({
       name: t.field({ type: 'StringFilterInput', description: 'Filter by attribute name.' }),
@@ -85,6 +88,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   // enum contribution running first.
 
   const AttributeOrderFieldRef = builder.enumType('AttributeOrderField', {
+    subGraphs: ['org', 'admin'],
     description: 'A field the `attributes` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
@@ -95,6 +99,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   })
 
   const AttributeOrderDirectionRef = builder.enumType('AttributeOrderDirection', {
+    subGraphs: ['org', 'admin'],
     description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
@@ -103,6 +108,7 @@ export function registerAttributeInputs(builder: AttributeGraphQLSchemaBuilder):
   })
 
   builder.inputType('AttributeOrderByInput', {
+    subGraphs: ['org', 'admin'],
     description: 'One ordering clause for the `attributes` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
       field: t.field({ type: AttributeOrderFieldRef, required: true, description: 'The attribute field to sort by.' }),

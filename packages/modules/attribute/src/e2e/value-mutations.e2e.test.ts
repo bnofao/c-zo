@@ -41,6 +41,15 @@ const CREATE_ATTRIBUTE = `
   }
 `
 
+const CREATE_ORG_ATTRIBUTE = `
+  mutation ($input: CreateOrganizationAttributeInput!) {
+    createOrganizationAttribute(input: $input) {
+      __typename
+      ... on CreateOrganizationAttributeSuccess { data { attribute { id } } }
+    }
+  }
+`
+
 /** Create a parent attribute (org-owned when orgGlobalId is set, platform when null) and return its global ID. */
 async function createParentAttr(
   token: string,
@@ -49,8 +58,12 @@ async function createParentAttr(
   type: string,
   referenceEntity?: string,
 ): Promise<string> {
+  // The two tiers are now distinct mutations: the org variant takes a required
+  // organizationId, the platform variant has no such input field.
+  const document = orgGlobalId != null ? CREATE_ORG_ATTRIBUTE : CREATE_ATTRIBUTE
+  const field = orgGlobalId != null ? 'createOrganizationAttribute' : 'createAttribute'
   const result = await h.gql(
-    CREATE_ATTRIBUTE,
+    document,
     {
       input: {
         ...(orgGlobalId != null ? { organizationId: orgGlobalId } : {}),
@@ -62,10 +75,10 @@ async function createParentAttr(
     token,
   )
   if (result.errors)
-    throw new Error(`createAttribute failed: ${JSON.stringify(result.errors)}`)
-  const id: string | undefined = result.data?.createAttribute?.data?.attribute?.id
+    throw new Error(`${field} failed: ${JSON.stringify(result.errors)}`)
+  const id: string | undefined = result.data?.[field]?.data?.attribute?.id
   if (!id)
-    throw new Error(`createAttribute returned no id: ${JSON.stringify(result.data)}`)
+    throw new Error(`${field} returned no id: ${JSON.stringify(result.data)}`)
   return id
 }
 

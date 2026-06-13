@@ -112,4 +112,23 @@ layer(TestLayer, { timeout: 120_000 })('hybrid platform/org scoping (spec §2)',
         .pipe(Effect.flip)
       expect(err._tag).toBe('AttributeParentNotOwned')
     }))
+
+  // ── Case — includeGlobal tri-state on the org list ─────────────────────────
+  it.effect('org list: includeGlobal false → org-only; true/omitted → platform ∪ org', () =>
+    Effect.gen(function* () {
+      yield* truncateAttribute
+      const attrs = yield* AttributeService
+      yield* attrs.create({ name: 'Color', slug: 'color', type: 'DROPDOWN', organizationId: null })
+      yield* attrs.create({ name: 'Acme Fabric', slug: 'acme-fabric', type: 'DROPDOWN', organizationId: 1 })
+
+      const orgOnly = yield* attrs.findMany(undefined, { organizationId: 1, includeGlobal: false })
+      expect(orgOnly.map(a => a.slug)).toEqual(['acme-fabric'])
+
+      const withGlobal = yield* attrs.findMany(undefined, { organizationId: 1, includeGlobal: true })
+      expect(withGlobal.map(a => a.slug).sort()).toEqual(['acme-fabric', 'color'])
+
+      // Legacy callers (no includeGlobal) keep platform ∪ org.
+      const legacy = yield* attrs.findMany(undefined, { organizationId: 1 })
+      expect(legacy.map(a => a.slug).sort()).toEqual(['acme-fabric', 'color'])
+    }))
 })

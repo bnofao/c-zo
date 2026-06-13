@@ -31,25 +31,25 @@ describe('node(id:) authz on the Attribute node (kit nodeGuards registry)', () =
     const a = await h.signUp('a@example.com', 'User A', 'password-a-123')
     const { orgGlobalId, orgNumericId } = await h.createOrgWithAttributeAccess(a.token, a.userId, 'Org X', 'org-x')
 
-    // 4. createAttribute(organizationId: X, DROPDOWN) as A → org-owned attribute.
+    // 4. createOrganizationAttribute(organizationId: X, DROPDOWN) as A → org-owned attribute.
     const createAttr = await h.gql(
-      `mutation ($input: CreateAttributeInput!) {
-        createAttribute(input: $input) {
+      `mutation ($input: CreateOrganizationAttributeInput!) {
+        createOrganizationAttribute(input: $input) {
           __typename
-          ... on CreateAttributeSuccess { data { attribute { id slug organizationId } } }
+          ... on CreateOrganizationAttributeSuccess { data { attribute { id slug organizationId } } }
         }
       }`,
       { input: { organizationId: orgGlobalId, name: 'Color', type: 'DROPDOWN' } },
       a.token,
     )
     expect(createAttr.errors).toBeUndefined()
-    expect(createAttr.data?.createAttribute?.__typename).toBe('CreateAttributeSuccess')
-    const attrNodeId: string | undefined = createAttr.data?.createAttribute?.data?.attribute?.id
-    const createdSlug: string | undefined = createAttr.data?.createAttribute?.data?.attribute?.slug
+    expect(createAttr.data?.createOrganizationAttribute?.__typename).toBe('CreateOrganizationAttributeSuccess')
+    const attrNodeId: string | undefined = createAttr.data?.createOrganizationAttribute?.data?.attribute?.id
+    const createdSlug: string | undefined = createAttr.data?.createOrganizationAttribute?.data?.attribute?.slug
     expect(attrNodeId).toBeTruthy()
     expect(createdSlug).toBeTruthy()
     // Sanity: the attribute is genuinely org-owned (the cross-org gate's premise).
-    expect(createAttr.data?.createAttribute?.data?.attribute?.organizationId).toBe(orgNumericId)
+    expect(createAttr.data?.createOrganizationAttribute?.data?.attribute?.organizationId).toBe(orgNumericId)
 
     // 5. User B — no relation to X.
     const b = await h.signUp('b@example.com', 'User B', 'password-b-123')
@@ -82,13 +82,13 @@ describe('node(id:) authz on value nodes (kit nodeGuards registry)', () => {
     const { orgGlobalId } = await h.createOrgWithAttributeAccess(owner.token, owner.userId, 'Value Org Y', 'value-org-y')
 
     const attr = await h.gql(
-      `mutation ($input: CreateAttributeInput!) {
-        createAttribute(input: $input) { ... on CreateAttributeSuccess { data { attribute { id } } } }
+      `mutation ($input: CreateOrganizationAttributeInput!) {
+        createOrganizationAttribute(input: $input) { ... on CreateOrganizationAttributeSuccess { data { attribute { id } } } }
       }`,
       { input: { organizationId: orgGlobalId, name: 'Finish', type: 'DROPDOWN' } },
       owner.token,
     )
-    const attributeId: string = attr.data?.createAttribute?.data?.attribute?.id
+    const attributeId: string = attr.data?.createOrganizationAttribute?.data?.attribute?.id
     expect(attributeId).toBeTruthy()
 
     const value = await h.gql(

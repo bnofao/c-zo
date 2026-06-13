@@ -17,6 +17,7 @@ export interface FileInfo {
 
 export function registerAttributeScalars(builder: AttributeGraphQLSchemaBuilder): void {
   builder.objectRef<FileInfo>('FileInfo').implement({
+    subGraphs: ['org', 'admin'],
     description: 'A file reference attached to an attribute value (swatch image or file value): a URL plus its MIME type.',
     fields: t => ({
       url: t.exposeString('url', { description: 'URL of the file asset.' }),
@@ -25,6 +26,7 @@ export function registerAttributeScalars(builder: AttributeGraphQLSchemaBuilder)
   })
 
   builder.inputType('FileInfoInput', {
+    subGraphs: ['org', 'admin'],
     description: 'Write counterpart of FileInfo: the file URL and its MIME type to store on an attribute value.',
     fields: t => ({
       url: t.string({ required: true, description: 'URL of the file asset.' }),

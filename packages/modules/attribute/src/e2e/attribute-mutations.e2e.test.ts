@@ -41,6 +41,21 @@ const CREATE_ATTRIBUTE = `
   }
 `
 
+const CREATE_ORG_ATTRIBUTE = `
+  mutation ($input: CreateOrganizationAttributeInput!) {
+    createOrganizationAttribute(input: $input) {
+      __typename
+      ... on CreateOrganizationAttributeSuccess {
+        data { attribute { id slug type organizationId version } }
+      }
+      ... on AttributeSlugTakenError { message slug }
+      ... on ReferenceEntityRequiredError { message }
+      ... on ReferenceEntityNotAllowedError { message }
+      ... on UnitNotAllowedError { message }
+    }
+  }
+`
+
 const UPDATE_ATTRIBUTE = `
   mutation ($input: UpdateAttributeInput!) {
     updateAttribute(input: $input) {
@@ -114,13 +129,13 @@ describe('attribute CRUD mutations', () => {
 
     it('org happy: creates an org-owned attribute with organizationId', async () => {
       const result = await h.gql(
-        CREATE_ATTRIBUTE,
+        CREATE_ORG_ATTRIBUTE,
         { input: { organizationId: orgGlobalId, name: 'Size', type: 'DROPDOWN' } },
         a.token,
       )
       expect(result.errors).toBeUndefined()
-      expect(result.data?.createAttribute?.__typename).toBe('CreateAttributeSuccess')
-      const attr = result.data?.createAttribute?.data?.attribute
+      expect(result.data?.createOrganizationAttribute?.__typename).toBe('CreateOrganizationAttributeSuccess')
+      const attr = result.data?.createOrganizationAttribute?.data?.attribute
       expect(attr?.organizationId).toBe(orgNumericId)
       expect(attr?.version).toBe(1)
       expect(typeof attr?.id).toBe('string')
@@ -139,14 +154,14 @@ describe('attribute CRUD mutations', () => {
 
     it('authz cross-org: B (non-member) is denied — top-level errors and field absent from data', async () => {
       const result = await h.gql(
-        CREATE_ATTRIBUTE,
+        CREATE_ORG_ATTRIBUTE,
         { input: { organizationId: orgGlobalId, name: 'CrossOrgAttr', type: 'DROPDOWN' } },
         b.token,
       )
       expect(result.errors).toBeTruthy()
       expect((result.errors ?? []).length).toBeGreaterThan(0)
       // Scope-auth denial: field is absent from data (not null — absent)
-      expect(result.data?.createAttribute).not.toBeDefined()
+      expect(result.data?.createOrganizationAttribute).not.toBeDefined()
     })
 
     it('error slug taken: second create with same name returns AttributeSlugTakenError union member', async () => {
@@ -257,13 +272,13 @@ describe('attribute CRUD mutations', () => {
 
     it('authz: B updating A\'s org-owned attribute is denied — top-level errors and field absent from data', async () => {
       const created = await h.gql(
-        CREATE_ATTRIBUTE,
+        CREATE_ORG_ATTRIBUTE,
         { input: { organizationId: orgGlobalId, name: 'BCannotUpdate', type: 'DROPDOWN' } },
         a.token,
       )
-      expect(created.data?.createAttribute?.__typename).toBe('CreateAttributeSuccess')
-      const attrId: string = created.data?.createAttribute?.data?.attribute?.id
-      const attrVersion: number = created.data?.createAttribute?.data?.attribute?.version
+      expect(created.data?.createOrganizationAttribute?.__typename).toBe('CreateOrganizationAttributeSuccess')
+      const attrId: string = created.data?.createOrganizationAttribute?.data?.attribute?.id
+      const attrVersion: number = created.data?.createOrganizationAttribute?.data?.attribute?.version
 
       const result = await h.gql(
         UPDATE_ATTRIBUTE,
@@ -330,12 +345,12 @@ describe('attribute CRUD mutations', () => {
 
     it('authz: B deleting A\'s org-owned attribute is denied — top-level errors and field absent from data', async () => {
       const created = await h.gql(
-        CREATE_ATTRIBUTE,
+        CREATE_ORG_ATTRIBUTE,
         { input: { organizationId: orgGlobalId, name: 'BCannotDelete', type: 'DROPDOWN' } },
         a.token,
       )
-      expect(created.data?.createAttribute?.__typename).toBe('CreateAttributeSuccess')
-      const attrId: string = created.data?.createAttribute?.data?.attribute?.id
+      expect(created.data?.createOrganizationAttribute?.__typename).toBe('CreateOrganizationAttributeSuccess')
+      const attrId: string = created.data?.createOrganizationAttribute?.data?.attribute?.id
 
       const result = await h.gql(
         DELETE_ATTRIBUTE,

@@ -77,6 +77,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
   // ── Choice value objects ───────────────────────────────────────────────────
   builder.drizzleNode('attributeValues', {
     name: 'AttributeValue',
+    subGraphs: ['org', 'admin'],
     description: 'A catalog value of a DROPDOWN or MULTISELECT attribute.',
     select: true,
     id: { column: v => v.id },
@@ -91,6 +92,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeSwatchValues', {
     name: 'AttributeSwatchValue',
+    subGraphs: ['org', 'admin'],
     description: 'A catalog value of a SWATCH attribute: a label plus an optional color and/or image file.',
     select: true,
     id: { column: v => v.id },
@@ -114,6 +116,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeReferenceValues', {
     name: 'AttributeReferenceValue',
+    subGraphs: ['org', 'admin'],
     description: 'A catalog value of a REFERENCE attribute: a label pointing at another entity by id.',
     select: true,
     id: { column: v => v.id },
@@ -130,6 +133,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
   // ── Typed value objects ────────────────────────────────────────────────────
   builder.drizzleNode('attributeTextValues', {
     name: 'AttributeTextValue',
+    subGraphs: ['org', 'admin'],
     description: 'The single value of a TEXT attribute: plain text plus optional structured rich content.',
     select: true,
     id: { column: v => v.id },
@@ -148,6 +152,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeNumericValues', {
     name: 'AttributeNumericValue',
+    subGraphs: ['org', 'admin'],
     description: 'The single value of a NUMBER attribute (interpreted in the attribute\'s unit, when set).',
     select: true,
     id: { column: v => v.id },
@@ -160,6 +165,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeBooleanValues', {
     name: 'AttributeBooleanValue',
+    subGraphs: ['org', 'admin'],
     description: 'The single value of a BOOLEAN attribute.',
     select: true,
     id: { column: v => v.id },
@@ -172,6 +178,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeDateValues', {
     name: 'AttributeDateValue',
+    subGraphs: ['org', 'admin'],
     description: 'The single value of a DATE or DATETIME attribute.',
     select: true,
     id: { column: v => v.id },
@@ -184,6 +191,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeFileValues', {
     name: 'AttributeFileValue',
+    subGraphs: ['org', 'admin'],
     description: 'The single value of a FILE attribute: the stored file reference.',
     select: true,
     id: { column: v => v.id },
@@ -206,6 +214,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
   // connection `authScopes` regardless of the client's field selection.
   builder.drizzleNode('attributes', {
     name: 'Attribute',
+    subGraphs: ['org', 'admin'],
     description: 'A typed descriptor that products and variants can carry values for. PLATFORM (organizationId null, platform-admin-managed) or ORG-OWNED. Choice types expose one of the values/swatchValues/referenceValues connections (per `type`); non-choice types hold a single typed value resolved elsewhere.',
     select: true,
     id: { column: a => a.id },
@@ -235,27 +244,45 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
       // attribute is locked to its own org, a global one is arg-driven. The WHERE
       // stays arg-driven — correct because the gate guarantees `arg == parent.org`
       // for org-owned attributes.
-      values: t.relatedConnection('values', {
-        description: 'Catalog values for a DROPDOWN/MULTISELECT attribute (ordered by position); empty for other types.',
-        totalCount: true,
-        args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
-        authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
-        query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
-      }),
-      swatchValues: t.relatedConnection('swatchValues', {
-        description: 'Catalog values for a SWATCH attribute (ordered by position); empty for other types.',
-        totalCount: true,
-        args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
-        authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
-        query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
-      }),
-      referenceValues: t.relatedConnection('referenceValues', {
-        description: 'Catalog values for a REFERENCE attribute (ordered by position); empty for other types.',
-        totalCount: true,
-        args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
-        authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
-        query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
-      }),
+      values: t.relatedConnection(
+        'values',
+        {
+          subGraphs: ['org', 'admin'],
+          description: 'Catalog values for a DROPDOWN/MULTISELECT attribute (ordered by position); empty for other types.',
+          totalCount: true,
+          args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
+          authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
+          query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
+        },
+        { subGraphs: ['org', 'admin'] },
+        { subGraphs: ['org', 'admin'] },
+      ),
+      swatchValues: t.relatedConnection(
+        'swatchValues',
+        {
+          subGraphs: ['org', 'admin'],
+          description: 'Catalog values for a SWATCH attribute (ordered by position); empty for other types.',
+          totalCount: true,
+          args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
+          authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
+          query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
+        },
+        { subGraphs: ['org', 'admin'] },
+        { subGraphs: ['org', 'admin'] },
+      ),
+      referenceValues: t.relatedConnection(
+        'referenceValues',
+        {
+          subGraphs: ['org', 'admin'],
+          description: 'Catalog values for a REFERENCE attribute (ordered by position); empty for other types.',
+          totalCount: true,
+          args: { organizationId: t.arg.globalID({ for: 'Organization', description: 'Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.' }) },
+          authScopes: (parent, args) => choiceAuthScope(parent.organizationId, args),
+          query: args => ({ where: choiceWhere(args), orderBy: { position: 'asc' as const } }),
+        },
+        { subGraphs: ['org', 'admin'] },
+        { subGraphs: ['org', 'admin'] },
+      ),
     }),
   })
 }
