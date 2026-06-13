@@ -5,11 +5,12 @@ import { InvalidPriceRule, PriceListNotFound, PriceNotFound, PriceSetNotFound } 
 export { InvalidPriceRule, PriceListNotFound, PriceNotFound, PriceSetNotFound }
 
 export function registerPriceErrors(builder: PriceGraphQLSchemaBuilder): void {
-  registerError(builder, PriceSetNotFound, { name: 'PriceSetNotFoundError' })
-  registerError(builder, PriceNotFound, { name: 'PriceNotFoundError' })
-  registerError(builder, PriceListNotFound, { name: 'PriceListNotFoundError' })
+  registerError(builder, PriceSetNotFound, { name: 'PriceSetNotFoundError', subGraphs: ['org'] })
+  registerError(builder, PriceNotFound, { name: 'PriceNotFoundError', subGraphs: ['org'] })
+  registerError(builder, PriceListNotFound, { name: 'PriceListNotFoundError', subGraphs: ['org'] })
   registerError(builder, InvalidPriceRule, {
     name: 'InvalidPriceRuleError',
+    subGraphs: ['org'],
     fields: t => ({ attribute: t.exposeString('attribute') }),
   })
 }

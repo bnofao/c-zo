@@ -7,6 +7,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   // ── priceSet(id) — single price set by global ID ───────────────────────────
   builder.queryField('priceSet', t =>
     t.drizzleField({
+      subGraphs: ['org'],
       type: 'priceSets',
       nullable: true,
       description: 'Fetch a single price set by id. Requires `price:read` in the set\'s owning organization. Returns null if not found or soft-deleted.',
@@ -33,6 +34,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   // ── priceSets — paginated connection, always tenant-scoped ─────────────────
   builder.queryField('priceSets', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'priceSets',
       description: 'Paginated (relay) connection over an organization\'s price sets. Requires `price:read` in that org.',
       authScopes: (_parent, args) => ({
@@ -52,11 +54,12 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
             return yield* svc.findPriceSets(query({ where: { organizationId: Number(args.organizationId.id) } } as any))
           }),
         ) as Promise<any>,
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── priceList(id) — single price list by global ID ─────────────────────────
   builder.queryField('priceList', t =>
     t.drizzleField({
+      subGraphs: ['org'],
       type: 'priceLists',
       nullable: true,
       description: 'Fetch a single price list by id. Requires `price:read` in the list\'s owning organization. Returns null if not found or soft-deleted.',
@@ -83,6 +86,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   // ── priceLists — paginated connection, always tenant-scoped ───────────────
   builder.queryField('priceLists', t =>
     t.drizzleConnection({
+      subGraphs: ['org'],
       type: 'priceLists',
       description: 'Paginated (relay) connection over an organization\'s price lists. Requires `price:read` in that org.',
       authScopes: (_parent, args) => ({
@@ -102,7 +106,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
             return yield* svc.findPriceLists(query({ where: { organizationId: Number(args.organizationId.id) } } as any))
           }),
         ) as Promise<any>,
-    }))
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── resolvePrice — PUBLIC + org-scoped (NO authScopes → field is open) ─────
   // The org boundary is enforced inside the service: resolvePrice(organizationId, ...)
@@ -110,7 +114,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('resolvePrice', t =>
     t.field({
       type: 'CalculatedPrice',
-      subGraphs: ['public'],
+      subGraphs: ['public', 'org'],
       nullable: true,
       description: 'Resolve the effective price for a price set in a given currency and buying context (the pricing engine). Public, but org-scoped inside the service: returns null when the price set does not belong to the given organization or no price applies. The result is a Base, Override, or Sale price.',
       args: {
@@ -148,7 +152,7 @@ export function registerPriceQueries(builder: PriceGraphQLSchemaBuilder): void {
   builder.queryField('resolvePrices', t =>
     t.field({
       type: ['PriceResolution'],
-      subGraphs: ['public'],
+      subGraphs: ['public', 'org'],
       description: 'Bulk variant of `resolvePrice`: resolve effective prices for many price sets at once (O(1) DB queries for N sets). Every requested id appears in the result; a foreign-org, unknown, or non-applicable set yields a `price: null` entry. Public, org-scoped inside the service.',
       args: {
         organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization the price sets must belong to.' }),
