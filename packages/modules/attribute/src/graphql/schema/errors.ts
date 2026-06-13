@@ -18,29 +18,32 @@ export { OptimisticLockError, ValidationError }
 
 export function registerAttributeErrors(builder: AttributeGraphQLSchemaBuilder): void {
   // ── Attribute service errors ──────────────────────────────────────────────
-  registerError(builder, Attribute.AttributeNotFound, { name: 'AttributeNotFoundError' })
+  registerError(builder, Attribute.AttributeNotFound, { name: 'AttributeNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, Attribute.AttributeSlugTaken, {
     name: 'AttributeSlugTakenError',
+    subGraphs: ['org', 'admin'],
     fields: t => ({ slug: t.exposeString('slug') }),
   })
-  registerError(builder, Attribute.AttributeDbFailed, { name: 'AttributeDbFailedError' })
-  registerError(builder, Attribute.ReferenceEntityRequired, { name: 'ReferenceEntityRequiredError' })
-  registerError(builder, Attribute.ReferenceEntityNotAllowed, { name: 'ReferenceEntityNotAllowedError' })
-  registerError(builder, Attribute.UnitNotAllowed, { name: 'UnitNotAllowedError' })
+  registerError(builder, Attribute.AttributeDbFailed, { name: 'AttributeDbFailedError', subGraphs: ['org', 'admin'] })
+  registerError(builder, Attribute.ReferenceEntityRequired, { name: 'ReferenceEntityRequiredError', subGraphs: ['org', 'admin'] })
+  registerError(builder, Attribute.ReferenceEntityNotAllowed, { name: 'ReferenceEntityNotAllowedError', subGraphs: ['org', 'admin'] })
+  registerError(builder, Attribute.UnitNotAllowed, { name: 'UnitNotAllowedError', subGraphs: ['org', 'admin'] })
 
   // ── Choice value service errors ───────────────────────────────────────────
-  registerError(builder, AttributeValue.AttributeValueNotFound, { name: 'AttributeValueNotFoundError' })
+  registerError(builder, AttributeValue.AttributeValueNotFound, { name: 'AttributeValueNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, AttributeValue.AttributeValueSlugTaken, {
     name: 'AttributeValueSlugTakenError',
+    subGraphs: ['org', 'admin'],
     fields: t => ({ slug: t.exposeString('slug') }),
   })
-  registerError(builder, AttributeValue.SwatchRequiresColorOrFile, { name: 'SwatchRequiresColorOrFileError' })
+  registerError(builder, AttributeValue.SwatchRequiresColorOrFile, { name: 'SwatchRequiresColorOrFileError', subGraphs: ['org', 'admin'] })
   registerError(builder, AttributeValue.SwatchVisualInvalid, {
     name: 'SwatchVisualInvalidError',
+    subGraphs: ['org', 'admin'],
     fields: t => ({ reason: t.exposeString('reason') }),
   })
-  registerError(builder, AttributeValue.AttributeParentNotOwned, { name: 'AttributeParentNotOwnedError' })
+  registerError(builder, AttributeValue.AttributeParentNotOwned, { name: 'AttributeParentNotOwnedError', subGraphs: ['org', 'admin'] })
 
   // ── Typed value service errors ────────────────────────────────────────────
-  registerError(builder, TypedValue.TypedValueNotFound, { name: 'TypedValueNotFoundError' })
+  registerError(builder, TypedValue.TypedValueNotFound, { name: 'TypedValueNotFoundError', subGraphs: ['org', 'admin'] })
 }

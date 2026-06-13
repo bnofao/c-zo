@@ -13,6 +13,7 @@
  *   • PLATFORM tier — `grantGlobalRole` sets the user's GLOBAL `users.role`
  *                     (checked when a `permission` scope carries no organization).
  */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -71,7 +72,11 @@ export interface AttributeHarness {
   ) => Promise<{ orgGlobalId: string, orgNumericId: number }>
 }
 
-export async function bootAttributeApp(): Promise<AttributeHarness> {
+export interface BootAttributeOptions {
+  readonly subGraphs?: ReadonlyArray<SubGraphName>
+}
+
+export async function bootAttributeApp(options: BootAttributeOptions = {}): Promise<AttributeHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -84,6 +89,7 @@ export async function bootAttributeApp(): Promise<AttributeHarness> {
       // default exports are values, not factories — no call here.
       modules: [authModule, attributeModule],
       migrations: [AUTH_MIGRATIONS, ATTR_MIGRATIONS],
+      ...(options.subGraphs ? { buildOptions: { subGraphs: options.subGraphs } } : {}),
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

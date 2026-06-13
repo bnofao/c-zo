@@ -49,9 +49,23 @@ const ATTR_QUERY = `
   }
 `
 
-const ATTRS_QUERY = `
-  query ($organizationId: ID) {
-    attributes(organizationId: $organizationId) {
+const PLATFORM_ATTRS_QUERY = `
+  query {
+    attributes {
+      edges {
+        node {
+          id
+          slug
+          organizationId
+        }
+      }
+    }
+  }
+`
+
+const ORG_ATTRS_QUERY = `
+  query ($organizationId: ID!, $includeGlobal: Boolean) {
+    organizationAttributes(organizationId: $organizationId, includeGlobal: $includeGlobal) {
       edges {
         node {
           id
@@ -85,6 +99,19 @@ const CREATE_ATTRIBUTE = `
     createAttribute(input: $input) {
       __typename
       ... on CreateAttributeSuccess {
+        data {
+          attribute { id slug organizationId }
+        }
+      }
+    }
+  }
+`
+
+const CREATE_ORG_ATTRIBUTE = `
+  mutation ($input: CreateOrganizationAttributeInput!) {
+    createOrganizationAttribute(input: $input) {
+      __typename
+      ... on CreateOrganizationAttributeSuccess {
         data {
           attribute { id slug organizationId }
         }
@@ -136,16 +163,16 @@ describe('setup fixture', () => {
     expect(cp.data?.createAttribute?.data?.attribute?.organizationId).toBeNull()
 
     // 4. Create org-owned DROPDOWN attribute Q in org X
-    const cq = await h.gql(CREATE_ATTRIBUTE, {
+    const cq = await h.gql(CREATE_ORG_ATTRIBUTE, {
       input: { organizationId: orgGlobalId, name: 'Org Size', type: 'DROPDOWN' },
     }, aToken)
-    expect(cq.errors, `createAttribute Q: ${JSON.stringify(cq.errors)}`).toBeUndefined()
-    expect(cq.data?.createAttribute?.__typename).toBe('CreateAttributeSuccess')
-    qAttrId = cq.data?.createAttribute?.data?.attribute?.id
-    qAttrSlug = cq.data?.createAttribute?.data?.attribute?.slug
+    expect(cq.errors, `createOrganizationAttribute Q: ${JSON.stringify(cq.errors)}`).toBeUndefined()
+    expect(cq.data?.createOrganizationAttribute?.__typename).toBe('CreateOrganizationAttributeSuccess')
+    qAttrId = cq.data?.createOrganizationAttribute?.data?.attribute?.id
+    qAttrSlug = cq.data?.createOrganizationAttribute?.data?.attribute?.slug
     expect(qAttrId).toBeTruthy()
     expect(qAttrSlug).toBeTruthy()
-    expect(cq.data?.createAttribute?.data?.attribute?.organizationId).toBe(orgNumericId)
+    expect(cq.data?.createOrganizationAttribute?.data?.attribute?.organizationId).toBe(orgNumericId)
 
     // 5. Seed 2 values on P (platform values, no organizationId)
     for (const v of ['Red', 'Blue']) {
@@ -219,8 +246,8 @@ describe('attribute(id, slug) — single lookup', () => {
 // ── attributes(...) connection ────────────────────────────────────────────────
 
 describe('attributes connection', () => {
-  it('user A queries with no org arg — platform rows only: contains P, not Q', async () => {
-    const res = await h.gql(ATTRS_QUERY, {}, aToken)
+  it('user A queries platform attributes — platform rows only: contains P, not Q', async () => {
+    const res = await h.gql(PLATFORM_ATTRS_QUERY, {}, aToken)
     expect(res.errors).toBeUndefined()
     const edges = res.data?.attributes?.edges ?? []
     const slugs = edges.map((e: { node: { slug: string } }) => e.node.slug)
@@ -229,29 +256,38 @@ describe('attributes connection', () => {
     expect(edges.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('user A queries with organizationId X — contains both P and Q', async () => {
-    const res = await h.gql(ATTRS_QUERY, { organizationId: orgGlobalId }, aToken)
+  it('user A queries organizationAttributes with org X (default) — org rows only: contains Q, not P', async () => {
+    const res = await h.gql(ORG_ATTRS_QUERY, { organizationId: orgGlobalId }, aToken)
     expect(res.errors).toBeUndefined()
-    const edges = res.data?.attributes?.edges ?? []
+    const edges = res.data?.organizationAttributes?.edges ?? []
+    const slugs = edges.map((e: { node: { slug: string } }) => e.node.slug)
+    expect(slugs).toContain(qAttrSlug)
+    expect(slugs).not.toContain(pAttrSlug)
+  })
+
+  it('user A queries organizationAttributes with org X + includeGlobal — contains both P and Q', async () => {
+    const res = await h.gql(ORG_ATTRS_QUERY, { organizationId: orgGlobalId, includeGlobal: true }, aToken)
+    expect(res.errors).toBeUndefined()
+    const edges = res.data?.organizationAttributes?.edges ?? []
     const slugs = edges.map((e: { node: { slug: string } }) => e.node.slug)
     expect(slugs).toContain(pAttrSlug)
     expect(slugs).toContain(qAttrSlug)
   })
 
-  it('user B queries with organizationId X — denied (B lacks attribute:read in X)', async () => {
-    const res = await h.gql(ATTRS_QUERY, { organizationId: orgGlobalId }, bToken)
+  it('user B queries organizationAttributes with org X — denied (B lacks attribute:read in X)', async () => {
+    const res = await h.gql(ORG_ATTRS_QUERY, { organizationId: orgGlobalId }, bToken)
     // authScope denial: the connection field resolves to null, errors are non-empty.
     expect(res.errors).toBeTruthy()
     expect((res.errors ?? []).length).toBeGreaterThan(0)
-    // The connection itself may be null or the entire data.attributes key may be absent.
-    const conn = res.data?.attributes
+    // The connection itself may be null or the entire data key may be absent.
+    const conn = res.data?.organizationAttributes
     expect(conn == null).toBe(true)
   })
 
-  it('user B queries with no org arg — denied (platform list requires global attribute:read; B has none)', async () => {
+  it('user B queries platform attributes — denied (platform list requires global attribute:read; B has none)', async () => {
     // Hardened gate: listing platform rows now requires a GLOBAL `attribute:read`
     // role, matching the single `attribute(id)` lookup. B has no global role.
-    const res = await h.gql(ATTRS_QUERY, {}, bToken)
+    const res = await h.gql(PLATFORM_ATTRS_QUERY, {}, bToken)
     expect(res.errors).toBeTruthy()
     expect((res.errors ?? []).length).toBeGreaterThan(0)
     expect(res.data?.attributes == null).toBe(true)

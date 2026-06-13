@@ -16,13 +16,17 @@ import type { AttributeGraphQLSchemaBuilder } from '../..'
 import { Effect } from 'effect'
 import { AttributeValue } from '../../../services'
 import { attributeScope, decodeOrgInput, valueCreateScope, valueScope } from '../../authz'
+import { sg } from '../subgraphs'
 
 export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuilder): void {
+  const BOTH = sg('org', 'admin')
+
   // ─── value family ──────────────────────────────────────────────────────────
 
   builder.relayMutationField(
     'createAttributeValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The DROPDOWN or MULTISELECT attribute that owns the new choice value.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -33,8 +37,9 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Creates a plain choice value on a DROPDOWN or MULTISELECT attribute.',
-      errors: { types: [AttributeValue.AttributeValueSlugTaken, AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeValueSlugTaken, AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_parent, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -55,6 +60,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeValue', resolve: p => p.value, description: 'The newly created choice value.' }),
       }),
@@ -64,6 +70,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'updateAttributeValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeValue', required: true, description: 'The choice value to update.' }),
         value: t.string({ description: 'New displayed text; leave unset to keep the current value.' }),
@@ -72,8 +79,9 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates a plain choice value on a DROPDOWN or MULTISELECT attribute.',
-      errors: { types: [AttributeValue.AttributeValueNotFound, AttributeValue.AttributeValueSlugTaken] },
+      errors: { types: [AttributeValue.AttributeValueNotFound, AttributeValue.AttributeValueSlugTaken], ...BOTH.errorOpts },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'value', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -92,6 +100,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeValue', resolve: p => p.value, description: 'The updated choice value.' }),
       }),
@@ -101,13 +110,15 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'deleteAttributeValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeValue', required: true, description: 'The choice value to delete.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Deletes a plain choice value from a DROPDOWN or MULTISELECT attribute.',
-      errors: { types: [AttributeValue.AttributeValueNotFound] },
+      errors: { types: [AttributeValue.AttributeValueNotFound], ...BOTH.errorOpts },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'value', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const id = Number(args.input.id.id)
@@ -121,6 +132,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeValue', resolve: p => p.value, description: 'The choice value that was deleted.' }),
       }),
@@ -130,12 +142,14 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'reorderAttributeValues',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The attribute whose choice values are being reordered.' }),
         orderedIds: t.globalIDList({ for: 'AttributeValue', required: true, description: 'The choice value ids in their desired display order.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Reorders the plain choice values of a DROPDOWN or MULTISELECT attribute.',
       authScopes: (_parent, args, ctx) => attributeScope(ctx, Number(args.input.attributeId.id), 'update'),
       resolve: async (_root, args, ctx) => {
@@ -151,6 +165,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: p => p.success, description: 'True when the values were reordered.' }),
       }),
@@ -162,6 +177,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'createAttributeSwatch',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The SWATCH attribute that owns the new swatch value.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -174,6 +190,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Creates a swatch choice value (color and/or image) on a SWATCH attribute.',
       errors: {
         types: [
@@ -182,6 +199,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
           AttributeValue.SwatchVisualInvalid,
           AttributeValue.AttributeParentNotOwned,
         ],
+        ...BOTH.errorOpts,
       },
       authScopes: (_parent, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
@@ -203,6 +221,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeSwatchValue', resolve: p => p.value, description: 'The newly created swatch value.' }),
       }),
@@ -212,6 +231,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'updateAttributeSwatch',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeSwatchValue', required: true, description: 'The swatch value to update.' }),
         value: t.string({ description: 'New displayed text; leave unset to keep the current value.' }),
@@ -222,6 +242,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates a swatch choice value on a SWATCH attribute.',
       errors: {
         types: [
@@ -230,6 +251,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
           AttributeValue.SwatchRequiresColorOrFile,
           AttributeValue.SwatchVisualInvalid,
         ],
+        ...BOTH.errorOpts,
       },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'swatch', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
@@ -251,6 +273,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeSwatchValue', resolve: p => p.value, description: 'The updated swatch value.' }),
       }),
@@ -260,13 +283,15 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'deleteAttributeSwatch',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeSwatchValue', required: true, description: 'The swatch value to delete.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Deletes a swatch choice value from a SWATCH attribute.',
-      errors: { types: [AttributeValue.AttributeValueNotFound] },
+      errors: { types: [AttributeValue.AttributeValueNotFound], ...BOTH.errorOpts },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'swatch', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const id = Number(args.input.id.id)
@@ -280,6 +305,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeSwatchValue', resolve: p => p.value, description: 'The swatch value that was deleted.' }),
       }),
@@ -289,12 +315,14 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'reorderAttributeSwatches',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The attribute whose swatch values are being reordered.' }),
         orderedIds: t.globalIDList({ for: 'AttributeSwatchValue', required: true, description: 'The swatch value ids in their desired display order.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Reorders the swatch values of a SWATCH attribute.',
       authScopes: (_parent, args, ctx) => attributeScope(ctx, Number(args.input.attributeId.id), 'update'),
       resolve: async (_root, args, ctx) => {
@@ -310,6 +338,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: p => p.success, description: 'True when the swatches were reordered.' }),
       }),
@@ -321,6 +350,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'createAttributeReference',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The REFERENCE attribute that owns the new reference value.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -332,8 +362,9 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Creates a reference choice value pointing at another entity on a REFERENCE attribute.',
-      errors: { types: [AttributeValue.AttributeValueSlugTaken, AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeValueSlugTaken, AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_parent, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -355,6 +386,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeReferenceValue', resolve: p => p.value, description: 'The newly created reference value.' }),
       }),
@@ -364,6 +396,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'updateAttributeReference',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeReferenceValue', required: true, description: 'The reference value to update.' }),
         value: t.string({ description: 'New displayed text; leave unset to keep the current value.' }),
@@ -373,8 +406,9 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates a reference choice value on a REFERENCE attribute.',
-      errors: { types: [AttributeValue.AttributeValueNotFound, AttributeValue.AttributeValueSlugTaken] },
+      errors: { types: [AttributeValue.AttributeValueNotFound, AttributeValue.AttributeValueSlugTaken], ...BOTH.errorOpts },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'reference', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -394,6 +428,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeReferenceValue', resolve: p => p.value, description: 'The updated reference value.' }),
       }),
@@ -403,13 +438,15 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'deleteAttributeReference',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeReferenceValue', required: true, description: 'The reference value to delete.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Deletes a reference choice value from a REFERENCE attribute.',
-      errors: { types: [AttributeValue.AttributeValueNotFound] },
+      errors: { types: [AttributeValue.AttributeValueNotFound], ...BOTH.errorOpts },
       authScopes: (_parent, args, ctx) => valueScope(ctx, 'reference', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const id = Number(args.input.id.id)
@@ -423,6 +460,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         value: t.field({ type: 'AttributeReferenceValue', resolve: p => p.value, description: 'The reference value that was deleted.' }),
       }),
@@ -432,12 +470,14 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
   builder.relayMutationField(
     'reorderAttributeReferences',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The attribute whose reference values are being reordered.' }),
         orderedIds: t.globalIDList({ for: 'AttributeReferenceValue', required: true, description: 'The reference value ids in their desired display order.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Reorders the reference values of a REFERENCE attribute.',
       authScopes: (_parent, args, ctx) => attributeScope(ctx, Number(args.input.attributeId.id), 'update'),
       resolve: async (_root, args, ctx) => {
@@ -453,6 +493,7 @@ export function registerChoiceValueMutations(builder: AttributeGraphQLSchemaBuil
       },
     },
     {
+      ...BOTH.payload,
       outputFields: t => ({
         success: t.boolean({ resolve: p => p.success, description: 'True when the references were reordered.' }),
       }),

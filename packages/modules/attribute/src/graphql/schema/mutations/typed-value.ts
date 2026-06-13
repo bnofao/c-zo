@@ -15,12 +15,16 @@ import type { AttributeGraphQLSchemaBuilder } from '../..'
 import { Effect } from 'effect'
 import { AttributeValue, TypedValue } from '../../../services'
 import { decodeOrgInput, valueCreateScope, valueScope } from '../../authz'
+import { sg } from '../subgraphs'
 
 export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuilder): void {
+  const BOTH = sg('org', 'admin')
+
   // ─── text ────────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createAttributeTextValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The TEXT attribute to set the value on.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -32,8 +36,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Sets the typed value of a TEXT attribute, creating its single AttributeTextValue node.',
-      errors: { types: [AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_p, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -53,12 +58,13 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The newly created text value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The newly created text value.' }) }) },
   )
 
   builder.relayMutationField(
     'updateAttributeTextValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeTextValue', required: true, description: 'The text value to update.' }),
         plain: t.string({ description: 'New plain-text representation; omit to leave it unchanged.' }),
@@ -66,8 +72,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates the plain and/or rich representation of an existing TEXT attribute value.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'text', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -83,15 +90,16 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The updated text value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The updated text value.' }) }) },
   )
 
   builder.relayMutationField(
     'deleteAttributeTextValue',
-    { inputFields: t => ({ id: t.globalID({ for: 'AttributeTextValue', required: true, description: 'The text value to clear.' }) }) },
+    { ...BOTH.input, inputFields: t => ({ id: t.globalID({ for: 'AttributeTextValue', required: true, description: 'The text value to clear.' }) }) },
     {
+      ...BOTH.field,
       description: 'Clears the typed value of a TEXT attribute, removing its AttributeTextValue node.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'text', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const value = await ctx.runEffect(
@@ -103,13 +111,14 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The text value that was cleared.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeTextValue', resolve: p => p.value, description: 'The text value that was cleared.' }) }) },
   )
 
   // ─── numeric ───────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createAttributeNumericValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The NUMBER attribute to set the value on.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -120,8 +129,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Sets the typed value of a NUMBER attribute, creating its single AttributeNumericValue node.',
-      errors: { types: [AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_p, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -140,20 +150,22 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The newly created numeric value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The newly created numeric value.' }) }) },
   )
 
   builder.relayMutationField(
     'updateAttributeNumericValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeNumericValue', required: true, description: 'The numeric value to update.' }),
         value: t.float({ description: 'New numeric value; omit to leave it unchanged.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates the stored number of an existing NUMBER attribute value.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'numeric', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -168,15 +180,16 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The updated numeric value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The updated numeric value.' }) }) },
   )
 
   builder.relayMutationField(
     'deleteAttributeNumericValue',
-    { inputFields: t => ({ id: t.globalID({ for: 'AttributeNumericValue', required: true, description: 'The numeric value to clear.' }) }) },
+    { ...BOTH.input, inputFields: t => ({ id: t.globalID({ for: 'AttributeNumericValue', required: true, description: 'The numeric value to clear.' }) }) },
     {
+      ...BOTH.field,
       description: 'Clears the typed value of a NUMBER attribute, removing its AttributeNumericValue node.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'numeric', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const value = await ctx.runEffect(
@@ -188,13 +201,14 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The numeric value that was cleared.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeNumericValue', resolve: p => p.value, description: 'The numeric value that was cleared.' }) }) },
   )
 
   // ─── boolean ─────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createAttributeBooleanValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The BOOLEAN attribute to set the value on.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -205,8 +219,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Sets the typed value of a BOOLEAN attribute, creating its single AttributeBooleanValue node.',
-      errors: { types: [AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_p, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -225,20 +240,22 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The newly created boolean value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The newly created boolean value.' }) }) },
   )
 
   builder.relayMutationField(
     'updateAttributeBooleanValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeBooleanValue', required: true, description: 'The boolean value to update.' }),
         value: t.boolean({ description: 'New boolean value; omit to leave it unchanged.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates the stored flag of an existing BOOLEAN attribute value.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'boolean', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -253,15 +270,16 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The updated boolean value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The updated boolean value.' }) }) },
   )
 
   builder.relayMutationField(
     'deleteAttributeBooleanValue',
-    { inputFields: t => ({ id: t.globalID({ for: 'AttributeBooleanValue', required: true, description: 'The boolean value to clear.' }) }) },
+    { ...BOTH.input, inputFields: t => ({ id: t.globalID({ for: 'AttributeBooleanValue', required: true, description: 'The boolean value to clear.' }) }) },
     {
+      ...BOTH.field,
       description: 'Clears the typed value of a BOOLEAN attribute, removing its AttributeBooleanValue node.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'boolean', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const value = await ctx.runEffect(
@@ -273,13 +291,14 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The boolean value that was cleared.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeBooleanValue', resolve: p => p.value, description: 'The boolean value that was cleared.' }) }) },
   )
 
   // ─── date ────────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createAttributeDateValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The DATE or DATETIME attribute to set the value on.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -290,8 +309,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Sets the typed value of a DATE or DATETIME attribute, creating its single AttributeDateValue node.',
-      errors: { types: [AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_p, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -310,20 +330,22 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The newly created date value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The newly created date value.' }) }) },
   )
 
   builder.relayMutationField(
     'updateAttributeDateValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeDateValue', required: true, description: 'The date value to update.' }),
         value: t.field({ type: 'DateTime', description: 'New date/time value; omit to leave it unchanged.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates the stored date/time of an existing DATE or DATETIME attribute value.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'date', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -338,15 +360,16 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The updated date value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The updated date value.' }) }) },
   )
 
   builder.relayMutationField(
     'deleteAttributeDateValue',
-    { inputFields: t => ({ id: t.globalID({ for: 'AttributeDateValue', required: true, description: 'The date value to clear.' }) }) },
+    { ...BOTH.input, inputFields: t => ({ id: t.globalID({ for: 'AttributeDateValue', required: true, description: 'The date value to clear.' }) }) },
     {
+      ...BOTH.field,
       description: 'Clears the typed value of a DATE or DATETIME attribute, removing its AttributeDateValue node.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'date', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const value = await ctx.runEffect(
@@ -358,13 +381,14 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The date value that was cleared.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeDateValue', resolve: p => p.value, description: 'The date value that was cleared.' }) }) },
   )
 
   // ─── file ────────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'createAttributeFileValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         attributeId: t.globalID({ for: 'Attribute', required: true, description: 'The FILE attribute to set the value on.' }),
         // Optional org id (same convention as createAttribute): omit/null → platform value.
@@ -375,8 +399,9 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
       }),
     },
     {
+      ...BOTH.field,
       description: 'Sets the typed value of a FILE attribute, creating its single AttributeFileValue node.',
-      errors: { types: [AttributeValue.AttributeParentNotOwned] },
+      errors: { types: [AttributeValue.AttributeParentNotOwned], ...BOTH.errorOpts },
       authScopes: (_p, args) => valueCreateScope(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -396,20 +421,22 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The newly created file value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The newly created file value.' }) }) },
   )
 
   builder.relayMutationField(
     'updateAttributeFileValue',
     {
+      ...BOTH.input,
       inputFields: t => ({
         id: t.globalID({ for: 'AttributeFileValue', required: true, description: 'The file value to update.' }),
         file: t.field({ type: 'FileInfoInput', description: 'New file (URL and MIME type); omit to leave it unchanged.' }),
       }),
     },
     {
+      ...BOTH.field,
       description: 'Updates the stored file of an existing FILE attribute value.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'file', Number(args.input.id.id), 'update'),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -424,15 +451,16 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The updated file value.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The updated file value.' }) }) },
   )
 
   builder.relayMutationField(
     'deleteAttributeFileValue',
-    { inputFields: t => ({ id: t.globalID({ for: 'AttributeFileValue', required: true, description: 'The file value to clear.' }) }) },
+    { ...BOTH.input, inputFields: t => ({ id: t.globalID({ for: 'AttributeFileValue', required: true, description: 'The file value to clear.' }) }) },
     {
+      ...BOTH.field,
       description: 'Clears the typed value of a FILE attribute, removing its AttributeFileValue node.',
-      errors: { types: [TypedValue.TypedValueNotFound] },
+      errors: { types: [TypedValue.TypedValueNotFound], ...BOTH.errorOpts },
       authScopes: (_p, args, ctx) => valueScope(ctx, 'file', Number(args.input.id.id), 'delete'),
       resolve: async (_root, args, ctx) => {
         const value = await ctx.runEffect(
@@ -444,6 +472,6 @@ export function registerTypedValueMutations(builder: AttributeGraphQLSchemaBuild
         return { value }
       },
     },
-    { outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The file value that was cleared.' }) }) },
+    { ...BOTH.payload, outputFields: t => ({ value: t.field({ type: 'AttributeFileValue', resolve: p => p.value, description: 'The file value that was cleared.' }) }) },
   )
 }

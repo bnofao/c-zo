@@ -98,6 +98,13 @@ export type UpdateAttributeInput = Partial<{
 /** Read visibility scope: `null` = admin (sees everything), a number = an org. */
 export interface ReadScope {
   organizationId: number | null
+  /**
+   * For an org scope (`organizationId != null`): when explicitly `false`,
+   * restrict to that org's own rows (exclude platform). When omitted/`true`,
+   * platform ∪ org — the default for internal callers. Ignored for the
+   * platform scope (`organizationId == null`).
+   */
+  includeGlobal?: boolean
 }
 
 // ─── Service contract (Effect Tag) ───────────────────────────────────────────
@@ -201,8 +208,11 @@ type AttributeServiceImpl = Context.Service.Shape<typeof AttributeService>
  * disjunctions with `AND`-ed flat fields, never a top-level `OR`.
  */
 function visible(scope: ReadScope): AttributeWhere {
-  return scope.organizationId == null
-    ? { organizationId: { isNull: true } }
+  if (scope.organizationId == null)
+    return { organizationId: { isNull: true } }
+  // org scope: platform ∪ org unless the caller explicitly opts out of globals.
+  return scope.includeGlobal === false
+    ? { organizationId: scope.organizationId }
     : { OR: [{ organizationId: { isNull: true } }, { organizationId: scope.organizationId }] }
 }
 

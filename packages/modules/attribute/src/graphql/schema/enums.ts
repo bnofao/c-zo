@@ -24,10 +24,12 @@ let refs: AttributeEnumRefs | undefined
 export function registerAttributeEnums(builder: AttributeGraphQLSchemaBuilder): void {
   refs = {
     AttributeType: builder.enumType('AttributeType', {
+      subGraphs: ['org', 'admin'],
       description: 'The kind of an attribute. Choice types (DROPDOWN, MULTISELECT, SWATCH, REFERENCE) carry a list of catalog values; the rest (TEXT, NUMBER, BOOLEAN, DATE, DATETIME, FILE) carry a single typed value.',
       values: attributeTypeEnum.enumValues,
     }),
     AttributeUnit: builder.enumType('AttributeUnit', {
+      subGraphs: ['org', 'admin'],
       description: 'The unit of measure for a NUMBER attribute (e.g. weight, length, volume); null for non-numeric attributes.',
       values: attributeUnitEnum.enumValues,
     }),
