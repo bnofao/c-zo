@@ -15,34 +15,35 @@ import {
 } from '../../../../services'
 import { loadProductTypeOrganizationId } from '../authz'
 import { productEnumRefs } from '../inputs'
+import { sg } from '../subgraphs'
 
 export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilder): void {
   const enums = productEnumRefs()
-  // ── createProductType ──────────────────────────────────────────────────────
+  // ── createProductType — PLATFORM (global pivot) ──────────────────────────────
+  // Tier split (mirrors @czo/attribute): unqualified = GLOBAL (no org input,
+  // global role); `createOrganizationProductType` = org-owned.
   builder.relayMutationField(
     'createProductType',
     {
+      ...sg('admin').input,
       inputFields: t => ({
-        organizationId: t.globalID({ for: 'Organization', required: false, description: 'References an Organization node. When null the product type is created as a GLOBAL pivot gated on the global `product` permission; when set it is owned by and gated on that organization.' }),
         name: t.string({ required: true, description: 'Human-readable display name of the product type.' }),
         slug: t.string({ required: true, description: 'URL-safe identifier for the product type.' }),
         isShippingRequired: t.boolean({ required: true, description: 'Whether products of this type are physical goods that require shipping.' }),
       }),
     },
     {
-      description: 'Creates a product type, the pivot declaring which attributes apply to its products and variants. Creates a GLOBAL type when organizationId is null, otherwise an organization-owned one.',
-      errors: { types: [] },
-      authScopes: (_parent, args) =>
-        args.input.organizationId == null
-          ? { permission: { resource: 'product', actions: ['create'] } }
-          : { permission: { resource: 'product', actions: ['create'], organization: Number(args.input.organizationId.id) } },
+      ...sg('admin').field,
+      description: 'Creates a GLOBAL product type, the pivot declaring which attributes apply to its products and variants. Gated on the global `product` create permission.',
+      errors: { types: [], ...sg('admin').errorOpts },
+      authScopes: () => ({ permission: { resource: 'product', actions: ['create'] } }),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const productType = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* ProductTypeService
             return yield* svc.createType({
-              organizationId: input.organizationId ? Number(input.organizationId.id) : null,
+              organizationId: null,
               name: input.name,
               slug: input.slug,
               isShippingRequired: input.isShippingRequired,
@@ -52,13 +53,50 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         return { productType }
       },
     },
-    { outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The newly created product type.' }) }) },
+    { ...sg('admin').payload, outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The newly created global product type.' }) }) },
+  )
+
+  // ── createOrganizationProductType — ORG-owned pivot ──────────────────────────
+  builder.relayMutationField(
+    'createOrganizationProductType',
+    {
+      ...sg('org').input,
+      inputFields: t => ({
+        organizationId: t.globalID({ for: 'Organization', required: true, description: 'The Organization that will own the product type; gated on `product:create` in that organization.' }),
+        name: t.string({ required: true, description: 'Human-readable display name of the product type.' }),
+        slug: t.string({ required: true, description: 'URL-safe identifier for the product type.' }),
+        isShippingRequired: t.boolean({ required: true, description: 'Whether products of this type are physical goods that require shipping.' }),
+      }),
+    },
+    {
+      ...sg('org').field,
+      description: 'Creates an organization-owned product type, gated on `product:create` in the given organization.',
+      errors: { types: [], ...sg('org').errorOpts },
+      authScopes: (_parent, args) => ({ permission: { resource: 'product', actions: ['create'], organization: Number(args.input.organizationId.id) } }),
+      resolve: async (_root, args, ctx) => {
+        const input = args.input
+        const productType = await ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ProductTypeService
+            return yield* svc.createType({
+              organizationId: Number(input.organizationId.id),
+              name: input.name,
+              slug: input.slug,
+              isShippingRequired: input.isShippingRequired,
+            })
+          }),
+        )
+        return { productType }
+      },
+    },
+    { ...sg('org').payload, outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The newly created organization-owned product type.' }) }) },
   )
 
   // ── updateProductType ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'updateProductType',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         id: t.globalID({ for: 'ProductType', required: true, description: 'References the ProductType node to update.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control; the update fails if it no longer matches.' }),
@@ -68,8 +106,9 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Updates a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
-      errors: { types: [ProductTypeNotFound, OptimisticLockError] },
+      errors: { types: [ProductTypeNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -93,21 +132,23 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         return { productType }
       },
     },
-    { outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The updated product type.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The updated product type.' }) }) },
   )
 
   // ── deleteProductType (soft delete) ────────────────────────────────────────
   builder.relayMutationField(
     'deleteProductType',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         id: t.globalID({ for: 'ProductType', required: true, description: 'References the ProductType node to soft-delete.' }),
         version: t.int({ required: true, description: 'Expected current version for optimistic-lock concurrency control; the deletion fails if it no longer matches.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Soft-deletes a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
-      errors: { types: [ProductTypeNotFound, OptimisticLockError] },
+      errors: { types: [ProductTypeNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -125,13 +166,14 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         return { productType }
       },
     },
-    { outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The soft-deleted product type.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ productType: t.field({ type: 'ProductType', resolve: p => p.productType, description: 'The soft-deleted product type.' }) }) },
   )
 
   // ── declareAttribute — gates on the TYPE's scope ───────────────────────────
   builder.relayMutationField(
     'declareAttribute',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productTypeId: t.globalID({ for: 'ProductType', required: true, description: 'References the ProductType node the attribute is being attached to.' }),
         organizationId: t.globalID({ for: 'Organization', required: false, description: 'References an Organization node. When set this is an org GRAFT extension where that organization extends a typically-global type, gated on that org; when null it is a BASE declaration scoped to the type\'s own org or global scope.' }),
@@ -142,8 +184,9 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Attaches an attribute to a product type. A BASE declaration (organizationId null) is scoped to the type\'s own org or global scope; an org GRAFT (organizationId set) lets that organization extend a typically-global type. Gates on the resulting scope.',
-      errors: { types: [InvalidAttributeDeclaration] },
+      errors: { types: [InvalidAttributeDeclaration], ...sg('org', 'admin').errorOpts },
       // An explicit `organizationId` makes this an org GRAFT onto the type → gate
       // on that org. Without it, it's a base declaration scoped to the type's own
       // org (global type → the user's global `product` perm).
@@ -177,21 +220,23 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         return { attribute }
       },
     },
-    { outputFields: t => ({ attribute: t.field({ type: 'ProductTypeAttribute', resolve: p => p.attribute, description: 'The resulting attribute declaration attached to the product type.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ attribute: t.field({ type: 'ProductTypeAttribute', resolve: p => p.attribute, description: 'The resulting attribute declaration attached to the product type.' }) }) },
   )
 
   // ── undeclareAttribute ─────────────────────────────────────────────────────
   builder.relayMutationField(
     'undeclareAttribute',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productTypeId: t.globalID({ for: 'ProductType', required: true, description: 'References the ProductType node the attribute declaration belongs to.' }),
         attributeAssignmentId: t.int({ required: true, description: 'Identifier of the attribute declaration to detach from the type.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Detaches an attribute declaration from a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.productTypeId.id))
         if (organization == null)
@@ -208,6 +253,6 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the attribute declaration was detached.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the attribute declaration was detached.' }) }) },
   )
 }

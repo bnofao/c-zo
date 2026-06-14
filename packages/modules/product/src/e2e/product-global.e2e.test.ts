@@ -534,21 +534,21 @@ describe('product global-catalog + two-org-graft e2e', () => {
   it('node-guard: org C reading an org-A-owned product node resolves to null (deny-as-null)', async () => {
     // Org A creates an ORG-OWNED product (not global) on a fresh org-A type.
     const aType = await h.gql(
-      `mutation($input:CreateProductTypeInput!){ createProductType(input:$input){ ... on CreateProductTypeSuccess { data { productType { id } } } } }`,
+      `mutation($input:CreateOrganizationProductTypeInput!){ createOrganizationProductType(input:$input){ ... on CreateOrganizationProductTypeSuccess { data { productType { id } } } } }`,
       { input: { organizationId: aOrgGlobalId, name: 'A Shirt', slug: 'a-shirt', isShippingRequired: true } },
       aToken,
     )
     expect(aType.errors).toBeUndefined()
-    const aTypeNumericId = Number(decodeGlobalID(aType.data.createProductType.data.productType.id).id)
+    const aTypeNumericId = Number(decodeGlobalID(aType.data.createOrganizationProductType.data.productType.id).id)
 
     const aProduct = await h.gql(
-      `mutation($input:CreateProductInput!){ createProduct(input:$input){ ... on CreateProductSuccess { data { product { id organizationId } } } } }`,
+      `mutation($input:CreateOrganizationProductInput!){ createOrganizationProduct(input:$input){ ... on CreateOrganizationProductSuccess { data { product { id organizationId } } } } }`,
       { input: { organizationId: aOrgGlobalId, productTypeId: aTypeNumericId, handle: 'a-owned-shirt', name: 'A Owned Shirt' } },
       aToken,
     )
     expect(aProduct.errors).toBeUndefined()
-    aOwnedProductGlobalId = aProduct.data.createProduct.data.product.id
-    expect(aProduct.data.createProduct.data.product.organizationId).toBe(aOrgNumericId)
+    aOwnedProductGlobalId = aProduct.data.createOrganizationProduct.data.product.id
+    expect(aProduct.data.createOrganizationProduct.data.product.organizationId).toBe(aOrgNumericId)
 
     // Org C reads that org-A node via `node(id:)` → denied as null (no leak).
     const cRead = await h.gql(

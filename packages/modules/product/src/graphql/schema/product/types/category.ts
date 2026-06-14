@@ -13,6 +13,7 @@ import { translatedField } from '@czo/translation/graphql'
 export function registerCategoryNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('categories', {
     name: 'Category',
+    subGraphs: ['org', 'admin'],
     description:
       'A node in the category tree. Categories are either global (organizationId null) or owned by a single organization, nest via a self parent/children relation, and group products through many-to-many placements.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
@@ -65,12 +66,14 @@ export function registerCategoryNode(builder: ProductGraphQLSchemaBuilder): void
         description: 'The parent category in the tree, or null when this is a root category.',
       }),
       children: t.relatedConnection('children', {
+        subGraphs: ['org', 'admin'],
         description: 'Direct child categories, excluding soft-deleted ones, ordered by their sibling position.',
         query: () => ({ where: { deletedAt: { isNull: true } }, orderBy: { position: 'asc' } }),
-      }),
+      }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }),
       products: t.relatedConnection('products', {
+        subGraphs: ['org', 'admin'],
         description: 'Product placements that assign products to this category.',
-      }),
+      }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }),
     }),
   })
 }

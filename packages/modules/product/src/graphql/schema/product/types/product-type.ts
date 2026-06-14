@@ -13,6 +13,7 @@ export function registerProductTypeNode(builder: ProductGraphQLSchemaBuilder): v
   // (no FK), exposed as a plain Int for the client to resolve out-of-band.
   builder.drizzleNode('productTypeAttributes', {
     name: 'ProductTypeAttribute',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'Declares that an attribute applies to a product type, either to its products or its variants. Base declarations belong to the type itself; org extensions graft additional declarations onto a (typically global) type.',
     select: true,
@@ -44,6 +45,7 @@ export function registerProductTypeNode(builder: ProductGraphQLSchemaBuilder): v
   // ── ProductType node ───────────────────────────────────────────────────────
   builder.drizzleNode('productTypes', {
     name: 'ProductType',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A central pivot that declares which attributes apply to its products and variants. A type is global (organizationId null) or org-owned, and an org can extend a global type with its own attribute declarations.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
@@ -79,6 +81,7 @@ export function registerProductTypeNode(builder: ProductGraphQLSchemaBuilder): v
 
       organization: t.relation('organization', {
         nullable: true,
+        subGraphs: ['org', 'admin'],
         description:
           'Owning organization, or null when the type is global.',
       }),
@@ -87,10 +90,11 @@ export function registerProductTypeNode(builder: ProductGraphQLSchemaBuilder): v
       // NULL`) plus org extensions; left unfiltered here so a type fully exposes
       // its declaration set (consumers scope grafts on the value side).
       attributes: t.relatedConnection('attributes', {
+        subGraphs: ['public', 'org', 'admin'],
         description:
           'Attribute declarations for this type, ordered by position, covering both base declarations and org grafts.',
         query: () => ({ orderBy: { position: 'asc' } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
     }),
   })
 }

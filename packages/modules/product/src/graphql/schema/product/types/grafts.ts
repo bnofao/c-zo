@@ -16,6 +16,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── ProductAttributeValue — a product's grafted attribute value ─────────────
   builder.drizzleNode('productAttributeValues', {
     name: 'ProductAttributeValue',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A graft row binding a product to one of its attribute values; null organizationId is the base assignment, a set organizationId is a specific org\'s overlay.',
     select: true,
@@ -35,6 +36,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── VariantAttributeValue — a variant's grafted (selection) value ───────────
   builder.drizzleNode('variantAttributeValues', {
     name: 'VariantAttributeValue',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A graft row binding a variant to one of its selection attribute values; null organizationId is the base assignment, a set organizationId is a specific org\'s overlay.',
     select: true,
@@ -54,6 +56,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── ProductChannelListing — a product's publication on a channel ────────────
   builder.drizzleNode('productChannelListings', {
     name: 'ProductChannelListing',
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A graft row publishing a product onto a sales channel, carrying that channel-specific publication state.',
     select: true,
     id: { column: c => c.id },
@@ -81,6 +84,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── ProductCategory — a product↔category placement (graft) ──────────────────
   builder.drizzleNode('productCategories', {
     name: 'ProductCategory',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A graft row placing a product into a category; null organizationId is the base placement, a set organizationId is a specific org\'s overlay.',
     select: true,
@@ -98,6 +102,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── CollectionProduct — a collection↔product membership (global link) ───────
   builder.drizzleNode('collectionProducts', {
     name: 'CollectionProduct',
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A link row recording that a product belongs to a collection.',
     select: true,
     id: { column: c => c.id },
@@ -110,6 +115,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── VariantInventoryItem — a variant's grafted inventory link ───────────────
   builder.drizzleNode('variantInventoryItems', {
     name: 'VariantInventoryItem',
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A graft row linking a variant to an inventory item it draws stock from, with the quantity each unit requires.',
     select: true,
     id: { column: c => c.id },
@@ -124,6 +130,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── VariantMedia — a variant↔media link (global link table) ─────────────────
   builder.drizzleNode('variantMedia', {
     name: 'VariantMedia',
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A link row associating a variant with a media asset.',
     select: true,
     id: { column: c => c.id },

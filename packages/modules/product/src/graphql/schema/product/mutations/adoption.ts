@@ -13,12 +13,14 @@ import {
   CannotAdoptOwnedProduct,
   ProductNotFound,
 } from '../../../../services'
+import { sg } from '../subgraphs'
 
 export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder): void {
   // ── adoptProduct ───────────────────────────────────────────────────────────
   builder.relayMutationField(
     'adoptProduct',
     {
+      ...sg('org').input,
       inputFields: t => ({
         productId: t.globalID({
           for: 'Product',
@@ -33,9 +35,10 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
       }),
     },
     {
+      ...sg('org').field,
       description:
         'Adopts a global product into an organization so the org may graft org-scoped data (prices, attributes, inventory, media, channel listings) onto it. Idempotent: re-adopting an already-adopted product is a no-op. Rejects org-owned products with CannotAdoptOwnedProduct.',
-      errors: { types: [ProductNotFound, CannotAdoptOwnedProduct] },
+      errors: { types: [ProductNotFound, CannotAdoptOwnedProduct], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['create'], organization: Number(args.input.organization.id) },
       }),
@@ -54,6 +57,7 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         productId: t.int({ description: 'Database ID of the adopted global product.', resolve: p => p.productId }),
         organizationId: t.int({
@@ -68,6 +72,7 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
   builder.relayMutationField(
     'unadoptProduct',
     {
+      ...sg('org').input,
       inputFields: t => ({
         productId: t.globalID({
           for: 'Product',
@@ -82,9 +87,10 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
       }),
     },
     {
+      ...sg('org').field,
       description:
         'Unadopts a global product from an organization: soft-deletes the adoption and purges all of that org\'s grafts (prices, attributes, inventory, media, channel listings) on the product. The base global product data is left intact. Fails with AdoptionNotFound when no adoption exists.',
-      errors: { types: [AdoptionNotFound] },
+      errors: { types: [AdoptionNotFound], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['delete'], organization: Number(args.input.organization.id) },
       }),
@@ -103,6 +109,7 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         success: t.boolean({ description: 'True when the adoption was removed and the org grafts purged.', resolve: p => p.success }),
       }),

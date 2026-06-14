@@ -118,12 +118,12 @@ describe('product org-owned flow e2e', () => {
 
   it('creates an org product type and declares a variant-selection DROPDOWN attribute', async () => {
     const created = await h.gql(
-      `mutation($input:CreateProductTypeInput!){ createProductType(input:$input){ ... on CreateProductTypeSuccess { data { productType { id } } } } }`,
+      `mutation($input:CreateOrganizationProductTypeInput!){ createOrganizationProductType(input:$input){ ... on CreateOrganizationProductTypeSuccess { data { productType { id } } } } }`,
       { input: { organizationId: orgGlobalId, name: 'Shirt', slug: 'shirt', isShippingRequired: true } },
       token,
     )
     expect(created.errors).toBeUndefined()
-    typeGlobalId = created.data.createProductType.data.productType.id
+    typeGlobalId = created.data.createOrganizationProductType.data.productType.id
     expect(typeGlobalId).toBeTruthy()
 
     // variant-selection attribute (assignment VARIANT + variantSelection true).
@@ -147,13 +147,13 @@ describe('product org-owned flow e2e', () => {
   it('creates an org-owned product on that type', async () => {
     productHandle = 'acme-shirt'
     const created = await h.gql(
-      `mutation($input:CreateProductInput!){ createProduct(input:$input){ ... on CreateProductSuccess { data { product { id handle } } } } }`,
+      `mutation($input:CreateOrganizationProductInput!){ createOrganizationProduct(input:$input){ ... on CreateOrganizationProductSuccess { data { product { id handle } } } } }`,
       { input: { organizationId: orgGlobalId, productTypeId: Number(decodeGlobalID(typeGlobalId).id), handle: productHandle, name: 'Acme Shirt' } },
       token,
     )
     expect(created.errors).toBeUndefined()
-    productGlobalId = created.data.createProduct.data.product.id
-    expect(created.data.createProduct.data.product.handle).toBe(productHandle)
+    productGlobalId = created.data.createOrganizationProduct.data.product.id
+    expect(created.data.createOrganizationProduct.data.product.handle).toBe(productHandle)
   })
 
   it('creates two variants with distinct selection; a 3rd duplicate fails DuplicateVariantMatrix', async () => {

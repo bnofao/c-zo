@@ -16,6 +16,7 @@ import {
 } from '../../../../services'
 import { loadMediaOrganizationId } from '../authz'
 import { productEnumRefs } from '../inputs'
+import { sg } from '../subgraphs'
 
 export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): void {
   const enums = productEnumRefs()
@@ -23,6 +24,7 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
   builder.relayMutationField(
     'addMedia',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productId: t.int({ required: true, description: 'Identifies the product the media asset is attached to.' }),
         organizationId: t.globalID({ for: 'Organization', required: false, description: 'References an Organization node. When null, the media is created as a global BASE row; when set, it is created as an organization-scoped GRAFT over the product.' }),
@@ -33,8 +35,9 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Adds a media asset to a product, either as a global BASE row when organizationId is null or as an organization-scoped GRAFT when it is set.',
-      errors: { types: [ProductNotAdopted] },
+      errors: { types: [ProductNotAdopted], ...sg('org', 'admin').errorOpts },
       authScopes: (_parent, args) =>
         args.input.organizationId == null
           ? { permission: { resource: 'product', actions: ['update'] } }
@@ -57,13 +60,14 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
         return { media }
       },
     },
-    { outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The newly created product media asset.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The newly created product media asset.' }) }) },
   )
 
   // ── updateMedia — gates on the MEDIA row's org ─────────────────────────────
   builder.relayMutationField(
     'updateMedia',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         id: t.globalID({ for: 'ProductMedia', required: true, description: 'References the ProductMedia node to update.' }),
         version: t.int({ required: true, description: 'The expected current version for optimistic-locking; the update fails if it does not match.' }),
@@ -74,8 +78,9 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Updates an existing media asset, authorized against the owning organization of the media row.',
-      errors: { types: [MediaNotFound, OptimisticLockError] },
+      errors: { types: [MediaNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadMediaOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -100,21 +105,23 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
         return { media }
       },
     },
-    { outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The updated product media asset.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The updated product media asset.' }) }) },
   )
 
   // ── removeMedia (soft delete) — gates on the MEDIA row's org ───────────────
   builder.relayMutationField(
     'removeMedia',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         id: t.globalID({ for: 'ProductMedia', required: true, description: 'References the ProductMedia node to remove.' }),
         version: t.int({ required: true, description: 'The expected current version for optimistic-locking; the removal fails if it does not match.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Soft-deletes an existing media asset, authorized against the owning organization of the media row.',
-      errors: { types: [MediaNotFound, OptimisticLockError] },
+      errors: { types: [MediaNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadMediaOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -132,21 +139,23 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
         return { media }
       },
     },
-    { outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The soft-deleted product media asset.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ media: t.field({ type: 'ProductMedia', resolve: p => p.media, description: 'The soft-deleted product media asset.' }) }) },
   )
 
   // ── linkVariantMedia — gates on the MEDIA row's org ────────────────────────
   builder.relayMutationField(
     'linkVariantMedia',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         variantId: t.globalID({ for: 'ProductVariant', required: true, description: 'References the ProductVariant node to attach the media asset to.' }),
         mediaId: t.globalID({ for: 'ProductMedia', required: true, description: 'References the ProductMedia node to attach to the variant.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Attaches a media asset to a specific product variant via the global link table, authorized against the owning organization of the media row.',
-      errors: { types: [MediaNotFound] },
+      errors: { types: [MediaNotFound], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id))
         if (organization == null)
@@ -167,21 +176,23 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the media asset was successfully linked to the variant.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the media asset was successfully linked to the variant.' }) }) },
   )
 
   // ── unlinkVariantMedia — gates on the MEDIA row's org ──────────────────────
   builder.relayMutationField(
     'unlinkVariantMedia',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         variantId: t.globalID({ for: 'ProductVariant', required: true, description: 'References the ProductVariant node to detach the media asset from.' }),
         mediaId: t.globalID({ for: 'ProductMedia', required: true, description: 'References the ProductMedia node to detach from the variant.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Detaches a media asset from a specific product variant via the global link table, authorized against the owning organization of the media row.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id))
         if (organization == null)
@@ -202,6 +213,6 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the media asset was successfully unlinked from the variant.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the media asset was successfully unlinked from the variant.' }) }) },
   )
 }

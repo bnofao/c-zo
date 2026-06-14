@@ -24,6 +24,7 @@ import {
   VariantNotFound,
 } from '../../../../services'
 import { loadProductOrganizationId, loadVariantOrganizationId } from '../authz'
+import { sg } from '../subgraphs'
 
 // A decoded relay global-id input value (Pothos relay plugin shape).
 interface GID { typename: string, id: string }
@@ -72,6 +73,7 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
   builder.relayMutationField(
     'assignProductValue',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productId: t.globalID({ for: 'Product', required: true, description: 'The Product node to assign the value onto.' }),
         organizationId: t.globalID({ for: 'Organization', required: false, description: 'When null the assignment is a global BASE write; when set it is an org GRAFT scoped to this Organization, requiring a live adoption if the product is global.' }),
@@ -80,8 +82,9 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Assigns an attribute value onto a product. A BASE assignment (no organizationId) is global; an org GRAFT (organizationId set) requires a live adoption when the product is global.',
-      errors: { types: [ProductNotFound, ProductNotAdopted, ProductTypeNotFound, AttributeNotAssignedToType, ValueKindMismatch] },
+      errors: { types: [ProductNotFound, ProductNotAdopted, ProductTypeNotFound, AttributeNotAssignedToType, ValueKindMismatch], ...sg('org', 'admin').errorOpts },
       authScopes: (_parent, args) => orgGate(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -99,13 +102,14 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
         return { pivotIds: values.map(v => v.id) }
       },
     },
-    { outputFields: t => ({ pivotIds: t.intList({ resolve: p => p.pivotIds, description: 'The ids of the affected assignment pivot rows.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ pivotIds: t.intList({ resolve: p => p.pivotIds, description: 'The ids of the affected assignment pivot rows.' }) }) },
   )
 
   // ── assignVariantValue ─────────────────────────────────────────────────────
   builder.relayMutationField(
     'assignVariantValue',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         variantId: t.globalID({ for: 'ProductVariant', required: true, description: 'The ProductVariant node to assign the value onto.' }),
         organizationId: t.globalID({ for: 'Organization', required: false, description: 'When null the assignment is a global BASE write; when set it is an org GRAFT scoped to this Organization, requiring a live adoption if the variant\'s product is global.' }),
@@ -114,8 +118,9 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Assigns an attribute value onto a product variant. A BASE assignment (no organizationId) is global; an org GRAFT (organizationId set) requires a live adoption when the product is global.',
-      errors: { types: [ProductNotFound, ProductNotAdopted, ProductTypeNotFound, AttributeNotAssignedToType, ValueKindMismatch, VariantNotFound] },
+      errors: { types: [ProductNotFound, ProductNotAdopted, ProductTypeNotFound, AttributeNotAssignedToType, ValueKindMismatch, VariantNotFound], ...sg('org', 'admin').errorOpts },
       authScopes: (_parent, args) => orgGate(args.input.organizationId),
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -133,21 +138,23 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
         return { pivotIds: values.map(v => v.id) }
       },
     },
-    { outputFields: t => ({ pivotIds: t.intList({ resolve: p => p.pivotIds, description: 'The ids of the affected assignment pivot rows.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ pivotIds: t.intList({ resolve: p => p.pivotIds, description: 'The ids of the affected assignment pivot rows.' }) }) },
   )
 
   // ── unassignProductValue — gates on the PRODUCT's org ──────────────────────
   builder.relayMutationField(
     'unassignProductValue',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         pivotId: t.int({ required: true, description: 'The id of the assignment pivot row to remove. Select-type values keep the shared catalog row; scalar-type values delete the minted value row.' }),
         subjectId: t.int({ required: true, description: 'The id of the owning product, used only to resolve the authorization organization.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Removes an attribute value assignment from a product, identified by its pivot row id.',
-      errors: { types: [AssignmentNotFound] },
+      errors: { types: [AssignmentNotFound], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadProductOrganizationId(ctx, args.input.subjectId)
         if (organization == null)
@@ -164,21 +171,23 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the assignment was removed.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the assignment was removed.' }) }) },
   )
 
   // ── unassignVariantValue — gates on the VARIANT's org ──────────────────────
   builder.relayMutationField(
     'unassignVariantValue',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         pivotId: t.int({ required: true, description: 'The id of the assignment pivot row to remove. Select-type values keep the shared catalog row; scalar-type values delete the minted value row.' }),
         subjectId: t.int({ required: true, description: 'The id of the owning variant, used only to resolve the authorization organization.' }),
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Removes an attribute value assignment from a product variant, identified by its pivot row id.',
-      errors: { types: [AssignmentNotFound] },
+      errors: { types: [AssignmentNotFound], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadVariantOrganizationId(ctx, args.input.subjectId)
         if (organization == null)
@@ -195,6 +204,6 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the assignment was removed.' }) }) },
+    { ...sg('org', 'admin').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the assignment was removed.' }) }) },
   )
 }

@@ -28,10 +28,12 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   // ── Enums (referenced by ref from the per-mutation inputFields) ──────────────
   refs = {
     AttributeAssignment: builder.enumType('ProductAttributeAssignment', {
+      subGraphs: ['org', 'admin'],
       description: 'Where an attribute is assigned on a product type: PRODUCT (one value per product) or VARIANT (selectable per variant). Attributes flagged for variant selection drive the variant matrix.',
       values: { PRODUCT: { value: 'PRODUCT' }, VARIANT: { value: 'VARIANT' } } as const,
     }),
     MediaType: builder.enumType('ProductMediaType', {
+      subGraphs: ['org', 'admin'],
       description: 'The kind of a product/variant media asset: IMAGE or VIDEO.',
       values: { IMAGE: { value: 'IMAGE' }, VIDEO: { value: 'VIDEO' } } as const,
     }),
@@ -40,6 +42,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   // ── Nested value objects (used as a field `type` inside other inputs) ────────
   // selection pairs for the variant matrix-uniqueness check (attributeId + valueId).
   builder.inputType('VariantSelectionPairInput', {
+    subGraphs: ['org', 'admin'],
     description: 'One (attribute, value) pair of a variant\'s option selection. The full set of pairs defines the variant\'s position in the product\'s option matrix and must be unique among siblings.',
     fields: t => ({
       attributeId: t.int({ required: true, description: 'Raw id of a variant-selection attribute declared on the product\'s type.' }),
@@ -52,6 +55,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   // optional; the resolver narrows by presence and the service rejects a
   // malformed shape as ValueKindMismatch.
   builder.inputType('AssignmentTextValueInput', {
+    subGraphs: ['org', 'admin'],
     description: 'A text attribute value: required plain text plus optional rich (structured JSON) content.',
     fields: t => ({
       plain: t.string({ required: true, description: 'Plain-text representation of the value.' }),
@@ -60,6 +64,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   })
 
   builder.inputType('AssignmentFileValueInput', {
+    subGraphs: ['org', 'admin'],
     description: 'A file attribute value: the asset URL and its MIME type.',
     fields: t => ({
       fileUrl: t.string({ required: true, description: 'URL of the uploaded file asset.' }),
@@ -68,6 +73,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   })
 
   builder.inputType('AssignmentValueInput', {
+    subGraphs: ['org', 'admin'],
     description: 'The value to assign for an attribute. Exactly one member must match the attribute\'s type: `valueIds` for select types, otherwise one of the scalar members. A mismatched shape is rejected as ValueKindMismatch.',
     fields: t => ({
       valueIds: t.field({ type: ['Int'], description: 'For select attributes (DROPDOWN/MULTISELECT/SWATCH/REFERENCE): the chosen catalog value id(s).' }),
