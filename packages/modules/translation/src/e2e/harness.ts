@@ -4,6 +4,7 @@
  * handler. `grantGlobalRole` is copied from auth's harness (sets the user's
  * GLOBAL `users.role`). `seedWidgets` inserts demo rows proving `translatedField`.
  */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -42,7 +43,11 @@ export interface TranslationHarness {
   readonly seedWidgets: () => Promise<void>
 }
 
-export async function bootTranslationApp(): Promise<TranslationHarness> {
+export interface BootTranslationOptions {
+  readonly subGraphs?: ReadonlyArray<SubGraphName>
+}
+
+export async function bootTranslationApp(options: BootTranslationOptions = {}): Promise<TranslationHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -53,6 +58,7 @@ export async function bootTranslationApp(): Promise<TranslationHarness> {
     bootTestApp({
       modules: [authModule, translationModule, widgetFixtureModule],
       migrations: [AUTH_MIGRATIONS, TRANSLATION_MIGRATIONS, WIDGET_FIXTURE_MIGRATIONS],
+      ...(options.subGraphs ? { buildOptions: { subGraphs: options.subGraphs } } : {}),
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

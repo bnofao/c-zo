@@ -5,6 +5,6 @@ import { LocaleCodeTaken, LocaleNotFound } from '../../../services/locale'
 export { LocaleCodeTaken, LocaleNotFound }
 
 export function registerLocaleErrors(builder: TranslationGraphQLSchemaBuilder): void {
-  registerError(builder, LocaleNotFound, { name: 'LocaleNotFoundError' })
-  registerError(builder, LocaleCodeTaken, { name: 'LocaleCodeTakenError', fields: t => ({ localeCode: t.exposeString('localeCode') }) })
+  registerError(builder, LocaleNotFound, { name: 'LocaleNotFoundError', subGraphs: ['admin'] })
+  registerError(builder, LocaleCodeTaken, { name: 'LocaleCodeTakenError', subGraphs: ['admin'], fields: t => ({ localeCode: t.exposeString('localeCode') }) })
 }
