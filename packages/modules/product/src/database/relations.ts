@@ -28,6 +28,7 @@ type ProductSchema = Pick<
   | 'categoryTranslations'
   | 'collectionTranslations'
   | 'variantTranslations'
+  | 'taxonomyRequests'
 >
 
 export function productRelations(schema: ProductSchema) {
@@ -53,10 +54,11 @@ export function productRelations(schema: ProductSchema) {
     categoryTranslations,
     collectionTranslations,
     variantTranslations,
+    taxonomyRequests,
   } = schema
 
   return defineRelationsPart(
-    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations },
+    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests },
     r => ({
       productTypes: {
         organization: r.one.organizations({ from: r.productTypes.organizationId, to: r.organizations.id }),
@@ -143,6 +145,9 @@ export function productRelations(schema: ProductSchema) {
       collectionProducts: {
         collection: r.one.collections({ from: r.collectionProducts.collectionId, to: r.collections.id }),
         product: r.one.products({ from: r.collectionProducts.productId, to: r.products.id }),
+      },
+      taxonomyRequests: {
+        organization: r.one.organizations({ from: r.taxonomyRequests.organizationId, to: r.organizations.id }),
       },
     }),
   )

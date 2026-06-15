@@ -16,6 +16,7 @@ import { registerMediaMutations } from './media'
 import { registerPriceBindingMutations } from './priceBinding'
 import { registerProductMutations as registerProductCoreMutations } from './product'
 import { registerProductTypeMutations } from './productType'
+import { registerTaxonomyRequestMutations } from './taxonomyRequest'
 import { registerTranslationMutations } from './translation'
 import { registerVariantMutations } from './variant'
 
@@ -34,4 +35,5 @@ export function registerProductMutations(builder: ProductGraphQLSchemaBuilder): 
   registerMediaMutations(builder)
   registerTranslationMutations(builder)
   registerAdoptionMutations(builder)
+  registerTaxonomyRequestMutations(builder)
 }

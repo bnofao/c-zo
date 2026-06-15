@@ -5,6 +5,9 @@ import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp
 export const attributeAssignmentEnum = pgEnum('product_attribute_assignment', ['PRODUCT', 'VARIANT'])
 export const valueKindEnum = pgEnum('product_value_kind', ['VALUE', 'SWATCH', 'REFERENCE', 'TEXT', 'NUMERIC', 'BOOLEAN', 'DATE', 'FILE'])
 export const mediaTypeEnum = pgEnum('product_media_type', ['IMAGE', 'VIDEO'])
+export const taxonomyRequestKindEnum = pgEnum('taxonomy_request_kind', ['create', 'promote'])
+export const taxonomyEntityTypeEnum = pgEnum('taxonomy_entity_type', ['category', 'product_type'])
+export const taxonomyRequestStateEnum = pgEnum('taxonomy_request_state', ['pending', 'approved', 'rejected'])
 export const listingReviewStateEnum = pgEnum('product_listing_review_state', ['pending', 'approved', 'rejected', 'suspended'])
 
 export const productTypes = pgTable('product_types', {
@@ -209,6 +212,25 @@ export const productChannelListings = pgTable('product_channel_listings', {
   index('product_channel_listings_channel_idx').on(t.channelId),
 ])
 
+export const taxonomyRequests = pgTable('taxonomy_requests', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity({ startWith: 1, increment: 1 }),
+  kind: taxonomyRequestKindEnum('kind').notNull(),
+  entityType: taxonomyEntityTypeEnum('entity_type').notNull(),
+  organizationId: integer('organization_id').notNull(),
+  payload: jsonb('payload'),
+  targetId: integer('target_id'),
+  state: taxonomyRequestStateEnum('state').notNull().default('pending'),
+  reviewReason: text('review_reason'),
+  reviewedAt: timestamp('reviewed_at'),
+  resultId: integer('result_id'),
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, t => [
+  index('taxonomy_requests_state_idx').on(t.state),
+  index('taxonomy_requests_org_idx').on(t.organizationId),
+])
+
 export const productMedia = pgTable('product_media', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({ startWith: 1, increment: 1 }),
   productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
@@ -295,5 +317,6 @@ declare module '@czo/kit/db' {
     categoryTranslations: typeof categoryTranslations
     collectionTranslations: typeof collectionTranslations
     variantTranslations: typeof variantTranslations
+    taxonomyRequests: typeof taxonomyRequests
   }
 }

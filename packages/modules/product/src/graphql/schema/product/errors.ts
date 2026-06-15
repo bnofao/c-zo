@@ -5,8 +5,10 @@ import {
   AssignmentNotFound,
   AttributeNotAssignedToType,
   CannotAdoptOwnedProduct,
+  CategoryAlreadyGlobal,
   CategoryCycle,
   CategoryNotFound,
+  CategoryParentNotGlobal,
   CategorySlugTaken,
   ChannelListingNotFound,
   CollectionNotFound,
@@ -23,6 +25,8 @@ import {
   ProductNotFound,
   ProductTypeNotFound,
   SkuTaken,
+  TaxonomyRequestNotFound,
+  TaxonomyRequestNotPending,
   ValueKindMismatch,
   VariantNotFound,
 } from '../../../services'
@@ -55,4 +59,8 @@ export function registerProductErrors(builder: ProductGraphQLSchemaBuilder): voi
   registerError(builder, CollectionNotFound, { name: 'CollectionNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, ChannelListingNotFound, { name: 'ChannelListingNotFoundError', subGraphs: ['admin'] })
   registerError(builder, NotAMarketplaceChannel, { name: 'NotAMarketplaceChannelError', subGraphs: ['admin'] })
+  registerError(builder, CategoryAlreadyGlobal, { name: 'CategoryAlreadyGlobalError', subGraphs: ['org', 'admin'] })
+  registerError(builder, CategoryParentNotGlobal, { name: 'CategoryParentNotGlobalError', subGraphs: ['admin'] })
+  registerError(builder, TaxonomyRequestNotFound, { name: 'TaxonomyRequestNotFoundError', subGraphs: ['admin'] })
+  registerError(builder, TaxonomyRequestNotPending, { name: 'TaxonomyRequestNotPendingError', subGraphs: ['admin'] })
 }

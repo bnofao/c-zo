@@ -9,6 +9,7 @@ import type {
   ProductType,
   ProductTypeAttribute,
   ProductVariant,
+  TaxonomyRequest,
 } from '../services'
 // Pull in auth's module augmentation so cross-module ctx slices (`ctx.auth`)
 // and object refs (`'Organization'`) resolve against the shared interfaces.
@@ -46,6 +47,7 @@ declare module '@czo/kit/graphql' {
     Collection: Collection
     ProductMedia: ProductMedia
     ProductChannelListing: ProductChannelListing
+    TaxonomyRequest: TaxonomyRequest
   }
 
   interface SchemaBuilderRefs {}

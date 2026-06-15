@@ -21,6 +21,9 @@ export interface ProductEnumRefs {
   AttributeAssignment: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'PRODUCT' | 'VARIANT' }
   MediaType: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'IMAGE' | 'VIDEO' }
   ListingReviewState: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'pending' | 'approved' | 'rejected' | 'suspended' }
+  TaxonomyRequestKind: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'create' | 'promote' }
+  TaxonomyEntityType: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'category' | 'product_type' }
+  TaxonomyRequestState: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'pending' | 'approved' | 'rejected' }
 }
 
 let refs: ProductEnumRefs | undefined
@@ -42,6 +45,21 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
       subGraphs: ['org', 'admin'],
       description: 'Admin moderation state of a product listing on the marketplace: PENDING (awaiting review), APPROVED (live-eligible), REJECTED, or SUSPENDED.',
       values: { PENDING: { value: 'pending' }, APPROVED: { value: 'approved' }, REJECTED: { value: 'rejected' }, SUSPENDED: { value: 'suspended' } } as const,
+    }),
+    TaxonomyRequestKind: builder.enumType('TaxonomyRequestKind', {
+      subGraphs: ['org', 'admin'],
+      description: 'Whether the request asks to CREATE a new global taxonomy or PROMOTE an existing org one.',
+      values: { CREATE: { value: 'create' }, PROMOTE: { value: 'promote' } } as const,
+    }),
+    TaxonomyEntityType: builder.enumType('TaxonomyEntityType', {
+      subGraphs: ['org', 'admin'],
+      description: 'The taxonomy entity a request concerns.',
+      values: { CATEGORY: { value: 'category' }, PRODUCT_TYPE: { value: 'product_type' } } as const,
+    }),
+    TaxonomyRequestState: builder.enumType('TaxonomyRequestState', {
+      subGraphs: ['org', 'admin'],
+      description: 'Moderation state of a taxonomy request.',
+      values: { PENDING: { value: 'pending' }, APPROVED: { value: 'approved' }, REJECTED: { value: 'rejected' } } as const,
     }),
   }
 

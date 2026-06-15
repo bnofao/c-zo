@@ -27,6 +27,7 @@ import {
   CollectionService,
   ProductService,
   ProductTypeService,
+  TaxonomyRequestService,
 } from '../../../services'
 import {
   loadCategoryOrganizationId,
@@ -34,6 +35,7 @@ import {
   loadProductOrganizationId,
   loadProductTypeOrganizationId,
 } from './authz'
+import { productEnumRefs } from './inputs'
 
 export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): void {
   // ── productType(id) — admin single lookup ──────────────────────────────────
@@ -244,5 +246,35 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
             return yield* svc.listCollections(Number(args.organization.id))
           }),
         ) as Promise<any>,
+    }))
+
+  // ── taxonomyRequests — admin moderation queue ───────────────────────────────
+  builder.queryField('taxonomyRequests', t =>
+    t.field({
+      type: ['TaxonomyRequest'],
+      subGraphs: ['admin'],
+      description: 'Lists taxonomy requests for platform review, optionally filtered by state. Requires the global `product:read` role.',
+      args: { state: t.arg({ type: productEnumRefs().TaxonomyRequestState, required: false, description: 'Optional state filter.' }) },
+      authScopes: { permission: { resource: 'product', actions: ['read'] } },
+      resolve: async (_root, args, ctx) =>
+        ctx.runEffect(Effect.gen(function* () {
+          const svc = yield* TaxonomyRequestService
+          return yield* svc.listForAdmin((args.state ?? undefined) as 'pending' | 'approved' | 'rejected' | undefined)
+        })) as Promise<any>,
+    }))
+
+  // ── organizationTaxonomyRequests — an org's own requests ─────────────────────
+  builder.queryField('organizationTaxonomyRequests', t =>
+    t.field({
+      type: ['TaxonomyRequest'],
+      subGraphs: ['org'],
+      description: 'Lists the taxonomy requests submitted by an organization, with their state and any rejection reason. Requires `product:read` in that organization.',
+      args: { organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose requests to list.' }) },
+      authScopes: (_p, args) => ({ permission: { resource: 'product', actions: ['read'], organization: Number(args.organizationId.id) } }),
+      resolve: async (_root, args, ctx) =>
+        ctx.runEffect(Effect.gen(function* () {
+          const svc = yield* TaxonomyRequestService
+          return yield* svc.listForOrg(Number(args.organizationId.id))
+        })) as Promise<any>,
     }))
 }

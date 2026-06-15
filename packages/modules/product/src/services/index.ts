@@ -9,6 +9,7 @@ import { MediaServiceLive } from './media'
 import { PriceBindingServiceLive } from './price-binding'
 import { ProductServiceLive } from './product'
 import { ProductTypeServiceLive } from './product-type'
+import { TaxonomyRequestServiceLive } from './taxonomy-request'
 import { TranslationServiceLive } from './translation'
 import { VariantServiceLive } from './variant'
 
@@ -39,9 +40,11 @@ export type {
   VariantAttributeValue,
 } from './attribute-assignment'
 export {
+  CategoryAlreadyGlobal,
   CategoryCycle,
   CategoryDbFailed,
   CategoryNotFound,
+  CategoryParentNotGlobal,
   CategoryService,
   CategoryServiceLive,
   CategorySlugTaken,
@@ -130,6 +133,14 @@ export type {
   UpdateProductTypeInput,
 } from './product-type'
 export {
+  TaxonomyRequestDbFailed,
+  TaxonomyRequestNotFound,
+  TaxonomyRequestNotPending,
+  TaxonomyRequestService,
+  TaxonomyRequestServiceLive,
+} from './taxonomy-request'
+export type { CategoryCreationInput, CategoryPromotionInput, TaxonomyRequest } from './taxonomy-request'
+export {
   TranslationDbFailed,
   TranslationService,
   TranslationServiceLive,
@@ -191,11 +202,12 @@ export const ProductModuleLive = Layer.mergeAll(
   AttributeAssignmentServiceLive,
   PriceBindingServiceLive,
   InventoryBindingServiceLive,
-  CategoryServiceLive,
   CollectionServiceLive,
   ChannelListingServiceLive,
   MediaServiceLive,
   TranslationServiceLive,
+  TaxonomyRequestServiceLive,
 ).pipe(
+  Layer.provideMerge(CategoryServiceLive),
   Layer.provideMerge(ProductCoreLive),
 )

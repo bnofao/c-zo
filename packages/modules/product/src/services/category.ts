@@ -23,6 +23,16 @@ export class CategorySlugTaken extends Data.TaggedError('CategorySlugTaken')<{ r
   get message() { return `Category slug '${this.slug}' is already taken in this scope` }
 }
 
+export class CategoryAlreadyGlobal extends Data.TaggedError('CategoryAlreadyGlobal')<{ readonly id: number }> {
+  readonly code = 'CATEGORY_ALREADY_GLOBAL'
+  get message() { return 'Category is already global' }
+}
+
+export class CategoryParentNotGlobal extends Data.TaggedError('CategoryParentNotGlobal')<{ readonly parentId: number }> {
+  readonly code = 'CATEGORY_PARENT_NOT_GLOBAL'
+  get message() { return 'A global category requires a global parent' }
+}
+
 export class CategoryDbFailed extends Data.TaggedError('CategoryDbFailed')<{ readonly cause: unknown }> {
   readonly code = 'CATEGORY_DB_FAILED'
   get message() { return 'Database operation failed' }
@@ -65,6 +75,7 @@ export class CategoryService extends Context.Service<CategoryService, {
   readonly placeProduct: (input: { productId: number, categoryId: number, organizationId: number | null }) => Effect.Effect<ProductCategory, CategoryNotFound | CategoryDbFailed>
   readonly removePlacement: (input: { productId: number, categoryId: number, organizationId: number | null }) => Effect.Effect<void, CategoryDbFailed>
   readonly listProductCategories: (input: { productId: number, orgId: number }) => Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
+  readonly promoteToGlobal: (categoryId: number) => Effect.Effect<Category, CategoryNotFound | CategoryAlreadyGlobal | CategoryParentNotGlobal | CategorySlugTaken | CategoryDbFailed>
 }>()('@czo/product/CategoryService') {}
 
 type CategoryServiceImpl = Context.Service.Shape<typeof CategoryService>
@@ -289,6 +300,39 @@ export const make = Effect.gen(function* () {
         .filter((c): c is Category => c !== undefined && c.deletedAt === null)
     })
 
+  const promoteToGlobal: CategoryServiceImpl['promoteToGlobal'] = categoryId =>
+    Effect.gen(function* () {
+      const category = yield* dbErr(db.query.categories.findFirst({
+        where: { id: categoryId, deletedAt: { isNull: true as const } },
+      }))
+      if (!category)
+        return yield* Effect.fail(new CategoryNotFound({ id: categoryId }))
+      if (category.organizationId === null)
+        return yield* Effect.fail(new CategoryAlreadyGlobal({ id: categoryId }))
+
+      if (category.parentId !== null) {
+        const parent = yield* dbErr(db.query.categories.findFirst({
+          where: { id: category.parentId, deletedAt: { isNull: true as const } },
+          columns: { organizationId: true },
+        }))
+        if (!parent || parent.organizationId !== null)
+          return yield* Effect.fail(new CategoryParentNotGlobal({ parentId: category.parentId }))
+      }
+
+      const clash = yield* dbErr(db.query.categories.findFirst({
+        where: { organizationId: { isNull: true as const }, slug: category.slug, deletedAt: { isNull: true as const } },
+      }))
+      if (clash)
+        return yield* Effect.fail(new CategorySlugTaken({ slug: category.slug }))
+
+      const [row] = yield* dbErr(db
+        .update(categoriesTable)
+        .set({ organizationId: null, version: category.version + 1, updatedAt: sql`NOW()` as any })
+        .where(sql`${categoriesTable.id} = ${categoryId} AND ${categoriesTable.deletedAt} IS NULL`)
+        .returning())
+      return row! as Category
+    })
+
   return {
     createCategory,
     updateCategory,
@@ -299,6 +343,7 @@ export const make = Effect.gen(function* () {
     placeProduct,
     removePlacement,
     listProductCategories,
+    promoteToGlobal,
   } satisfies CategoryServiceImpl
 })
 
