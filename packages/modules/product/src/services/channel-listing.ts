@@ -2,7 +2,6 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
 import type { ProductNotAdopted } from './adoption'
-import type { ProductNotFound } from './product'
 import { Channel } from '@czo/channel/services'
 import { DrizzleDb } from '@czo/kit/db'
 import { sql } from 'drizzle-orm'
@@ -10,7 +9,7 @@ import { Context, Data, Effect, Layer } from 'effect'
 import { productChannelListings as productChannelListingsTable } from '../database/schema'
 import { AdoptionService } from './adoption'
 import { CrossOrgGraftDenied } from './price-binding'
-import { ProductService } from './product'
+import { ProductNotFound, ProductService } from './product'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
@@ -33,6 +32,16 @@ export class ChannelListingNotFound extends Data.TaggedError('ChannelListingNotF
 export class NotAMarketplaceChannel extends Data.TaggedError('NotAMarketplaceChannel')<Record<never, never>> {
   readonly code = 'NOT_A_MARKETPLACE_CHANNEL'
   get message() { return 'Listing is not on a marketplace channel' }
+}
+
+export class ProductTypeNotGlobal extends Data.TaggedError('ProductTypeNotGlobal')<{ readonly productTypeId: number }> {
+  readonly code = 'PRODUCT_TYPE_NOT_GLOBAL'
+  get message() { return 'A marketplace product must have a global product type' }
+}
+
+export class MarketplaceCategoryNotGlobal extends Data.TaggedError('MarketplaceCategoryNotGlobal')<{ readonly categoryId: number }> {
+  readonly code = 'MARKETPLACE_CATEGORY_NOT_GLOBAL'
+  get message() { return 'A marketplace product cannot be placed in an org-private category' }
 }
 
 // ─── Domain model ─────────────────────────────────────────────────────────────
@@ -60,10 +69,10 @@ export interface UnpublishListingInput {
 // ─── Service contract ─────────────────────────────────────────────────────────
 
 export class ChannelListingService extends Context.Service<ChannelListingService, {
-  readonly publish: (input: PublishListingInput) => Effect.Effect<ProductChannelListing, ProductNotFound | ProductNotAdopted | CrossOrgGraftDenied | ChannelListingDbFailed>
+  readonly publish: (input: PublishListingInput) => Effect.Effect<ProductChannelListing, ProductNotFound | ProductNotAdopted | CrossOrgGraftDenied | ChannelListingDbFailed | ProductTypeNotGlobal | MarketplaceCategoryNotGlobal>
   readonly unpublish: (input: UnpublishListingInput) => Effect.Effect<void, ProductNotFound | ProductNotAdopted | CrossOrgGraftDenied | ChannelListingDbFailed>
   readonly listListings: (productId: number) => Effect.Effect<ReadonlyArray<ProductChannelListing>, ChannelListingDbFailed>
-  readonly approveListing: (listingId: number) => Effect.Effect<ProductChannelListing, ChannelListingNotFound | NotAMarketplaceChannel | ChannelListingDbFailed>
+  readonly approveListing: (listingId: number) => Effect.Effect<ProductChannelListing, ChannelListingNotFound | NotAMarketplaceChannel | ChannelListingDbFailed | ProductNotFound | ProductTypeNotGlobal | MarketplaceCategoryNotGlobal>
   readonly rejectListing: (listingId: number, reason: string) => Effect.Effect<ProductChannelListing, ChannelListingNotFound | NotAMarketplaceChannel | ChannelListingDbFailed>
   readonly suspendListing: (listingId: number, reason: string) => Effect.Effect<ProductChannelListing, ChannelListingNotFound | NotAMarketplaceChannel | ChannelListingDbFailed>
 }>()('@czo/product/ChannelListingService') {}
@@ -123,10 +132,41 @@ export const make = Effect.gen(function* () {
       return { isMarketplace: false as const }
     })
 
+  /**
+   * Marketplace eligibility: the product's type must be global and none of its
+   * base (org-null) category placements may reference an org-private category.
+   * Org-overlay placements (organizationId set) are store-only and ignored.
+   */
+  const checkMarketplaceCompliance = (productId: number) =>
+    Effect.gen(function* () {
+      const product = yield* dbErr(db.query.products.findFirst({
+        where: { id: productId, deletedAt: { isNull: true as const } },
+        columns: { id: true },
+        with: {
+          productType: { columns: { id: true, organizationId: true } },
+          categories: {
+            where: { organizationId: { isNull: true as const } },
+            columns: { id: true },
+            with: { category: { columns: { id: true, organizationId: true } } },
+          },
+        },
+      }))
+      if (!product || !product.productType)
+        return yield* Effect.fail(new ProductNotFound({ id: productId }))
+      if (product.productType.organizationId !== null)
+        return yield* Effect.fail(new ProductTypeNotGlobal({ productTypeId: product.productType.id }))
+      for (const placement of product.categories) {
+        if (placement.category && placement.category.organizationId !== null)
+          return yield* Effect.fail(new MarketplaceCategoryNotGlobal({ categoryId: placement.category.id }))
+      }
+    })
+
   const publish: ChannelListingServiceImpl['publish'] = input =>
     Effect.gen(function* () {
       yield* guardProductActable(input.productId, input.organizationId)
       const { isMarketplace } = yield* guardChannelTarget(input.channelId, input.organizationId)
+      if (isMarketplace)
+        yield* checkMarketplaceCompliance(input.productId)
 
       const isPublished = input.isPublished ?? true
       const visibleInListings = input.visibleInListings ?? true
@@ -191,21 +231,24 @@ export const make = Effect.gen(function* () {
       where: { productId, deletedAt: { isNull: true } },
     })) as Effect.Effect<ReadonlyArray<ProductChannelListing>, ChannelListingDbFailed>
 
-  /** Load a channel listing by id and set its admin review state (marketplace only). */
-  const setReview = (listingId: number, reviewState: 'approved' | 'rejected' | 'suspended', reviewReason: string | null) =>
+  /** Load a live listing and require its channel to be a marketplace (platform) channel. */
+  const loadMarketplaceListing = (listingId: number) =>
     Effect.gen(function* () {
       const listing = yield* dbErr(db.query.productChannelListings.findFirst({
-        where: { id: listingId, deletedAt: { isNull: true } },
+        where: { id: listingId, deletedAt: { isNull: true as const } },
       }))
       if (!listing)
         return yield* Effect.fail(new ChannelListingNotFound())
-
       const channel = yield* channelService.findFirst({ where: { id: listing.channelId } }).pipe(
         Effect.mapError(e => e._tag === 'ChannelNotFound' ? new NotAMarketplaceChannel() : new ChannelListingDbFailed({ cause: e })),
       )
       if (channel.organizationId !== null)
         return yield* Effect.fail(new NotAMarketplaceChannel())
+      return listing as ProductChannelListing
+    })
 
+  const writeReview = (listingId: number, reviewState: 'approved' | 'rejected' | 'suspended', reviewReason: string | null) =>
+    Effect.gen(function* () {
       const [row] = yield* dbErr(db
         .update(productChannelListingsTable)
         .set({ reviewState, reviewReason, reviewedAt: sql`NOW()` as any, updatedAt: sql`NOW()` as any })
@@ -214,9 +257,24 @@ export const make = Effect.gen(function* () {
       return row! as ProductChannelListing
     })
 
-  const approveListing: ChannelListingServiceImpl['approveListing'] = listingId => setReview(listingId, 'approved', null)
-  const rejectListing: ChannelListingServiceImpl['rejectListing'] = (listingId, reason) => setReview(listingId, 'rejected', reason)
-  const suspendListing: ChannelListingServiceImpl['suspendListing'] = (listingId, reason) => setReview(listingId, 'suspended', reason)
+  const approveListing: ChannelListingServiceImpl['approveListing'] = listingId =>
+    Effect.gen(function* () {
+      const listing = yield* loadMarketplaceListing(listingId)
+      yield* checkMarketplaceCompliance(listing.productId)
+      return yield* writeReview(listingId, 'approved', null)
+    })
+
+  const rejectListing: ChannelListingServiceImpl['rejectListing'] = (listingId, reason) =>
+    Effect.gen(function* () {
+      yield* loadMarketplaceListing(listingId)
+      return yield* writeReview(listingId, 'rejected', reason)
+    })
+
+  const suspendListing: ChannelListingServiceImpl['suspendListing'] = (listingId, reason) =>
+    Effect.gen(function* () {
+      yield* loadMarketplaceListing(listingId)
+      return yield* writeReview(listingId, 'suspended', reason)
+    })
 
   return {
     publish,

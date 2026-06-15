@@ -10,8 +10,10 @@ import { Effect } from 'effect'
 import {
   ChannelListingService,
   CrossOrgGraftDenied,
+  MarketplaceCategoryNotGlobal,
   ProductNotAdopted,
   ProductNotFound,
+  ProductTypeNotGlobal,
 } from '../../../../services'
 import { sg } from '../subgraphs'
 
@@ -41,7 +43,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
     {
       ...sg('org').field,
       description: 'Publishes a product on a @czo/channel sales channel, creating or updating the org-scoped listing that controls its visibility on that channel (no per-channel pricing). Requires the `product:update` permission in the organization, and a live adoption when grafting onto a global product.',
-      errors: { types: [ProductNotFound, ProductNotAdopted, CrossOrgGraftDenied], ...sg('org').errorOpts },
+      errors: { types: [ProductNotFound, ProductNotAdopted, CrossOrgGraftDenied, ProductTypeNotGlobal, MarketplaceCategoryNotGlobal], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
