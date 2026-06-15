@@ -11,6 +11,7 @@ import { registerCategoryMutations } from './category'
 import { registerChannelListingMutations } from './channelListing'
 import { registerCollectionMutations } from './collection'
 import { registerInventoryBindingMutations } from './inventoryBinding'
+import { registerListingReviewMutations } from './listingReview'
 import { registerMediaMutations } from './media'
 import { registerPriceBindingMutations } from './priceBinding'
 import { registerProductMutations as registerProductCoreMutations } from './product'
@@ -29,6 +30,7 @@ export function registerProductMutations(builder: ProductGraphQLSchemaBuilder): 
   registerPriceBindingMutations(builder)
   registerInventoryBindingMutations(builder)
   registerChannelListingMutations(builder)
+  registerListingReviewMutations(builder)
   registerMediaMutations(builder)
   registerTranslationMutations(builder)
   registerAdoptionMutations(builder)

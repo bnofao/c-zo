@@ -50,6 +50,9 @@ const ADMIN_ONLY_MUTATIONS = [
   'createProduct',
   'createProductType',
   'createCategory',
+  'approveListing',
+  'rejectListing',
+  'suspendListing',
 ] as const
 // Org-only ops, including the org halves of the split entity creates → org ONLY,
 // absent from admin.
@@ -115,6 +118,20 @@ describe('product sub-graph exposure', () => {
     expect(await typeExists('/graphql/public', 'Product')).toBe(true)
     expect(await typeExists('/graphql/public', 'Category')).toBe(false)
     expect(await typeExists('/graphql/public', 'Collection')).toBe(false)
+    const listingFields = async (path: string): Promise<string[]> => {
+      const res = await h.app.fetch(new Request(`http://localhost${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: `{ __type(name: "ProductChannelListing") { fields { name } } }` }),
+      }))
+      const body = (await res.json()) as IntrospectResult
+      return (body.data?.__type?.fields ?? []).map(f => f.name)
+    }
+    const publicListing = await listingFields('/graphql/public')
+    expect(publicListing).toContain('isPublished')
+    expect(publicListing).not.toContain('reviewState')
+    expect(publicListing).not.toContain('reviewReason')
+    expect(publicListing).not.toContain('reviewedAt')
   })
 
   it('/graphql/public: anonymous productByHandle traverses the catalog graph', async () => {

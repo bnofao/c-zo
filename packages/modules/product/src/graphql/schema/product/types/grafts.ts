@@ -11,6 +11,7 @@
 // org-merge predicate.
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
+import { productEnumRefs } from '../inputs'
 
 export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
   // ── ProductAttributeValue — a product's grafted attribute value ─────────────
@@ -60,25 +61,44 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
     description: 'A graft row publishing a product onto a sales channel, carrying that channel-specific publication state.',
     select: true,
     id: { column: c => c.id },
-    fields: t => ({
-      productId: t.exposeInt('productId', { description: 'The product being listed on the channel.' }),
-      channelId: t.exposeInt('channelId', { description: 'The sales channel (in the channel module) the product is listed on.' }),
-      isPublished: t.exposeBoolean('isPublished', { description: 'Whether the product is published and live on this channel.' }),
-      visibleInListings: t.exposeBoolean('visibleInListings', {
-        description: 'Whether the product appears in browse and collection listings on this channel.',
-      }),
-      availableForPurchaseAt: t.expose('availableForPurchaseAt', {
-        type: 'DateTime',
-        nullable: true,
-        description: 'The moment the product becomes purchasable on this channel, or null if not set.',
-      }),
-      publishedAt: t.expose('publishedAt', {
-        type: 'DateTime',
-        nullable: true,
-        description: 'The moment the product was published on this channel, or null while unpublished.',
-      }),
-      version: t.exposeInt('version', { description: 'Optimistic-locking version of the listing row.' }),
-    }),
+    fields: (t) => {
+      const enums = productEnumRefs()
+      return {
+        productId: t.exposeInt('productId', { description: 'The product being listed on the channel.' }),
+        channelId: t.exposeInt('channelId', { description: 'The sales channel (in the channel module) the product is listed on.' }),
+        isPublished: t.exposeBoolean('isPublished', { description: 'Whether the org has published this listing (the org gate). On a marketplace channel the product is live only once also approved.' }),
+        reviewState: t.expose('reviewState', {
+          type: enums.ListingReviewState,
+          subGraphs: ['org', 'admin'],
+          description: 'Admin moderation state on the marketplace channel. Always APPROVED for an org\'s own-channel listing.',
+        }),
+        reviewReason: t.exposeString('reviewReason', {
+          nullable: true,
+          subGraphs: ['org', 'admin'],
+          description: 'Why the listing was rejected or suspended; null otherwise.',
+        }),
+        reviewedAt: t.expose('reviewedAt', {
+          type: 'DateTime',
+          nullable: true,
+          subGraphs: ['org', 'admin'],
+          description: 'When an admin last set the review state, or null if never reviewed.',
+        }),
+        visibleInListings: t.exposeBoolean('visibleInListings', {
+          description: 'Whether the product appears in browse and collection listings on this channel.',
+        }),
+        availableForPurchaseAt: t.expose('availableForPurchaseAt', {
+          type: 'DateTime',
+          nullable: true,
+          description: 'The moment the product becomes purchasable on this channel, or null if not set.',
+        }),
+        publishedAt: t.expose('publishedAt', {
+          type: 'DateTime',
+          nullable: true,
+          description: 'The moment the product was published on this channel, or null while unpublished.',
+        }),
+        version: t.exposeInt('version', { description: 'Optimistic-locking version of the listing row.' }),
+      }
+    },
   })
 
   // ── ProductCategory — a product↔category placement (graft) ──────────────────

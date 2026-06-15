@@ -5,6 +5,7 @@ import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp
 export const attributeAssignmentEnum = pgEnum('product_attribute_assignment', ['PRODUCT', 'VARIANT'])
 export const valueKindEnum = pgEnum('product_value_kind', ['VALUE', 'SWATCH', 'REFERENCE', 'TEXT', 'NUMERIC', 'BOOLEAN', 'DATE', 'FILE'])
 export const mediaTypeEnum = pgEnum('product_media_type', ['IMAGE', 'VIDEO'])
+export const listingReviewStateEnum = pgEnum('product_listing_review_state', ['pending', 'approved', 'rejected', 'suspended'])
 
 export const productTypes = pgTable('product_types', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({ startWith: 1, increment: 1 }),
@@ -196,6 +197,9 @@ export const productChannelListings = pgTable('product_channel_listings', {
   visibleInListings: boolean('visible_in_listings').notNull().default(true),
   availableForPurchaseAt: timestamp('available_for_purchase_at'),
   publishedAt: timestamp('published_at'),
+  reviewState: listingReviewStateEnum('review_state').notNull().default('approved'),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewReason: text('review_reason'),
   deletedAt: timestamp('deleted_at'),
   version: integer('version').notNull().default(1),
   createdAt: timestamp('created_at').notNull().defaultNow(),
