@@ -159,6 +159,27 @@ describe('inventory (E2E)', () => {
     expect(ids).toContain(created.id)
   })
 
+  // Regression: a client-supplied `orderBy` must not crash. The connection used
+  // to build orderBy as an array of `{column: dir}` objects, which
+  // @pothos/plugin-drizzle's cursor parser rejects (only the default
+  // single-object path was ever exercised).
+  it('inventoryItems accepts a client orderBy arg (sorted, no crash)', async () => {
+    const { u, org } = await orgWithAccess(h, 'inv-order@ex.com', 'inv-order')
+    await createItem(h, u, org, 'ORD-C')
+    await createItem(h, u, org, 'ORD-A')
+    await createItem(h, u, org, 'ORD-B')
+
+    const res = await h.gql(
+      `query($org:ID!){ inventoryItems(organizationId:$org, orderBy:[{ field: SKU, direction: ASC }]){ edges { node { sku } } } }`,
+      { org: org.orgGlobalId },
+      u.token,
+      u.ip,
+    )
+    expect(res.errors).toBeUndefined()
+    const skus = (res.data.inventoryItems.edges as Array<{ node: { sku: string } }>).map(e => e.node.sku)
+    expect(skus).toEqual(['ORD-A', 'ORD-B', 'ORD-C'])
+  })
+
   // 2 ─ AuthZ: missing inventory:create → denied
   it('denies createInventoryItem without inventory:create', async () => {
     // org:owner only — no inventory:* permissions
