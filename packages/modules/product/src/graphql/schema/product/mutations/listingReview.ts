@@ -7,7 +7,14 @@
 
 import type { ProductGraphQLSchemaBuilder } from '@czo/product/graphql'
 import { Effect } from 'effect'
-import { ChannelListingNotFound, ChannelListingService, NotAMarketplaceChannel } from '../../../../services'
+import {
+  ChannelListingNotFound,
+  ChannelListingService,
+  MarketplaceCategoryNotGlobal,
+  NotAMarketplaceChannel,
+  ProductNotFound,
+  ProductTypeNotGlobal,
+} from '../../../../services'
 import { sg } from '../subgraphs'
 
 export function registerListingReviewMutations(builder: ProductGraphQLSchemaBuilder): void {
@@ -25,7 +32,7 @@ export function registerListingReviewMutations(builder: ProductGraphQLSchemaBuil
     {
       ...sg('admin').field,
       description: 'Approves a product\'s marketplace listing, making it live-eligible (live once the org keeps it published). Requires the global `channel:update` role.',
-      errors: { types: [ChannelListingNotFound, NotAMarketplaceChannel], ...sg('admin').errorOpts },
+      errors: { types: [ChannelListingNotFound, NotAMarketplaceChannel, ProductNotFound, ProductTypeNotGlobal, MarketplaceCategoryNotGlobal], ...sg('admin').errorOpts },
       authScopes: adminScope,
       resolve: async (_root, args, ctx) => {
         const listing = await ctx.runEffect(

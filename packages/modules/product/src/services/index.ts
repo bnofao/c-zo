@@ -55,7 +55,9 @@ export {
   ChannelListingNotFound,
   ChannelListingService,
   ChannelListingServiceLive,
+  MarketplaceCategoryNotGlobal,
   NotAMarketplaceChannel,
+  ProductTypeNotGlobal,
 } from './channel-listing'
 export type {
   ProductChannelListing,
