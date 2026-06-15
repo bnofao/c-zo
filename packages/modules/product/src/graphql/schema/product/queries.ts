@@ -34,7 +34,7 @@ import {
   loadProductOrganizationId,
   loadProductTypeOrganizationId,
 } from './authz'
-import { buildOrderBy, mergeWhere, viewerOrgId } from './types/merge'
+import { buildOrderBy, mergeWhere } from './types/merge'
 
 export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): void {
   // ── productType(id) — admin single lookup ──────────────────────────────────
@@ -60,17 +60,14 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ) as Promise<any>,
     }))
 
-  // ── productTypes(viewerOrg) — admin connection (base ∪ org), org-gated ───────
+  // ── productTypes — PLATFORM global-only connection (admin curation) ──────────
   builder.queryField('productTypes', t =>
     t.drizzleConnection({
       type: 'productTypes',
-      subGraphs: ['org', 'admin'],
-      description: 'Paginated (relay) connection over the product types visible to an org (admin): the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
-      authScopes: (_parent, args) => ({
-        permission: { resource: 'product', actions: ['read'], organization: Number(args.viewerOrg.id) },
-      }),
+      subGraphs: ['admin'],
+      description: 'Paginated (relay) connection over the GLOBAL (platform) product types, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.',
+      authScopes: { permission: { resource: 'product', actions: ['read'] } },
       args: {
-        viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose product types to list; global types are always included.' }),
         search: t.arg.string({ description: 'Free-text search across name and slug (case-insensitive substring).' }),
         where: t.arg({ type: 'ProductTypeWhereInput', description: 'Optional filter predicate.' }),
         orderBy: t.arg({ type: ['ProductTypeOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
@@ -79,25 +76,41 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* ProductTypeService
-
-            // Merge predicate: base (org-null) rows ∪ the viewer org's own rows.
-            const base = mergeWhere(viewerOrgId(args))
-            // Free-text search → case-insensitive substring across name and slug.
             const s = args.search?.trim()
-            const searchClause = s
-              ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] }
-              : null
-            // The caller's `where` is AND-ed with the org boundary and search.
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] } : null
             const userWhere = (args.where ?? null) as Record<string, unknown> | null
-            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
-
-            return yield* svc.findTypes(query({
-              where: where as any,
-              orderBy: buildOrderBy(args.orderBy),
-            }))
+            const where = { AND: [{ organizationId: { isNull: true } }, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findTypes(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
           }),
         ) as Promise<any>,
-    }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }))
+    }, { subGraphs: ['admin'] }, { subGraphs: ['admin'] }))
+
+  // ── organizationProductTypes — org connection (base ∪ org), org-gated ────────
+  builder.queryField('organizationProductTypes', t =>
+    t.drizzleConnection({
+      type: 'productTypes',
+      subGraphs: ['org'],
+      description: 'Paginated (relay) connection over the product types visible to an org: the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
+      authScopes: (_parent, args) => ({ permission: { resource: 'product', actions: ['read'], organization: Number(args.organizationId.id) } }),
+      args: {
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose product types to list; global types are always included.' }),
+        search: t.arg.string({ description: 'Free-text search across name and slug (case-insensitive substring).' }),
+        where: t.arg({ type: 'ProductTypeWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['ProductTypeOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
+      },
+      resolve: async (query, _root, args, ctx) =>
+        ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ProductTypeService
+            const base = mergeWhere(Number(args.organizationId.id))
+            const s = args.search?.trim()
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] } : null
+            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findTypes(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
+          }),
+        ) as Promise<any>,
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── product(id) — admin single lookup ──────────────────────────────────────
   builder.queryField('product', t =>
@@ -145,17 +158,14 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ) as Promise<any>,
     }))
 
-  // ── products(viewerOrg) — admin connection (base ∪ org), org-gated ──────────
+  // ── products — PLATFORM global-only connection (admin curation) ─────────────
   builder.queryField('products', t =>
     t.drizzleConnection({
       type: 'products',
-      subGraphs: ['org', 'admin'],
-      description: 'Paginated (relay) connection over the products visible to an org (admin): the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
-      authScopes: (_parent, args) => ({
-        permission: { resource: 'product', actions: ['read'], organization: Number(args.viewerOrg.id) },
-      }),
+      subGraphs: ['admin'],
+      description: 'Paginated (relay) connection over the GLOBAL (platform) products, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.',
+      authScopes: { permission: { resource: 'product', actions: ['read'] } },
       args: {
-        viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose products to list; global products are always included.' }),
         search: t.arg.string({ description: 'Free-text search across name and handle (case-insensitive substring).' }),
         where: t.arg({ type: 'ProductWhereInput', description: 'Optional filter predicate.' }),
         orderBy: t.arg({ type: ['ProductOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
@@ -164,25 +174,41 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* ProductService
-
-            // Merge predicate: base (org-null) rows ∪ the viewer org's own rows.
-            const base = mergeWhere(viewerOrgId(args))
-            // Free-text search → case-insensitive substring across name and handle.
             const s = args.search?.trim()
-            const searchClause = s
-              ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] }
-              : null
-            // The caller's `where` is AND-ed with the org boundary and search.
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] } : null
             const userWhere = (args.where ?? null) as Record<string, unknown> | null
-            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
-
-            return yield* svc.findProducts(query({
-              where: where as any,
-              orderBy: buildOrderBy(args.orderBy),
-            }))
+            const where = { AND: [{ organizationId: { isNull: true } }, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findProducts(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
           }),
         ) as Promise<any>,
-    }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }))
+    }, { subGraphs: ['admin'] }, { subGraphs: ['admin'] }))
+
+  // ── organizationProducts — org connection (base ∪ org), org-gated ──────────
+  builder.queryField('organizationProducts', t =>
+    t.drizzleConnection({
+      type: 'products',
+      subGraphs: ['org'],
+      description: 'Paginated (relay) connection over the products visible to an org: the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
+      authScopes: (_parent, args) => ({ permission: { resource: 'product', actions: ['read'], organization: Number(args.organizationId.id) } }),
+      args: {
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose products to list; global products are always included.' }),
+        search: t.arg.string({ description: 'Free-text search across name and handle (case-insensitive substring).' }),
+        where: t.arg({ type: 'ProductWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['ProductOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
+      },
+      resolve: async (query, _root, args, ctx) =>
+        ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ProductService
+            const base = mergeWhere(Number(args.organizationId.id))
+            const s = args.search?.trim()
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] } : null
+            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findProducts(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
+          }),
+        ) as Promise<any>,
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── adoptedProducts(organization) — the acting org's adopted globals ────────
   builder.queryField('adoptedProducts', t =>
@@ -247,17 +273,14 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ) as Promise<any>,
     }))
 
-  // ── categories(viewerOrg) — admin connection (base ∪ org), org-gated ────────
+  // ── categories — PLATFORM global-only connection (admin curation) ──────────
   builder.queryField('categories', t =>
     t.drizzleConnection({
       type: 'categories',
-      subGraphs: ['org', 'admin'],
-      description: 'Paginated (relay) connection over the categories visible to an org (admin): the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
-      authScopes: (_parent, args) => ({
-        permission: { resource: 'product', actions: ['read'], organization: Number(args.viewerOrg.id) },
-      }),
+      subGraphs: ['admin'],
+      description: 'Paginated (relay) connection over the GLOBAL (platform) categories, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.',
+      authScopes: { permission: { resource: 'product', actions: ['read'] } },
       args: {
-        viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose categories to list; global categories are always included.' }),
         search: t.arg.string({ description: 'Free-text search across name and slug (case-insensitive substring).' }),
         where: t.arg({ type: 'CategoryWhereInput', description: 'Optional filter predicate.' }),
         orderBy: t.arg({ type: ['CategoryOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
@@ -266,25 +289,41 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
         ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* CategoryService
-
-            // Merge predicate: base (org-null) rows ∪ the viewer org's own rows.
-            const base = mergeWhere(viewerOrgId(args))
-            // Free-text search → case-insensitive substring across name and slug.
             const s = args.search?.trim()
-            const searchClause = s
-              ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] }
-              : null
-            // The caller's `where` is AND-ed with the org boundary and search.
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] } : null
             const userWhere = (args.where ?? null) as Record<string, unknown> | null
-            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
-
-            return yield* svc.findCategories(query({
-              where: where as any,
-              orderBy: buildOrderBy(args.orderBy),
-            }))
+            const where = { AND: [{ organizationId: { isNull: true } }, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findCategories(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
           }),
         ) as Promise<any>,
-    }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }))
+    }, { subGraphs: ['admin'] }, { subGraphs: ['admin'] }))
+
+  // ── organizationCategories — org connection (base ∪ org), org-gated ────────
+  builder.queryField('organizationCategories', t =>
+    t.drizzleConnection({
+      type: 'categories',
+      subGraphs: ['org'],
+      description: 'Paginated (relay) connection over the categories visible to an org: the org\'s own merged with the global (platform) ones, with optional free-text search, filtering, and ordering. Requires `product:read` in the given org.',
+      authScopes: (_parent, args) => ({ permission: { resource: 'product', actions: ['read'], organization: Number(args.organizationId.id) } }),
+      args: {
+        organizationId: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose categories to list; global categories are always included.' }),
+        search: t.arg.string({ description: 'Free-text search across name and slug (case-insensitive substring).' }),
+        where: t.arg({ type: 'CategoryWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['CategoryOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
+      },
+      resolve: async (query, _root, args, ctx) =>
+        ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* CategoryService
+            const base = mergeWhere(Number(args.organizationId.id))
+            const s = args.search?.trim()
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { slug: { ilike: `%${s}%` } }] } : null
+            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findCategories(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
+          }),
+        ) as Promise<any>,
+    }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
 
   // ── collection(id) — admin single lookup (collections are org-only) ────────
   builder.queryField('collection', t =>

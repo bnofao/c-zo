@@ -2,8 +2,8 @@
 // pagination / filter / order args THROUGH GraphQL end-to-end.
 //
 // Two connections are covered:
-//   • productTypes(viewerOrg, first, after, orderBy, search) — the merged
-//     base ∪ org connection: pages through global + org types, asserts the
+//   • organizationProductTypes(organizationId, first, after, orderBy, search) —
+//     the merged base ∪ org connection: pages through global + org types, asserts the
 //     pagination invariants (page size, hasNextPage, endCursor), the base∪org
 //     union holds through paging, and that `search` narrows to a name match.
 //   • taxonomyRequests(where: { state }) — the admin moderation queue: with
@@ -78,7 +78,7 @@ describe('product list-connection pagination/filter e2e', () => {
     // ── Page 1: first 2, newest-first. ────────────────────────────────────────
     const page1 = await h.gql(
       `query($org:ID!){
-        productTypes(viewerOrg:$org, first:2, orderBy:[{ field: CREATED_AT, direction: DESC }]){
+        organizationProductTypes(organizationId:$org, first:2, orderBy:[{ field: CREATED_AT, direction: DESC }]){
           edges { node { id name } }
           pageInfo { hasNextPage endCursor }
         }
@@ -87,16 +87,16 @@ describe('product list-connection pagination/filter e2e', () => {
       orgToken,
     )
     expect(page1.errors).toBeUndefined()
-    const p1Edges = page1.data.productTypes.edges
+    const p1Edges = page1.data.organizationProductTypes.edges
     expect(p1Edges).toHaveLength(2)
-    expect(page1.data.productTypes.pageInfo.hasNextPage).toBe(true)
-    const endCursor: string = page1.data.productTypes.pageInfo.endCursor
+    expect(page1.data.organizationProductTypes.pageInfo.hasNextPage).toBe(true)
+    const endCursor: string = page1.data.organizationProductTypes.pageInfo.endCursor
     expect(endCursor).toBeTruthy()
 
     // ── Page 2: the rest via `after`. ─────────────────────────────────────────
     const page2 = await h.gql(
       `query($org:ID!,$after:String!){
-        productTypes(viewerOrg:$org, first:10, after:$after, orderBy:[{ field: CREATED_AT, direction: DESC }]){
+        organizationProductTypes(organizationId:$org, first:10, after:$after, orderBy:[{ field: CREATED_AT, direction: DESC }]){
           edges { node { id name } }
           pageInfo { hasNextPage endCursor }
         }
@@ -105,7 +105,7 @@ describe('product list-connection pagination/filter e2e', () => {
       orgToken,
     )
     expect(page2.errors).toBeUndefined()
-    const p2Edges = page2.data.productTypes.edges
+    const p2Edges = page2.data.organizationProductTypes.edges
 
     // The two pages together cover all 5 seeded types, with no overlap.
     const p1Ids: string[] = p1Edges.map((e: any) => e.node.id)
@@ -123,7 +123,7 @@ describe('product list-connection pagination/filter e2e', () => {
     // ── search narrows to the matching type(s) only. ─────────────────────────
     const searched = await h.gql(
       `query($org:ID!){
-        productTypes(viewerOrg:$org, search:"Sticker", first:50){
+        organizationProductTypes(organizationId:$org, search:"Sticker", first:50){
           edges { node { id name } }
         }
       }`,
@@ -131,11 +131,11 @@ describe('product list-connection pagination/filter e2e', () => {
       orgToken,
     )
     expect(searched.errors).toBeUndefined()
-    const names: string[] = searched.data.productTypes.edges.map((e: any) => e.node.name)
+    const names: string[] = searched.data.organizationProductTypes.edges.map((e: any) => e.node.name)
     expect(names).toContain('Org Sticker')
     expect(names.every((n: string) => n.includes('Sticker'))).toBe(true)
     // The non-matching seeded types are excluded.
-    const searchedIds: string[] = searched.data.productTypes.edges.map((e: any) => e.node.id)
+    const searchedIds: string[] = searched.data.organizationProductTypes.edges.map((e: any) => e.node.id)
     expect(searchedIds).toContain(o2)
     expect(searchedIds).not.toContain(g1)
   })
