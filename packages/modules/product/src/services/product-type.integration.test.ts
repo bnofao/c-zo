@@ -236,4 +236,55 @@ layer(TestLayer, { timeout: 120_000 })('ProductTypeService', (it) => {
       const rows = yield* svc.listTypeAttributes({ productTypeId: t.id, orgId: 1 })
       expect(rows).toEqual([])
     }))
+
+  // ─── promoteToGlobal ─────────────────────────────────────────────────────
+
+  it.effect('flips an org type to global (organizationId null)', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      const t = yield* svc.createType({ organizationId: 1, name: 'Shirt', slug: 'shirt', isShippingRequired: true })
+      const promoted = yield* svc.promoteToGlobal(t.id)
+      expect(promoted.organizationId).toBe(null)
+      expect(promoted.version).toBe(t.version + 1)
+    }))
+
+  it.effect('promoteToGlobal on already-global → ProductTypeAlreadyGlobal', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      const t = yield* svc.createType({ organizationId: null, name: 'Shirt', slug: 'shirt', isShippingRequired: true })
+      const err = yield* svc.promoteToGlobal(t.id).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeAlreadyGlobal')
+    }))
+
+  it.effect('promoteToGlobal missing → ProductTypeNotFound', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      const err = yield* svc.promoteToGlobal(999999).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeNotFound')
+    }))
+
+  it.effect('promoteToGlobal with global slug clash → ProductTypeSlugTaken', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      yield* svc.createType({ organizationId: null, name: 'Global X', slug: 'x', isShippingRequired: true })
+      const orgType = yield* svc.createType({ organizationId: 1, name: 'Org X', slug: 'x', isShippingRequired: true })
+      const err = yield* svc.promoteToGlobal(orgType.id).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeSlugTaken')
+    }))
+
+  it.effect('promoteToGlobal flips the type\'s own org-scoped declarations to base', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      const t = yield* svc.createType({ organizationId: 1, name: 'Shirt', slug: 'shirt', isShippingRequired: true })
+      const decl = yield* svc.declareAttribute({ productTypeId: t.id, organizationId: 1, attributeId: 90, assignment: 'PRODUCT', variantSelection: false, position: 0 })
+      yield* svc.promoteToGlobal(t.id)
+      const rows = yield* svc.listTypeAttributes({ productTypeId: t.id, orgId: 1 })
+      const flipped = rows.find(r => r.id === decl.id)
+      expect(flipped?.organizationId).toBe(null)
+    }))
 })

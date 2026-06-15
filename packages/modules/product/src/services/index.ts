@@ -118,10 +118,12 @@ export {
 export type { CreateProductInput, Product, UpdateProductInput } from './product'
 export {
   InvalidAttributeDeclaration,
+  ProductTypeAlreadyGlobal,
   ProductTypeDbFailed,
   ProductTypeNotFound,
   ProductTypeService,
   ProductTypeServiceLive,
+  ProductTypeSlugTaken,
 } from './product-type'
 export type {
   AttributeAssignment,

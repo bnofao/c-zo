@@ -3,9 +3,19 @@ import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
 import type { attributeTypeEnum, attributeUnitEnum } from '../database/schema'
 import { DrizzleDb, OptimisticLockError, optimisticUpdate } from '@czo/kit/db'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
-import { attributes } from '../database/schema'
+import {
+  attributeBooleanValues,
+  attributeDateValues,
+  attributeFileValues,
+  attributeNumericValues,
+  attributeReferenceValues,
+  attributes,
+  attributeSwatchValues,
+  attributeTextValues,
+  attributeValues,
+} from '../database/schema'
 import { generateSlug } from './utils/slug'
 import { validateReferenceAttribute } from './validation'
 
@@ -184,6 +194,17 @@ export class AttributeService extends Context.Service<
     readonly delete: (
       id: number,
     ) => Effect.Effect<Attribute, AttributeNotFound | AttributeDbFailed>
+
+    /**
+     * Promote an org-scoped attribute (and its entire value catalog across all 8
+     * value tables) to platform-global by nulling `organizationId`. Collision-free
+     * by construction: the attribute slug is globally unique and value slugs are
+     * unique per `(attributeId, slug)`. A no-op on an already-global attribute.
+     * Returns the (re-read) attribute row.
+     */
+    readonly promoteToGlobal: (
+      attributeId: number,
+    ) => Effect.Effect<Attribute, AttributeNotFound | AttributeDbFailed>
   }
 >()('@czo/attribute/AttributeService') {}
 
@@ -256,6 +277,40 @@ const make = Effect.gen(function* () {
       if (!row)
         return yield* Effect.fail(new AttributeNotFound())
       return row
+    })
+
+  // The 8 polymorphic value tables, each carrying its own `organizationId`.
+  const VALUE_TABLES = [
+    attributeValues,
+    attributeSwatchValues,
+    attributeReferenceValues,
+    attributeTextValues,
+    attributeNumericValues,
+    attributeBooleanValues,
+    attributeDateValues,
+    attributeFileValues,
+  ] as const
+
+  const promoteToGlobal: AttributeServiceImpl['promoteToGlobal'] = attributeId =>
+    Effect.gen(function* () {
+      const attr = yield* findById(attributeId)
+      // Already global: nothing to flip, the value catalog is global too.
+      if (attr.organizationId === null)
+        return attr
+
+      yield* dbErr(db
+        .update(attributes)
+        .set({ organizationId: null, version: sql`${attributes.version} + 1` })
+        .where(eq(attributes.id, attributeId)))
+
+      for (const tbl of VALUE_TABLES) {
+        yield* dbErr(db
+          .update(tbl)
+          .set({ organizationId: null })
+          .where(and(eq(tbl.attributeId, attributeId), isNotNull(tbl.organizationId))))
+      }
+
+      return yield* findById(attributeId)
     })
 
   return AttributeService.of({
@@ -339,6 +394,8 @@ const make = Effect.gen(function* () {
 
         return deleted!
       }),
+
+    promoteToGlobal,
   } satisfies AttributeServiceImpl)
 })
 
