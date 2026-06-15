@@ -11,7 +11,12 @@ const QUERY_FIELDS = `{ __type(name: "Query") { fields { name } } }`
 const MUTATION_FIELDS = `{ __type(name: "Mutation") { fields { name } } }`
 interface IntrospectResult { data?: { __type?: { fields?: { name: string }[] } | null }, errors?: { message: string }[] }
 
-const ADMIN_READS = ['productType', 'productTypes', 'product', 'products', 'adoptedProducts', 'category', 'categories', 'collection', 'collections'] as const
+// Present on BOTH org + admin (single-row lookups + org-only-tier lists, tags unchanged).
+const SHARED_READS = ['productType', 'product', 'category', 'collection', 'collections', 'adoptedProducts'] as const
+// Admin global-only catalog reads (split — platform tier).
+const ADMIN_ONLY_READS = ['productTypes', 'products', 'categories'] as const
+// Org merged catalog reads (split — org tier).
+const ORG_ONLY_READS = ['organizationProductTypes', 'organizationProducts', 'organizationCategories'] as const
 // Shared tier-conditional ops (org derived from the existing row / optional graft
 // input) → present on BOTH org and admin.
 const TIER_MUTATIONS = [
@@ -113,7 +118,9 @@ describe('product sub-graph exposure', () => {
     const q = await fieldNames('/graphql/public', QUERY_FIELDS)
     const m = await fieldNames('/graphql/public', MUTATION_FIELDS)
     expect(q).toContain('productByHandle')
-    for (const f of ADMIN_READS) expect(q).not.toContain(f)
+    for (const f of SHARED_READS) expect(q).not.toContain(f)
+    for (const f of ADMIN_ONLY_READS) expect(q).not.toContain(f)
+    for (const f of ORG_ONLY_READS) expect(q).not.toContain(f)
     for (const f of ALL_MUTATIONS) expect(m).not.toContain(f)
     expect(await typeExists('/graphql/public', 'Product')).toBe(true)
     expect(await typeExists('/graphql/public', 'Category')).toBe(false)
@@ -145,20 +152,24 @@ describe('product sub-graph exposure', () => {
     expect(body.data.productByHandle).toBeNull()
   })
 
-  it('/graphql/org: admin reads + tier + org mutations present, platform creates absent, no storefront read', async () => {
+  it('/graphql/org: shared + org reads + tier + org mutations present, admin-only reads + platform creates absent, no storefront read', async () => {
     const q = await fieldNames('/graphql/org', QUERY_FIELDS)
     const m = await fieldNames('/graphql/org', MUTATION_FIELDS)
-    for (const f of ADMIN_READS) expect(q).toContain(f)
+    for (const f of SHARED_READS) expect(q).toContain(f)
+    for (const f of ORG_ONLY_READS) expect(q).toContain(f)
+    for (const f of ADMIN_ONLY_READS) expect(q).not.toContain(f)
     expect(q).not.toContain('productByHandle')
     for (const f of TIER_MUTATIONS) expect(m).toContain(f)
     for (const f of ORG_MUTATIONS) expect(m).toContain(f)
     for (const f of ADMIN_ONLY_MUTATIONS) expect(m).not.toContain(f)
   })
 
-  it('/graphql/admin: tier + platform creates present, org-only mutations absent', async () => {
+  it('/graphql/admin: shared + admin-only reads + tier + platform creates present, org-only reads + mutations absent', async () => {
     const q = await fieldNames('/graphql/admin', QUERY_FIELDS)
     const m = await fieldNames('/graphql/admin', MUTATION_FIELDS)
-    for (const f of ADMIN_READS) expect(q).toContain(f)
+    for (const f of SHARED_READS) expect(q).toContain(f)
+    for (const f of ADMIN_ONLY_READS) expect(q).toContain(f)
+    for (const f of ORG_ONLY_READS) expect(q).not.toContain(f)
     for (const f of TIER_MUTATIONS) expect(m).toContain(f)
     for (const f of ADMIN_ONLY_MUTATIONS) expect(m).toContain(f)
     for (const f of ORG_MUTATIONS) expect(m).not.toContain(f)
