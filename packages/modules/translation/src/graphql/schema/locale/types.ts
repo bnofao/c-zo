@@ -3,7 +3,7 @@ import type { TranslationGraphQLSchemaBuilder } from '@czo/translation/graphql'
 export function registerLocaleTypes(builder: TranslationGraphQLSchemaBuilder): void {
   builder.drizzleNode('locales', {
     name: 'Locale',
-    subGraphs: ['public'],
+    subGraphs: ['public', 'admin'],
     description: 'A platform-wide locale in the global registry. Consumer modules key their translations by a locale `code`; one locale is the platform default.',
     id: { column: c => c.id },
     fields: t => ({

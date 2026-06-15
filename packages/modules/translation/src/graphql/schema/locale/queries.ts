@@ -6,7 +6,7 @@ export function registerLocaleQueries(builder: TranslationGraphQLSchemaBuilder):
   builder.queryField('locales', t =>
     t.drizzleConnection({
       type: 'locales',
-      subGraphs: ['public'],
+      subGraphs: ['public', 'admin'],
       description: 'Paginated (relay) connection over the platform locale registry. Public read.',
       args: { activeOnly: t.arg.boolean({ description: 'When true, return only active locales; defaults to false (all).' }) },
       resolve: async (query, _root, args, ctx) =>
@@ -14,11 +14,12 @@ export function registerLocaleQueries(builder: TranslationGraphQLSchemaBuilder):
           const svc = yield* LocaleService
           return yield* svc.listLocales({ activeOnly: args.activeOnly ?? false, query: query({}) })
         })) as Promise<any>,
-    }))
+    }, { subGraphs: ['public', 'admin'] }, { subGraphs: ['public', 'admin'] }))
 
   builder.queryField('locale', t =>
     t.drizzleField({
       type: 'locales',
+      subGraphs: ['public', 'admin'],
       nullable: true,
       description: 'Fetch a single locale by id. Public read; returns null if not found.',
       args: { id: t.arg.globalID({ for: 'Locale', required: true, description: 'Relay global id of the Locale to fetch.' }) },
@@ -32,7 +33,7 @@ export function registerLocaleQueries(builder: TranslationGraphQLSchemaBuilder):
   builder.queryField('defaultLocale', t =>
     t.drizzleField({
       type: 'locales',
-      subGraphs: ['public'],
+      subGraphs: ['public', 'admin'],
       nullable: true,
       description: 'The platform default locale, used as the fallback when a translation is missing. Null if none is configured. Public read.',
       resolve: async (_query, _root, _args, ctx) =>
