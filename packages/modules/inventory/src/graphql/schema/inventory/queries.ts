@@ -85,8 +85,12 @@ export function registerInventoryQueries(builder: InventoryGraphQLSchemaBuilder)
 
             return yield* svc.findItems(query({
               where: where as any,
+              // Fold the ordering clauses into ONE { column: direction } object.
+              // @pothos/plugin-drizzle's cursor parser rejects an array of
+              // single-key objects ("Typescript name not found for column
+              // undefined"); only the object form hits its column branch.
               orderBy: args.orderBy?.length
-                ? args.orderBy.map(o => ({ [o.field]: o.direction }))
+                ? Object.fromEntries(args.orderBy.map(o => [o.field, o.direction]))
                 : { createdAt: 'desc' },
             }))
           }),
