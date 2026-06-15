@@ -13,12 +13,14 @@ import {
   CollectionSlugTaken,
 } from '../../../../services'
 import { loadCollectionOrganizationId } from '../authz'
+import { sg } from '../subgraphs'
 
 export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder): void {
   // ── createCollection ───────────────────────────────────────────────────────
   builder.relayMutationField(
     'createCollection',
     {
+      ...sg('org').input,
       inputFields: t => ({
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization that will own the collection. Collections are org-scoped, so this is always required.' }),
         name: t.string({ required: true, description: 'Human-readable display name for the collection.' }),
@@ -27,8 +29,9 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       }),
     },
     {
+      ...sg('org').field,
       description: 'Creates a new org-scoped product collection in the given organization. Requires the `product:create` permission in that organization.',
-      errors: { types: [CollectionSlugTaken] },
+      errors: { types: [CollectionSlugTaken], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['create'], organization: Number(args.input.organizationId.id) },
       }),
@@ -48,13 +51,14 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
         return { collection }
       },
     },
-    { outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The newly created collection.', resolve: p => p.collection }) }) },
+    { ...sg('org').payload, outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The newly created collection.', resolve: p => p.collection }) }) },
   )
 
   // ── updateCollection ───────────────────────────────────────────────────────
   builder.relayMutationField(
     'updateCollection',
     {
+      ...sg('org').input,
       inputFields: t => ({
         id: t.globalID({ for: 'Collection', required: true, description: 'Global ID of the Collection to update.' }),
         version: t.int({ required: true, description: 'Current optimistic-lock version; the update fails if it no longer matches the stored row.' }),
@@ -64,8 +68,9 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       }),
     },
     {
+      ...sg('org').field,
       description: 'Updates a collection\'s mutable fields using optimistic locking. Requires the `product:update` permission in the collection\'s organization.',
-      errors: { types: [CollectionNotFound, CollectionSlugTaken, OptimisticLockError] },
+      errors: { types: [CollectionNotFound, CollectionSlugTaken, OptimisticLockError], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadCollectionOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -89,21 +94,23 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
         return { collection }
       },
     },
-    { outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The updated collection.', resolve: p => p.collection }) }) },
+    { ...sg('org').payload, outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The updated collection.', resolve: p => p.collection }) }) },
   )
 
   // ── deleteCollection (soft delete) ─────────────────────────────────────────
   builder.relayMutationField(
     'deleteCollection',
     {
+      ...sg('org').input,
       inputFields: t => ({
         id: t.globalID({ for: 'Collection', required: true, description: 'Global ID of the Collection to delete.' }),
         version: t.int({ required: true, description: 'Current optimistic-lock version; the delete fails if it no longer matches the stored row.' }),
       }),
     },
     {
+      ...sg('org').field,
       description: 'Soft-deletes a collection by setting its `deletedAt` timestamp, using optimistic locking. Requires the `product:delete` permission in the collection\'s organization.',
-      errors: { types: [CollectionNotFound, OptimisticLockError] },
+      errors: { types: [CollectionNotFound, OptimisticLockError], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadCollectionOrganizationId(ctx, Number(args.input.id.id))
         if (organization == null)
@@ -121,21 +128,23 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
         return { collection }
       },
     },
-    { outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The soft-deleted collection.', resolve: p => p.collection }) }) },
+    { ...sg('org').payload, outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The soft-deleted collection.', resolve: p => p.collection }) }) },
   )
 
   // ── addProduct ─────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'addProductToCollection',
     {
+      ...sg('org').input,
       inputFields: t => ({
         collectionId: t.globalID({ for: 'Collection', required: true, description: 'Global ID of the Collection to add the product to.' }),
         productId: t.int({ required: true, description: 'Raw integer ID of the product to add to the collection.' }),
       }),
     },
     {
+      ...sg('org').field,
       description: 'Adds a product to a collection, creating a many-to-many membership. Requires the `product:update` permission in the collection\'s organization.',
-      errors: { types: [CollectionNotFound] },
+      errors: { types: [CollectionNotFound], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))
         if (organization == null)
@@ -154,21 +163,23 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
         return { collection }
       },
     },
-    { outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The collection with the product now included.', resolve: p => p.collection }) }) },
+    { ...sg('org').payload, outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The collection with the product now included.', resolve: p => p.collection }) }) },
   )
 
   // ── removeProduct ──────────────────────────────────────────────────────────
   builder.relayMutationField(
     'removeProductFromCollection',
     {
+      ...sg('org').input,
       inputFields: t => ({
         collectionId: t.globalID({ for: 'Collection', required: true, description: 'Global ID of the Collection to remove the product from.' }),
         productId: t.int({ required: true, description: 'Raw integer ID of the product to remove from the collection.' }),
       }),
     },
     {
+      ...sg('org').field,
       description: 'Removes a product from a collection, deleting the many-to-many membership. Requires the `product:update` permission in the collection\'s organization.',
-      errors: { types: [CollectionNotFound] },
+      errors: { types: [CollectionNotFound], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) => {
         const organization = await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))
         if (organization == null)
@@ -187,6 +198,6 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
         return { collection }
       },
     },
-    { outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The collection with the product now excluded.', resolve: p => p.collection }) }) },
+    { ...sg('org').payload, outputFields: t => ({ collection: t.field({ type: 'Collection', description: 'The collection with the product now excluded.', resolve: p => p.collection }) }) },
   )
 }

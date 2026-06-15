@@ -13,6 +13,7 @@ import {
   ProductNotAdopted,
   ProductNotFound,
 } from '../../../../services'
+import { sg } from '../subgraphs'
 
 /** Coerce a relay DateTime input (string | Date) to a Date, preserving null. */
 function toDate(value: Date | string | null | undefined): Date | null | undefined {
@@ -26,6 +27,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
   builder.relayMutationField(
     'publishProduct',
     {
+      ...sg('org').input,
       inputFields: t => ({
         productId: t.globalID({ for: 'Product', required: true, description: 'Global ID of the Product node to publish on the channel.' }),
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization node that owns this listing and that authorization is gated against; grafting a global product requires a live adoption in this org.' }),
@@ -37,8 +39,9 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
       }),
     },
     {
+      ...sg('org').field,
       description: 'Publishes a product on a @czo/channel sales channel, creating or updating the org-scoped listing that controls its visibility on that channel (no per-channel pricing). Requires the `product:update` permission in the organization, and a live adoption when grafting onto a global product.',
-      errors: { types: [ProductNotFound, ProductNotAdopted, CrossOrgGraftDenied] },
+      errors: { types: [ProductNotFound, ProductNotAdopted, CrossOrgGraftDenied], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -62,6 +65,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         productId: t.int({ description: 'Identifier of the published product.', resolve: p => p.listing.productId }),
         channelId: t.int({ description: 'Identifier of the channel the product was published on.', resolve: p => p.listing.channelId }),
@@ -75,6 +79,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
   builder.relayMutationField(
     'unpublishProduct',
     {
+      ...sg('org').input,
       inputFields: t => ({
         productId: t.globalID({ for: 'Product', required: true, description: 'Global ID of the Product node to unpublish from the channel.' }),
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization node that authorization is gated against.' }),
@@ -82,8 +87,9 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
       }),
     },
     {
+      ...sg('org').field,
       description: 'Removes or disables the org-scoped listing for a product on a @czo/channel sales channel, taking it off that channel. Requires the `product:update` permission in the organization.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -101,6 +107,6 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ description: 'True when the product was unpublished from the channel.', resolve: p => p.success }) }) },
+    { ...sg('org').payload, outputFields: t => ({ success: t.boolean({ description: 'True when the product was unpublished from the channel.', resolve: p => p.success }) }) },
   )
 }

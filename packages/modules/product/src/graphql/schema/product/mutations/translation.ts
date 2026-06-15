@@ -16,6 +16,7 @@ import {
   loadProductOrganizationId,
   loadVariantOrganizationId,
 } from '../authz'
+import { sg } from '../subgraphs'
 
 /** Build the dual scope from a resolved entity org (null → global perm). */
 function scopeFor(organization: number | null) {
@@ -29,6 +30,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'upsertProductTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productId: t.globalID({
           for: 'Product',
@@ -44,9 +46,10 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description:
         'Creates or updates the localized translation of a product\'s name and description for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadProductOrganizationId(ctx, Number(args.input.productId.id))),
       resolve: async (_root, args, ctx) => {
@@ -66,6 +69,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -78,6 +82,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'removeProductTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         productId: t.globalID({
           for: 'Product',
@@ -91,8 +96,9 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a product for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadProductOrganizationId(ctx, Number(args.input.productId.id))),
       resolve: async (_root, args, ctx) => {
@@ -107,6 +113,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -120,6 +127,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'upsertCategoryTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         categoryId: t.globalID({
           for: 'Category',
@@ -135,9 +143,10 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description:
         'Creates or updates the localized translation of a category\'s name and description for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id))),
       resolve: async (_root, args, ctx) => {
@@ -157,6 +166,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -169,6 +179,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'removeCategoryTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         categoryId: t.globalID({
           for: 'Category',
@@ -182,8 +193,9 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a category for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id))),
       resolve: async (_root, args, ctx) => {
@@ -198,6 +210,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -211,6 +224,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'upsertCollectionTranslation',
     {
+      ...sg('org').input,
       inputFields: t => ({
         collectionId: t.globalID({
           for: 'Collection',
@@ -226,9 +240,10 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org').field,
       description:
         'Creates or updates the localized translation of a collection\'s name and description for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))),
       resolve: async (_root, args, ctx) => {
@@ -248,6 +263,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -260,6 +276,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'removeCollectionTranslation',
     {
+      ...sg('org').input,
       inputFields: t => ({
         collectionId: t.globalID({
           for: 'Collection',
@@ -273,8 +290,9 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org').field,
       description: 'Deletes the localized translation row of a collection for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))),
       resolve: async (_root, args, ctx) => {
@@ -289,6 +307,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -302,6 +321,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'upsertVariantTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         variantId: t.globalID({
           for: 'ProductVariant',
@@ -316,9 +336,10 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description:
         'Creates or updates the localized translation of a product variant\'s name for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id))),
       resolve: async (_root, args, ctx) => {
@@ -337,6 +358,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,
@@ -349,6 +371,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
   builder.relayMutationField(
     'removeVariantTranslation',
     {
+      ...sg('org', 'admin').input,
       inputFields: t => ({
         variantId: t.globalID({
           for: 'ProductVariant',
@@ -362,8 +385,9 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       }),
     },
     {
+      ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a product variant for the given locale.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org', 'admin').errorOpts },
       authScopes: async (_parent, args, ctx) =>
         scopeFor(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id))),
       resolve: async (_root, args, ctx) => {
@@ -378,6 +402,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       },
     },
     {
+      ...sg('org', 'admin').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,

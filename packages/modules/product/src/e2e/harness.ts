@@ -9,6 +9,7 @@
  * `createOrgWithProductAccess` helper that makes the signed-up user a member of
  * a fresh org holding the `product` access role (cumulative with `org:owner`).
  */
+import type { SubGraphName } from '@czo/kit/graphql'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -63,7 +64,11 @@ export interface ProductHarness {
   readonly createOrgWithProductAccess: (user: SignedUpUser, name: string, slug: string) => Promise<OrgWithAccess>
 }
 
-export async function bootProductApp(): Promise<ProductHarness> {
+export interface BootProductOptions {
+  readonly subGraphs?: ReadonlyArray<SubGraphName>
+}
+
+export async function bootProductApp(options: BootProductOptions = {}): Promise<ProductHarness> {
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only secret; auth reads it via Effect Config at boot
   process.env.AUTH_SECRET = 'x'.repeat(40)
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-only app id; auth reads it via Effect Config at boot
@@ -92,6 +97,7 @@ export async function bootProductApp(): Promise<ProductHarness> {
         INVENTORY_MIGRATIONS,
         PRODUCT_MIGRATIONS,
       ],
+      ...(options.subGraphs ? { buildOptions: { subGraphs: options.subGraphs } } : {}),
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )) as BootedApp
 

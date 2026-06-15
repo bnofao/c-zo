@@ -41,6 +41,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
     t.field({
       type: 'ProductType',
       nullable: true,
+      subGraphs: ['org', 'admin'],
       description: 'Fetch a single product type by id (admin). A global type requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'ProductType', required: true, description: 'The relay global id of the ProductType to fetch.' }) },
       authScopes: async (_parent, args, ctx) => {
@@ -62,6 +63,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
   builder.queryField('productTypes', t =>
     t.field({
       type: ['ProductType'],
+      subGraphs: ['org', 'admin'],
       description: 'List product types visible to an org (admin): the org\'s own types merged with the global (platform) ones. Requires `product:read` in the given org.',
       args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose product types to list; global types are always included.' }) },
       authScopes: (_parent, args) => ({
@@ -81,6 +83,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
     t.field({
       type: 'Product',
       nullable: true,
+      subGraphs: ['org', 'admin'],
       description: 'Fetch a single product by id (admin). A global product requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Product', required: true, description: 'The relay global id of the Product to fetch.' }) },
       authScopes: async (_parent, args, ctx) => {
@@ -103,6 +106,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
     t.field({
       type: 'Product',
       nullable: true,
+      subGraphs: ['public'],
       description: 'Storefront read: fetch a published-catalog product by its URL handle. With `viewerOrg` the lookup scopes to that org (its adopted/owned products); without it, only global (org-null) products are visible. Currently public — see the storefront access gate note. Returns null if no match in scope.',
       args: {
         handle: t.arg.string({ required: true, description: 'The product\'s URL handle, unique within its scope (global, or per owning org).' }),
@@ -124,6 +128,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
   builder.queryField('products', t =>
     t.field({
       type: ['Product'],
+      subGraphs: ['org', 'admin'],
       description: 'List products visible to an org (admin): the org\'s own products merged with the global (platform) ones. Requires `product:read` in the given org.',
       args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose products to list; global products are always included.' }) },
       authScopes: (_parent, args) => ({
@@ -142,6 +147,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
   builder.queryField('adoptedProducts', t =>
     t.field({
       type: ['Product'],
+      subGraphs: ['org', 'admin'],
       description: 'List the global products an org has adopted (and may therefore graft org-scoped data onto). Requires `product:read` in the given org.',
       args: { organization: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose adopted global products to list.' }) },
       authScopes: (_parent, args) => ({
@@ -161,6 +167,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
     t.field({
       type: 'Category',
       nullable: true,
+      subGraphs: ['org', 'admin'],
       description: 'Fetch a single category by id (admin). A global category requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Category', required: true, description: 'The relay global id of the Category to fetch.' }) },
       authScopes: async (_parent, args, ctx) => {
@@ -182,6 +189,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
   builder.queryField('categories', t =>
     t.field({
       type: ['Category'],
+      subGraphs: ['org', 'admin'],
       description: 'List categories visible to an org (admin): the org\'s own categories merged with the global (platform) ones. Requires `product:read` in the given org.',
       args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose categories to list; global categories are always included.' }) },
       authScopes: (_parent, args) => ({
@@ -201,6 +209,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
     t.field({
       type: 'Collection',
       nullable: true,
+      subGraphs: ['org', 'admin'],
       description: 'Fetch a single collection by id (admin). Collections are org-only; requires `product:read` in the owning org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Collection', required: true, description: 'The relay global id of the Collection to fetch.' }) },
       authScopes: async (_parent, args, ctx) => {
@@ -222,6 +231,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
   builder.queryField('collections', t =>
     t.field({
       type: ['Collection'],
+      subGraphs: ['org', 'admin'],
       description: 'List an org\'s collections (admin). Collections are org-only (no global tier). Requires `product:read` in the given org.',
       args: { organization: t.arg.globalID({ for: 'Organization', required: true, description: 'The organization whose collections to list.' }) },
       authScopes: (_parent, args) => ({

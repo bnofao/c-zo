@@ -21,6 +21,7 @@ import { graftAuthScopes, mergeWhere, viewerOrgId } from './merge'
 export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('products', {
     name: 'Product',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A sellable product. Either global (platform-managed, organizationId null) or org-owned. An org adopts a global product, then grafts org-scoped overlays (attribute values, media, categories, channel listings, variants) onto the base; graft reads merge the base rows with the viewer org\'s rows.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
@@ -69,6 +70,7 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
 
       organization: t.relation('organization', {
         nullable: true,
+        subGraphs: ['org', 'admin'],
         description: 'Owning organization; null for global products.',
       }),
       productType: t.relation('productType', {
@@ -77,41 +79,47 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
 
       // ── Graft connections (merge predicate: base ∪ viewerOrg) ───────────────
       variants: t.relatedConnection('variants', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Purchasable variants of this product. Merges base variants with the viewer org\'s grafted variants; excludes soft-deleted rows.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
         query: args => ({ where: { deletedAt: { isNull: true }, ...mergeWhere(viewerOrgId(args)) } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       attributeValues: t.relatedConnection('attributeValues', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Attribute values describing this product, ordered by position. Merges base values with the viewer org\'s grafted values.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
         query: args => ({ where: mergeWhere(viewerOrgId(args)), orderBy: { position: 'asc' } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       media: t.relatedConnection('media', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Media assets for this product, ordered by position. Merges base media with the viewer org\'s grafted media; excludes soft-deleted rows.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
         query: args => ({ where: { deletedAt: { isNull: true }, ...mergeWhere(viewerOrgId(args)) }, orderBy: { position: 'asc' } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       categories: t.relatedConnection('categories', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Categories this product is assigned to. Merges base assignments with the viewer org\'s grafted assignments.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
         query: args => ({ where: mergeWhere(viewerOrgId(args)) }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // collectionProducts has no organizationId column (a global link table);
       // it is not a graft, so no merge predicate applies.
       collections: t.relatedConnection('collections', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Collections that include this product. A global link table, not an org graft, so no viewer-org overlay applies.',
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // channelListings is org-scoped through its `channelId` (→ channels.org),
       // out-of-module; the row itself carries no organizationId, so the
       // organizationId merge predicate does not apply — only soft-delete.
       channelListings: t.relatedConnection('channelListings', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Sales-channel listings for this product, scoped via their channel. Excludes soft-deleted rows; no viewer-org overlay applies.',
         query: () => ({ where: { deletedAt: { isNull: true } } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
 
       // Whether `viewerOrg` has adopted this (global) product. False with no
       // viewer org, and false for org-owned products (nothing to adopt).

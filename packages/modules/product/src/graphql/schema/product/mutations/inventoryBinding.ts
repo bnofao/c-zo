@@ -14,12 +14,14 @@ import {
   ProductNotAdopted,
   VariantNotFound,
 } from '../../../../services'
+import { sg } from '../subgraphs'
 
 export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaBuilder): void {
   // ── linkInventoryItem ──────────────────────────────────────────────────────
   builder.relayMutationField(
     'linkInventoryItem',
     {
+      ...sg('org').input,
       inputFields: t => ({
         variantId: t.globalID({ for: 'ProductVariant', required: true, description: 'Global ID of the ProductVariant that will consume the linked inventory item.' }),
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization owning this graft; the link is always org-scoped and authorization gates on this org.' }),
@@ -28,8 +30,9 @@ export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaB
       }),
     },
     {
+      ...sg('org').field,
       description: 'Links an @czo/inventory InventoryItem to a product variant within a single organization. Requires the `product:update` permission in that organization, and a live adoption when grafting onto a global product.',
-      errors: { types: [VariantNotFound, ProductNotAdopted, CrossOrgGraftDenied, InvalidRequiredQuantity] },
+      errors: { types: [VariantNotFound, ProductNotAdopted, CrossOrgGraftDenied, InvalidRequiredQuantity], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -50,6 +53,7 @@ export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaB
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         variantId: t.int({ resolve: p => p.variantId, description: 'Identifier of the variant the inventory item was linked to.' }),
         inventoryItemId: t.int({ resolve: p => p.inventoryItemId, description: 'Identifier of the linked InventoryItem in @czo/inventory.' }),
@@ -62,6 +66,7 @@ export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaB
   builder.relayMutationField(
     'unlinkInventoryItem',
     {
+      ...sg('org').input,
       inputFields: t => ({
         variantId: t.globalID({ for: 'ProductVariant', required: true, description: 'Global ID of the ProductVariant whose inventory item link is being removed.' }),
         organizationId: t.globalID({ for: 'Organization', required: true, description: 'Global ID of the Organization owning this graft; the unlink is always org-scoped and authorization gates on this org.' }),
@@ -69,8 +74,9 @@ export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaB
       }),
     },
     {
+      ...sg('org').field,
       description: 'Removes the link between an @czo/inventory InventoryItem and a product variant within a single organization. Requires the `product:update` permission in that organization.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -89,6 +95,6 @@ export function registerInventoryBindingMutations(builder: ProductGraphQLSchemaB
         return { success: true }
       },
     },
-    { outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the inventory item link was removed.' }) }) },
+    { ...sg('org').payload, outputFields: t => ({ success: t.boolean({ resolve: p => p.success, description: 'True when the inventory item link was removed.' }) }) },
   )
 }

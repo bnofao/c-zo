@@ -19,6 +19,7 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
   const VariantPriceSetRef = builder
     .objectRef<{ id: number, priceSetId: number, organizationId: number }>('VariantPriceSet')
     .implement({
+      subGraphs: ['public', 'org', 'admin'],
       description: 'The binding between a variant and a price set for a single viewer organization. The price set itself lives in @czo/price and is resolved out-of-band via priceSetId (no foreign key).',
       fields: t => ({
         id: t.exposeInt('id', { description: 'Unique identifier of this variant-to-price-set binding.' }),
@@ -29,6 +30,7 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
 
   builder.drizzleNode('productVariants', {
     name: 'ProductVariant',
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
     select: true,
@@ -47,14 +49,16 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
 
       // ── Graft connections (merge predicate: base ∪ viewerOrg) ───────────────
       attributeValues: t.relatedConnection('attributeValues', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Attribute values assigned to this variant; merges base (org-null) rows with the viewer organization\'s overlay rows.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
         query: args => ({ where: mergeWhere(viewerOrgId(args)), orderBy: { position: 'asc' } }),
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // variantInventoryItems carries a NOT NULL org → these are pure grafts;
       // only the viewer org's bindings are visible (no base/global rows exist).
       inventoryItems: t.relatedConnection('inventoryItems', {
+        subGraphs: ['public', 'org', 'admin'],
         description: 'Inventory links for this variant scoped to the viewer organization; these are pure org grafts with no base rows, so omitting viewerOrg yields none.',
         args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
         authScopes: (_parent, args) => graftAuthScopes(args),
@@ -62,13 +66,14 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
           const orgId = viewerOrgId(args)
           return { where: orgId == null ? { organizationId: -1 } : { organizationId: orgId } }
         },
-      }),
+      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // variantMedia is a global link table (no org) — not a graft.
-      media: t.relatedConnection('media', { description: 'Media assets linked to this variant via the global link table; not org-scoped.' }),
+      media: t.relatedConnection('media', { subGraphs: ['public', 'org', 'admin'], description: 'Media assets linked to this variant via the global link table; not org-scoped.' }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
 
       // The viewer org's price binding for this variant (unique per org), or
       // null when no viewer org or no binding exists.
       priceSet: t.field({
+        subGraphs: ['public', 'org', 'admin'],
         description: 'The viewer organization\'s price-set binding for this variant (unique per org), or null when no viewer org is given or no binding exists.',
         type: VariantPriceSetRef,
         nullable: true,

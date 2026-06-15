@@ -11,6 +11,7 @@ import { translatedField } from '@czo/translation/graphql'
 export function registerCollectionNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('collections', {
     name: 'Collection',
+    subGraphs: ['org', 'admin'],
     description:
       'A curated, organization-scoped grouping of products, related to its members many-to-many. Collections exist only at the organization tier; there is no global collection.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
@@ -55,8 +56,9 @@ export function registerCollectionNode(builder: ProductGraphQLSchemaBuilder): vo
         description: 'The organization that owns this collection.',
       }),
       products: t.relatedConnection('products', {
+        subGraphs: ['org', 'admin'],
         description: 'Products that belong to this collection, paginated as a Relay connection.',
-      }),
+      }, { subGraphs: ['org', 'admin'] }, { subGraphs: ['org', 'admin'] }),
     }),
   })
 }

@@ -13,12 +13,14 @@ import {
   ProductNotAdopted,
   VariantNotFound,
 } from '../../../../services'
+import { sg } from '../subgraphs'
 
 export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuilder): void {
   // ── bindPriceSet ───────────────────────────────────────────────────────────
   builder.relayMutationField(
     'bindPriceSet',
     {
+      ...sg('org').input,
       inputFields: t => ({
         variantId: t.globalID({
           for: 'ProductVariant',
@@ -39,9 +41,10 @@ export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuild
       }),
     },
     {
+      ...sg('org').field,
       description:
         'Binds a @czo/price PriceSet to a variant within a single organization. Requires the product:update permission in that organization, and grafting onto a global product fails with ProductNotAdopted unless a live adoption exists.',
-      errors: { types: [VariantNotFound, ProductNotAdopted, CrossOrgGraftDenied] },
+      errors: { types: [VariantNotFound, ProductNotAdopted, CrossOrgGraftDenied], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -61,6 +64,7 @@ export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuild
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         variantId: t.int({
           resolve: p => p.variantId,
@@ -78,6 +82,7 @@ export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuild
   builder.relayMutationField(
     'unbindPriceSet',
     {
+      ...sg('org').input,
       inputFields: t => ({
         variantId: t.globalID({
           for: 'ProductVariant',
@@ -93,9 +98,10 @@ export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuild
       }),
     },
     {
+      ...sg('org').field,
       description:
         'Removes the @czo/price PriceSet binding from a variant within a single organization. Requires the product:update permission in that organization.',
-      errors: { types: [] },
+      errors: { types: [], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -114,6 +120,7 @@ export function registerPriceBindingMutations(builder: ProductGraphQLSchemaBuild
       },
     },
     {
+      ...sg('org').payload,
       outputFields: t => ({
         success: t.boolean({
           resolve: p => p.success,

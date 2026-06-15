@@ -5,6 +5,7 @@ import type { ProductGraphQLSchemaBuilder } from '../../..'
 export function registerMediaNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('productMedia', {
     name: 'ProductMedia',
+    subGraphs: ['public', 'org', 'admin'],
     description:
       'A media asset (image or video) attached to a product. Exists either as a global BASE row (no organization) or as an organization-specific graft, and may be linked to particular variants.',
     // Load all columns so the `node(id:)` guard can read `organizationId`.
