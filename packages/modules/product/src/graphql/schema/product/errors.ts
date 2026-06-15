@@ -23,7 +23,9 @@ import {
   NotAMarketplaceChannel,
   ProductNotAdopted,
   ProductNotFound,
+  ProductTypeAlreadyGlobal,
   ProductTypeNotFound,
+  ProductTypeSlugTaken,
   SkuTaken,
   TaxonomyRequestNotFound,
   TaxonomyRequestNotPending,
@@ -63,4 +65,6 @@ export function registerProductErrors(builder: ProductGraphQLSchemaBuilder): voi
   registerError(builder, CategoryParentNotGlobal, { name: 'CategoryParentNotGlobalError', subGraphs: ['admin'] })
   registerError(builder, TaxonomyRequestNotFound, { name: 'TaxonomyRequestNotFoundError', subGraphs: ['admin'] })
   registerError(builder, TaxonomyRequestNotPending, { name: 'TaxonomyRequestNotPendingError', subGraphs: ['admin'] })
+  registerError(builder, ProductTypeAlreadyGlobal, { name: 'ProductTypeAlreadyGlobalError', subGraphs: ['org', 'admin'] })
+  registerError(builder, ProductTypeSlugTaken, { name: 'ProductTypeSlugTakenError', subGraphs: ['admin'] })
 }

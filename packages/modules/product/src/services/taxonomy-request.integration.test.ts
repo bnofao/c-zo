@@ -1,19 +1,12 @@
+import { Attribute } from '@czo/attribute/services'
 import { expect, layer } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
-import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
+import { Effect } from 'effect'
+import { ProductAttributeLayer, truncateProductAttribute as truncateProduct } from '../testing/cross-module-postgres'
 import * as Cat from './category'
-import * as Prod from './product'
 import * as ProductType from './product-type'
 import * as Tax from './taxonomy-request'
 
-const TestLayer = Tax.TaxonomyRequestServiceLive.pipe(
-  Layer.provideMerge(Cat.CategoryServiceLive),
-  Layer.provideMerge(Prod.ProductServiceLive),
-  Layer.provideMerge(ProductType.ProductTypeServiceLive),
-  Layer.provideMerge(ProductPostgresLayer),
-)
-
-layer(TestLayer, { timeout: 120_000 })('TaxonomyRequestService', (it) => {
+layer(ProductAttributeLayer, { timeout: 180_000 })('TaxonomyRequestService', (it) => {
   // ─── creation → approve ──────────────────────────────────────────────────────
 
   it.effect('submitCategoryCreation → approve creates a global category', () =>
@@ -162,5 +155,135 @@ layer(TestLayer, { timeout: 120_000 })('TaxonomyRequestService', (it) => {
       expect(org1Ids).toContain(a.id)
       expect(org1Ids).toContain(b.id)
       expect(org1Ids).not.toContain(c.id)
+    }))
+
+  // ─── product-type creation → approve ─────────────────────────────────────────
+
+  it.effect('submitProductTypeCreation → approve creates a global product type', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+
+      const req = yield* tax.submitProductTypeCreation({ organizationId: 1, name: 'Footwear', slug: 'footwear-create' })
+      expect(req.state).toBe('pending')
+
+      const approved = yield* tax.approve(req.id)
+      expect(approved.state).toBe('approved')
+      expect(approved.resultId).not.toBeNull()
+
+      const created = yield* types.findTypeById(approved.resultId!)
+      expect(created.organizationId).toBeNull()
+      expect(created.name).toBe('Footwear')
+    }))
+
+  // ─── product-type promotion co-promotes org attributes ───────────────────────
+
+  it.effect('submitProductTypePromotion → approve co-promotes the type and its org attributes', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+      const attrs = yield* Attribute.AttributeService
+
+      const type = yield* types.createType({ organizationId: 1, name: 'Tees', slug: 'tees-promote', isShippingRequired: true })
+      const attr = yield* attrs.create({ name: 'Sleeve', type: 'DROPDOWN', organizationId: 1 })
+      const decl = yield* types.declareAttribute({
+        productTypeId: type.id,
+        organizationId: 1,
+        attributeId: attr.id,
+        assignment: 'PRODUCT',
+        variantSelection: false,
+        position: 0,
+      })
+
+      const req = yield* tax.submitProductTypePromotion({ organizationId: 1, productTypeId: type.id })
+      expect(req.state).toBe('pending')
+
+      const approved = yield* tax.approve(req.id)
+      expect(approved.state).toBe('approved')
+      expect(approved.resultId).toBe(type.id)
+
+      const promotedType = yield* types.findTypeById(type.id)
+      expect(promotedType.organizationId).toBeNull()
+
+      const promotedAttr = yield* attrs.findById(attr.id)
+      expect(promotedAttr.organizationId).toBeNull()
+
+      const decls = yield* types.listTypeAttributes({ productTypeId: type.id, orgId: 1 })
+      const promotedDecl = decls.find(d => d.id === decl.id)
+      expect(promotedDecl?.organizationId).toBeNull()
+    }))
+
+  it.effect('product-type promotion with already-global attributes flips only the type', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+      const attrs = yield* Attribute.AttributeService
+
+      const type = yield* types.createType({ organizationId: 1, name: 'Pants', slug: 'pants-promote', isShippingRequired: true })
+      const globalAttr = yield* attrs.create({ name: 'Fit', type: 'DROPDOWN', organizationId: null })
+      yield* types.declareAttribute({
+        productTypeId: type.id,
+        organizationId: 1,
+        attributeId: globalAttr.id,
+        assignment: 'PRODUCT',
+        variantSelection: false,
+        position: 0,
+      })
+
+      const req = yield* tax.submitProductTypePromotion({ organizationId: 1, productTypeId: type.id })
+      const approved = yield* tax.approve(req.id)
+      expect(approved.state).toBe('approved')
+
+      const promotedType = yield* types.findTypeById(type.id)
+      expect(promotedType.organizationId).toBeNull()
+
+      const stillGlobal = yield* attrs.findById(globalAttr.id)
+      expect(stillGlobal.organizationId).toBeNull()
+    }))
+
+  // ─── submitProductTypePromotion guards ───────────────────────────────────────
+
+  it.effect('submitProductTypePromotion on a global type → ProductTypeAlreadyGlobal', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+
+      const globalType = yield* types.createType({ organizationId: null, name: 'Hats', slug: 'hats-glob', isShippingRequired: true })
+      const err = yield* tax.submitProductTypePromotion({ organizationId: 1, productTypeId: globalType.id }).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeAlreadyGlobal')
+    }))
+
+  it.effect('submitProductTypePromotion for another org\'s type → ProductTypeNotFound', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+
+      const org2Type = yield* types.createType({ organizationId: 2, name: 'Org2 Type', slug: 'org2-type', isShippingRequired: true })
+      const err = yield* tax.submitProductTypePromotion({ organizationId: 1, productTypeId: org2Type.id }).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeNotFound')
+    }))
+
+  // ─── approve failure leaves request pending ──────────────────────────────────
+
+  it.effect('approve of a product-type promotion whose slug clashes a global → ProductTypeSlugTaken, request stays pending', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+      const types = yield* ProductType.ProductTypeService
+
+      yield* types.createType({ organizationId: null, name: 'Boots', slug: 'boots-clash', isShippingRequired: true })
+      const orgType = yield* types.createType({ organizationId: 1, name: 'Boots', slug: 'boots-clash', isShippingRequired: true })
+      const req = yield* tax.submitProductTypePromotion({ organizationId: 1, productTypeId: orgType.id })
+
+      const err = yield* tax.approve(req.id).pipe(Effect.flip)
+      expect(err._tag).toBe('ProductTypeSlugTaken')
+
+      const reloaded = yield* tax.findById(req.id)
+      expect(reloaded?.state).toBe('pending')
     }))
 })

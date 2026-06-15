@@ -209,4 +209,45 @@ layer(TestLayer, { timeout: 120_000 })('AttributeService integration', (it) => {
         .where(eq(attributeValues.attributeId, created.id))
       expect(childAfter).toHaveLength(0)
     }))
+
+  it.effect('promoteToGlobal — flips an org attribute AND its value catalog to global', () =>
+    Effect.gen(function* () {
+      yield* truncateAttribute
+      const svc = yield* AttributeService
+      const db = (yield* DrizzleDb) as Database<Relations>
+
+      const created = yield* svc.create({ name: 'Acme Finish', type: 'DROPDOWN', organizationId: 1 })
+      expect(created.organizationId).toBe(1)
+
+      yield* db.insert(attributeValues).values([
+        { attributeId: created.id, organizationId: 1, slug: 'matte', value: 'Matte' },
+        { attributeId: created.id, organizationId: 1, slug: 'gloss', value: 'Gloss' },
+      ])
+
+      const promoted = yield* svc.promoteToGlobal(created.id)
+      expect(promoted.organizationId).toBeNull()
+      // version is bumped on the promote write.
+      expect(promoted.version).toBe(created.version + 1)
+
+      const values = yield* db
+        .select()
+        .from(attributeValues)
+        .where(eq(attributeValues.attributeId, created.id))
+      expect(values).toHaveLength(2)
+      for (const v of values)
+        expect(v.organizationId).toBeNull()
+    }))
+
+  it.effect('promoteToGlobal — already-global attribute is returned unchanged', () =>
+    Effect.gen(function* () {
+      yield* truncateAttribute
+      const svc = yield* AttributeService
+
+      const created = yield* svc.create({ name: 'Platform Finish', type: 'DROPDOWN', organizationId: null })
+
+      const promoted = yield* svc.promoteToGlobal(created.id)
+      expect(promoted.organizationId).toBeNull()
+      // No-op: version untouched.
+      expect(promoted.version).toBe(created.version)
+    }))
 })

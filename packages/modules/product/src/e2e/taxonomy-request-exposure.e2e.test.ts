@@ -13,7 +13,7 @@ const QUERY_FIELDS = `{ __type(name: "Query") { fields { name } } }`
 const MUTATION_FIELDS = `{ __type(name: "Mutation") { fields { name } } }`
 interface IntrospectResult { data?: { __type?: { fields?: { name: string }[] } | null }, errors?: { message: string }[] }
 
-const ORG_MUTATIONS = ['requestCategoryCreation', 'requestCategoryPromotion'] as const
+const ORG_MUTATIONS = ['requestCategoryCreation', 'requestCategoryPromotion', 'requestProductTypeCreation', 'requestProductTypePromotion'] as const
 const ADMIN_MUTATIONS = ['approveTaxonomyRequest', 'rejectTaxonomyRequest'] as const
 
 describe('product taxonomy-request sub-graph exposure', () => {

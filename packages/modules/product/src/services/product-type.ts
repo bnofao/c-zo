@@ -13,6 +13,16 @@ export class ProductTypeNotFound extends Data.TaggedError('ProductTypeNotFound')
   get message() { return `Product type ${this.id} not found` }
 }
 
+export class ProductTypeAlreadyGlobal extends Data.TaggedError('ProductTypeAlreadyGlobal')<{ readonly id: number }> {
+  readonly code = 'PRODUCT_TYPE_ALREADY_GLOBAL'
+  get message() { return 'Product type is already global' }
+}
+
+export class ProductTypeSlugTaken extends Data.TaggedError('ProductTypeSlugTaken')<{ readonly slug: string }> {
+  readonly code = 'PRODUCT_TYPE_SLUG_TAKEN'
+  get message() { return 'A global product type with this slug already exists' }
+}
+
 export class InvalidAttributeDeclaration extends Data.TaggedError('InvalidAttributeDeclaration')<{ readonly reason: string }> {
   readonly code = 'PRODUCT_INVALID_ATTRIBUTE_DECLARATION'
   get message() { return `Invalid attribute declaration: ${this.reason}` }
@@ -72,6 +82,7 @@ export class ProductTypeService extends Context.Service<ProductTypeService, {
   readonly declareAttribute: (input: DeclareAttributeInput) => Effect.Effect<ProductTypeAttribute, InvalidAttributeDeclaration | ProductTypeDbFailed>
   readonly undeclareAttribute: (id: number) => Effect.Effect<void, ProductTypeDbFailed>
   readonly listTypeAttributes: (input: ListTypeAttributesInput) => Effect.Effect<ReadonlyArray<ProductTypeAttribute>, ProductTypeDbFailed>
+  readonly promoteToGlobal: (typeId: number) => Effect.Effect<ProductType, ProductTypeNotFound | ProductTypeAlreadyGlobal | ProductTypeSlugTaken | ProductTypeDbFailed>
 }>()('@czo/product/ProductTypeService') {}
 
 type ProductTypeServiceImpl = Context.Service.Shape<typeof ProductTypeService>
@@ -182,6 +193,32 @@ export const make = Effect.gen(function* () {
       },
     })) as Effect.Effect<ReadonlyArray<ProductTypeAttribute>, ProductTypeDbFailed>
 
+  const promoteToGlobal: ProductTypeServiceImpl['promoteToGlobal'] = typeId =>
+    Effect.gen(function* () {
+      const type = yield* dbErr(db.query.productTypes.findFirst({ where: { id: typeId, deletedAt: { isNull: true as const } } }))
+      if (!type)
+        return yield* Effect.fail(new ProductTypeNotFound({ id: typeId }))
+      if (type.organizationId === null)
+        return yield* Effect.fail(new ProductTypeAlreadyGlobal({ id: typeId }))
+
+      const clash = yield* dbErr(db.query.productTypes.findFirst({
+        where: { organizationId: { isNull: true as const }, slug: type.slug, deletedAt: { isNull: true as const } },
+      }))
+      if (clash)
+        return yield* Effect.fail(new ProductTypeSlugTaken({ slug: type.slug }))
+
+      // The type's own org-scoped attribute declarations become base (null).
+      yield* dbErr(db.update(productTypeAttributesTable)
+        .set({ organizationId: null })
+        .where(sql`${productTypeAttributesTable.productTypeId} = ${typeId} AND ${productTypeAttributesTable.organizationId} = ${type.organizationId}`))
+
+      const [row] = yield* dbErr(db.update(productTypesTable)
+        .set({ organizationId: null, version: type.version + 1, updatedAt: sql`NOW()` as any })
+        .where(sql`${productTypesTable.id} = ${typeId} AND ${productTypesTable.deletedAt} IS NULL`)
+        .returning())
+      return row! as ProductType
+    })
+
   return {
     createType,
     updateType,
@@ -191,6 +228,7 @@ export const make = Effect.gen(function* () {
     declareAttribute,
     undeclareAttribute,
     listTypeAttributes,
+    promoteToGlobal,
   } satisfies ProductTypeServiceImpl
 })
 
