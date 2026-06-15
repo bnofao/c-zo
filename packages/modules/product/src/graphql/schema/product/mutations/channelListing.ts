@@ -89,7 +89,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
     {
       ...sg('org').field,
       description: 'Removes or disables the org-scoped listing for a product on a @czo/channel sales channel, taking it off that channel. Requires the `product:update` permission in the organization.',
-      errors: { types: [], ...sg('org').errorOpts },
+      errors: { types: [ProductNotFound, ProductNotAdopted, CrossOrgGraftDenied], ...sg('org').errorOpts },
       authScopes: (_parent, args) => ({
         permission: { resource: 'product', actions: ['update'], organization: Number(args.input.organizationId.id) },
       }),
@@ -101,6 +101,7 @@ export function registerChannelListingMutations(builder: ProductGraphQLSchemaBui
             yield* svc.unpublish({
               productId: Number(input.productId.id),
               channelId: input.channelId,
+              organizationId: Number(input.organizationId.id),
             })
           }),
         )

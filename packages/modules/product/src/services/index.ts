@@ -49,8 +49,10 @@ export {
 export type { Category, CreateCategoryInput, ProductCategory, UpdateCategoryInput } from './category'
 export {
   ChannelListingDbFailed,
+  ChannelListingNotFound,
   ChannelListingService,
   ChannelListingServiceLive,
+  NotAMarketplaceChannel,
 } from './channel-listing'
 export type {
   ProductChannelListing,

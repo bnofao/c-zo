@@ -28,6 +28,12 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('ChannelListingService', (it)
       return yield* svc.create({ organizationId, handle, name: handle })
     })
 
+  const makePlatformChannel = (handle: string) =>
+    Effect.gen(function* () {
+      const svc = yield* Channel.ChannelService
+      return yield* svc.create({ organizationId: null, handle, name: handle })
+    })
+
   it.effect('publish creates a live listing', () =>
     Effect.gen(function* () {
       yield* truncateProductAttribute
@@ -101,7 +107,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('ChannelListingService', (it)
       expect(row.isPublished).toBe(true)
     }))
 
-  it.effect('unpublish soft-deletes; re-publish after works', () =>
+  it.effect('unpublish toggles isPublished and keeps the row; re-publish re-enables', () =>
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* ChannelListingService
@@ -110,16 +116,111 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('ChannelListingService', (it)
       const channel = yield* makeChannel(ORG, 'cl-c5')
 
       yield* svc.publish({ productId: product.id, channelId: channel.id, organizationId: ORG })
-      expect((yield* svc.listListings(product.id)).length).toBe(1)
+      yield* svc.unpublish({ productId: product.id, channelId: channel.id, organizationId: ORG })
 
-      yield* svc.unpublish({ productId: product.id, channelId: channel.id })
-      expect((yield* svc.listListings(product.id)).length).toBe(0)
-
-      // idempotent
-      yield* svc.unpublish({ productId: product.id, channelId: channel.id })
+      const after = yield* svc.listListings(product.id)
+      expect(after.length).toBe(1)
+      expect(after[0]!.isPublished).toBe(false)
 
       const reborn = yield* svc.publish({ productId: product.id, channelId: channel.id, organizationId: ORG })
       expect(reborn.isPublished).toBe(true)
       expect((yield* svc.listListings(product.id)).length).toBe(1)
+    }))
+
+  it.effect('publish on a platform channel creates a pending (not live) listing', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t1')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p1')
+      const market = yield* makePlatformChannel('mk-market1')
+
+      const row = yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+      expect(row.isPublished).toBe(true)
+      expect(row.reviewState).toBe('pending')
+    }))
+
+  it.effect('approveListing → approved + reviewedAt; reason cleared', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t2')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p2')
+      const market = yield* makePlatformChannel('mk-market2')
+      const listing = yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+
+      const approved = yield* svc.approveListing(listing.id)
+      expect(approved.reviewState).toBe('approved')
+      expect(approved.reviewReason).toBeNull()
+      expect(approved.reviewedAt).not.toBeNull()
+    }))
+
+  it.effect('reject and suspend persist the reason', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t3')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p3')
+      const market = yield* makePlatformChannel('mk-market3')
+      const listing = yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+
+      const rejected = yield* svc.rejectListing(listing.id, 'counterfeit')
+      expect(rejected.reviewState).toBe('rejected')
+      expect(rejected.reviewReason).toBe('counterfeit')
+
+      const suspended = yield* svc.suspendListing(listing.id, 'policy violation')
+      expect(suspended.reviewState).toBe('suspended')
+      expect(suspended.reviewReason).toBe('policy violation')
+    }))
+
+  it.effect('approved marketplace listing survives unpublish/re-publish (no re-moderation)', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t4')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p4')
+      const market = yield* makePlatformChannel('mk-market4')
+      const listing = yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+      yield* svc.approveListing(listing.id)
+
+      yield* svc.unpublish({ productId: product.id, channelId: market.id, organizationId: ORG })
+      const reborn = yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+      expect(reborn.isPublished).toBe(true)
+      expect(reborn.reviewState).toBe('approved')
+    }))
+
+  it.effect('moderating a missing listing → ChannelListingNotFound', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const err = yield* svc.approveListing(999999).pipe(Effect.flip)
+      expect(err._tag).toBe('ChannelListingNotFound')
+    }))
+
+  it.effect('moderating an own-channel listing → NotAMarketplaceChannel', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t6')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p6')
+      const channel = yield* makeChannel(ORG, 'mk-own6')
+      const listing = yield* svc.publish({ productId: product.id, channelId: channel.id, organizationId: ORG })
+
+      const err = yield* svc.approveListing(listing.id).pipe(Effect.flip)
+      expect(err._tag).toBe('NotAMarketplaceChannel')
+    }))
+
+  it.effect('a different org cannot unpublish another org\'s marketplace listing → CrossOrgGraftDenied', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'mk-t7')
+      const product = yield* makeProduct(ORG, type.id, 'mk-p7')
+      const market = yield* makePlatformChannel('mk-market7')
+      yield* svc.publish({ productId: product.id, channelId: market.id, organizationId: ORG })
+
+      // org 2 owns neither the product nor the marketplace listing.
+      const err = yield* svc.unpublish({ productId: product.id, channelId: market.id, organizationId: 2 }).pipe(Effect.flip)
+      expect(err._tag).toBe('CrossOrgGraftDenied')
     }))
 })

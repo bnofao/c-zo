@@ -8,6 +8,7 @@ import {
   CategoryCycle,
   CategoryNotFound,
   CategorySlugTaken,
+  ChannelListingNotFound,
   CollectionNotFound,
   CollectionSlugTaken,
   CrossOrgGraftDenied,
@@ -17,6 +18,7 @@ import {
   InvalidAttributeDeclaration,
   InvalidRequiredQuantity,
   MediaNotFound,
+  NotAMarketplaceChannel,
   ProductNotAdopted,
   ProductNotFound,
   ProductTypeNotFound,
@@ -51,4 +53,6 @@ export function registerProductErrors(builder: ProductGraphQLSchemaBuilder): voi
   registerError(builder, VariantNotFound, { name: 'VariantNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, CategoryNotFound, { name: 'CategoryNotFoundError', subGraphs: ['org', 'admin'] })
   registerError(builder, CollectionNotFound, { name: 'CollectionNotFoundError', subGraphs: ['org', 'admin'] })
+  registerError(builder, ChannelListingNotFound, { name: 'ChannelListingNotFoundError', subGraphs: ['admin'] })
+  registerError(builder, NotAMarketplaceChannel, { name: 'NotAMarketplaceChannelError', subGraphs: ['admin'] })
 }
