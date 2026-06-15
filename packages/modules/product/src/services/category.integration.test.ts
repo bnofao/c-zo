@@ -240,4 +240,44 @@ layer(TestLayer, { timeout: 120_000 })('CategoryService', (it) => {
       const err = yield* svc.findCategoryById(999999).pipe(Effect.flip)
       expect(err._tag).toBe('CategoryNotFound')
     }))
+
+  // ─── promoteToGlobal ─────────────────────────────────────────────────────────
+
+  it.effect('promoteToGlobal flips an org category to global', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Cat.CategoryService
+      const cat = yield* svc.createCategory({ organizationId: 1, name: 'Bags', slug: 'bags-promote' })
+      const promoted = yield* svc.promoteToGlobal(cat.id)
+      expect(promoted.organizationId).toBeNull()
+    }))
+
+  it.effect('promoteToGlobal on an already-global category → CategoryAlreadyGlobal', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Cat.CategoryService
+      const cat = yield* svc.createCategory({ organizationId: null, name: 'Shoes', slug: 'shoes-glob' })
+      const err = yield* svc.promoteToGlobal(cat.id).pipe(Effect.flip)
+      expect(err._tag).toBe('CategoryAlreadyGlobal')
+    }))
+
+  it.effect('promoteToGlobal when a global slug already exists → CategorySlugTaken', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Cat.CategoryService
+      yield* svc.createCategory({ organizationId: null, name: 'Hats', slug: 'hats-x' })
+      const orgCat = yield* svc.createCategory({ organizationId: 1, name: 'Hats', slug: 'hats-x' })
+      const err = yield* svc.promoteToGlobal(orgCat.id).pipe(Effect.flip)
+      expect(err._tag).toBe('CategorySlugTaken')
+    }))
+
+  it.effect('promoteToGlobal with an org parent → CategoryParentNotGlobal', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Cat.CategoryService
+      const parent = yield* svc.createCategory({ organizationId: 1, name: 'Apparel', slug: 'apparel-p' })
+      const child = yield* svc.createCategory({ organizationId: 1, name: 'Tops', slug: 'tops-c', parentId: parent.id })
+      const err = yield* svc.promoteToGlobal(child.id).pipe(Effect.flip)
+      expect(err._tag).toBe('CategoryParentNotGlobal')
+    }))
 })

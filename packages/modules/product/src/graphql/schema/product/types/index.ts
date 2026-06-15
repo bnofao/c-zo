@@ -11,6 +11,7 @@ import { registerGraftTypes } from './grafts'
 import { registerMediaNode } from './media'
 import { registerProductNode } from './product'
 import { registerProductTypeNode } from './product-type'
+import { registerTaxonomyRequestNode } from './taxonomy-request'
 import { registerVariantNode } from './variant'
 
 export function registerProductTypes(builder: ProductGraphQLSchemaBuilder): void {
@@ -20,5 +21,6 @@ export function registerProductTypes(builder: ProductGraphQLSchemaBuilder): void
   registerCategoryNode(builder)
   registerCollectionNode(builder)
   registerMediaNode(builder)
+  registerTaxonomyRequestNode(builder)
   registerGraftTypes(builder)
 }
