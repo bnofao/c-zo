@@ -4,6 +4,7 @@ import type {
   Category,
   Collection,
   Product,
+  ProductChannelListing,
   ProductMedia,
   ProductType,
   ProductTypeAttribute,
@@ -44,6 +45,7 @@ declare module '@czo/kit/graphql' {
     Category: Category
     Collection: Collection
     ProductMedia: ProductMedia
+    ProductChannelListing: ProductChannelListing
   }
 
   interface SchemaBuilderRefs {}

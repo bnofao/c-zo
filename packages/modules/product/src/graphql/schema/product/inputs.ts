@@ -20,6 +20,7 @@ import type { ProductGraphQLSchemaBuilder } from '@czo/product/graphql'
 export interface ProductEnumRefs {
   AttributeAssignment: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'PRODUCT' | 'VARIANT' }
   MediaType: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'IMAGE' | 'VIDEO' }
+  ListingReviewState: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'pending' | 'approved' | 'rejected' | 'suspended' }
 }
 
 let refs: ProductEnumRefs | undefined
@@ -36,6 +37,11 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
       subGraphs: ['org', 'admin'],
       description: 'The kind of a product/variant media asset: IMAGE or VIDEO.',
       values: { IMAGE: { value: 'IMAGE' }, VIDEO: { value: 'VIDEO' } } as const,
+    }),
+    ListingReviewState: builder.enumType('ProductListingReviewState', {
+      subGraphs: ['org', 'admin'],
+      description: 'Admin moderation state of a product listing on the marketplace: PENDING (awaiting review), APPROVED (live-eligible), REJECTED, or SUSPENDED.',
+      values: { PENDING: { value: 'pending' }, APPROVED: { value: 'approved' }, REJECTED: { value: 'rejected' }, SUSPENDED: { value: 'suspended' } } as const,
     }),
   }
 
