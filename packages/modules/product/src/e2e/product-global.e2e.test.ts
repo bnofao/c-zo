@@ -260,12 +260,12 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(readB.data.product.forB).toBe(false)
 
     const adopted = await h.gql(
-      `query($org:ID!){ adoptedProducts(organization:$org){ id } }`,
+      `query($org:ID!){ adoptedProducts(organization:$org){ edges { node { id } } } }`,
       { org: aOrgGlobalId },
       aToken,
     )
     expect(adopted.errors).toBeUndefined()
-    const ids: string[] = adopted.data.adoptedProducts.map((p: any) => p.id)
+    const ids: string[] = adopted.data.adoptedProducts.edges.map((e: any) => e.node.id)
     expect(ids).toContain(globalProductGlobalId)
   })
 

@@ -89,7 +89,11 @@ export class TaxonomyRequestService extends Context.Service<TaxonomyRequestServi
   readonly reject: (requestId: number, reason: string) => Effect.Effect<TaxonomyRequest, TaxonomyRequestNotFound | TaxonomyRequestNotPending | TaxonomyRequestDbFailed>
   readonly listForAdmin: (state?: 'pending' | 'approved' | 'rejected') => Effect.Effect<ReadonlyArray<TaxonomyRequest>, TaxonomyRequestDbFailed>
   readonly listForOrg: (organizationId: number) => Effect.Effect<ReadonlyArray<TaxonomyRequest>, TaxonomyRequestDbFailed>
+  readonly findRequests: (config: FindRequestsConfig) => Effect.Effect<ReadonlyArray<TaxonomyRequest>, TaxonomyRequestDbFailed>
 }>()('@czo/product/TaxonomyRequestService') {}
+
+/** The relational query config accepted by `findRequests` (relay connection-driven). */
+type FindRequestsConfig = Parameters<Database<Relations>['query']['taxonomyRequests']['findMany']>[0]
 
 type Impl = Context.Service.Shape<typeof TaxonomyRequestService>
 
@@ -267,7 +271,10 @@ export const make = Effect.gen(function* () {
       orderBy: { createdAt: 'desc' },
     })) as Effect.Effect<ReadonlyArray<TaxonomyRequest>, TaxonomyRequestDbFailed>
 
-  return { submitCategoryCreation, submitCategoryPromotion, submitProductTypeCreation, submitProductTypePromotion, findById, approve, reject, listForAdmin, listForOrg } satisfies Impl
+  const findRequests: Impl['findRequests'] = config =>
+    dbErr(db.query.taxonomyRequests.findMany(config)) as Effect.Effect<ReadonlyArray<TaxonomyRequest>, TaxonomyRequestDbFailed>
+
+  return { submitCategoryCreation, submitCategoryPromotion, submitProductTypeCreation, submitProductTypePromotion, findById, approve, reject, listForAdmin, listForOrg, findRequests } satisfies Impl
 })
 
 export const TaxonomyRequestServiceLive = Layer.effect(TaxonomyRequestService, make)

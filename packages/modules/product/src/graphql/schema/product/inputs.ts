@@ -15,7 +15,16 @@
 //     input (`VariantSelectionPairInput`, `AssignmentValueInput` and its two
 //     scalar members), referenced by their registered string name.
 
-import type { ProductGraphQLSchemaBuilder } from '@czo/product/graphql'
+import type { CategoryWhereInput, ProductGraphQLSchemaBuilder, ProductTypeWhereInput, ProductWhereInput, TaxonomyRequestWhereInput } from '@czo/product/graphql'
+import { z } from 'zod'
+
+// ─── Zod schemas (filter/order guards) ──────────────────────────────────────
+const productTypeOrderFieldSchema = z.enum(['name', 'createdAt'])
+const productOrderFieldSchema = z.enum(['name', 'createdAt'])
+const categoryOrderFieldSchema = z.enum(['name', 'position', 'createdAt'])
+const collectionOrderFieldSchema = z.enum(['name', 'createdAt'])
+const taxonomyRequestOrderFieldSchema = z.enum(['createdAt', 'reviewedAt'])
+const orderDirectionSchema = z.enum(['asc', 'desc'])
 
 export interface ProductEnumRefs {
   AttributeAssignment: ReturnType<ProductGraphQLSchemaBuilder['enumType']> & { __type?: 'PRODUCT' | 'VARIANT' }
@@ -106,6 +115,211 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
       boolean: t.boolean({ description: 'For BOOLEAN attributes: the boolean value.' }),
       date: t.field({ type: 'DateTime', description: 'For DATE/DATETIME attributes: the date value.' }),
       file: t.field({ type: 'AssignmentFileValueInput', description: 'For FILE attributes: the file value.' }),
+    }),
+  })
+
+  // ── productTypes connection: filter + ordering inputs ───────────────────────
+  const ProductTypeWhereInputRef = builder.inputRef<ProductTypeWhereInput>('ProductTypeWhereInput').implement({
+    subGraphs: ['org', 'admin'],
+    description: 'Filter predicate for the `productTypes` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
+    fields: t => ({
+      isShippingRequired: t.field({ type: 'BooleanFilterInput', description: 'Filter by the isShippingRequired flag.' }),
+      AND: t.field({ type: [ProductTypeWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [ProductTypeWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: ProductTypeWhereInputRef, description: 'The sub-predicate must not match.' }),
+    }),
+  })
+
+  const ProductTypeOrderFieldRef = builder.enumType('ProductTypeOrderField', {
+    subGraphs: ['org', 'admin'],
+    description: 'A field the `productTypes` connection can be ordered by.',
+    values: {
+      NAME: { value: 'name' },
+      CREATED_AT: { value: 'createdAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing another module's
+  // `OrderDirection` by string name — that would couple the schema build to a
+  // foreign module's contribution running first and never type-check across modules.
+  const ProductTypeOrderDirectionRef = builder.enumType('ProductTypeOrderDirection', {
+    subGraphs: ['org', 'admin'],
+    description: 'Sort direction: ascending or descending.',
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('ProductTypeOrderByInput', {
+    subGraphs: ['org', 'admin'],
+    description: 'One ordering clause for the `productTypes` connection (field + direction). Multiple clauses are applied in order.',
+    fields: t => ({
+      field: t.field({ type: ProductTypeOrderFieldRef, required: true, validate: productTypeOrderFieldSchema, description: 'The product-type field to sort by.' }),
+      direction: t.field({ type: ProductTypeOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
+    }),
+  })
+
+  // ── products connection: filter + ordering inputs ───────────────────────────
+  const ProductWhereInputRef = builder.inputRef<ProductWhereInput>('ProductWhereInput').implement({
+    subGraphs: ['org', 'admin'],
+    description: 'Filter predicate for the `products` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
+    fields: t => ({
+      productTypeId: t.field({ type: 'IntFilterInput', description: 'Filter by the referenced product type id.' }),
+      AND: t.field({ type: [ProductWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [ProductWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: ProductWhereInputRef, description: 'The sub-predicate must not match.' }),
+    }),
+  })
+
+  const ProductOrderFieldRef = builder.enumType('ProductOrderField', {
+    subGraphs: ['org', 'admin'],
+    description: 'A field the `products` connection can be ordered by.',
+    values: {
+      NAME: { value: 'name' },
+      CREATED_AT: { value: 'createdAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing another module's
+  // `OrderDirection` by string name — that would couple the schema build to a
+  // foreign module's contribution running first and never type-check across modules.
+  const ProductOrderDirectionRef = builder.enumType('ProductOrderDirection', {
+    subGraphs: ['org', 'admin'],
+    description: 'Sort direction: ascending or descending.',
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('ProductOrderByInput', {
+    subGraphs: ['org', 'admin'],
+    description: 'One ordering clause for the `products` connection (field + direction). Multiple clauses are applied in order.',
+    fields: t => ({
+      field: t.field({ type: ProductOrderFieldRef, required: true, validate: productOrderFieldSchema, description: 'The product field to sort by.' }),
+      direction: t.field({ type: ProductOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
+    }),
+  })
+
+  // ── categories connection: filter + ordering inputs ─────────────────────────
+  const CategoryWhereInputRef = builder.inputRef<CategoryWhereInput>('CategoryWhereInput').implement({
+    subGraphs: ['org', 'admin'],
+    description: 'Filter predicate for the `categories` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
+    fields: t => ({
+      parentId: t.field({ type: 'IntFilterInput', description: 'Filter by the parent category id.' }),
+      AND: t.field({ type: [CategoryWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [CategoryWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: CategoryWhereInputRef, description: 'The sub-predicate must not match.' }),
+    }),
+  })
+
+  const CategoryOrderFieldRef = builder.enumType('CategoryOrderField', {
+    subGraphs: ['org', 'admin'],
+    description: 'A field the `categories` connection can be ordered by.',
+    values: {
+      NAME: { value: 'name' },
+      POSITION: { value: 'position' },
+      CREATED_AT: { value: 'createdAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing another module's
+  // `OrderDirection` by string name — that would couple the schema build to a
+  // foreign module's contribution running first and never type-check across modules.
+  const CategoryOrderDirectionRef = builder.enumType('CategoryOrderDirection', {
+    subGraphs: ['org', 'admin'],
+    description: 'Sort direction: ascending or descending.',
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('CategoryOrderByInput', {
+    subGraphs: ['org', 'admin'],
+    description: 'One ordering clause for the `categories` connection (field + direction). Multiple clauses are applied in order.',
+    fields: t => ({
+      field: t.field({ type: CategoryOrderFieldRef, required: true, validate: categoryOrderFieldSchema, description: 'The category field to sort by.' }),
+      direction: t.field({ type: CategoryOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
+    }),
+  })
+
+  // ── collections connection: ordering inputs (no filterable WhereInput) ───────
+  const CollectionOrderFieldRef = builder.enumType('CollectionOrderField', {
+    subGraphs: ['org', 'admin'],
+    description: 'A field the `collections` connection can be ordered by.',
+    values: {
+      NAME: { value: 'name' },
+      CREATED_AT: { value: 'createdAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing another module's
+  // `OrderDirection` by string name — that would couple the schema build to a
+  // foreign module's contribution running first and never type-check across modules.
+  const CollectionOrderDirectionRef = builder.enumType('CollectionOrderDirection', {
+    subGraphs: ['org', 'admin'],
+    description: 'Sort direction: ascending or descending.',
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('CollectionOrderByInput', {
+    subGraphs: ['org', 'admin'],
+    description: 'One ordering clause for the `collections` connection (field + direction). Multiple clauses are applied in order.',
+    fields: t => ({
+      field: t.field({ type: CollectionOrderFieldRef, required: true, validate: collectionOrderFieldSchema, description: 'The collection field to sort by.' }),
+      direction: t.field({ type: CollectionOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
+    }),
+  })
+
+  // ── taxonomyRequests connection: filter + ordering inputs ───────────────────
+  // Enum fields filter by equality directly against the enum ref (not a kit
+  // FilterInput): `{ state: 'pending' }` maps to a RQBv2 scalar-equals clause.
+  const enums = refs
+  const TaxonomyRequestWhereInputRef = builder.inputRef<TaxonomyRequestWhereInput>('TaxonomyRequestWhereInput').implement({
+    subGraphs: ['org', 'admin'],
+    description: 'Filter predicate for taxonomy-request connections. Field filters are AND-combined; use AND/OR/NOT to compose.',
+    fields: t => ({
+      kind: t.field({ type: enums.TaxonomyRequestKind, description: 'Filter by request kind (equals).' }) as any,
+      entityType: t.field({ type: enums.TaxonomyEntityType, description: 'Filter by entity type (equals).' }) as any,
+      state: t.field({ type: enums.TaxonomyRequestState, description: 'Filter by review state (equals).' }) as any,
+      AND: t.field({ type: [TaxonomyRequestWhereInputRef], description: 'All sub-predicates must match.' }),
+      OR: t.field({ type: [TaxonomyRequestWhereInputRef], description: 'At least one sub-predicate must match.' }),
+      NOT: t.field({ type: TaxonomyRequestWhereInputRef, description: 'The sub-predicate must not match.' }),
+    }),
+  })
+
+  const TaxonomyRequestOrderFieldRef = builder.enumType('TaxonomyRequestOrderField', {
+    subGraphs: ['org', 'admin'],
+    description: 'A field the taxonomy-request connections can be ordered by.',
+    values: {
+      CREATED_AT: { value: 'createdAt' },
+      REVIEWED_AT: { value: 'reviewedAt' },
+    } as const,
+  })
+
+  // Own the sort-direction enum locally rather than referencing another module's
+  // `OrderDirection` by string name — that would couple the schema build to a
+  // foreign module's contribution running first and never type-check across modules.
+  const TaxonomyRequestOrderDirectionRef = builder.enumType('TaxonomyRequestOrderDirection', {
+    subGraphs: ['org', 'admin'],
+    description: 'Sort direction: ascending or descending.',
+    values: {
+      ASC: { value: 'asc' },
+      DESC: { value: 'desc' },
+    } as const,
+  })
+
+  builder.inputType('TaxonomyRequestOrderByInput', {
+    subGraphs: ['org', 'admin'],
+    description: 'One ordering clause for the taxonomy-request connections (field + direction). Multiple clauses are applied in order.',
+    fields: t => ({
+      field: t.field({ type: TaxonomyRequestOrderFieldRef, required: true, validate: taxonomyRequestOrderFieldSchema, description: 'The taxonomy-request field to sort by.' }),
+      direction: t.field({ type: TaxonomyRequestOrderDirectionRef, required: true, validate: orderDirectionSchema, description: 'Ascending or descending.' }),
     }),
   })
 }

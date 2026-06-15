@@ -74,6 +74,30 @@ layer(TestLayer, { timeout: 120_000 })('CollectionService', (it) => {
       expect(list2.map(c => c.id)).not.toContain(col1.id)
     }))
 
+  // ─── findCollections (connection-backing read) ───────────────────────────────
+
+  it.effect('findCollections: org-scope returns only that org\'s live collections', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Col.CollectionService
+      const col1 = yield* svc.createCollection({ organizationId: 1, name: 'Summer', slug: 'summer' })
+      const col2 = yield* svc.createCollection({ organizationId: 2, name: 'Winter', slug: 'winter' })
+
+      const list1 = yield* svc.findCollections({ where: { organizationId: 1 } })
+      expect(list1.map(c => c.id)).toContain(col1.id)
+      expect(list1.map(c => c.id)).not.toContain(col2.id)
+    }))
+
+  it.effect('findCollections: excludes soft-deleted', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Col.CollectionService
+      const col = yield* svc.createCollection({ organizationId: 1, name: 'Summer', slug: 'summer' })
+      yield* svc.softDeleteCollection(col.id, col.version)
+      const list = yield* svc.findCollections({ where: { organizationId: 1 } })
+      expect(list.map(c => c.id)).not.toContain(col.id)
+    }))
+
   // ─── addProduct / removeProduct / listCollectionProducts ─────────────────────
 
   it.effect('addProduct → listed in collection', () =>

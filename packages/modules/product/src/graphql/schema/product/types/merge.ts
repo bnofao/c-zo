@@ -64,3 +64,22 @@ export function mergeWhere(orgId: number | null): { OR: OrgFilter[] } {
     ? { OR: [{ organizationId: { isNull: true } }] }
     : { OR: [{ organizationId: { isNull: true } }, { organizationId: orgId }] }
 }
+
+/**
+ * Fold the GraphQL `orderBy` clauses (`[{ field, direction }]`) into the single
+ * `{ [column]: direction }` object the drizzleConnection cursor parser expects.
+ *
+ * The relay connection's cursor encoder (`parseOrderBy`) treats an *array*
+ * orderBy as an array of raw Drizzle Columns, not `{ column: direction }`
+ * objects; passing the `.map()` array crashes with "Typescript name not found
+ * for column undefined". Merging into one object hits the parser's object
+ * branch, which resolves each key against the table's columns. Falls back to
+ * newest-first when no clause is supplied.
+ */
+export function buildOrderBy(
+  clauses: ReadonlyArray<{ field: string, direction: 'asc' | 'desc' }> | null | undefined,
+): Record<string, 'asc' | 'desc'> {
+  return clauses?.length
+    ? Object.fromEntries(clauses.map(o => [o.field, o.direction]))
+    : { createdAt: 'desc' }
+}

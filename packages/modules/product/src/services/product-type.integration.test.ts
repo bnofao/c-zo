@@ -133,6 +133,26 @@ layer(TestLayer, { timeout: 120_000 })('ProductTypeService', (it) => {
       expect(ids2).not.toContain(o1.id)
     }))
 
+  // ─── findTypes ─────────────────────────────────────────────────────────────
+
+  it.effect('findTypes returns base ∪ org via an explicit where', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* ProductType.ProductTypeService
+      const g = yield* svc.createType({ organizationId: null, name: 'Global', slug: 'global', isShippingRequired: true })
+      const o1 = yield* svc.createType({ organizationId: 1, name: 'Org1', slug: 'org1', isShippingRequired: true })
+      const o2 = yield* svc.createType({ organizationId: 2, name: 'Org2', slug: 'org2', isShippingRequired: true })
+
+      const rows = yield* svc.findTypes({
+        where: { OR: [{ organizationId: { isNull: true } }, { organizationId: 1 }] },
+        orderBy: { createdAt: 'desc' },
+      })
+      const ids = rows.map(r => r.id)
+      expect(ids).toContain(g.id)
+      expect(ids).toContain(o1.id)
+      expect(ids).not.toContain(o2.id)
+    }))
+
   // ─── declareAttribute ────────────────────────────────────────────────────
 
   it.effect('declares a base attribute (org null)', () =>

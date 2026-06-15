@@ -157,6 +157,31 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('TaxonomyRequestService', (it
       expect(org1Ids).not.toContain(c.id)
     }))
 
+  it.effect('findRequests applies enum-equals where + org scope (connection path)', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tax = yield* Tax.TaxonomyRequestService
+
+      const a = yield* tax.submitCategoryCreation({ organizationId: 1, name: 'A', slug: 'a-fr' })
+      const b = yield* tax.submitCategoryCreation({ organizationId: 1, name: 'B', slug: 'b-fr' })
+      const c = yield* tax.submitCategoryCreation({ organizationId: 2, name: 'C', slug: 'c-fr' })
+      yield* tax.reject(b.id, 'no')
+
+      // Admin queue: enum-equals `state` filter (mirrors the connection's where).
+      const pending = yield* tax.findRequests({ where: { AND: [{ state: 'pending' }] }, orderBy: { createdAt: 'desc' } })
+      const pendingIds = pending.map(r => r.id)
+      expect(pendingIds).toContain(a.id)
+      expect(pendingIds).toContain(c.id)
+      expect(pendingIds).not.toContain(b.id)
+
+      // Org connection: org scope AND-ed with an entityType enum-equals filter.
+      const org1 = yield* tax.findRequests({ where: { AND: [{ organizationId: 1 }, { entityType: 'category' }] }, orderBy: { createdAt: 'desc' } })
+      const org1Ids = org1.map(r => r.id)
+      expect(org1Ids).toContain(a.id)
+      expect(org1Ids).toContain(b.id)
+      expect(org1Ids).not.toContain(c.id)
+    }))
+
   // ─── product-type creation → approve ─────────────────────────────────────────
 
   it.effect('submitProductTypeCreation → approve creates a global product type', () =>
