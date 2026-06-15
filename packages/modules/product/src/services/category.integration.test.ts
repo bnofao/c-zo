@@ -136,6 +136,26 @@ layer(TestLayer, { timeout: 120_000 })('CategoryService', (it) => {
       expect(ids2).not.toContain(org1.id)
     }))
 
+  // ─── findCategories ──────────────────────────────────────────────────────────
+
+  it.effect('findCategories returns base ∪ org via an explicit where', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const svc = yield* Cat.CategoryService
+      const global = yield* svc.createCategory({ organizationId: null, name: 'Global', slug: 'global' })
+      const org1 = yield* svc.createCategory({ organizationId: 1, name: 'Org1', slug: 'org1' })
+      const org2 = yield* svc.createCategory({ organizationId: 2, name: 'Org2', slug: 'org2' })
+
+      const rows = yield* svc.findCategories({
+        where: { OR: [{ organizationId: { isNull: true } }, { organizationId: 1 }] },
+        orderBy: { createdAt: 'desc' },
+      })
+      const ids = rows.map(c => c.id)
+      expect(ids).toContain(global.id)
+      expect(ids).toContain(org1.id)
+      expect(ids).not.toContain(org2.id)
+    }))
+
   // ─── placeProduct / listProductCategories / removePlacement ──────────────────
 
   it.effect('placeProduct base + org graft; listProductCategories merge', () =>

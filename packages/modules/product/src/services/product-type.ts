@@ -73,12 +73,20 @@ export interface ListTypeAttributesInput {
 
 // ─── Service contract ─────────────────────────────────────────────────────────
 
+type FindTypesConfig = Parameters<Database<Relations>['query']['productTypes']['findMany']>[0]
+
 export class ProductTypeService extends Context.Service<ProductTypeService, {
   readonly createType: (input: CreateProductTypeInput) => Effect.Effect<ProductType, ProductTypeDbFailed>
   readonly updateType: (input: UpdateProductTypeInput) => Effect.Effect<ProductType, ProductTypeNotFound | OptimisticLockError | ProductTypeDbFailed>
   readonly softDeleteType: (id: number, expectedVersion: number) => Effect.Effect<ProductType, ProductTypeNotFound | OptimisticLockError | ProductTypeDbFailed>
   readonly findTypeById: (id: number) => Effect.Effect<ProductType, ProductTypeNotFound | ProductTypeDbFailed>
   readonly listTypes: (orgId: number) => Effect.Effect<ReadonlyArray<ProductType>, ProductTypeDbFailed>
+  /**
+   * Multi-row read via Drizzle RQBv2 — accepts any `findMany` config so the
+   * relay `productTypes` connection can thread its selection/where/orderBy
+   * through. Returns an empty array on no match (never NotFound).
+   */
+  readonly findTypes: (config: FindTypesConfig) => Effect.Effect<ReadonlyArray<ProductType>, ProductTypeDbFailed>
   readonly declareAttribute: (input: DeclareAttributeInput) => Effect.Effect<ProductTypeAttribute, InvalidAttributeDeclaration | ProductTypeDbFailed>
   readonly undeclareAttribute: (id: number) => Effect.Effect<void, ProductTypeDbFailed>
   readonly listTypeAttributes: (input: ListTypeAttributesInput) => Effect.Effect<ReadonlyArray<ProductTypeAttribute>, ProductTypeDbFailed>
@@ -160,6 +168,12 @@ export const make = Effect.gen(function* () {
       },
     })) as Effect.Effect<ReadonlyArray<ProductType>, ProductTypeDbFailed>
 
+  const findTypes: ProductTypeServiceImpl['findTypes'] = config =>
+    dbErr(db.query.productTypes.findMany({
+      ...config,
+      where: { ...config?.where, deletedAt: { isNull: true } },
+    })) as Effect.Effect<ReadonlyArray<ProductType>, ProductTypeDbFailed>
+
   const declareAttribute: ProductTypeServiceImpl['declareAttribute'] = input =>
     Effect.gen(function* () {
       // Reject incoherent declarations before touching the DB for a clean
@@ -225,6 +239,7 @@ export const make = Effect.gen(function* () {
     softDeleteType,
     findTypeById,
     listTypes,
+    findTypes,
     declareAttribute,
     undeclareAttribute,
     listTypeAttributes,

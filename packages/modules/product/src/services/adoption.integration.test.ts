@@ -184,6 +184,42 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
       expect(ids).not.toContain(orgOwned.id)
     }))
 
+  // ─── findProducts via the adoption relational filter (connection backing) ───
+
+  it.effect('findProducts({ adoptions: { organizationId } }): only this org\'s adopted globals', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+
+      const adopted = yield* makeGlobalProduct('adopted-g')
+      const unadopted = yield* makeGlobalProduct('unadopted-g')
+
+      const adoptionSvc = yield* Adoption.AdoptionService
+      yield* adoptionSvc.adoptProduct({ productId: adopted.id, orgId: 1 })
+
+      const prodSvc = yield* Prod.ProductService
+      const rows = yield* prodSvc.findProducts({
+        where: { adoptions: { organizationId: 1, deletedAt: { isNull: true } } } as any,
+      })
+      const ids = rows.map(p => p.id)
+      expect(ids).toContain(adopted.id)
+      expect(ids).not.toContain(unadopted.id)
+    }))
+
+  it.effect('findProducts adoption filter: excludes after unadopt', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const p = yield* makeGlobalProduct('readopt-g')
+      const adoptionSvc = yield* Adoption.AdoptionService
+      yield* adoptionSvc.adoptProduct({ productId: p.id, orgId: 1 })
+      yield* adoptionSvc.unadoptProduct({ productId: p.id, orgId: 1 })
+
+      const prodSvc = yield* Prod.ProductService
+      const rows = yield* prodSvc.findProducts({
+        where: { adoptions: { organizationId: 1, deletedAt: { isNull: true } } } as any,
+      })
+      expect(rows.map(p => p.id)).not.toContain(p.id)
+    }))
+
   // ─── listAdopters ─────────────────────────────────────────────────────────
 
   it.effect('listAdopters: org ids with live adoption; excludes unadopted', () =>

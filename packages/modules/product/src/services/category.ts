@@ -65,6 +65,8 @@ export interface UpdateCategoryInput {
 
 // ─── Service contract ─────────────────────────────────────────────────────────
 
+type FindCategoriesConfig = Parameters<Database<Relations>['query']['categories']['findMany']>[0]
+
 export class CategoryService extends Context.Service<CategoryService, {
   readonly createCategory: (input: CreateCategoryInput) => Effect.Effect<Category, CategoryNotFound | CategorySlugTaken | CategoryDbFailed>
   readonly updateCategory: (input: UpdateCategoryInput) => Effect.Effect<Category, CategoryNotFound | CategorySlugTaken | OptimisticLockError | CategoryDbFailed>
@@ -72,6 +74,12 @@ export class CategoryService extends Context.Service<CategoryService, {
   readonly softDeleteCategory: (id: number, version: number) => Effect.Effect<Category, CategoryNotFound | OptimisticLockError | CategoryDbFailed>
   readonly findCategoryById: (id: number) => Effect.Effect<Category, CategoryNotFound | CategoryDbFailed>
   readonly listCategories: (orgId: number) => Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
+  /**
+   * Multi-row read via Drizzle RQBv2 — accepts any `findMany` config so the
+   * relay `categories` connection can thread its selection/where/orderBy
+   * through. Returns an empty array on no match (never NotFound).
+   */
+  readonly findCategories: (config: FindCategoriesConfig) => Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
   readonly placeProduct: (input: { productId: number, categoryId: number, organizationId: number | null }) => Effect.Effect<ProductCategory, CategoryNotFound | CategoryDbFailed>
   readonly removePlacement: (input: { productId: number, categoryId: number, organizationId: number | null }) => Effect.Effect<void, CategoryDbFailed>
   readonly listProductCategories: (input: { productId: number, orgId: number }) => Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
@@ -251,6 +259,12 @@ export const make = Effect.gen(function* () {
       },
     })) as Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
 
+  const findCategories: CategoryServiceImpl['findCategories'] = config =>
+    dbErr(db.query.categories.findMany({
+      ...config,
+      where: { ...config?.where, deletedAt: { isNull: true as const } },
+    })) as Effect.Effect<ReadonlyArray<Category>, CategoryDbFailed>
+
   const placeProduct: CategoryServiceImpl['placeProduct'] = ({ productId, categoryId, organizationId }) =>
     Effect.gen(function* () {
       // Category must exist and not be soft-deleted
@@ -340,6 +354,7 @@ export const make = Effect.gen(function* () {
     softDeleteCategory,
     findCategoryById,
     listCategories,
+    findCategories,
     placeProduct,
     removePlacement,
     listProductCategories,

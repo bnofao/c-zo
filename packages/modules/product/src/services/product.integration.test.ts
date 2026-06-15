@@ -261,4 +261,27 @@ layer(TestLayer, { timeout: 120_000 })('ProductService', (it) => {
       const list = yield* svc.listProducts(1)
       expect(list.map(r => r.id)).not.toContain(p.id)
     }))
+
+  // ─── findProducts ────────────────────────────────────────────────────────────
+
+  it.effect('findProducts returns base ∪ org via an explicit where', () =>
+    Effect.gen(function* () {
+      yield* truncateProduct
+      const tGlobal = yield* makeType(null, 'base')
+      const t1 = yield* makeType(1, 'tee')
+      const t2 = yield* makeType(2, 'hoodie')
+      const g = yield* makeProduct({ organizationId: null, productTypeId: tGlobal.id, handle: 'g', name: 'G' })
+      const o1 = yield* makeProduct({ organizationId: 1, productTypeId: t1.id, handle: 'o1', name: 'O1' })
+      const o2 = yield* makeProduct({ organizationId: 2, productTypeId: t2.id, handle: 'o2', name: 'O2' })
+
+      const svc = yield* Prod.ProductService
+      const rows = yield* svc.findProducts({
+        where: { OR: [{ organizationId: { isNull: true } }, { organizationId: 1 }] },
+        orderBy: { createdAt: 'desc' },
+      })
+      const ids = rows.map(r => r.id)
+      expect(ids).toContain(g.id)
+      expect(ids).toContain(o1.id)
+      expect(ids).not.toContain(o2.id)
+    }))
 })

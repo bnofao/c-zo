@@ -58,6 +58,8 @@ export interface UpdateProductInput {
 
 // ─── Service contract ─────────────────────────────────────────────────────────
 
+type FindProductsConfig = Parameters<Database<Relations>['query']['products']['findMany']>[0]
+
 export class ProductService extends Context.Service<ProductService, {
   readonly createProduct: (input: CreateProductInput) => Effect.Effect<Product, ProductNotFound | HandleTaken | GlobalProductRequiresGlobalType | ProductTypeNotFound | ProductDbFailed>
   readonly updateProduct: (input: UpdateProductInput) => Effect.Effect<Product, ProductNotFound | OptimisticLockError | ProductDbFailed>
@@ -65,6 +67,12 @@ export class ProductService extends Context.Service<ProductService, {
   readonly findProductById: (id: number) => Effect.Effect<Product, ProductNotFound | ProductDbFailed>
   readonly findProductByHandle: (input: { orgId: number | null, handle: string }) => Effect.Effect<Product, ProductNotFound | ProductDbFailed>
   readonly listProducts: (orgId: number) => Effect.Effect<ReadonlyArray<Product>, ProductDbFailed>
+  /**
+   * Multi-row read via Drizzle RQBv2 — accepts any `findMany` config so the
+   * relay `products` connection can thread its selection/where/orderBy through.
+   * Returns an empty array on no match (never NotFound).
+   */
+  readonly findProducts: (config: FindProductsConfig) => Effect.Effect<ReadonlyArray<Product>, ProductDbFailed>
 }>()('@czo/product/ProductService') {}
 
 type ProductServiceImpl = Context.Service.Shape<typeof ProductService>
@@ -184,6 +192,12 @@ export const make = Effect.gen(function* () {
       },
     })) as Effect.Effect<ReadonlyArray<Product>, ProductDbFailed>
 
+  const findProducts: ProductServiceImpl['findProducts'] = config =>
+    dbErr(db.query.products.findMany({
+      ...config,
+      where: { ...config?.where, deletedAt: { isNull: true } },
+    })) as Effect.Effect<ReadonlyArray<Product>, ProductDbFailed>
+
   return {
     createProduct,
     updateProduct,
@@ -191,6 +205,7 @@ export const make = Effect.gen(function* () {
     findProductById,
     findProductByHandle,
     listProducts,
+    findProducts,
   } satisfies ProductServiceImpl
 })
 

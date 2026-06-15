@@ -47,12 +47,20 @@ export interface UpdateCollectionInput {
 
 // ─── Service contract ─────────────────────────────────────────────────────────
 
+type FindCollectionsConfig = Parameters<Database<Relations>['query']['collections']['findMany']>[0]
+
 export class CollectionService extends Context.Service<CollectionService, {
   readonly createCollection: (input: CreateCollectionInput) => Effect.Effect<Collection, CollectionSlugTaken | CollectionDbFailed>
   readonly updateCollection: (input: UpdateCollectionInput) => Effect.Effect<Collection, CollectionNotFound | CollectionSlugTaken | OptimisticLockError | CollectionDbFailed>
   readonly softDeleteCollection: (id: number, version: number) => Effect.Effect<Collection, CollectionNotFound | OptimisticLockError | CollectionDbFailed>
   readonly findCollectionById: (id: number) => Effect.Effect<Collection, CollectionNotFound | CollectionDbFailed>
   readonly listCollections: (orgId: number) => Effect.Effect<ReadonlyArray<Collection>, CollectionDbFailed>
+  /**
+   * Multi-row read via Drizzle RQBv2 — accepts any `findMany` config so the
+   * relay `collections` connection can thread its selection/where/orderBy
+   * through. Returns an empty array on no match (never NotFound).
+   */
+  readonly findCollections: (config: FindCollectionsConfig) => Effect.Effect<ReadonlyArray<Collection>, CollectionDbFailed>
   readonly addProduct: (input: { collectionId: number, productId: number }) => Effect.Effect<CollectionProduct, CollectionNotFound | CollectionDbFailed>
   readonly removeProduct: (input: { collectionId: number, productId: number }) => Effect.Effect<void, CollectionDbFailed>
   readonly listCollectionProducts: (collectionId: number) => Effect.Effect<ReadonlyArray<import('./product').Product>, CollectionDbFailed>
@@ -153,6 +161,12 @@ export const make = Effect.gen(function* () {
       where: { organizationId: orgId, deletedAt: { isNull: true } },
     })) as Effect.Effect<ReadonlyArray<Collection>, CollectionDbFailed>
 
+  const findCollections: CollectionServiceImpl['findCollections'] = config =>
+    dbErr(db.query.collections.findMany({
+      ...config,
+      where: { ...config?.where, deletedAt: { isNull: true } },
+    })) as Effect.Effect<ReadonlyArray<Collection>, CollectionDbFailed>
+
   const addProduct: CollectionServiceImpl['addProduct'] = ({ collectionId, productId }) =>
     Effect.gen(function* () {
       yield* findCollectionById(collectionId)
@@ -205,6 +219,7 @@ export const make = Effect.gen(function* () {
     softDeleteCollection,
     findCollectionById,
     listCollections,
+    findCollections,
     addProduct,
     removeProduct,
     listCollectionProducts,
