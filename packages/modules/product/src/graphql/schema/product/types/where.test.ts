@@ -32,4 +32,32 @@ describe('buildProductWhere', () => {
     // RQBv2 treats {} as match-all; harmless inside the connection's outer AND[base, …].
     expect(buildProductWhere({ productType: {} } as any)).toEqual({ productTypeId: {} })
   })
+  it('builds a numeric-range facet with valueKind + isFilterable injected', () => {
+    expect(buildProductWhere({ attributes: [{ slug: { eq: 'weight' }, value: { numeric: { gte: 50 } } }] } as any))
+      .toEqual({ attributeValues: { attribute: { isFilterable: true, slug: { eq: 'weight' } }, valueKind: 'NUMERIC', numericValue: { value: { gte: 50 } } } })
+  })
+  it('builds a slug facet as an OR across VALUE and SWATCH', () => {
+    expect(buildProductWhere({ attributes: [{ value: { slug: { in: ['red'] } } }] } as any))
+      .toEqual({ attributeValues: { attribute: { isFilterable: true }, OR: [
+        { valueKind: 'VALUE', selectValue: { slug: { in: ['red'] } } },
+        { valueKind: 'SWATCH', swatchValue: { slug: { in: ['red'] } } },
+      ] } })
+  })
+  it('maps name to the value column, decodes attribute ids, and ANDs multiple facets', () => {
+    const g = (n: number) => ({ typename: 'Attribute', id: String(n) })
+    expect(buildProductWhere({ attributes: [
+      { ids: { in: [g(7)] }, value: { boolean: { eq: true } } },
+      { value: { name: { eq: 'Red' } } },
+    ] } as any)).toEqual({ AND: [
+      { attributeValues: { attribute: { isFilterable: true, id: { in: [7] } }, valueKind: 'BOOLEAN', booleanValue: { value: { eq: true } } } },
+      { attributeValues: { attribute: { isFilterable: true }, OR: [
+        { valueKind: 'VALUE', selectValue: { value: { eq: 'Red' } } },
+        { valueKind: 'SWATCH', swatchValue: { value: { eq: 'Red' } } },
+      ] } },
+    ] })
+  })
+  it('builds an attribute-only facet (no value)', () => {
+    expect(buildProductWhere({ attributes: [{ slug: { eq: 'color' } }] } as any))
+      .toEqual({ attributeValues: { attribute: { isFilterable: true, slug: { eq: 'color' } } } })
+  })
 })

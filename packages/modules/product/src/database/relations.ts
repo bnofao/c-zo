@@ -4,6 +4,7 @@ import { defineRelationsPart } from 'drizzle-orm'
 // `organizations` resolves in the Pick AND when auth's own relations.ts
 // compiles as part of this module's type graph. Mirrors price/inventory/channel.
 import '@czo/auth/schema'
+import '@czo/attribute/schema'
 
 type ProductSchema = Pick<
   SchemaRegistryShape,
@@ -29,6 +30,13 @@ type ProductSchema = Pick<
   | 'collectionTranslations'
   | 'variantTranslations'
   | 'taxonomyRequests'
+  | 'attributes'
+  | 'attributeValues'
+  | 'attributeSwatchValues'
+  | 'attributeNumericValues'
+  | 'attributeBooleanValues'
+  | 'attributeDateValues'
+  | 'attributeReferenceValues'
 >
 
 export function productRelations(schema: ProductSchema) {
@@ -55,10 +63,17 @@ export function productRelations(schema: ProductSchema) {
     collectionTranslations,
     variantTranslations,
     taxonomyRequests,
+    attributes,
+    attributeValues,
+    attributeSwatchValues,
+    attributeNumericValues,
+    attributeBooleanValues,
+    attributeDateValues,
+    attributeReferenceValues,
   } = schema
 
   return defineRelationsPart(
-    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests },
+    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests, attributes, attributeValues, attributeSwatchValues, attributeNumericValues, attributeBooleanValues, attributeDateValues, attributeReferenceValues },
     r => ({
       productTypes: {
         organization: r.one.organizations({ from: r.productTypes.organizationId, to: r.organizations.id }),
@@ -85,6 +100,13 @@ export function productRelations(schema: ProductSchema) {
       },
       productAttributeValues: {
         product: r.one.products({ from: r.productAttributeValues.productId, to: r.products.id }),
+        attribute: r.one.attributes({ from: r.productAttributeValues.attributeId, to: r.attributes.id }),
+        selectValue: r.one.attributeValues({ from: r.productAttributeValues.valueId, to: r.attributeValues.id }),
+        swatchValue: r.one.attributeSwatchValues({ from: r.productAttributeValues.valueId, to: r.attributeSwatchValues.id }),
+        numericValue: r.one.attributeNumericValues({ from: r.productAttributeValues.valueId, to: r.attributeNumericValues.id }),
+        booleanValue: r.one.attributeBooleanValues({ from: r.productAttributeValues.valueId, to: r.attributeBooleanValues.id }),
+        dateValue: r.one.attributeDateValues({ from: r.productAttributeValues.valueId, to: r.attributeDateValues.id }),
+        referenceValue: r.one.attributeReferenceValues({ from: r.productAttributeValues.valueId, to: r.attributeReferenceValues.id }),
       },
       productVariants: {
         product: r.one.products({ from: r.productVariants.productId, to: r.products.id }),
