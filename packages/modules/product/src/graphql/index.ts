@@ -4,12 +4,16 @@ import type {
   Category,
   Collection,
   Product,
+  ProductAttributeValue,
+  ProductCategory,
   ProductChannelListing,
   ProductMedia,
   ProductType,
   ProductTypeAttribute,
   ProductVariant,
   TaxonomyRequest,
+  VariantAttributeValue,
+  VariantInventoryItem,
 } from '../services'
 // Pull in auth's module augmentation so cross-module ctx slices (`ctx.auth`)
 // and object refs (`'Organization'`) resolve against the shared interfaces.
@@ -108,7 +112,11 @@ declare module '@czo/kit/graphql' {
     Category: Category
     Collection: Collection
     ProductMedia: ProductMedia
+    ProductAttributeValue: ProductAttributeValue
+    ProductCategory: ProductCategory
     ProductChannelListing: ProductChannelListing
+    VariantAttributeValue: VariantAttributeValue
+    VariantInventoryItem: VariantInventoryItem
     TaxonomyRequest: TaxonomyRequest
   }
 

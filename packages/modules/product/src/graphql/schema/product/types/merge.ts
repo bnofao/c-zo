@@ -16,8 +16,28 @@
 // When omitted, only base rows are returned (and `isAdopted` is false): a
 // global/anonymous view.
 
+/** A product channel listing row, as far as graft-org derivation cares. */
+export interface GraftListing { channelId: number, organizationId: number | null, isPublished: boolean, reviewState: string, deletedAt: Date | null }
+
+/** The graft-field args that drive viewer-org derivation and the auth gate. */
+export interface GraftArgs { viewerOrg?: { id: string } | null, channel?: number | null }
+
 /** Decode the optional `viewerOrg` relay global id arg into a numeric org id. */
 export function viewerOrgId(args: { viewerOrg?: { id: string } | null }): number | null {
+  return args.viewerOrg ? Number(args.viewerOrg.id) : null
+}
+
+/**
+ * Derive the viewer org for a graft read. `channel` (via its live listing) wins
+ * over `viewerOrg`. A channel with no live listing → null (base-only): a caller
+ * picks a channel, never an org, so they only ever see the org that published
+ * there — no C1 bypass.
+ */
+export function resolveGraftOrg(args: GraftArgs, listings: ReadonlyArray<GraftListing>): number | null {
+  if (args.channel != null) {
+    const hit = listings.find(l => l.channelId === args.channel && l.isPublished && l.reviewState === 'approved' && l.deletedAt == null)
+    return hit?.organizationId ?? null
+  }
   return args.viewerOrg ? Number(args.viewerOrg.id) : null
 }
 
@@ -39,10 +59,16 @@ export function viewerOrgId(args: { viewerOrg?: { id: string } | null }): number
  *
  * Pothos scope-auth: a boolean `true` grants unconditionally; a scope-map
  * requires that scope be satisfied.
+ *
+ * The `channel` path is PUBLIC: the org is derived from the channel's live
+ * listing (see `resolveGraftOrg`), never supplied by the caller, so there is no
+ * org to gate — a storefront read of a public channel must stay open.
  */
 export function graftAuthScopes(
-  args: { viewerOrg?: { id: string } | null },
+  args: GraftArgs,
 ): true | { permission: { resource: string, actions: string[], organization: number } } {
+  if (args.channel != null)
+    return true
   const org = viewerOrgId(args)
   return org == null
     ? true

@@ -13,10 +13,13 @@
 //   products.translations     → many productTranslations      (pivot)
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
+import type { productAttributeValues, productCategories, productMedia } from '../../../../database/schema'
+import type { GraftListing } from './merge'
+import { resolveArrayConnection } from '@czo/kit/graphql'
 import { translatedField } from '@czo/translation/graphql'
 import { Effect } from 'effect'
 import { AdoptionService } from '../../../../services'
-import { graftAuthScopes, mergeWhere, viewerOrgId } from './merge'
+import { graftAuthScopes, resolveGraftOrg, viewerOrgId } from './merge'
 
 export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('products', {
@@ -83,26 +86,70 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
         description: 'Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows).',
         query: { where: { deletedAt: { isNull: true } } },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
-      attributeValues: t.relatedConnection('attributeValues', {
+      attributeValues: t.connection({
+        type: 'ProductAttributeValue',
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Attribute values describing this product, ordered by position. Merges base values with the viewer org\'s grafted values.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        description: 'Attribute values describing this product, ordered by position. Merges base values with the publishing/viewer organization\'s grafted values. Pass `channel` for the storefront or `viewerOrg` for a specific org.',
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        query: args => ({ where: mergeWhere(viewerOrgId(args)), orderBy: { position: 'asc' } }),
+        extensions: { pothosDrizzleSelect: { with: { attributeValues: true, channelListings: true } } },
+        resolve: (product, args) => {
+          const p = product as unknown as {
+            attributeValues?: ReadonlyArray<typeof productAttributeValues.$inferSelect>
+            channelListings?: ReadonlyArray<GraftListing>
+          }
+          const org = resolveGraftOrg(args, p.channelListings ?? [])
+          const rows = (p.attributeValues ?? [])
+            .filter(r => r.organizationId == null || r.organizationId === org)
+            .sort((a, b) => a.position - b.position)
+          return resolveArrayConnection({ args }, rows as Array<typeof productAttributeValues.$inferSelect>)
+        },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
-      media: t.relatedConnection('media', {
+      media: t.connection({
+        type: 'ProductMedia',
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Media assets for this product, ordered by position. Merges base media with the viewer org\'s grafted media; excludes soft-deleted rows.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        description: 'Media assets for this product, ordered by position. Merges base media with the publishing/viewer organization\'s grafted media; excludes soft-deleted rows. Pass `channel` for the storefront or `viewerOrg` for a specific org.',
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        query: args => ({ where: { deletedAt: { isNull: true }, ...mergeWhere(viewerOrgId(args)) }, orderBy: { position: 'asc' } }),
+        extensions: { pothosDrizzleSelect: { with: { media: true, channelListings: true } } },
+        resolve: (product, args) => {
+          const p = product as unknown as {
+            media?: ReadonlyArray<typeof productMedia.$inferSelect>
+            channelListings?: ReadonlyArray<GraftListing>
+          }
+          const org = resolveGraftOrg(args, p.channelListings ?? [])
+          const rows = (p.media ?? [])
+            .filter(r => r.deletedAt == null && (r.organizationId == null || r.organizationId === org))
+            .sort((a, b) => a.position - b.position)
+          return resolveArrayConnection({ args }, rows as Array<typeof productMedia.$inferSelect>)
+        },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
-      categories: t.relatedConnection('categories', {
+      categories: t.connection({
+        type: 'ProductCategory',
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Categories this product is assigned to. Merges base assignments with the viewer org\'s grafted assignments.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        description: 'Categories this product is assigned to. Merges base assignments with the publishing/viewer organization\'s grafted assignments. Pass `channel` for the storefront or `viewerOrg` for a specific org.',
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        query: args => ({ where: mergeWhere(viewerOrgId(args)) }),
+        extensions: { pothosDrizzleSelect: { with: { categories: true, channelListings: true } } },
+        resolve: (product, args) => {
+          const p = product as unknown as {
+            categories?: ReadonlyArray<typeof productCategories.$inferSelect>
+            channelListings?: ReadonlyArray<GraftListing>
+          }
+          const org = resolveGraftOrg(args, p.channelListings ?? [])
+          const rows = (p.categories ?? [])
+            .filter(r => r.organizationId == null || r.organizationId === org)
+          return resolveArrayConnection({ args }, rows as Array<typeof productCategories.$inferSelect>)
+        },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // collectionProducts has no organizationId column (a global link table);
       // it is not a graft, so no merge predicate applies.

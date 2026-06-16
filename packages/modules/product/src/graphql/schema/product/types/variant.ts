@@ -9,8 +9,11 @@
 //   productVariants.translations    → many variantTranslations      (pivot)
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
+import type { variantAttributeValues, variantInventoryItems } from '../../../../database/schema'
+import type { GraftListing } from './merge'
+import { resolveArrayConnection } from '@czo/kit/graphql'
 import { translatedField } from '@czo/translation/graphql'
-import { graftAuthScopes, mergeWhere, viewerOrgId } from './merge'
+import { graftAuthScopes, resolveGraftOrg } from './merge'
 
 export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void {
   // ── VariantPriceSet — the variant's price binding for a viewer org ──────────
@@ -47,24 +50,49 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
 
       product: t.relation('product', { description: 'The product this variant belongs to.' }),
 
-      // ── Graft connections (merge predicate: base ∪ viewerOrg) ───────────────
-      attributeValues: t.relatedConnection('attributeValues', {
+      // ── Graft connections (custom in-memory; org from channel or viewerOrg) ──
+      attributeValues: t.connection({
+        type: 'VariantAttributeValue',
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Attribute values assigned to this variant; merges base (org-null) rows with the viewer organization\'s overlay rows.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        description: 'Attribute values assigned to this variant; merges base (org-null) rows with the publishing/viewer organization\'s overlay rows. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org.',
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        query: args => ({ where: mergeWhere(viewerOrgId(args)), orderBy: { position: 'asc' } }),
+        extensions: { pothosDrizzleSelect: { with: { attributeValues: true, product: { with: { channelListings: true } } } } },
+        resolve: (variant, args) => {
+          const v = variant as unknown as {
+            attributeValues?: ReadonlyArray<typeof variantAttributeValues.$inferSelect>
+            product?: { channelListings?: ReadonlyArray<GraftListing> }
+          }
+          const org = resolveGraftOrg(args, v.product?.channelListings ?? [])
+          const rows = (v.attributeValues ?? [])
+            .filter(r => r.organizationId == null || r.organizationId === org)
+            .sort((a, b) => a.position - b.position)
+          return resolveArrayConnection({ args }, rows as Array<typeof variantAttributeValues.$inferSelect>)
+        },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // variantInventoryItems carries a NOT NULL org → these are pure grafts;
-      // only the viewer org's bindings are visible (no base/global rows exist).
-      inventoryItems: t.relatedConnection('inventoryItems', {
+      // only the viewer/publishing org's bindings are visible (no base/global rows exist).
+      inventoryItems: t.connection({
+        type: 'VariantInventoryItem',
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Inventory links for this variant scoped to the viewer organization; these are pure org grafts with no base rows, so omitting viewerOrg yields none.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        description: 'Inventory links for this variant scoped to the publishing/viewer organization; these are pure org grafts with no base rows, so resolving no org yields none. Pass `channel` for the storefront or `viewerOrg` for a specific org.',
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        query: (args) => {
-          const orgId = viewerOrgId(args)
-          return { where: orgId == null ? { organizationId: -1 } : { organizationId: orgId } }
+        extensions: { pothosDrizzleSelect: { with: { inventoryItems: true, product: { with: { channelListings: true } } } } },
+        resolve: (variant, args) => {
+          const v = variant as unknown as {
+            inventoryItems?: ReadonlyArray<typeof variantInventoryItems.$inferSelect>
+            product?: { channelListings?: ReadonlyArray<GraftListing> }
+          }
+          const org = resolveGraftOrg(args, v.product?.channelListings ?? [])
+          const rows = org == null ? [] : (v.inventoryItems ?? []).filter(r => r.organizationId === org)
+          return resolveArrayConnection({ args }, rows as Array<typeof variantInventoryItems.$inferSelect>)
         },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       // variantMedia is a global link table (no org) — not a graft.
@@ -77,15 +105,21 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
         description: 'The viewer organization\'s price-set binding for this variant (unique per org), or null when no viewer org is given or no binding exists.',
         type: VariantPriceSetRef,
         nullable: true,
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
+        args: {
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; resolves the price binding of the org that published this product on the channel. Public — publication is the gate.' }),
+        },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { priceSets: true } } },
+        extensions: { pothosDrizzleSelect: { with: { priceSets: true, product: { with: { channelListings: true } } } } },
         resolve: (variant, args) => {
-          const orgId = viewerOrgId(args)
+          const v = variant as unknown as {
+            priceSets?: ReadonlyArray<{ id: number, priceSetId: number, organizationId: number }>
+            product?: { channelListings?: ReadonlyArray<{ channelId: number, organizationId: number | null, isPublished: boolean, reviewState: string, deletedAt: Date | null }> }
+          }
+          const orgId = resolveGraftOrg(args, v.product?.channelListings ?? [])
           if (orgId == null)
             return null
-          const rows = (variant as unknown as { priceSets?: ReadonlyArray<{ id: number, priceSetId: number, organizationId: number }> }).priceSets ?? []
-          return rows.find(r => r.organizationId === orgId) ?? null
+          return (v.priceSets ?? []).find(r => r.organizationId === orgId) ?? null
         },
       }),
     }),
