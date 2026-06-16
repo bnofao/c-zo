@@ -112,7 +112,16 @@ export const make = Effect.gen(function* () {
         ? { organizationId: { isNull: true as const } }
         : { organizationId: orgId }
       const row = yield* dbErr(db.query.products.findFirst({
-        where: { ...orgWhere, handle, deletedAt: { isNull: true } },
+        where: {
+          ...orgWhere,
+          handle,
+          deletedAt: { isNull: true },
+          channelListings: { // publication: ≥1 live listing
+            isPublished: true,
+            reviewState: 'approved',
+            deletedAt: { isNull: true },
+          },
+        },
       }))
       if (!row)
         return yield* Effect.fail(new ProductNotFound({ id: -1 }))

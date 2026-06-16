@@ -35,6 +35,7 @@ import {
   loadProductTypeOrganizationId,
 } from './authz'
 import { buildOrderBy, mergeWhere } from './types/merge'
+import { buildProductWhere } from './types/where'
 
 export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): void {
   // ── productType(id) — admin single lookup ──────────────────────────────────
@@ -141,7 +142,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
       type: 'Product',
       nullable: true,
       subGraphs: ['public'],
-      description: 'Storefront read: fetch a published-catalog product by its URL handle. With `viewerOrg` the lookup scopes to that org (its adopted/owned products); without it, only global (org-null) products are visible. Currently public — see the storefront access gate note. Returns null if no match in scope.',
+      description: 'Storefront read: fetch a PUBLISHED product by its URL handle — only products live on a channel (≥1 published, approved, non-deleted channel listing) are returned; drafts/unpublished are never visible here. `viewerOrg` disambiguates: handle is unique per (org, handle), so it scopes the lookup to that org\'s adopted/owned products (omit for global, org-null products); it is NOT a draft-access grant. Currently public — see the storefront access gate note. Returns null if no published match in scope.',
       args: {
         handle: t.arg.string({ required: true, description: 'The product\'s URL handle, unique within its scope (global, or per owning org).' }),
         viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; scopes the lookup to that org\'s products. Omit for the global catalog.' }),
@@ -176,7 +177,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
             const svc = yield* ProductService
             const s = args.search?.trim()
             const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] } : null
-            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const userWhere = args.where ? buildProductWhere(args.where) : null
             const where = { AND: [{ organizationId: { isNull: true } }, userWhere, searchClause].filter(Boolean) }
             return yield* svc.findProducts(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
           }),
@@ -203,12 +204,45 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
             const base = mergeWhere(Number(args.organizationId.id))
             const s = args.search?.trim()
             const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] } : null
-            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const userWhere = args.where ? buildProductWhere(args.where) : null
             const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
             return yield* svc.findProducts(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
           }),
         ) as Promise<any>,
     }, { subGraphs: ['org'] }, { subGraphs: ['org'] }))
+
+  // ── channelProducts — PUBLIC storefront catalog of a sales channel ──────────
+  builder.queryField('channelProducts', t =>
+    t.drizzleConnection({
+      type: 'products',
+      subGraphs: ['public'],
+      description: 'Storefront catalog: paginated (relay) connection over the products live on a @czo/channel sales channel (a published, approved, non-deleted listing), with optional free-text search, filtering, and ordering. Public — publication is the gate.',
+      args: {
+        channel: t.arg.int({ required: true, description: 'Raw @czo/channel sales-channel id whose published catalog to read.' }),
+        search: t.arg.string({ description: 'Free-text search across name and handle (case-insensitive substring).' }),
+        where: t.arg({ type: 'ProductWhereInput', description: 'Optional filter predicate.' }),
+        orderBy: t.arg({ type: ['ProductOrderByInput'], description: 'Optional ordering clauses; defaults to newest-first (createdAt desc).' }),
+      },
+      resolve: async (query, _root, args, ctx) =>
+        ctx.runEffect(
+          Effect.gen(function* () {
+            const svc = yield* ProductService
+            const live = {
+              channelListings: {
+                channelId: args.channel,
+                isPublished: true,
+                reviewState: 'approved',
+                deletedAt: { isNull: true },
+              },
+            }
+            const s = args.search?.trim()
+            const searchClause = s ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] } : null
+            const userWhere = args.where ? buildProductWhere(args.where) : null
+            const where = { AND: [{ deletedAt: { isNull: true } }, live, userWhere, searchClause].filter(Boolean) }
+            return yield* svc.findProducts(query({ where: where as any, orderBy: buildOrderBy(args.orderBy) }))
+          }),
+        ) as Promise<any>,
+    }, { subGraphs: ['public'] }, { subGraphs: ['public'] }))
 
   // ── adoptedProducts(organization) — the acting org's adopted globals ────────
   builder.queryField('adoptedProducts', t =>
@@ -239,7 +273,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
             const searchClause = s
               ? { OR: [{ name: { ilike: `%${s}%` } }, { handle: { ilike: `%${s}%` } }] }
               : null
-            const userWhere = (args.where ?? null) as Record<string, unknown> | null
+            const userWhere = args.where ? buildProductWhere(args.where) : null
             const where = { AND: [base, userWhere, searchClause].filter(Boolean) }
 
             return yield* svc.findProducts(query({

@@ -54,6 +54,17 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('ChannelListingService', (it)
       expect(row.publishedAt).not.toBeNull()
     }))
 
+  it.effect('publish records the publishing organizationId on the listing', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const svc = yield* ChannelListingService
+      const type = yield* makeType(ORG, 'lo-t1')
+      const product = yield* makeProduct(ORG, type.id, 'lo-p1')
+      const channel = yield* makeChannel(ORG, 'lo-c1')
+      const row = yield* svc.publish({ productId: product.id, channelId: channel.id, organizationId: ORG })
+      expect(row.organizationId).toBe(ORG)
+    }))
+
   it.effect('second publish on same (product, channel) updates the one live row', () =>
     Effect.gen(function* () {
       yield* truncateProductAttribute

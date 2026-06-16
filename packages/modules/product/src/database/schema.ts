@@ -196,6 +196,7 @@ export const productChannelListings = pgTable('product_channel_listings', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity({ startWith: 1, increment: 1 }),
   productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   channelId: integer('channel_id').notNull(), // cross-module ref to @czo/channel, no FK
+  organizationId: integer('organization_id'), // the org that published this listing
   isPublished: boolean('is_published').notNull().default(false),
   visibleInListings: boolean('visible_in_listings').notNull().default(true),
   availableForPurchaseAt: timestamp('available_for_purchase_at'),

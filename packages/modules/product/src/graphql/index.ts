@@ -1,4 +1,4 @@
-import type { BooleanFilter, IntFilter, OrderByInput, SchemaBuilder } from '@czo/kit/graphql'
+import type { BooleanFilter, IDFilter, IntFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { Relations } from '@czo/product/relations'
 import type {
   Category,
@@ -28,7 +28,11 @@ export interface ProductTypeWhereInput {
 }
 
 export interface ProductWhereInput {
-  productTypeId?: IntFilter
+  name?: StringFilter | null
+  handle?: StringFilter | null
+  productType?: IDFilter | null
+  categories?: IDFilter | null
+  collections?: IDFilter | null
   AND?: ProductWhereInput[] | null
   OR?: ProductWhereInput[] | null
   NOT?: ProductWhereInput | null

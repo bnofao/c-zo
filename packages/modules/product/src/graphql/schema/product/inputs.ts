@@ -162,10 +162,14 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
 
   // ── products connection: filter + ordering inputs ───────────────────────────
   const ProductWhereInputRef = builder.inputRef<ProductWhereInput>('ProductWhereInput').implement({
-    subGraphs: ['org', 'admin'],
-    description: 'Filter predicate for the `products` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
+    subGraphs: ['public', 'org', 'admin'],
+    description: 'Filter predicate for the product connections. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
     fields: t => ({
-      productTypeId: t.field({ type: 'IntFilterInput', description: 'Filter by the referenced product type id.' }),
+      name: t.field({ type: 'StringFilterInput', description: 'Filter by display name (base column; not locale-overlaid).' }),
+      handle: t.field({ type: 'StringFilterInput', description: 'Filter by URL handle.' }),
+      productType: t.field({ type: 'IDFilterInput', description: 'Filter by the referenced product type (relay id).' }),
+      categories: t.field({ type: 'IDFilterInput', description: 'Filter to products assigned to the given categories (relay ids).' }),
+      collections: t.field({ type: 'IDFilterInput', description: 'Filter to products in the given collections (relay ids).' }),
       AND: t.field({ type: [ProductWhereInputRef], description: 'All sub-predicates must match.' }),
       OR: t.field({ type: [ProductWhereInputRef], description: 'At least one sub-predicate must match.' }),
       NOT: t.field({ type: ProductWhereInputRef, description: 'The sub-predicate must not match.' }),
@@ -173,7 +177,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   })
 
   const ProductOrderFieldRef = builder.enumType('ProductOrderField', {
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A field the `products` connection can be ordered by.',
     values: {
       NAME: { value: 'name' },
@@ -185,7 +189,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   // `OrderDirection` by string name — that would couple the schema build to a
   // foreign module's contribution running first and never type-check across modules.
   const ProductOrderDirectionRef = builder.enumType('ProductOrderDirection', {
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'Sort direction: ascending or descending.',
     values: {
       ASC: { value: 'asc' },
@@ -194,7 +198,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   })
 
   builder.inputType('ProductOrderByInput', {
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'One ordering clause for the `products` connection (field + direction). Multiple clauses are applied in order.',
     fields: t => ({
       field: t.field({ type: ProductOrderFieldRef, required: true, validate: productOrderFieldSchema, description: 'The product field to sort by.' }),

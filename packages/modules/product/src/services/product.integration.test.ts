@@ -1,5 +1,7 @@
+import { DrizzleDb } from '@czo/kit/db'
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
+import { productChannelListings } from '../database/schema'
 import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
 import * as Prod from './product'
 import * as ProductType from './product-type'
@@ -24,6 +26,13 @@ layer(TestLayer, { timeout: 120_000 })('ProductService', (it) => {
     Effect.gen(function* () {
       const svc = yield* Prod.ProductService
       return yield* svc.createProduct(input)
+    })
+
+  /** Seed a live channel listing so `findProductByHandle`'s publication filter passes. */
+  const seedLiveListing = (productId: number) =>
+    Effect.gen(function* () {
+      const db = yield* DrizzleDb
+      yield* db.insert(productChannelListings).values({ productId, channelId: 1, isPublished: true, reviewState: 'approved' }).returning()
     })
 
   // ─── createProduct ────────────────────────────────────────────────────────
@@ -192,6 +201,7 @@ layer(TestLayer, { timeout: 120_000 })('ProductService', (it) => {
       yield* truncateProduct
       const t = yield* makeType(null, 'shirt')
       const p = yield* makeProduct({ organizationId: null, productTypeId: t.id, handle: 'global-h', name: 'G' })
+      yield* seedLiveListing(p.id)
       const svc = yield* Prod.ProductService
       const found = yield* svc.findProductByHandle({ orgId: null, handle: 'global-h' })
       expect(found.id).toBe(p.id)
@@ -202,6 +212,7 @@ layer(TestLayer, { timeout: 120_000 })('ProductService', (it) => {
       yield* truncateProduct
       const t = yield* makeType(1, 'shirt')
       const p = yield* makeProduct({ organizationId: 1, productTypeId: t.id, handle: 'org-h', name: 'O' })
+      yield* seedLiveListing(p.id)
       const svc = yield* Prod.ProductService
       const found = yield* svc.findProductByHandle({ orgId: 1, handle: 'org-h' })
       expect(found.id).toBe(p.id)
