@@ -1,4 +1,4 @@
-import type { BooleanFilter, IDFilter, IntFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
+import type { BooleanFilter, DateTimeFilter, FloatFilter, IDFilter, IntFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { Relations } from '@czo/product/relations'
 import type {
   Category,
@@ -27,12 +27,29 @@ export interface ProductTypeWhereInput {
   NOT?: ProductTypeWhereInput | null
 }
 
+export interface ProductAttributeValueWhere {
+  slug?: StringFilter | null
+  name?: StringFilter | null // maps to the value tables' `value` column (translator concern)
+  numeric?: FloatFilter | null
+  boolean?: BooleanFilter | null
+  date?: DateTimeFilter | null
+  reference?: IntFilter | null
+}
+
+export interface ProductAttributeWhere {
+  slug?: StringFilter | null
+  name?: StringFilter | null
+  ids?: IDFilter | null
+  value?: ProductAttributeValueWhere | null
+}
+
 export interface ProductWhereInput {
   name?: StringFilter | null
   handle?: StringFilter | null
   productType?: IDFilter | null
   categories?: IDFilter | null
   collections?: IDFilter | null
+  attributes?: ProductAttributeWhere[] | null
   AND?: ProductWhereInput[] | null
   OR?: ProductWhereInput[] | null
   NOT?: ProductWhereInput | null
@@ -73,6 +90,8 @@ declare module '@czo/kit/graphql' {
     ProductTypeWhereInput: ProductTypeWhereInput
     ProductTypeOrderByInput: OrderByInput<'name' | 'createdAt'>
     ProductWhereInput: ProductWhereInput
+    ProductAttributeWhereInput: ProductAttributeWhere
+    ProductAttributeValueWhereInput: ProductAttributeValueWhere
     ProductOrderByInput: OrderByInput<'name' | 'createdAt'>
     CategoryWhereInput: CategoryWhereInput
     CategoryOrderByInput: OrderByInput<'name' | 'position' | 'createdAt'>

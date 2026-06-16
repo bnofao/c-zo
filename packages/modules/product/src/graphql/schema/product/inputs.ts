@@ -161,6 +161,30 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
   })
 
   // ── products connection: filter + ordering inputs ───────────────────────────
+  const ProductAttributeValueWhereInputRef = builder.inputType('ProductAttributeValueWhereInput', {
+    subGraphs: ['public', 'org', 'admin'],
+    description: 'Typed predicate on an attribute value. Set one selector: `slug`/`name` (select & swatch values), `numeric`, `boolean`, `date`, or `reference`.',
+    fields: t => ({
+      slug: t.field({ type: 'StringFilterInput', description: 'Match the value slug (select/swatch).' }),
+      name: t.field({ type: 'StringFilterInput', description: 'Match the value display label (select/swatch).' }),
+      numeric: t.field({ type: 'FloatFilterInput', description: 'Match a numeric value (supports ranges).' }),
+      boolean: t.field({ type: 'BooleanFilterInput', description: 'Match a boolean value.' }),
+      date: t.field({ type: 'DateTimeFilterInput', description: 'Match a date/datetime value (supports ranges).' }),
+      reference: t.field({ type: 'IntFilterInput', description: 'Match a reference value by its referenced entity id.' }),
+    }),
+  })
+
+  const ProductAttributeWhereInputRef = builder.inputType('ProductAttributeWhereInput', {
+    subGraphs: ['public', 'org', 'admin'],
+    description: 'One attribute facet. The attribute is identified by `slug`, `name`, or `ids`; `value` narrows by the attribute\'s value. Only filterable attributes match. Multiple facets on `attributes` are AND-ed.',
+    fields: t => ({
+      slug: t.field({ type: 'StringFilterInput', description: 'Match the attribute slug.' }),
+      name: t.field({ type: 'StringFilterInput', description: 'Match the attribute name.' }),
+      ids: t.field({ type: 'IDFilterInput', description: 'Match the attribute by relay id(s).' }),
+      value: t.field({ type: ProductAttributeValueWhereInputRef, description: 'Predicate on the value the product carries for this attribute.' }),
+    }),
+  })
+
   const ProductWhereInputRef = builder.inputRef<ProductWhereInput>('ProductWhereInput').implement({
     subGraphs: ['public', 'org', 'admin'],
     description: 'Filter predicate for the product connections. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.',
@@ -170,6 +194,7 @@ export function registerProductInputs(builder: ProductGraphQLSchemaBuilder): voi
       productType: t.field({ type: 'IDFilterInput', description: 'Filter by the referenced product type (relay id).' }),
       categories: t.field({ type: 'IDFilterInput', description: 'Filter to products assigned to the given categories (relay ids).' }),
       collections: t.field({ type: 'IDFilterInput', description: 'Filter to products in the given collections (relay ids).' }),
+      attributes: t.field({ type: [ProductAttributeWhereInputRef], description: 'Facet by attributes and their typed values. Each entry is one facet; entries are AND-ed. Only `isFilterable` attributes match.' }),
       AND: t.field({ type: [ProductWhereInputRef], description: 'All sub-predicates must match.' }),
       OR: t.field({ type: [ProductWhereInputRef], description: 'At least one sub-predicate must match.' }),
       NOT: t.field({ type: ProductWhereInputRef, description: 'The sub-predicate must not match.' }),
