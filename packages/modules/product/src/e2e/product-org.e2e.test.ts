@@ -254,7 +254,7 @@ describe('product org-owned flow e2e', () => {
           fr: name(locale:"fr")
           attributeValues(viewerOrg:$org){ edges { node { id } } }
           channelListings { edges { node { id } } }
-          variants(viewerOrg:$org){
+          variants{
             edges { node {
               id
               priceSet(viewerOrg:$org){ priceSetId organizationId }

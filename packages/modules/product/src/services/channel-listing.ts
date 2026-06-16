@@ -182,6 +182,7 @@ export const make = Effect.gen(function* () {
         const [row] = yield* dbErr(db
           .update(productChannelListingsTable)
           .set({
+            organizationId: input.organizationId,
             isPublished,
             visibleInListings,
             ...(input.availableForPurchaseAt !== undefined ? { availableForPurchaseAt: input.availableForPurchaseAt } : {}),
@@ -202,6 +203,7 @@ export const make = Effect.gen(function* () {
         .values({
           productId: input.productId,
           channelId: input.channelId,
+          organizationId: input.organizationId,
           isPublished,
           visibleInListings,
           ...(isMarketplace ? { reviewState: 'pending' as const } : {}),

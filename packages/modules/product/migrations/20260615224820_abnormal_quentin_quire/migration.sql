@@ -1,0 +1,1 @@
+ALTER TABLE "product_channel_listings" ADD COLUMN "organization_id" integer;

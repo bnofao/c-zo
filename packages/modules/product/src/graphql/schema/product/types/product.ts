@@ -80,10 +80,8 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
       // ── Graft connections (merge predicate: base ∪ viewerOrg) ───────────────
       variants: t.relatedConnection('variants', {
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Purchasable variants of this product. Merges base variants with the viewer org\'s grafted variants; excludes soft-deleted rows.',
-        args: { viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }) },
-        authScopes: (_parent, args) => graftAuthScopes(args),
-        query: args => ({ where: { deletedAt: { isNull: true }, ...mergeWhere(viewerOrgId(args)) } }),
+        description: 'Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows).',
+        query: { where: { deletedAt: { isNull: true } } },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
       attributeValues: t.relatedConnection('attributeValues', {
         subGraphs: ['public', 'org', 'admin'],

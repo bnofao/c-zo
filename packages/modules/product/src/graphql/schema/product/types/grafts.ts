@@ -67,6 +67,7 @@ export function registerGraftTypes(builder: ProductGraphQLSchemaBuilder): void {
         productId: t.exposeInt('productId', { description: 'The product being listed on the channel.' }),
         channelId: t.exposeInt('channelId', { description: 'The sales channel (in the channel module) the product is listed on.' }),
         isPublished: t.exposeBoolean('isPublished', { description: 'Whether the org has published this listing (the org gate). On a marketplace channel the product is live only once also approved.' }),
+        organizationId: t.exposeInt('organizationId', { nullable: true, subGraphs: ['org', 'admin'], description: 'The organization that published this listing (null for legacy rows).' }),
         reviewState: t.expose('reviewState', {
           type: enums.ListingReviewState,
           subGraphs: ['org', 'admin'],

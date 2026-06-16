@@ -644,19 +644,25 @@ function floatFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBu
   return ref
 }
 
+/** Runtime shape a relay `t.globalID()` input resolves to (decoded), per @pothos/plugin-relay `GlobalIDInputShape`. */
+export interface GlobalIDValue {
+  typename: string
+  id: string
+}
+
 export interface IDFilter extends LogicalFilter<IDFilter> {
-  eq?: string | null
-  in?: string[] | null
-  notIn?: string[] | null
+  eq?: GlobalIDValue | null
+  in?: GlobalIDValue[] | null
+  notIn?: GlobalIDValue[] | null
 }
 
 function idFilterInputRef<Relations extends RelationsEntry>(builder: SchemaBuilder<Relations>, opts: { subGraphs: SubGraphName[] }) {
   const ref = builder.inputRef<IDFilter>('IDFilterInput').implement({
     ...opts,
     fields: t => ({
-      eq: t.id(),
-      in: t.idList(),
-      notIn: t.idList(),
+      eq: t.globalID(),
+      in: t.globalIDList(),
+      notIn: t.globalIDList(),
       OR: t.field({ type: [ref] }),
       AND: t.field({ type: [ref] }),
       NOT: t.field({ type: ref }),

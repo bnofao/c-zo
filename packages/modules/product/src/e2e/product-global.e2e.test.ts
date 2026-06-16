@@ -383,7 +383,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
         productByHandle(handle:$handle){
           id
           attributeValues(viewerOrg:$a){ edges { node { id organizationId } } }
-          variants(viewerOrg:$a){
+          variants{
             edges { node {
               id
               priceSet(viewerOrg:$a){ priceSetId organizationId }
@@ -400,10 +400,14 @@ describe('product global-catalog + two-org-graft e2e', () => {
   it('c1: org-B user passing viewerOrg=A is DENIED — no leak of A grafts', async () => {
     const res = await readAGrafts(bToken)
     // Scope-auth denies the gated graft fields → GraphQL error, and NO A data.
+    // `attributeValues(viewerOrg:A)` and the per-variant `priceSet(viewerOrg:A)`
+    // graft are both denied. `variants` itself is now un-grafted (public base),
+    // so its nodes may be present — but their A-scoped priceSet graft must NOT be.
     expect(res.errors).toBeDefined()
     expect(res.errors!.length).toBeGreaterThan(0)
     expect(res.data?.productByHandle?.attributeValues ?? null).toBeNull()
-    expect(res.data?.productByHandle?.variants ?? null).toBeNull()
+    const variantEdges: any[] = res.data?.productByHandle?.variants?.edges ?? []
+    expect(variantEdges.every((e: any) => (e.node?.priceSet ?? null) === null)).toBe(true)
   })
 
   it('c1: an UNAUTHENTICATED caller passing viewerOrg=A is DENIED', async () => {
@@ -411,7 +415,8 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(res.errors).toBeDefined()
     expect(res.errors!.length).toBeGreaterThan(0)
     expect(res.data?.productByHandle?.attributeValues ?? null).toBeNull()
-    expect(res.data?.productByHandle?.variants ?? null).toBeNull()
+    const variantEdges: any[] = res.data?.productByHandle?.variants?.edges ?? []
+    expect(variantEdges.every((e: any) => (e.node?.priceSet ?? null) === null)).toBe(true)
   })
 
   it('c1: viewerOrg OMITTED → public base read succeeds (no auth, no A grafts)', async () => {
@@ -432,6 +437,11 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const attrOrgs: (number | null)[] = res.data.productByHandle.attributeValues.edges.map((e: any) => e.node.organizationId)
     expect(attrOrgs).not.toContain(aOrgNumericId)
     expect(attrOrgs.every((o: number | null) => o === null)).toBe(true)
+    // `variants` is un-grafted (public base): its nodes surface with no arg and
+    // every base variant carries organizationId === null.
+    const variantOrgs: (number | null)[] = res.data.productByHandle.variants.edges.map((e: any) => e.node.organizationId)
+    expect(variantOrgs.length).toBeGreaterThan(0)
+    expect(variantOrgs.every((o: number | null) => o === null)).toBe(true)
   })
 
   it('c1: org A passing viewerOrg=A → grafts visible (no regression)', async () => {
@@ -453,7 +463,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
           forB: isAdopted(viewerOrg:$org)
           attributeValues(viewerOrg:$org){ edges { node { id organizationId attributeId } } }
           channelListings{ edges { node { id channelId isPublished } } }
-          variants(viewerOrg:$org){
+          variants{
             edges { node {
               id
               priceSet(viewerOrg:$org){ priceSetId organizationId }
