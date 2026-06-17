@@ -267,7 +267,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
             // "Products with ≥1 live adoption by this org" — RQBv2 relational
             // `where` over the `adoptions` (productOrgAdoptions) many-relation.
             const orgId = Number(args.organization.id)
-            const base = { adoptions: { organizationId: orgId, deletedAt: { isNull: true } }, deletedAt: { isNull: true } }
+            const base = { adoptions: { organizationId: orgId }, deletedAt: { isNull: true } }
             // Free-text search → case-insensitive substring across name and handle.
             const s = args.search?.trim()
             const searchClause = s

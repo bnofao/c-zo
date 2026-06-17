@@ -77,7 +77,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
   // ── Choice value objects ───────────────────────────────────────────────────
   builder.drizzleNode('attributeValues', {
     name: 'AttributeValue',
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A catalog value of a DROPDOWN or MULTISELECT attribute.',
     select: true,
     id: { column: v => v.id },
@@ -92,7 +92,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeSwatchValues', {
     name: 'AttributeSwatchValue',
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A catalog value of a SWATCH attribute: a label plus an optional color and/or image file.',
     select: true,
     id: { column: v => v.id },
@@ -116,7 +116,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
 
   builder.drizzleNode('attributeReferenceValues', {
     name: 'AttributeReferenceValue',
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A catalog value of a REFERENCE attribute: a label pointing at another entity by id.',
     select: true,
     id: { column: v => v.id },
@@ -214,7 +214,7 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
   // connection `authScopes` regardless of the client's field selection.
   builder.drizzleNode('attributes', {
     name: 'Attribute',
-    subGraphs: ['org', 'admin'],
+    subGraphs: ['public', 'org', 'admin'],
     description: 'A typed descriptor that products and variants can carry values for. PLATFORM (organizationId null, platform-admin-managed) or ORG-OWNED. Choice types expose one of the values/swatchValues/referenceValues connections (per `type`); non-choice types hold a single typed value resolved elsewhere.',
     select: true,
     id: { column: a => a.id },
@@ -226,9 +226,10 @@ export function registerAttributeTypes(builder: AttributeGraphQLSchemaBuilder): 
       unit: t.field({ type: enums.AttributeUnit, nullable: true, resolve: a => a.unit, description: 'For NUMBER attributes, the unit of measure; null otherwise.' }),
       isRequired: t.exposeBoolean('isRequired', { description: 'Whether a value for this attribute is mandatory on the entities that carry it.' }),
       isFilterable: t.exposeBoolean('isFilterable', { description: 'Whether this attribute may be used as a storefront/listing filter facet.' }),
-      organizationId: t.exposeInt('organizationId', { nullable: true, description: 'Owning organization, or null for a PLATFORM (global) attribute.' }),
+      organizationId: t.exposeInt('organizationId', { subGraphs: ['org', 'admin'], nullable: true, description: 'Owning organization, or null for a PLATFORM (global) attribute.' }),
       metadata: t.field({
         type: 'JSONObject',
+        subGraphs: ['org', 'admin'],
         nullable: true,
         description: 'Freeform JSON metadata attached to the attribute.',
         resolve: a => a.metadata as Record<string, unknown> | null,

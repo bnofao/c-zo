@@ -33,9 +33,16 @@ layer(ProductAttributeLayer, { timeout: 120_000 })('attribute-facet spike', (it)
         .insert(attributeSchema.attributeValues)
         .values({ attributeId: color.id, organizationId: null, slug: 'red', value: 'Red' })
         .returning())[0]!
+      // ── seed: attribute `finish` (SWATCH, filterable) with a SWATCH `blue` ─
+      // (the kind now derives from the attribute's `type`, so a swatch value
+      // must belong to a SWATCH attribute — not a DROPDOWN one.)
+      const finish = (yield* db
+        .insert(attributeSchema.attributes)
+        .values({ organizationId: null, name: 'finish', slug: 'finish', type: 'SWATCH', isFilterable: true })
+        .returning())[0]!
       const blueSwatch = (yield* db
         .insert(attributeSchema.attributeSwatchValues)
-        .values({ attributeId: color.id, organizationId: null, slug: 'blue', value: 'Blue', color: '#0000ff' })
+        .values({ attributeId: finish.id, organizationId: null, slug: 'blue', value: 'Blue', color: '#0000ff' })
         .returning())[0]!
 
       // ── seed: attribute `weight` (NUMERIC, filterable) with a NUMERIC value 60 ─
@@ -61,12 +68,12 @@ layer(ProductAttributeLayer, { timeout: 120_000 })('attribute-facet spike', (it)
       // ── seed: product_attribute_values pivots ─────────────────────────────
       yield* db.insert(productSchema.productAttributeValues).values([
         // p-red-heavy: color=red VALUE + weight=60 NUMERIC
-        { productId: pRedHeavy.id, organizationId: null, attributeId: color.id, valueKind: 'VALUE', valueId: redValue.id, position: 0 },
-        { productId: pRedHeavy.id, organizationId: null, attributeId: weight.id, valueKind: 'NUMERIC', valueId: weight60.id, position: 0 },
+        { productId: pRedHeavy.id, organizationId: null, attributeId: color.id, valueId: redValue.id, position: 0 },
+        { productId: pRedHeavy.id, organizationId: null, attributeId: weight.id, valueId: weight60.id, position: 0 },
         // p-red-only: color=red VALUE
-        { productId: pRedOnly.id, organizationId: null, attributeId: color.id, valueKind: 'VALUE', valueId: redValue.id, position: 0 },
-        // p-blue: color=blue SWATCH
-        { productId: pBlue.id, organizationId: null, attributeId: color.id, valueKind: 'SWATCH', valueId: blueSwatch.id, position: 0 },
+        { productId: pRedOnly.id, organizationId: null, attributeId: color.id, valueId: redValue.id, position: 0 },
+        // p-blue: finish=blue SWATCH
+        { productId: pBlue.id, organizationId: null, attributeId: finish.id, valueId: blueSwatch.id, position: 0 },
       ])
 
       const handles = (rows: ReadonlyArray<any>) => rows.map(r => r.handle as string).sort()
@@ -75,8 +82,7 @@ layer(ProductAttributeLayer, { timeout: 120_000 })('attribute-facet spike', (it)
       const numericRange = yield* db.query.products!.findMany({
         where: {
           attributeValues: {
-            attribute: { isFilterable: true },
-            valueKind: 'NUMERIC',
+            attribute: { isFilterable: true, type: 'NUMERIC' },
             numericValue: { value: { gte: 50 } },
           },
         } as any,
@@ -87,20 +93,20 @@ layer(ProductAttributeLayer, { timeout: 120_000 })('attribute-facet spike', (it)
       const facetAnd = yield* db.query.products!.findMany({
         where: {
           AND: [
-            { attributeValues: { valueKind: 'VALUE', selectValue: { slug: { eq: 'red' } } } },
-            { attributeValues: { valueKind: 'NUMERIC', numericValue: { value: { gte: 50 } } } },
+            { attributeValues: { attribute: { type: 'DROPDOWN' }, selectValue: { slug: { eq: 'red' } } } },
+            { attributeValues: { attribute: { type: 'NUMERIC' }, numericValue: { value: { gte: 50 } } } },
           ],
         } as any,
       })
       expect(handles(facetAnd)).toEqual(['p-red-heavy'])
 
-      // ── 3. slug OR across VALUE + SWATCH ──────────────────────────────────
+      // ── 3. slug OR across select (DROPDOWN) + SWATCH, disambiguated by type ─
       const slugOr = yield* db.query.products!.findMany({
         where: {
           attributeValues: {
             OR: [
-              { valueKind: 'VALUE', selectValue: { slug: { in: ['red'] } } },
-              { valueKind: 'SWATCH', swatchValue: { slug: { in: ['blue'] } } },
+              { attribute: { type: { in: ['DROPDOWN', 'MULTISELECT'] } }, selectValue: { slug: { in: ['red'] } } },
+              { attribute: { type: 'SWATCH' }, swatchValue: { slug: { in: ['blue'] } } },
             ],
           },
         } as any,

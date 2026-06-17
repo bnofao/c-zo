@@ -4,18 +4,19 @@
 // cross-module `where` (product pivot → @czo/attribute typed-value tables).
 //
 // Seed (one org A + one channel C; each product published LIVE on C):
-//   • filterable attribute `color` (DROPDOWN) with a select value `red` + a
-//     swatch value `blue`; filterable attribute `weight` (NUMERIC) with a numeric
-//     value `60`; a NON-filterable attribute `internal` with a value `x`.
+//   • filterable attribute `color` (DROPDOWN) with a select value `red`;
+//     filterable attribute `finish` (SWATCH) with a swatch value `blue`;
+//     filterable attribute `weight` (NUMERIC) with a numeric value `60`;
+//     a NON-filterable attribute `internal` with a value `x`.
 //   • prod-rh: color=red (VALUE) + weight=60 (NUMERIC) + internal=x
 //   • prod-r:  color=red (VALUE)
-//   • prod-b:  color=blue (SWATCH)
+//   • prod-b:  finish=blue (SWATCH)
 //
-// Attributes, their typed values, and the product_attribute_values pivots are
-// seeded directly via `runEffect` — the GraphQL `assignProductValue` surface
-// derives the pivot's valueKind from the attribute's TYPE (one attribute = one
-// kind), so it cannot express a VALUE pivot AND a SWATCH pivot on the same
-// `color` attribute. This mirrors the F2 gating spike's seed layout exactly.
+// The pivot's kind is NO LONGER a column — it derives from the attribute's TYPE
+// (one attribute = one kind), so a SWATCH value must live on a SWATCH attribute
+// (`finish`), not on the DROPDOWN `color`. The facet OR (select ∪ swatch) is thus
+// exercised across two real attributes: `red` matches the DROPDOWN/selectValue
+// branch, `blue` the SWATCH/swatchValue branch.
 // Products are still created org-owned via GraphQL so the real `publishProduct`
 // mutation yields a default-approved (live) listing on the org's own channel C.
 
@@ -76,10 +77,13 @@ describe('product channelProducts typed attribute faceting e2e', () => {
         const typedSvc = yield* TypedValueSvc.TypedValueService
         const db = yield* DrizzleDb
 
-        // filterable `color` (DROPDOWN) with a select value `red` + a swatch `blue`.
+        // filterable `color` (DROPDOWN) with a select value `red`.
         const color = yield* attrSvc.create({ name: 'color', type: 'DROPDOWN', isFilterable: true, organizationId: orgNumericId })
         const red = yield* valueSvc.createValue({ attributeId: color.id, value: 'Red', slug: 'red', organizationId: orgNumericId })
-        const blue = yield* valueSvc.createSwatch({ attributeId: color.id, value: 'Blue', slug: 'blue', color: '#0000ff', organizationId: orgNumericId })
+        // filterable `finish` (SWATCH) with a swatch value `blue` — the kind now
+        // derives from the attribute's type, so a swatch lives on a SWATCH attribute.
+        const finish = yield* attrSvc.create({ name: 'finish', type: 'SWATCH', isFilterable: true, organizationId: orgNumericId })
+        const blue = yield* valueSvc.createSwatch({ attributeId: finish.id, value: 'Blue', slug: 'blue', color: '#0000ff', organizationId: orgNumericId })
 
         // filterable `weight` (NUMERIC) with a numeric value 60.
         const weight = yield* attrSvc.create({ name: 'weight', type: 'NUMERIC', isFilterable: true, organizationId: orgNumericId })
@@ -92,13 +96,13 @@ describe('product channelProducts typed attribute faceting e2e', () => {
         // product_attribute_values pivots (mirrors the F2 spike seed layout).
         yield* db.insert(productAttributeValues).values([
           // prod-rh: color=red VALUE + weight=60 NUMERIC + internal=x VALUE
-          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: color.id, valueKind: 'VALUE', valueId: red.id, position: 0 },
-          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: weight.id, valueKind: 'NUMERIC', valueId: weight60.id, position: 0 },
-          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: internal.id, valueKind: 'VALUE', valueId: x.id, position: 0 },
+          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: color.id, valueId: red.id, position: 0 },
+          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: weight.id, valueId: weight60.id, position: 0 },
+          { productId: prodRh.productNumericId, organizationId: orgNumericId, attributeId: internal.id, valueId: x.id, position: 0 },
           // prod-r: color=red VALUE
-          { productId: prodR.productNumericId, organizationId: orgNumericId, attributeId: color.id, valueKind: 'VALUE', valueId: red.id, position: 0 },
-          // prod-b: color=blue SWATCH
-          { productId: prodB.productNumericId, organizationId: orgNumericId, attributeId: color.id, valueKind: 'SWATCH', valueId: blue.id, position: 0 },
+          { productId: prodR.productNumericId, organizationId: orgNumericId, attributeId: color.id, valueId: red.id, position: 0 },
+          // prod-b: finish=blue SWATCH
+          { productId: prodB.productNumericId, organizationId: orgNumericId, attributeId: finish.id, valueId: blue.id, position: 0 },
         ])
 
         return color.id
@@ -178,8 +182,8 @@ describe('product channelProducts typed attribute faceting e2e', () => {
       .toEqual(['prod-r', 'prod-rh'])
   })
 
-  it('value.slug in [blue] → the swatch-valued product (VALUE∪SWATCH OR)', async () => {
-    expect(await handlesFor({ attributes: [{ slug: { eq: 'color' }, value: { slug: { in: ['blue'] } } }] }))
+  it('value.slug in [blue] → the swatch-valued product (select∪SWATCH OR)', async () => {
+    expect(await handlesFor({ attributes: [{ slug: { eq: 'finish' }, value: { slug: { in: ['blue'] } } }] }))
       .toEqual(['prod-b'])
   })
 
@@ -197,14 +201,14 @@ describe('product channelProducts typed attribute faceting e2e', () => {
       .toEqual([])
   })
 
-  it('attribute-only (color present) → every product carrying any color value', async () => {
+  it('attribute-only (color present) → every product carrying a color value (not the finish-only one)', async () => {
     expect(await handlesFor({ attributes: [{ slug: { eq: 'color' } }] }))
-      .toEqual(['prod-b', 'prod-r', 'prod-rh'])
+      .toEqual(['prod-r', 'prod-rh'])
   })
 
   it('by attribute id → same as attribute-only by slug', async () => {
     expect(await handlesFor({ attributes: [{ ids: { eq: colorAttrGlobalId } }] }))
-      .toEqual(['prod-b', 'prod-r', 'prod-rh'])
+      .toEqual(['prod-r', 'prod-rh'])
   })
 
   it('isFilterable gate: a non-filterable attribute matches nothing', async () => {

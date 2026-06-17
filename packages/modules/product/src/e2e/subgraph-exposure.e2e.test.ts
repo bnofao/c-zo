@@ -140,6 +140,24 @@ describe('product sub-graph exposure', () => {
     expect(publicListing).not.toContain('reviewState')
     expect(publicListing).not.toContain('reviewReason')
     expect(publicListing).not.toContain('reviewedAt')
+    // Typed assigned-attribute reads replaced the raw `attributeValues` connection.
+    const typeFields = async (path: string, type: string): Promise<string[]> => {
+      const res = await h.app.fetch(new Request(`http://localhost${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: `{ __type(name: "${type}") { fields { name } } }` }),
+      }))
+      const body = (await res.json()) as IntrospectResult
+      return (body.data?.__type?.fields ?? []).map(f => f.name)
+    }
+    const productFields = await typeFields('/graphql/public', 'Product')
+    expect(productFields).toContain('assignedAttributes')
+    expect(productFields).toContain('assignedAttribute')
+    expect(productFields).not.toContain('attributeValues')
+    const variantFields = await typeFields('/graphql/public', 'ProductVariant')
+    expect(variantFields).toContain('assignedAttributes')
+    expect(variantFields).toContain('assignedAttribute')
+    expect(variantFields).not.toContain('attributeValues')
   })
 
   it('/graphql/public: anonymous productByHandle traverses the catalog graph', async () => {

@@ -32,15 +32,15 @@ describe('buildProductWhere', () => {
     // RQBv2 treats {} as match-all; harmless inside the connection's outer AND[base, …].
     expect(buildProductWhere({ productType: {} } as any)).toEqual({ productTypeId: {} })
   })
-  it('builds a numeric-range facet with valueKind + isFilterable injected', () => {
+  it('builds a numeric-range facet with attribute.type + isFilterable injected', () => {
     expect(buildProductWhere({ attributes: [{ slug: { eq: 'weight' }, value: { numeric: { gte: 50 } } }] } as any))
-      .toEqual({ attributeValues: { attribute: { isFilterable: true, slug: { eq: 'weight' } }, valueKind: 'NUMERIC', numericValue: { value: { gte: 50 } } } })
+      .toEqual({ attributeValues: { attribute: { isFilterable: true, slug: { eq: 'weight' }, type: 'NUMERIC' }, numericValue: { value: { gte: 50 } } } })
   })
-  it('builds a slug facet as an OR across VALUE and SWATCH', () => {
+  it('builds a slug facet as an OR across select (DROPDOWN/MULTISELECT) and SWATCH, disambiguated by attribute.type', () => {
     expect(buildProductWhere({ attributes: [{ value: { slug: { in: ['red'] } } }] } as any))
-      .toEqual({ attributeValues: { attribute: { isFilterable: true }, OR: [
-        { valueKind: 'VALUE', selectValue: { slug: { in: ['red'] } } },
-        { valueKind: 'SWATCH', swatchValue: { slug: { in: ['red'] } } },
+      .toEqual({ attributeValues: { OR: [
+        { attribute: { isFilterable: true, type: { in: ['DROPDOWN', 'MULTISELECT'] } }, selectValue: { slug: { in: ['red'] } } },
+        { attribute: { isFilterable: true, type: 'SWATCH' }, swatchValue: { slug: { in: ['red'] } } },
       ] } })
   })
   it('maps name to the value column, decodes attribute ids, and ANDs multiple facets', () => {
@@ -49,10 +49,10 @@ describe('buildProductWhere', () => {
       { ids: { in: [g(7)] }, value: { boolean: { eq: true } } },
       { value: { name: { eq: 'Red' } } },
     ] } as any)).toEqual({ AND: [
-      { attributeValues: { attribute: { isFilterable: true, id: { in: [7] } }, valueKind: 'BOOLEAN', booleanValue: { value: { eq: true } } } },
-      { attributeValues: { attribute: { isFilterable: true }, OR: [
-        { valueKind: 'VALUE', selectValue: { value: { eq: 'Red' } } },
-        { valueKind: 'SWATCH', swatchValue: { value: { eq: 'Red' } } },
+      { attributeValues: { attribute: { isFilterable: true, id: { in: [7] }, type: 'BOOLEAN' }, booleanValue: { value: { eq: true } } } },
+      { attributeValues: { OR: [
+        { attribute: { isFilterable: true, type: { in: ['DROPDOWN', 'MULTISELECT'] } }, selectValue: { value: { eq: 'Red' } } },
+        { attribute: { isFilterable: true, type: 'SWATCH' }, swatchValue: { value: { eq: 'Red' } } },
       ] } },
     ] })
   })

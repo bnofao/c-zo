@@ -252,7 +252,7 @@ describe('product org-owned flow e2e', () => {
           handle
           base: name
           fr: name(locale:"fr")
-          attributeValues(viewerOrg:$org){ edges { node { id } } }
+          assignedAttributes(viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug value } } }
           channelListings { edges { node { id } } }
           variants{
             edges { node {
@@ -274,8 +274,13 @@ describe('product org-owned flow e2e', () => {
     expect(product.base).toBe('Acme Shirt')
     expect(product.fr).toBe('Chemise Acme')
     // MERGED GRAFTS: the product attribute value, the bound price set, the
-    // linked inventory item — all reflect the viewer org.
-    expect(product.attributeValues.edges.length).toBeGreaterThan(0)
+    // linked inventory item — all reflect the viewer org. The grafted Material
+    // (DROPDOWN) value resolves into its typed AssignedDropdownAttribute.
+    expect(product.assignedAttributes.length).toBeGreaterThan(0)
+    const material = product.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(material).toBeTruthy()
+    expect(material.__typename).toBe('AssignedDropdownAttribute')
+    expect(material.values.map((v: any) => v.value)).toContain('Cotton')
     expect(product.channelListings.edges.length).toBeGreaterThan(0)
     const boundEdge = product.variants.edges.find(
       (e: any) => e.node.priceSet != null,

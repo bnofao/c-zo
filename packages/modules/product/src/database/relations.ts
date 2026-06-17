@@ -37,6 +37,8 @@ type ProductSchema = Pick<
   | 'attributeBooleanValues'
   | 'attributeDateValues'
   | 'attributeReferenceValues'
+  | 'attributeTextValues'
+  | 'attributeFileValues'
 >
 
 export function productRelations(schema: ProductSchema) {
@@ -70,10 +72,12 @@ export function productRelations(schema: ProductSchema) {
     attributeBooleanValues,
     attributeDateValues,
     attributeReferenceValues,
+    attributeTextValues,
+    attributeFileValues,
   } = schema
 
   return defineRelationsPart(
-    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests, attributes, attributeValues, attributeSwatchValues, attributeNumericValues, attributeBooleanValues, attributeDateValues, attributeReferenceValues },
+    { productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests, attributes, attributeValues, attributeSwatchValues, attributeNumericValues, attributeBooleanValues, attributeDateValues, attributeReferenceValues, attributeTextValues, attributeFileValues },
     r => ({
       productTypes: {
         organization: r.one.organizations({ from: r.productTypes.organizationId, to: r.organizations.id }),
@@ -107,6 +111,8 @@ export function productRelations(schema: ProductSchema) {
         booleanValue: r.one.attributeBooleanValues({ from: r.productAttributeValues.valueId, to: r.attributeBooleanValues.id }),
         dateValue: r.one.attributeDateValues({ from: r.productAttributeValues.valueId, to: r.attributeDateValues.id }),
         referenceValue: r.one.attributeReferenceValues({ from: r.productAttributeValues.valueId, to: r.attributeReferenceValues.id }),
+        textValue: r.one.attributeTextValues({ from: r.productAttributeValues.valueId, to: r.attributeTextValues.id }),
+        fileValue: r.one.attributeFileValues({ from: r.productAttributeValues.valueId, to: r.attributeFileValues.id }),
       },
       productVariants: {
         product: r.one.products({ from: r.productVariants.productId, to: r.products.id }),
@@ -132,6 +138,15 @@ export function productRelations(schema: ProductSchema) {
       },
       variantAttributeValues: {
         variant: r.one.productVariants({ from: r.variantAttributeValues.variantId, to: r.productVariants.id }),
+        attribute: r.one.attributes({ from: r.variantAttributeValues.attributeId, to: r.attributes.id }),
+        selectValue: r.one.attributeValues({ from: r.variantAttributeValues.valueId, to: r.attributeValues.id }),
+        swatchValue: r.one.attributeSwatchValues({ from: r.variantAttributeValues.valueId, to: r.attributeSwatchValues.id }),
+        numericValue: r.one.attributeNumericValues({ from: r.variantAttributeValues.valueId, to: r.attributeNumericValues.id }),
+        booleanValue: r.one.attributeBooleanValues({ from: r.variantAttributeValues.valueId, to: r.attributeBooleanValues.id }),
+        dateValue: r.one.attributeDateValues({ from: r.variantAttributeValues.valueId, to: r.attributeDateValues.id }),
+        referenceValue: r.one.attributeReferenceValues({ from: r.variantAttributeValues.valueId, to: r.attributeReferenceValues.id }),
+        textValue: r.one.attributeTextValues({ from: r.variantAttributeValues.valueId, to: r.attributeTextValues.id }),
+        fileValue: r.one.attributeFileValues({ from: r.variantAttributeValues.valueId, to: r.attributeFileValues.id }),
       },
       variantPriceSets: {
         variant: r.one.productVariants({ from: r.variantPriceSets.variantId, to: r.productVariants.id }),
