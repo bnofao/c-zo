@@ -1,6 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { attributeBooleanValues, attributeDateValues, attributeNumericValues, attributeReferenceValues, attributes, attributeSwatchValues, attributeValues } from '@czo/attribute/schema'
+import { attributeBooleanValues, attributeDateValues, attributeFileValues, attributeNumericValues, attributeReferenceValues, attributes, attributeSwatchValues, attributeTextValues, attributeValues } from '@czo/attribute/schema'
 import { organizations } from '@czo/auth/schema'
 import { makePostgresTestLayer, truncateTables } from '@czo/kit/testing'
 import { productRelations } from '../database/relations'
@@ -16,7 +16,7 @@ const MIGRATIONS = resolve(dirname(fileURLToPath(import.meta.url)), '../../migra
  */
 export const ProductPostgresLayer = makePostgresTestLayer({
   migrationsFolder: MIGRATIONS,
-  relations: productRelations({ productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests, attributes, attributeValues, attributeSwatchValues, attributeNumericValues, attributeBooleanValues, attributeDateValues, attributeReferenceValues }),
+  relations: productRelations({ productTypes, productTypeAttributes, products, productVariants, productOrgAdoptions, productAttributeValues, variantAttributeValues, variantPriceSets, variantInventoryItems, categories, productCategories, collections, collectionProducts, productChannelListings, productMedia, variantMedia, organizations, productTranslations, categoryTranslations, collectionTranslations, variantTranslations, taxonomyRequests, attributes, attributeValues, attributeSwatchValues, attributeNumericValues, attributeBooleanValues, attributeDateValues, attributeReferenceValues, attributeTextValues, attributeFileValues }),
 })
 
 /**

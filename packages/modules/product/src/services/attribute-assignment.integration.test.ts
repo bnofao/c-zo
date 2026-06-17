@@ -222,7 +222,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
 
   // ─── Select ────────────────────────────────────────────────────────────────
 
-  it.effect('DROPDOWN → pivot valueKind VALUE referencing catalog id', () =>
+  it.effect('DROPDOWN → pivot references the catalog value id', () =>
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const { attr, v1 } = yield* seedDropdown(1, 'dd')
@@ -237,7 +237,6 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
         value: { valueIds: [v1.id] },
       })
       expect(rows).toHaveLength(1)
-      expect(rows[0]!.valueKind).toBe('VALUE')
       expect(rows[0]!.valueId).toBe(v1.id)
     }))
 
@@ -283,7 +282,6 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
         value: { numeric: 42 },
       })
       expect(rows).toHaveLength(1)
-      expect(rows[0]!.valueKind).toBe('NUMERIC')
       const mintedId = rows[0]!.valueId
 
       // unassign → pivot gone + numeric typed row deleted
@@ -311,13 +309,12 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
         attributeId: attr.id,
         value: { boolean: true },
       })
-      expect(rows[0]!.valueKind).toBe('BOOLEAN')
       yield* assign.unassignProductValue(rows[0]!.id)
       const remaining = yield* assign.listProductValues({ productId: p.id, orgId: 1 })
       expect(remaining).toHaveLength(0)
     }))
 
-  // ─── value_kind mismatch ───────────────────────────────────────────────────
+  // ─── kind mismatch (value shape vs attribute type) ──────────────────────────
 
   it.effect('scalar value for a select attr → ValueKindMismatch', () =>
     Effect.gen(function* () {
@@ -455,7 +452,6 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
         attributeId: attr.id,
         value: { numeric: 7 },
       })
-      expect(rows[0]!.valueKind).toBe('NUMERIC')
       yield* assign.unassignVariantValue(rows[0]!.id)
       const remaining = yield* assign.listVariantValues({ variantId: variant.id, orgId: 1 })
       expect(remaining).toHaveLength(0)

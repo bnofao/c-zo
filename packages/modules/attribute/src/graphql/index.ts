@@ -3,6 +3,7 @@ import type { Relations } from '@czo/attribute/relations'
 // the row shapes live as members (e.g. `Attribute.Attribute`).
 import type { Attribute, AttributeValue, TypedValue } from '@czo/attribute/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
+import type { AttributeAssignment } from './schema/assigned'
 import type { AttributeTypeFilter, AttributeUnitFilter } from './schema/inputs'
 import type { FileInfo } from './schema/scalars'
 // Pull in auth's module augmentation so cross-module ctx slices (`ctx.auth`)
@@ -11,6 +12,7 @@ import '@czo/auth/graphql'
 
 export { attributeNodeGuards } from './node-guards'
 export { type AttributeBuilder, registerAttributeSchema } from './schema'
+export type { AnyAssignment, AttributeAssignment } from './schema/assigned'
 
 export type AttributeGraphQLSchemaBuilder = SchemaBuilder<Relations>
 
@@ -32,6 +34,7 @@ export interface AttributeWhereInput {
 declare module '@czo/kit/graphql' {
   interface BuilderSchemaObjects {
     Attribute: Attribute.Attribute
+    AssignedAttribute: AttributeAssignment
     AttributeValue: AttributeValue.AttributeValue
     AttributeSwatchValue: AttributeValue.AttributeSwatchValue
     AttributeReferenceValue: AttributeValue.AttributeReferenceValue

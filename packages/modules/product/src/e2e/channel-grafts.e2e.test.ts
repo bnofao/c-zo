@@ -21,7 +21,7 @@
 //
 // Assertions:
 //   1. Storefront resolves the publishing org's grafts ANONYMOUSLY via
-//      `channelProducts(channel: C)` — media/attributeValues/categories ≥1 edge,
+//      `channelProducts(channel: C)` — media/assignedAttributes/categories ≥1,
 //      priceSet non-null (expected priceSetId), inventoryItems ≥1 edge.
 //   2. No leak on a non-matching channel — `channel: C2` (pg is not live on C2) →
 //      base-only: priceSet null, media/inventoryItems carry NONE of A's grafts.
@@ -224,7 +224,7 @@ describe('product channel-scoped graft resolution e2e', () => {
           edges { node {
             handle
             media(channel:$c){ edges { node { id } } }
-            attributeValues(channel:$c){ edges { node { id } } }
+            assignedAttributes(channel:$c){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug } } }
             categories(channel:$c){ edges { node { id } } }
             variants{ edges { node {
               priceSet(channel:$c){ priceSetId }
@@ -241,9 +241,14 @@ describe('product channel-scoped graft resolution e2e', () => {
       .find((n: any) => n.handle === pgHandle)
     expect(node).toBeTruthy()
 
-    // Product-level grafts: each surfaces A's grafted row.
+    // Product-level grafts: each surfaces A's grafted row. The grafted Material
+    // (DROPDOWN) attribute resolves into its typed AssignedDropdownAttribute.
     expect(node.media.edges.length).toBeGreaterThan(0)
-    expect(node.attributeValues.edges.length).toBeGreaterThan(0)
+    expect(node.assignedAttributes.length).toBeGreaterThan(0)
+    const material = node.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(material).toBeTruthy()
+    expect(material.__typename).toBe('AssignedDropdownAttribute')
+    expect(material.values.length).toBeGreaterThan(0)
     expect(node.categories.edges.length).toBeGreaterThan(0)
 
     // Variant-level grafts: the bound price set + the linked inventory item.

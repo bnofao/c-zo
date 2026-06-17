@@ -1,4 +1,5 @@
 import type { AttributeGraphQLSchemaBuilder } from '@czo/attribute/graphql'
+import { registerAssignedAttributes } from './assigned'
 import { registerAttributeEnums } from './enums'
 import { registerAttributeErrors } from './errors'
 import { registerAttributeInputs } from './inputs'
@@ -23,6 +24,7 @@ export function registerAttributeSchema(builder: AttributeBuilder): void {
   registerAttributeEnums(builder)
   registerAttributeErrors(builder)
   registerAttributeTypes(builder)
+  registerAssignedAttributes(builder)
   registerAttributeInputs(builder)
   registerAttributeQueries(builder)
   registerAttributeMutations(builder)

@@ -13,13 +13,19 @@
 //   products.translations     → many productTranslations      (pivot)
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
-import type { productAttributeValues, productCategories, productMedia } from '../../../../database/schema'
+import type { productCategories, productMedia } from '../../../../database/schema'
+import type { PavRow } from './assigned'
 import type { GraftListing } from './merge'
 import { resolveArrayConnection } from '@czo/kit/graphql'
 import { translatedField } from '@czo/translation/graphql'
 import { Effect } from 'effect'
 import { AdoptionService } from '../../../../services'
+import { groupAssigned } from './assigned'
 import { graftAuthScopes, resolveGraftOrg, viewerOrgId } from './merge'
+
+// The typed value relations a grouped assignment needs loaded per attribute-value
+// row. Shared by both `assignedAttributes` fields below.
+const ASSIGNED_WITH = { attribute: true, selectValue: true, swatchValue: true, referenceValue: true, numericValue: true, booleanValue: true, dateValue: true, textValue: true, fileValue: true } as const
 
 export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void {
   builder.drizzleNode('products', {
@@ -86,28 +92,42 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
         description: 'Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows).',
         query: { where: { deletedAt: { isNull: true } } },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
-      attributeValues: t.connection({
-        type: 'ProductAttributeValue',
+      // Typed assigned attributes — groups the merged base∪org attribute-value
+      // rows by attribute and resolves each into the cross-module
+      // `AssignedAttribute` interface (@czo/attribute).
+      assignedAttributes: t.field({
+        type: ['AssignedAttribute'],
         subGraphs: ['public', 'org', 'admin'],
-        description: 'Attribute values describing this product, ordered by position. Merges base values with the publishing/viewer organization\'s grafted values. Pass `channel` for the storefront or `viewerOrg` for a specific org.',
+        description: 'The product\'s attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base.',
         args: {
-          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts onto the base rows. Omit for base-only.' }),
-          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.' }),
+          channel: t.arg.int({ required: false, description: 'Storefront sales-channel id; resolves the publishing org. Public — publication is the gate.' }),
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts.' }),
         },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { attributeValues: true, channelListings: true } } },
+        extensions: { pothosDrizzleSelect: { with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } } } },
         resolve: (product, args) => {
-          const p = product as unknown as {
-            attributeValues?: ReadonlyArray<typeof productAttributeValues.$inferSelect>
-            channelListings?: ReadonlyArray<GraftListing>
-          }
-          const org = resolveGraftOrg(args, p.channelListings ?? [])
-          const rows = (p.attributeValues ?? [])
-            .filter(r => r.organizationId == null || r.organizationId === org)
-            .sort((a, b) => a.position - b.position)
-          return resolveArrayConnection({ args }, rows as Array<typeof productAttributeValues.$inferSelect>)
+          const p = product as unknown as { channelListings?: GraftListing[], attributeValues?: PavRow[] }
+          return groupAssigned(p.attributeValues ?? [], resolveGraftOrg(args, p.channelListings ?? []))
         },
-      }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
+      }),
+      assignedAttribute: t.field({
+        type: 'AssignedAttribute',
+        nullable: true,
+        subGraphs: ['public', 'org', 'admin'],
+        description: 'A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`.',
+        args: {
+          slug: t.arg.string({ required: true, description: 'The attribute slug to fetch.' }),
+          channel: t.arg.int({ required: false }),
+          viewerOrg: t.arg.globalID({ for: 'Organization', required: false }),
+        },
+        authScopes: (_parent, args) => graftAuthScopes(args),
+        extensions: { pothosDrizzleSelect: { with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } } } },
+        resolve: (product, args) => {
+          const p = product as unknown as { channelListings?: GraftListing[], attributeValues?: PavRow[] }
+          const org = resolveGraftOrg(args, p.channelListings ?? [])
+          return groupAssigned(p.attributeValues ?? [], org).find(g => g.attribute.slug === args.slug) ?? null
+        },
+      }),
       media: t.connection({
         type: 'ProductMedia',
         subGraphs: ['public', 'org', 'admin'],

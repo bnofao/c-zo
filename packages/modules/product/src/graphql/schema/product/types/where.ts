@@ -33,46 +33,37 @@ function attributeFacetClause(facet: ProductAttributeWhere): Record<string, unkn
   if (facet.ids != null)
     attribute.id = intFilterFromID(facet.ids)
 
-  // The pivot (`product_attribute_values`) has no soft-delete column — rows are
-  // hard-deleted on unassign — and the connection's base `where` already filters
-  // soft-deleted products. So no `deletedAt` clause on this relation.
-  const av: Record<string, unknown> = { attribute }
+  // The kind is NOT a pivot column — it's dictated by the attribute's `type`
+  // (which the join already reaches), so each value branch constrains
+  // `attribute.type` to disambiguate the value relation (avoids `valueId`
+  // collisions across the per-kind tables). The pivot has no soft-delete column;
+  // the connection's base `where` already filters soft-deleted products.
   const v = facet.value
-  if (v != null) {
-    if (v.numeric != null) {
-      av.valueKind = 'NUMERIC'
-      av.numericValue = { value: v.numeric }
-    }
-    else if (v.boolean != null) {
-      av.valueKind = 'BOOLEAN'
-      av.booleanValue = { value: v.boolean }
-    }
-    else if (v.date != null) {
-      av.valueKind = 'DATE'
-      av.dateValue = { value: v.date }
-    }
-    else if (v.reference != null) {
-      av.valueKind = 'REFERENCE'
-      av.referenceValue = { referenceId: v.reference }
-    }
-    else if (v.slug != null || v.name != null) {
-      const sel: Record<string, unknown> = {}
-      const sw: Record<string, unknown> = {}
-      if (v.slug != null) {
-        sel.slug = v.slug
-        sw.slug = v.slug
-      }
-      if (v.name != null) {
-        sel.value = v.name // value tables: display column is `value`, not `name`
-        sw.value = v.name
-      }
-      av.OR = [
-        { valueKind: 'VALUE', selectValue: sel },
-        { valueKind: 'SWATCH', swatchValue: sw },
-      ]
-    }
+  if (v == null)
+    return { attributeValues: { attribute } }
+  if (v.numeric != null)
+    return { attributeValues: { attribute: { ...attribute, type: 'NUMERIC' }, numericValue: { value: v.numeric } } }
+  if (v.boolean != null)
+    return { attributeValues: { attribute: { ...attribute, type: 'BOOLEAN' }, booleanValue: { value: v.boolean } } }
+  if (v.date != null)
+    return { attributeValues: { attribute: { ...attribute, type: { in: ['DATE', 'DATE_TIME'] } }, dateValue: { value: v.date } } }
+  if (v.reference != null)
+    return { attributeValues: { attribute: { ...attribute, type: 'REFERENCE' }, referenceValue: { referenceId: v.reference } } }
+  // slug/name → select (DROPDOWN/MULTISELECT) ∪ swatch (SWATCH)
+  const sel: Record<string, unknown> = {}
+  const sw: Record<string, unknown> = {}
+  if (v.slug != null) {
+    sel.slug = v.slug
+    sw.slug = v.slug
   }
-  return { attributeValues: av }
+  if (v.name != null) {
+    sel.value = v.name // value tables: display column is `value`, not `name`
+    sw.value = v.name
+  }
+  return { attributeValues: { OR: [
+    { attribute: { ...attribute, type: { in: ['DROPDOWN', 'MULTISELECT'] } }, selectValue: sel },
+    { attribute: { ...attribute, type: 'SWATCH' }, swatchValue: sw },
+  ] } }
 }
 
 export function buildProductWhere(input: ProductWhereInput): Record<string, unknown> {

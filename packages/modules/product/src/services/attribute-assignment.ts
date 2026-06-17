@@ -273,7 +273,6 @@ export const make = Effect.gen(function* () {
             productId: input.productId,
             organizationId: input.organizationId,
             attributeId: input.attributeId,
-            valueKind: kind,
             valueId,
           }).returning())
           rows.push(row! as ProductAttributeValue)
@@ -285,7 +284,6 @@ export const make = Effect.gen(function* () {
         productId: input.productId,
         organizationId: input.organizationId,
         attributeId: input.attributeId,
-        valueKind: kind,
         valueId: newValueId,
       }).returning())
       return [row! as ProductAttributeValue]
@@ -326,7 +324,6 @@ export const make = Effect.gen(function* () {
             variantId: input.variantId,
             organizationId: input.organizationId,
             attributeId: input.attributeId,
-            valueKind: kind,
             valueId,
           }).returning())
           rows.push(row! as VariantAttributeValue)
@@ -338,7 +335,6 @@ export const make = Effect.gen(function* () {
         variantId: input.variantId,
         organizationId: input.organizationId,
         attributeId: input.attributeId,
-        valueKind: kind,
         valueId: newValueId,
       }).returning())
       return [row! as VariantAttributeValue]
@@ -351,9 +347,11 @@ export const make = Effect.gen(function* () {
       const pivot = yield* dbErr(db.query.productAttributeValues.findFirst({ where: { id: pivotId } }))
       if (!pivot)
         return yield* Effect.fail(new AssignmentNotFound())
+      // The kind isn't stored on the pivot — derive it from the attribute's type.
+      const kind = valueKindForType(yield* resolveAttributeType(pivot.attributeId))
       yield* dbErr(db.delete(productAttributeValuesTable).where(eq(productAttributeValuesTable.id, pivotId)))
-      if (!isSelectKind(pivot.valueKind))
-        yield* deleteScalar(pivot.valueKind, pivot.valueId)
+      if (!isSelectKind(kind))
+        yield* deleteScalar(kind, pivot.valueId)
     })
 
   const unassignVariantValue: AttributeAssignmentServiceImpl['unassignVariantValue'] = pivotId =>
@@ -361,9 +359,11 @@ export const make = Effect.gen(function* () {
       const pivot = yield* dbErr(db.query.variantAttributeValues.findFirst({ where: { id: pivotId } }))
       if (!pivot)
         return yield* Effect.fail(new AssignmentNotFound())
+      // The kind isn't stored on the pivot — derive it from the attribute's type.
+      const kind = valueKindForType(yield* resolveAttributeType(pivot.attributeId))
       yield* dbErr(db.delete(variantAttributeValuesTable).where(eq(variantAttributeValuesTable.id, pivotId)))
-      if (!isSelectKind(pivot.valueKind))
-        yield* deleteScalar(pivot.valueKind, pivot.valueId)
+      if (!isSelectKind(kind))
+        yield* deleteScalar(kind, pivot.valueId)
     })
 
   // ── overlay reads ─────────────────────────────────────────────────────────

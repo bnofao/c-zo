@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm'
 import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const attributeAssignmentEnum = pgEnum('product_attribute_assignment', ['PRODUCT', 'VARIANT'])
-export const valueKindEnum = pgEnum('product_value_kind', ['VALUE', 'SWATCH', 'REFERENCE', 'TEXT', 'NUMERIC', 'BOOLEAN', 'DATE', 'FILE'])
 export const mediaTypeEnum = pgEnum('product_media_type', ['IMAGE', 'VIDEO'])
 export const taxonomyRequestKindEnum = pgEnum('taxonomy_request_kind', ['create', 'promote'])
 export const taxonomyEntityTypeEnum = pgEnum('taxonomy_entity_type', ['category', 'product_type'])
@@ -80,12 +79,10 @@ export const productOrgAdoptions = pgTable('product_org_adoptions', {
   productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   organizationId: integer('organization_id').notNull(),
   adoptedAt: timestamp('adopted_at').notNull().defaultNow(),
-  deletedAt: timestamp('deleted_at'),
-  version: integer('version').notNull().default(1),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, t => [
-  uniqueIndex('product_org_adoptions_uniq').on(t.productId, t.organizationId).where(sql`${t.deletedAt} IS NULL`),
+  uniqueIndex('product_org_adoptions_uniq').on(t.productId, t.organizationId),
   index('product_org_adoptions_org_idx').on(t.organizationId),
 ])
 
@@ -94,8 +91,7 @@ export const productAttributeValues = pgTable('product_attribute_values', {
   productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   organizationId: integer('organization_id'), // null = base of a global product, set = org graft
   attributeId: integer('attribute_id').notNull(), // cross-module
-  valueKind: valueKindEnum('value_kind').notNull(),
-  valueId: integer('value_id').notNull(), // cross-module ref into the @czo/attribute typed value table named by valueKind
+  valueId: integer('value_id').notNull(), // cross-module ref into the @czo/attribute typed value table dictated by the attribute's `type`
   position: integer('position').notNull().default(0),
 }, t => [
   index('product_attribute_values_product_idx').on(t.productId),
@@ -107,7 +103,6 @@ export const variantAttributeValues = pgTable('variant_attribute_values', {
   variantId: integer('variant_id').notNull().references(() => productVariants.id, { onDelete: 'cascade' }),
   organizationId: integer('organization_id'),
   attributeId: integer('attribute_id').notNull(),
-  valueKind: valueKindEnum('value_kind').notNull(),
   valueId: integer('value_id').notNull(),
   position: integer('position').notNull().default(0),
 }, t => [

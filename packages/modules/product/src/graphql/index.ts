@@ -1,3 +1,4 @@
+import type { AttributeAssignment } from '@czo/attribute/graphql'
 import type { BooleanFilter, DateTimeFilter, FloatFilter, IDFilter, IntFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { Relations } from '@czo/product/relations'
 import type {
@@ -118,6 +119,9 @@ declare module '@czo/kit/graphql' {
     VariantAttributeValue: VariantAttributeValue
     VariantInventoryItem: VariantInventoryItem
     TaxonomyRequest: TaxonomyRequest
+    // Cross-module: @czo/attribute owns the `AssignedAttribute` interface and its
+    // 8 impls; product references it by string name from the assigned* fields.
+    AssignedAttribute: AttributeAssignment
   }
 
   interface SchemaBuilderRefs {}

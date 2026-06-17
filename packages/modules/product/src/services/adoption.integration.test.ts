@@ -1,17 +1,20 @@
+import type { Database } from '@czo/kit/db'
+// The purge path now derives a pivot's value-kind from the attribute's `type`
+// (the `value_kind` column was dropped), so unadopt → `purgeOrgAttributeGrafts`
+// reads the cross-module `attributes` table. This suite therefore runs on the
+// cross-module layer (which has the attribute tables and also provides the
+// Adoption/Product/ProductType service tags) rather than the product-only
+// `ProductPostgresLayer`.
+import type { Relations } from '../database/relations'
+import { DrizzleDb } from '@czo/kit/db'
 import { expect, layer } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
-import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
+import { Effect } from 'effect'
+import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
 import * as Adoption from './adoption'
 import * as Prod from './product'
 import * as ProductType from './product-type'
 
-const TestLayer = Adoption.AdoptionServiceLive.pipe(
-  Layer.provideMerge(Prod.ProductServiceLive),
-  Layer.provideMerge(ProductType.ProductTypeServiceLive),
-  Layer.provideMerge(ProductPostgresLayer),
-)
-
-layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
+layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
   // ─── helpers ─────────────────────────────────────────────────────────────
 
   const makeGlobalType = (slug = 'shirt') =>
@@ -44,20 +47,19 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('adopt a global product → row created; isAdopted → true', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       const adoption = yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       expect(adoption.productId).toBe(p.id)
       expect(adoption.organizationId).toBe(1)
-      expect(adoption.deletedAt).toBeNull()
       const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 1 })
       expect(adopted).toBe(true)
     }))
 
   it.effect('adopt an org-owned product → CannotAdoptOwnedProduct', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeOrgProduct(1)
       const svc = yield* Adoption.AdoptionService
       const err = yield* svc.adoptProduct({ productId: p.id, orgId: 2 }).pipe(Effect.flip)
@@ -66,7 +68,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('adopt a non-existent product → ProductNotFound', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const svc = yield* Adoption.AdoptionService
       const err = yield* svc.adoptProduct({ productId: 999999, orgId: 1 }).pipe(Effect.flip)
       expect(err._tag).toBe('ProductNotFound')
@@ -74,7 +76,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('double adopt → idempotent (no error, still one live row)', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -88,7 +90,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('isAdopted false for org that never adopted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 99 })
@@ -97,7 +99,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('isAdopted false for org-2 when only org-1 adopted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -107,20 +109,26 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   // ─── unadoptProduct ───────────────────────────────────────────────────────
 
-  it.effect('unadopt → isAdopted false afterward', () =>
+  it.effect('unadopt → isAdopted false afterward + row hard-deleted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.unadoptProduct({ productId: p.id, orgId: 1 })
       const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 1 })
       expect(adopted).toBe(false)
+      // Hard delete: NO row remains for (product, org) — not even a tombstone.
+      const db = (yield* DrizzleDb) as Database<Relations>
+      const row = yield* db.query.productOrgAdoptions.findFirst({
+        where: { productId: p.id, organizationId: 1 },
+      })
+      expect(row).toBeUndefined()
     }))
 
   it.effect('re-adopt after unadopt → OK (isAdopted true again)', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -132,7 +140,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('unadopt when not adopted → AdoptionNotFound', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       const err = yield* svc.unadoptProduct({ productId: p.id, orgId: 1 }).pipe(Effect.flip)
@@ -143,7 +151,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('requireAdopted: succeeds when adopted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -153,7 +161,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('requireAdopted: fails ProductNotAdopted when not adopted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
       const err = yield* svc.requireAdopted({ productId: p.id, orgId: 1 }).pipe(Effect.flip)
@@ -164,7 +172,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('listAdoptedProducts: only this org live-adopted globals (not org-owned, not others\')', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
 
       // Global product adopted by org-1
       const global1 = yield* makeGlobalProduct('global-1')
@@ -188,7 +196,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('findProducts({ adoptions: { organizationId } }): only this org\'s adopted globals', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
 
       const adopted = yield* makeGlobalProduct('adopted-g')
       const unadopted = yield* makeGlobalProduct('unadopted-g')
@@ -198,7 +206,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
       const prodSvc = yield* Prod.ProductService
       const rows = yield* prodSvc.findProducts({
-        where: { adoptions: { organizationId: 1, deletedAt: { isNull: true } } } as any,
+        where: { adoptions: { organizationId: 1 } } as any,
       })
       const ids = rows.map(p => p.id)
       expect(ids).toContain(adopted.id)
@@ -207,7 +215,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('findProducts adoption filter: excludes after unadopt', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct('readopt-g')
       const adoptionSvc = yield* Adoption.AdoptionService
       yield* adoptionSvc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -215,7 +223,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
       const prodSvc = yield* Prod.ProductService
       const rows = yield* prodSvc.findProducts({
-        where: { adoptions: { organizationId: 1, deletedAt: { isNull: true } } } as any,
+        where: { adoptions: { organizationId: 1 } } as any,
       })
       expect(rows.map(p => p.id)).not.toContain(p.id)
     }))
@@ -224,7 +232,7 @@ layer(TestLayer, { timeout: 120_000 })('AdoptionService', (it) => {
 
   it.effect('listAdopters: org ids with live adoption; excludes unadopted', () =>
     Effect.gen(function* () {
-      yield* truncateProduct
+      yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
       const svc = yield* Adoption.AdoptionService
 

@@ -2,6 +2,7 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
 import type { ProductNotFound } from './product'
+import type { AttributeType } from './value-kind'
 import {
   attributeBooleanValues as attributeBooleanValuesTable,
   attributeDateValues as attributeDateValuesTable,
@@ -22,6 +23,7 @@ import {
   variantPriceSets as variantPriceSetsTable,
 } from '../database/schema'
 import { ProductService } from './product'
+import { valueKindForType } from './value-kind'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
@@ -88,10 +90,10 @@ export const make = Effect.gen(function* () {
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
     eff.pipe(Effect.mapError(cause => new AdoptionDbFailed({ cause })))
 
-  /** Find a live adoption row for (productId, orgId), or undefined. */
-  const findLiveAdoption = (productId: number, orgId: number) =>
+  /** Find the adoption row for (productId, orgId), or undefined. */
+  const findAdoption = (productId: number, orgId: number) =>
     dbErr(db.query.productOrgAdoptions.findFirst({
-      where: { productId, organizationId: orgId, deletedAt: { isNull: true } },
+      where: { productId, organizationId: orgId },
     }))
 
   /** Scalar typed-value table for a pivot's valueKind, or null for select kinds. */
@@ -117,6 +119,7 @@ export const make = Effect.gen(function* () {
       // Product-level pivots for this org.
       const productPivots = yield* db.query.productAttributeValues.findMany({
         where: { productId, organizationId: orgId },
+        with: { attribute: true },
       })
       // Variant-level pivots for this org (only this product's variants).
       const variants = yield* db.query.productVariants.findMany({
@@ -128,6 +131,7 @@ export const make = Effect.gen(function* () {
         ? []
         : yield* db.query.variantAttributeValues.findMany({
           where: { organizationId: orgId, variantId: { in: variantIds } },
+          with: { attribute: true },
         })
 
       const allPivots = [...productPivots, ...variantPivots]
@@ -135,7 +139,9 @@ export const make = Effect.gen(function* () {
       // Delete orphan scalar typed-value rows by id, grouped per scalar table.
       const byTable = new Map<ReturnType<typeof scalarTableFor>, number[]>()
       for (const pivot of allPivots) {
-        const table = scalarTableFor(pivot.valueKind)
+        if (!pivot.attribute)
+          continue
+        const table = scalarTableFor(valueKindForType(pivot.attribute.type as AttributeType))
         if (!table)
           continue
         const ids = byTable.get(table) ?? []
@@ -220,12 +226,12 @@ export const make = Effect.gen(function* () {
       if (product.organizationId !== null)
         return yield* Effect.fail(new CannotAdoptOwnedProduct())
 
-      // 3. Idempotent: if a live adoption already exists, return it
-      const existing = yield* findLiveAdoption(productId, orgId)
+      // 3. Idempotent: if an adoption already exists, return it
+      const existing = yield* findAdoption(productId, orgId)
       if (existing)
         return existing as ProductOrgAdoption
 
-      // 4. Insert fresh adoption row (partial unique allows re-adopt after unadopt)
+      // 4. Insert fresh adoption row (the unique index guards against duplicates)
       return yield* dbErr(Effect.gen(function* () {
         const [row] = yield* db.insert(productOrgAdoptionsTable).values({
           productId,
@@ -237,35 +243,30 @@ export const make = Effect.gen(function* () {
 
   const unadoptProduct: AdoptionServiceImpl['unadoptProduct'] = ({ productId, orgId }) =>
     Effect.gen(function* () {
-      // 1. Find the live adoption
-      const adoption = yield* findLiveAdoption(productId, orgId)
+      // 1. Find the adoption
+      const adoption = yield* findAdoption(productId, orgId)
       if (!adoption)
         return yield* Effect.fail(new AdoptionNotFound())
 
-      // 2. Soft-delete it
-      const updated = yield* dbErr(Effect.gen(function* () {
+      // 2. Hard-delete it — adoption is a membership link, not soft-deletable content.
+      const deleted = yield* dbErr(Effect.gen(function* () {
         const [row] = yield* db
-          .update(productOrgAdoptionsTable)
-          .set({ deletedAt: sql`NOW()` as any, updatedAt: sql`NOW()` as any })
+          .delete(productOrgAdoptionsTable)
           .where(sql`${productOrgAdoptionsTable.id} = ${adoption.id}`)
           .returning()
         return row! as ProductOrgAdoption
       }))
 
-      // Remove this org's attribute grafts (pivots + orphan scalar typed rows).
+      // 3. Remove this org's grafts for the product (attributes, price/inventory, media/channel).
       yield* purgeOrgAttributeGrafts(productId, orgId)
-
-      // Remove this org's price/inventory grafts for the product's variants.
       yield* purgeOrgPriceInventoryGrafts(productId, orgId)
-
-      // Remove this org's media grafts + channel listings for the product.
       yield* purgeOrgMediaChannelGrafts(productId, orgId)
 
-      return updated
+      return deleted
     })
 
   const isAdopted: AdoptionServiceImpl['isAdopted'] = ({ productId, orgId }) =>
-    findLiveAdoption(productId, orgId).pipe(
+    findAdoption(productId, orgId).pipe(
       Effect.map(row => row !== undefined),
     )
 
@@ -281,7 +282,7 @@ export const make = Effect.gen(function* () {
   const listAdoptedProducts: AdoptionServiceImpl['listAdoptedProducts'] = orgId =>
     Effect.gen(function* () {
       const rows = yield* dbErr(db.query.productOrgAdoptions.findMany({
-        where: { organizationId: orgId, deletedAt: { isNull: true } },
+        where: { organizationId: orgId },
         with: { product: true },
       }))
       return rows
@@ -292,7 +293,7 @@ export const make = Effect.gen(function* () {
   const listAdopters: AdoptionServiceImpl['listAdopters'] = productId =>
     Effect.gen(function* () {
       const rows = yield* dbErr(db.query.productOrgAdoptions.findMany({
-        where: { productId, deletedAt: { isNull: true } },
+        where: { productId },
       }))
       return rows.map(r => r.organizationId)
     })

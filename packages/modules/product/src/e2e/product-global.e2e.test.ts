@@ -330,9 +330,12 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(product.organizationId).toBeNull() // still global
 
     // base attribute (org null) is absent — only A grafted a PRODUCT value here.
-    // A's grafted product attribute value (organizationId === A) is present.
-    const attrOrgs: (number | null)[] = product.attributeValues.edges.map((e: any) => e.node.organizationId)
-    expect(attrOrgs).toContain(aOrgNumericId)
+    // A's grafted Material (DROPDOWN) product attribute value is present and
+    // resolves into its typed AssignedDropdownAttribute.
+    const material = product.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(material).toBeTruthy()
+    expect(material.__typename).toBe('AssignedDropdownAttribute')
+    expect(material.values.map((v: any) => v.value)).toContain('Cotton')
 
     // A's bound price set + inventory link are visible on the variant.
     const bound = product.variants.edges.find((e: any) => e.node.priceSet != null)
@@ -353,9 +356,11 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(product).not.toBeNull()
     expect(product.forB).toBe(false)
 
-    // None of A's attribute grafts leak to B.
-    const attrOrgs: (number | null)[] = product.attributeValues.edges.map((e: any) => e.node.organizationId)
-    expect(attrOrgs).not.toContain(aOrgNumericId)
+    // None of A's attribute grafts leak to B — the Material graft is absent, and
+    // the base carries no product-level attribute values, so B sees none.
+    const bMaterial = product.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(bMaterial).toBeUndefined()
+    expect(product.assignedAttributes).toHaveLength(0)
 
     // No price binding visible for B (priceSet is per-viewer-org).
     const anyBound = product.variants.edges.some((e: any) => e.node.priceSet != null)
@@ -382,7 +387,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
       `query($handle:String!,$a:ID!){
         productByHandle(handle:$handle){
           id
-          attributeValues(viewerOrg:$a){ edges { node { id organizationId } } }
+          assignedAttributes(viewerOrg:$a){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { value } } }
           variants{
             edges { node {
               id
@@ -400,12 +405,12 @@ describe('product global-catalog + two-org-graft e2e', () => {
   it('c1: org-B user passing viewerOrg=A is DENIED — no leak of A grafts', async () => {
     const res = await readAGrafts(bToken)
     // Scope-auth denies the gated graft fields → GraphQL error, and NO A data.
-    // `attributeValues(viewerOrg:A)` and the per-variant `priceSet(viewerOrg:A)`
+    // `assignedAttributes(viewerOrg:A)` and the per-variant `priceSet(viewerOrg:A)`
     // graft are both denied. `variants` itself is now un-grafted (public base),
     // so its nodes may be present — but their A-scoped priceSet graft must NOT be.
     expect(res.errors).toBeDefined()
     expect(res.errors!.length).toBeGreaterThan(0)
-    expect(res.data?.productByHandle?.attributeValues ?? null).toBeNull()
+    expect(res.data?.productByHandle?.assignedAttributes ?? null).toBeNull()
     const variantEdges: any[] = res.data?.productByHandle?.variants?.edges ?? []
     expect(variantEdges.every((e: any) => (e.node?.priceSet ?? null) === null)).toBe(true)
   })
@@ -414,7 +419,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const res = await readAGrafts(undefined)
     expect(res.errors).toBeDefined()
     expect(res.errors!.length).toBeGreaterThan(0)
-    expect(res.data?.productByHandle?.attributeValues ?? null).toBeNull()
+    expect(res.data?.productByHandle?.assignedAttributes ?? null).toBeNull()
     const variantEdges: any[] = res.data?.productByHandle?.variants?.edges ?? []
     expect(variantEdges.every((e: any) => (e.node?.priceSet ?? null) === null)).toBe(true)
   })
@@ -426,7 +431,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
       `query($handle:String!){
         productByHandle(handle:$handle){
           id
-          attributeValues{ edges { node { id organizationId } } }
+          assignedAttributes{ __typename attribute { slug } }
           variants{ edges { node { id organizationId } } }
         }
       }`,
@@ -434,9 +439,8 @@ describe('product global-catalog + two-org-graft e2e', () => {
     )
     expect(res.errors).toBeUndefined()
     expect(res.data.productByHandle).not.toBeNull()
-    const attrOrgs: (number | null)[] = res.data.productByHandle.attributeValues.edges.map((e: any) => e.node.organizationId)
-    expect(attrOrgs).not.toContain(aOrgNumericId)
-    expect(attrOrgs.every((o: number | null) => o === null)).toBe(true)
+    // Base carries no product-level attribute values; none of A's grafts leak.
+    expect(res.data.productByHandle.assignedAttributes).toHaveLength(0)
     // `variants` is un-grafted (public base): its nodes surface with no arg and
     // every base variant carries organizationId === null.
     const variantOrgs: (number | null)[] = res.data.productByHandle.variants.edges.map((e: any) => e.node.organizationId)
@@ -447,8 +451,9 @@ describe('product global-catalog + two-org-graft e2e', () => {
   it('c1: org A passing viewerOrg=A → grafts visible (no regression)', async () => {
     const res = await readAGrafts(aToken)
     expect(res.errors).toBeUndefined()
-    const attrOrgs: (number | null)[] = res.data.productByHandle.attributeValues.edges.map((e: any) => e.node.organizationId)
-    expect(attrOrgs).toContain(aOrgNumericId)
+    const material = res.data.productByHandle.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(material).toBeTruthy()
+    expect(material.values.map((v: any) => v.value)).toContain('Cotton')
     const bound = res.data.productByHandle.variants.edges.find((e: any) => e.node.priceSet != null)
     expect(bound).toBeTruthy()
     expect(bound.node.priceSet.organizationId).toBe(aOrgNumericId)
@@ -461,7 +466,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
           id
           organizationId
           forB: isAdopted(viewerOrg:$org)
-          attributeValues(viewerOrg:$org){ edges { node { id organizationId attributeId } } }
+          assignedAttributes(viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug value } } }
           channelListings{ edges { node { id channelId isPublished } } }
           variants{
             edges { node {
@@ -494,9 +499,10 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const product = res.data.product
     // Product still global.
     expect(product.organizationId).toBeNull()
-    // A's attribute graft gone.
-    const attrOrgs: (number | null)[] = product.attributeValues.edges.map((e: any) => e.node.organizationId)
-    expect(attrOrgs).not.toContain(aOrgNumericId)
+    // A's attribute graft gone — base has no product attribute values, so empty.
+    const material = product.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
+    expect(material).toBeUndefined()
+    expect(product.assignedAttributes).toHaveLength(0)
     // A's price binding gone.
     const anyBound = product.variants.edges.some((e: any) => e.node.priceSet != null)
     expect(anyBound).toBe(false)
@@ -512,20 +518,25 @@ describe('product global-catalog + two-org-graft e2e', () => {
     )
     expect(adoptedCheck.data.product.forA).toBe(false)
 
-    // The base variant selections are still present (read with no viewer org).
+    // The base variant selections are still present (read with no viewer org):
+    // each base variant resolves its Colour (DROPDOWN) selection.
     const base = await h.gql(
       `query($id:ID!){
         product(id:$id){
-          variants{ edges { node { attributeValues{ edges { node { organizationId } } } } } }
+          variants{ edges { node {
+            assignedAttributes{ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug } } }
+          } } }
         }
       }`,
       { id: globalProductGlobalId },
       adminToken,
     )
-    const baseValueOrgs = base.data.product.variants.edges
-      .flatMap((e: any) => e.node.attributeValues.edges.map((v: any) => v.node.organizationId))
-    expect(baseValueOrgs.length).toBeGreaterThan(0)
-    expect(baseValueOrgs.every((o: number | null) => o === null)).toBe(true)
+    const baseAssigned = base.data.product.variants.edges
+      .flatMap((e: any) => e.node.assignedAttributes)
+    expect(baseAssigned.length).toBeGreaterThan(0)
+    // Every base selection is the Colour dropdown — present even with no viewer org.
+    expect(baseAssigned.every((a: any) => a.attribute.slug === 'colour')).toBe(true)
+    expect(baseAssigned.every((a: any) => a.__typename === 'AssignedDropdownAttribute')).toBe(true)
   })
 
   // ── 6. Denial: global-create without global role; node-guard deny-as-null ─────
