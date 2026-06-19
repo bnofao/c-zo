@@ -23,7 +23,7 @@ import {
   ValueKindMismatch,
   VariantNotFound,
 } from '../../../../services'
-import { loadProductOrganizationId, loadVariantOrganizationId } from '../authz'
+import { loadProductOrganizationId, loadVariantOrganizationId, ownerScope } from '../authz'
 import { sg } from '../subgraphs'
 
 // A decoded relay global-id input value (Pothos relay plugin shape).
@@ -155,12 +155,7 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org', 'admin').field,
       description: 'Removes an attribute value assignment from a product, identified by its pivot row id.',
       errors: { types: [AssignmentNotFound], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductOrganizationId(ctx, args.input.subjectId)
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, args.input.subjectId), ['update']),
       resolve: async (_root, args, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {
@@ -188,12 +183,7 @@ export function registerAssignmentMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org', 'admin').field,
       description: 'Removes an attribute value assignment from a product variant, identified by its pivot row id.',
       errors: { types: [AssignmentNotFound], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadVariantOrganizationId(ctx, args.input.subjectId)
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadVariantOrganizationId(ctx, args.input.subjectId), ['update']),
       resolve: async (_root, args, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {

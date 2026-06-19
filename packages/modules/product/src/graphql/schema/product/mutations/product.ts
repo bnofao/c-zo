@@ -13,7 +13,7 @@ import {
   ProductService,
   ProductTypeNotFound,
 } from '../../../../services'
-import { loadProductOrganizationId } from '../authz'
+import { loadProductOrganizationId, ownerScope } from '../authz'
 import { sg } from '../subgraphs'
 
 export function registerProductMutations(builder: ProductGraphQLSchemaBuilder): void {
@@ -162,12 +162,7 @@ export function registerProductMutations(builder: ProductGraphQLSchemaBuilder): 
       description:
         'Updates a product. Authorization gates on the global `product` update permission for a GLOBAL product (organizationId null) or on `product:update` in the owning organization.',
       errors: { types: [ProductNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const product = await ctx.runEffect(
@@ -220,12 +215,7 @@ export function registerProductMutations(builder: ProductGraphQLSchemaBuilder): 
       description:
         'Soft-deletes a product by setting its deletedAt timestamp. Authorization gates on the global `product` delete permission for a GLOBAL product (organizationId null) or on `product:delete` in the owning organization.',
       errors: { types: [ProductNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['delete'] } }
-        return { permission: { resource: 'product', actions: ['delete'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.input.id.id)), ['delete']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const product = await ctx.runEffect(

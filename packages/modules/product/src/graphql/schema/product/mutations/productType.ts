@@ -13,7 +13,7 @@ import {
   ProductTypeNotFound,
   ProductTypeService,
 } from '../../../../services'
-import { loadProductTypeOrganizationId } from '../authz'
+import { loadProductTypeOrganizationId, ownerScope } from '../authz'
 import { productEnumRefs } from '../inputs'
 import { sg } from '../subgraphs'
 
@@ -109,12 +109,7 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Updates a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
       errors: { types: [ProductTypeNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductTypeOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const productType = await ctx.runEffect(
@@ -149,12 +144,7 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Soft-deletes a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
       errors: { types: [ProductTypeNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['delete'] } }
-        return { permission: { resource: 'product', actions: ['delete'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductTypeOrganizationId(ctx, Number(args.input.id.id)), ['delete']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const productType = await ctx.runEffect(
@@ -194,10 +184,7 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
         const graftOrg = args.input.organizationId
         if (graftOrg != null)
           return { permission: { resource: 'product', actions: ['update'], organization: Number(graftOrg.id) } }
-        const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.productTypeId.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
+        return ownerScope(await loadProductTypeOrganizationId(ctx, Number(args.input.productTypeId.id)), ['update'])
       },
       resolve: async (_root, args, ctx) => {
         const input = args.input
@@ -237,12 +224,7 @@ export function registerProductTypeMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Detaches an attribute declaration from a product type. Gates on the type\'s own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductTypeOrganizationId(ctx, Number(args.input.productTypeId.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductTypeOrganizationId(ctx, Number(args.input.productTypeId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         await ctx.runEffect(
           Effect.gen(function* () {

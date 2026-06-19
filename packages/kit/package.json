@@ -38,6 +38,10 @@
       "types": "./src/openapi/index.ts",
       "default": "./dist/openapi/index.mjs"
     },
+    "./queue": {
+      "types": "./src/queue/index.ts",
+      "default": "./dist/queue/index.mjs"
+    },
     "./ratelimit": {
       "types": "./src/ratelimit/index.ts",
       "default": "./dist/ratelimit/index.mjs"

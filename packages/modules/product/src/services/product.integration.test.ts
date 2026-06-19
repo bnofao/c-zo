@@ -3,11 +3,13 @@ import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { productChannelListings } from '../database/schema'
 import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
+import { layer as ProductEventsLayer } from './events/product'
 import * as Prod from './product'
 import * as ProductType from './product-type'
 
 const TestLayer = Prod.ProductServiceLive.pipe(
   Layer.provideMerge(ProductType.ProductTypeServiceLive),
+  Layer.provideMerge(ProductEventsLayer),
   Layer.provideMerge(ProductPostgresLayer),
 )
 

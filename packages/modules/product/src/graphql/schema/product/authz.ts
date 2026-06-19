@@ -10,99 +10,102 @@ import {
 } from '../../../services'
 
 /**
- * Resolve a row's organization id from its numeric id, so a by-id field (and
- * the relay `node(id:)` guard in Task 21) can authorize against the owning org
- * via auth's `permission` scope.
- *
- * Returns `null` when no live row matches (never existed or soft-deleted), or
- * when the row is global (`organizationId` is null). Callers treat `null` as
- * "unknown / global resource" and grant `{ auth: true }`, deferring to the
- * resolver/service NotFound rather than masking it as a gate 403 — the
- * org-permission check needs a real org.
+ * Ownership lookup for a by-id product-domain row. Distinguishes the three cases
+ * a by-id authScope must gate differently — crucially keeping "not found" apart
+ * from "global", which a bare `number | null` conflates:
+ *   - `{ found: false }`                       → no live row (never existed / soft-deleted)
+ *   - `{ found: true, organizationId: null }`  → a global/platform row
+ *   - `{ found: true, organizationId: <n> }`   → an org-owned row
  */
-export function loadProductOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export type OwnerLookup
+  = | { readonly found: false }
+    | { readonly found: true, readonly organizationId: number | null }
+
+/**
+ * Build the `permission` auth-scope for a by-id product-domain operation from an
+ * {@link OwnerLookup}:
+ *   - not found         → `{ auth: true }`: do NOT mask a missing/soft-deleted row
+ *     as a 403; let the resolver/service surface its typed NotFound instead.
+ *   - global (org null) → the GLOBAL `product:<action>` role (org-less `permission`
+ *     scope) — the same gate as the global list/by-id reads.
+ *   - org-owned         → `product:<action>` in the owning org.
+ */
+export function ownerScope(lookup: OwnerLookup, actions: string[]) {
+  if (!lookup.found)
+    return { auth: true }
+  if (lookup.organizationId == null)
+    return { permission: { resource: 'product', actions } }
+  return { permission: { resource: 'product', actions, organization: lookup.organizationId } }
+}
+
+export function loadProductOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* ProductService
       const row = yield* svc.findProductById(id).pipe(
         Effect.catchTag('ProductNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }
 
-/**
- * Resolve a variant's organization id from its numeric id.
- */
-export function loadVariantOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export function loadVariantOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* VariantService
       const row = yield* svc.findVariantById(id).pipe(
         Effect.catchTag('VariantNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }
 
-/**
- * Resolve a product type's organization id from its numeric id.
- */
-export function loadProductTypeOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export function loadProductTypeOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* ProductTypeService
       const row = yield* svc.findTypeById(id).pipe(
         Effect.catchTag('ProductTypeNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }
 
-/**
- * Resolve a category's organization id from its numeric id.
- */
-export function loadCategoryOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export function loadCategoryOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* CategoryService
       const row = yield* svc.findCategoryById(id).pipe(
         Effect.catchTag('CategoryNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }
 
-/**
- * Resolve a collection's organization id from its numeric id.
- */
-export function loadCollectionOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export function loadCollectionOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* CollectionService
       const row = yield* svc.findCollectionById(id).pipe(
         Effect.catchTag('CollectionNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }
 
-/**
- * Resolve a media row's organization id from its numeric id.
- */
-export function loadMediaOrganizationId(ctx: GraphQLContextMap, id: number): Promise<number | null> {
+export function loadMediaOrganizationId(ctx: GraphQLContextMap, id: number): Promise<OwnerLookup> {
   return ctx.runEffect(
     Effect.gen(function* () {
       const svc = yield* MediaService
       const row = yield* svc.findMediaById(id).pipe(
         Effect.catchTag('MediaNotFound', () => Effect.succeed(null)),
       )
-      return row?.organizationId ?? null
+      return row ? { found: true as const, organizationId: row.organizationId } : { found: false as const }
     }),
   )
 }

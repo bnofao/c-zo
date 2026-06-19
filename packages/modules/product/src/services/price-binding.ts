@@ -1,20 +1,19 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
-import type { ProductNotAdopted } from './adoption'
+import type { ProductNotAdopted } from './product'
 import type { VariantNotFound } from './variant'
 import { DrizzleDb } from '@czo/kit/db'
 import { Price } from '@czo/price/services'
 import { sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { variantPriceSets as variantPriceSetsTable } from '../database/schema'
-import { AdoptionService } from './adoption'
 import { ProductService } from './product'
 import { VariantService } from './variant'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
-export { ProductNotAdopted } from './adoption'
+export { ProductNotAdopted } from './product'
 export { VariantNotFound } from './variant'
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
@@ -62,7 +61,6 @@ export const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const variantService = yield* VariantService
   const productService = yield* ProductService
-  const adoptionService = yield* AdoptionService
   const priceService = yield* Price.PriceService
 
   /** Map any DB-layer error to PriceBindingDbFailed. */
@@ -83,7 +81,7 @@ export const make = Effect.gen(function* () {
         Effect.mapError(e => new PriceBindingDbFailed({ cause: e })),
       )
       if (product.organizationId === null)
-        yield* adoptionService.requireAdopted({ productId: product.id, orgId: organizationId })
+        yield* productService.requireAdopted({ productId: product.id, orgId: organizationId })
     })
 
   /** Verify the price set belongs to the grafting org; hide not-found as denied. */

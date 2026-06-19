@@ -14,7 +14,7 @@ import {
   CategoryService,
   CategorySlugTaken,
 } from '../../../../services'
-import { loadCategoryOrganizationId } from '../authz'
+import { loadCategoryOrganizationId, ownerScope } from '../authz'
 import { sg } from '../subgraphs'
 
 export function registerCategoryMutations(builder: ProductGraphQLSchemaBuilder): void {
@@ -117,12 +117,7 @@ export function registerCategoryMutations(builder: ProductGraphQLSchemaBuilder):
       ...sg('org', 'admin').field,
       description: 'Updates an existing category\'s editable fields, guarded by optimistic locking.',
       errors: { types: [CategoryNotFound, CategorySlugTaken, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCategoryOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const category = await ctx.runEffect(
@@ -158,12 +153,7 @@ export function registerCategoryMutations(builder: ProductGraphQLSchemaBuilder):
       ...sg('org', 'admin').field,
       description: 'Soft-deletes a category, marking it as removed while preserving the record.',
       errors: { types: [CategoryNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCategoryOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['delete'] } }
-        return { permission: { resource: 'product', actions: ['delete'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.input.id.id)), ['delete']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const category = await ctx.runEffect(
@@ -193,12 +183,7 @@ export function registerCategoryMutations(builder: ProductGraphQLSchemaBuilder):
       ...sg('org', 'admin').field,
       description: 'Moves a category to a new parent in the tree, or detaches it to the root; a move that would form a cycle is rejected.',
       errors: { types: [CategoryNotFound, CategoryCycle, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCategoryOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const category = await ctx.runEffect(

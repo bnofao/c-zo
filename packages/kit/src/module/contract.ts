@@ -23,6 +23,7 @@ import type { Effect, Layer } from 'effect'
 import type { H3 } from 'h3'
 import type { RelationsFactory, SeederConfig } from '../db'
 import type { ApiRoute } from '../openapi/route'
+import type { QueueConsumer } from '../queue'
 
 /* ─── Module ───────────────────────────────────────────────────────── */
 
@@ -98,6 +99,13 @@ export interface Module<Name extends string = string, R = never> {
    * (middleware, catch-alls, proxying).
    */
   readonly routes?: readonly ApiRoute[]
+
+  /**
+   * Background queue consumers. Each is a forever-drain loop (see
+   * `@czo/kit/queue`'s `makeConsumer`). Aggregated by the worker process
+   * (`buildRuntime` + `runWorker`); NOT run by the HTTP `buildApp` path.
+   */
+  readonly queues?: ReadonlyArray<QueueConsumer>
 
   /**
    * Effect that runs once after the runtime is built but before the

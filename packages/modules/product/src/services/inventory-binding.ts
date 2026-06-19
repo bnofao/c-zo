@@ -1,14 +1,13 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
-import type { ProductNotAdopted } from './adoption'
+import type { ProductNotAdopted } from './product'
 import type { VariantNotFound } from './variant'
 import { Inventory } from '@czo/inventory/services'
 import { DrizzleDb } from '@czo/kit/db'
 import { sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { variantInventoryItems as variantInventoryItemsTable } from '../database/schema'
-import { AdoptionService } from './adoption'
 // Shared cross-org denial with the price binding service.
 import { CrossOrgGraftDenied } from './price-binding'
 import { ProductService } from './product'
@@ -16,8 +15,8 @@ import { VariantService } from './variant'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
-export { ProductNotAdopted } from './adoption'
 export { CrossOrgGraftDenied } from './price-binding'
+export { ProductNotAdopted } from './product'
 export { VariantNotFound } from './variant'
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
@@ -67,7 +66,6 @@ export const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const variantService = yield* VariantService
   const productService = yield* ProductService
-  const adoptionService = yield* AdoptionService
   const inventoryService = yield* Inventory.InventoryService
 
   /** Map any DB-layer error to InventoryBindingDbFailed. */
@@ -87,7 +85,7 @@ export const make = Effect.gen(function* () {
         Effect.mapError(e => new InventoryBindingDbFailed({ cause: e })),
       )
       if (product.organizationId === null)
-        yield* adoptionService.requireAdopted({ productId: product.id, orgId: organizationId })
+        yield* productService.requireAdopted({ productId: product.id, orgId: organizationId })
     })
 
   /** Verify the inventory item belongs to the grafting org; hide not-found as denied. */

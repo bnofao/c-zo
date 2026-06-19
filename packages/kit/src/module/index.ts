@@ -1,7 +1,7 @@
 // import { addImportsSources, defineNitroModule } from '@czo/kit/nitro'
 
-export type { BuildAppOptions, BuiltApp } from './app'
-export { buildApp, runApp } from './app'
+export type { BuildAppOptions, BuildRuntimeOptions, BuiltApp } from './app'
+export { buildApp, buildRuntime, foldModuleLayers, runApp, runWorker } from './app'
 /* ─── Module contract (Effect-native, phase 2) ─────────────────────── */
 export type { Module as CzoModule, Module } from './contract'
 export { defineModule } from './contract'

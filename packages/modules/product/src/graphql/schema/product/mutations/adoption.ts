@@ -9,9 +9,9 @@ import type { ProductGraphQLSchemaBuilder } from '@czo/product/graphql'
 import { Effect } from 'effect'
 import {
   AdoptionNotFound,
-  AdoptionService,
   CannotAdoptOwnedProduct,
   ProductNotFound,
+  ProductService,
 } from '../../../../services'
 import { sg } from '../subgraphs'
 
@@ -46,7 +46,7 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
         const input = args.input
         const adoption = await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* AdoptionService
+            const svc = yield* ProductService
             return yield* svc.adoptProduct({
               productId: Number(input.productId.id),
               orgId: Number(input.organization.id),
@@ -98,7 +98,7 @@ export function registerAdoptionMutations(builder: ProductGraphQLSchemaBuilder):
         const input = args.input
         await ctx.runEffect(
           Effect.gen(function* () {
-            const svc = yield* AdoptionService
+            const svc = yield* ProductService
             yield* svc.unadoptProduct({
               productId: Number(input.productId.id),
               orgId: Number(input.organization.id),

@@ -77,8 +77,21 @@ export type AttributeError
 
 export type Attribute = InferSelectModel<typeof attributes>
 
-type AttributeType = (typeof attributeTypeEnum.enumValues)[number]
-type AttributeUnit = (typeof attributeUnitEnum.enumValues)[number]
+export type AttributeType = (typeof attributeTypeEnum.enumValues)[number]
+export type AttributeUnit = (typeof attributeUnitEnum.enumValues)[number]
+
+export type ScalarAttributeType = Exclude<AttributeType, 'DROPDOWN' | 'MULTISELECT' | 'SWATCH' | 'REFERENCE'>
+
+const SELECT_TYPES = new Set<AttributeType>(['DROPDOWN', 'MULTISELECT', 'SWATCH', 'REFERENCE'])
+
+/**
+ * True for catalog/select types whose values are shared rows in dedicated
+ * tables (DROPDOWN/MULTISELECT/SWATCH/REFERENCE). The negative case narrows to
+ * `ScalarAttributeType` — the types that mint a per-assignment scalar value.
+ */
+export function isSelectType(t: AttributeType): t is Exclude<AttributeType, ScalarAttributeType> {
+  return SELECT_TYPES.has(t)
+}
 
 export interface CreateAttributeInput {
   name: string

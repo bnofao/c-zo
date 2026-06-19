@@ -19,6 +19,8 @@ import process from 'node:process'
 import { useLogger } from '@czo/kit'
 import * as Email from '@czo/kit/email/smtp'
 import { buildApp, runApp } from '@czo/kit/module'
+import { JobQueueLiveFromEnv } from '@czo/kit/queue'
+import { Layer } from 'effect'
 import { defineHandler, H3 } from 'h3'
 
 import { modules } from './modules'
@@ -46,7 +48,7 @@ const built = buildApp({
   // Host-provided EmailService transport. `fromEnv` reads EMAIL_TRANSPORT:
   // `smtp` → nodemailer (needs SMTP_HOST/PORT/EMAIL_FROM, optional SMTP_USER/
   // SMTP_PASSWORD/SMTP_SECURE); anything else (default) → dev logging transport.
-  services: Email.fromEnv,
+  services: Layer.mergeAll(Email.fromEnv, JobQueueLiveFromEnv),
   http: {
     port: Number(process.env.PORT ?? 4000),
     hostname: process.env.HOST ?? '127.0.0.1',

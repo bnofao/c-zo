@@ -1,27 +1,19 @@
 import { Layer } from 'effect'
-import { AdoptionServiceLive } from './adoption'
 import { AttributeAssignmentServiceLive } from './attribute-assignment'
 import { CategoryServiceLive } from './category'
 import { ChannelListingServiceLive } from './channel-listing'
 import { CollectionServiceLive } from './collection'
+import { layer as ProductEventsLayer } from './events/product'
 import { InventoryBindingServiceLive } from './inventory-binding'
 import { MediaServiceLive } from './media'
 import { PriceBindingServiceLive } from './price-binding'
 import { ProductServiceLive } from './product'
 import { ProductTypeServiceLive } from './product-type'
+import { unadoptCleanupSubscribersLayer } from './subscribers/unadopt-queue'
 import { TaxonomyRequestServiceLive } from './taxonomy-request'
 import { TranslationServiceLive } from './translation'
 import { VariantServiceLive } from './variant'
 
-export {
-  AdoptionDbFailed,
-  AdoptionNotFound,
-  AdoptionService,
-  AdoptionServiceLive,
-  CannotAdoptOwnedProduct,
-  ProductNotAdopted,
-} from './adoption'
-export type { AdoptProductInput, ProductOrgAdoption, UnadoptProductInput } from './adoption'
 export {
   AssignmentNotFound,
   AttributeAssignmentService,
@@ -72,6 +64,8 @@ export {
   CollectionSlugTaken,
 } from './collection'
 export type { Collection, CollectionProduct, CreateCollectionInput, UpdateCollectionInput } from './collection'
+export { ProductEvents } from './events/product'
+export type { ProductEvent } from './events/product'
 export {
   CrossOrgGraftDenied,
   InvalidRequiredQuantity,
@@ -110,14 +104,18 @@ export type {
   VariantPriceSet,
 } from './price-binding'
 export {
+  AdoptionDbFailed,
+  AdoptionNotFound,
+  CannotAdoptOwnedProduct,
   GlobalProductRequiresGlobalType,
   HandleTaken,
   ProductDbFailed,
+  ProductNotAdopted,
   ProductNotFound,
   ProductService,
   ProductServiceLive,
 } from './product'
-export type { CreateProductInput, Product, UpdateProductInput } from './product'
+export type { AdoptProductInput, CreateProductInput, Product, ProductOrgAdoption, UnadoptProductInput, UpdateProductInput } from './product'
 export {
   InvalidAttributeDeclaration,
   ProductTypeAlreadyGlobal,
@@ -136,6 +134,7 @@ export type {
   ProductTypeAttribute,
   UpdateProductTypeInput,
 } from './product-type'
+export { purgeDeferred, unadoptCleanupConsumer, UnadoptCleanupQueue } from './subscribers/unadopt-queue'
 export {
   TaxonomyRequestDbFailed,
   TaxonomyRequestNotFound,
@@ -180,22 +179,28 @@ export type { CreateVariantInput, ProductVariant, UpdateVariantInput } from './v
  *   ProductTypeService          ← DrizzleDb
  *   ProductService              ← DrizzleDb + ProductTypeService
  *   VariantService              ← DrizzleDb + ProductService
- *   AdoptionService             ← DrizzleDb + ProductService
- *   AttributeAssignmentService  ← DrizzleDb + Product/Variant/ProductType/Adoption
+ *   ProductService              ← DrizzleDb + ProductType + ProductEvents
+ *                                 (now also owns adoption: adopt/unadopt/isAdopted)
+ *   AttributeAssignmentService  ← DrizzleDb + Product/Variant/ProductType
  *                                 + @czo/attribute's AttributeService + TypedValueService
  *
  * `provideMerge` folds bottom-up so each layer's product-internal deps are
  * satisfied in-tree while staying in the output:
- *   1. base  = Variant + Adoption  → provideMerge Product → provideMerge ProductType
- *   2. whole = AttributeAssignment → provideMerge base  (gets Variant/Adoption/
- *      Product/ProductType)
+ *   1. base  = Variant → provideMerge Product → provideMerge ProductType
+ *      → provideMerge ProductEvents
+ *   2. whole = AttributeAssignment → provideMerge base  (gets Variant/Product/
+ *      ProductType)
  *
  * The two `@czo/attribute` services stay in the *required* channel — the app
  * (or the cross-module test layer) provides them, mirroring the manifest order.
  */
-const ProductCoreLive = Layer.mergeAll(VariantServiceLive, AdoptionServiceLive).pipe(
+const ProductCoreLive = VariantServiceLive.pipe(
   Layer.provideMerge(ProductServiceLive),
   Layer.provideMerge(ProductTypeServiceLive),
+  // Factor ProductEvents.layer out so both ProductService (the adoption
+  // publisher, via unadoptProduct) and unadoptCleanupSubscribersLayer (consumer)
+  // share the same PubSub instance.
+  Layer.provideMerge(ProductEventsLayer),
 )
 
 // PriceBinding/InventoryBinding/Category/Collection sit alongside
@@ -211,6 +216,7 @@ export const ProductModuleLive = Layer.mergeAll(
   MediaServiceLive,
   TranslationServiceLive,
   TaxonomyRequestServiceLive,
+  unadoptCleanupSubscribersLayer,
 ).pipe(
   Layer.provideMerge(CategoryServiceLive),
   Layer.provideMerge(ProductCoreLive),

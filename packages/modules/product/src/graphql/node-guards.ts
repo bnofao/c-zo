@@ -10,16 +10,18 @@
 //
 // Each node carries `organizationId` (`select: true` on its drizzleNode, so the
 // column is loaded regardless of the client's field selection):
-//   - `null` → a global/base row, readable by any authenticated viewer's org
-//     (matches the graft merge predicate `base ∪ viewerOrg`) → `{ auth: true }`.
-//   - non-null → an org-owned row → gate via auth's `permission` scope, the SAME
-//     scope as the by-id queries, so `node()` is never a weaker read path.
+//   - `null` → a global/platform row → gate via the org-less `permission` scope,
+//     i.e. the global `product:read` role — the SAME gate as the global by-id
+//     queries and the global list connections, so `node()` is never a weaker
+//     read path than the query for global rows.
+//   - non-null → an org-owned row → gate via auth's `permission` scope in that
+//     org, the SAME scope as the by-id queries.
 
 import type { NodeGuard } from '@czo/kit/graphql'
 
 const productReadGuard: NodeGuard = (row: { organizationId: number | null }) =>
   row.organizationId == null
-    ? { auth: true }
+    ? { permission: { resource: 'product', actions: ['read'] } }
     : { permission: { resource: 'product', actions: ['read'], organization: row.organizationId } }
 
 export const productNodeGuards: Record<string, NodeGuard> = {

@@ -14,13 +14,12 @@
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
 import type { productCategories, productMedia } from '../../../../database/schema'
-import type { PavRow } from './assigned'
 import type { GraftListing } from './merge'
+import { assignedAttributeField, assignedAttributesField } from '@czo/attribute/graphql'
 import { resolveArrayConnection } from '@czo/kit/graphql'
 import { translatedField } from '@czo/translation/graphql'
 import { Effect } from 'effect'
-import { AdoptionService } from '../../../../services'
-import { groupAssigned } from './assigned'
+import { ProductService } from '../../../../services'
 import { graftAuthScopes, resolveGraftOrg, viewerOrgId } from './merge'
 
 // The typed value relations a grouped assignment needs loaded per attribute-value
@@ -92,11 +91,11 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
         description: 'Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows).',
         query: { where: { deletedAt: { isNull: true } } },
       }, { subGraphs: ['public', 'org', 'admin'] }, { subGraphs: ['public', 'org', 'admin'] }),
-      // Typed assigned attributes — groups the merged base∪org attribute-value
-      // rows by attribute and resolves each into the cross-module
-      // `AssignedAttribute` interface (@czo/attribute).
-      assignedAttributes: t.field({
-        type: ['AssignedAttribute'],
+      // Typed assigned attributes — base∪org rows grouped into the cross-module
+      // `AssignedAttribute` interface (helper owned by @czo/attribute). Product
+      // injects only the graft wiring: how rows load, and which org overlays.
+      assignedAttributes: assignedAttributesField(t, {
+        with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } },
         subGraphs: ['public', 'org', 'admin'],
         description: 'The product\'s attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base.',
         args: {
@@ -104,29 +103,20 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
           viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts.' }),
         },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } } } },
-        resolve: (product, args) => {
-          const p = product as unknown as { channelListings?: GraftListing[], attributeValues?: PavRow[] }
-          return groupAssigned(p.attributeValues ?? [], resolveGraftOrg(args, p.channelListings ?? []))
-        },
+        rows: p => p.attributeValues ?? [],
+        org: (p, args) => resolveGraftOrg(args, p.channelListings ?? []),
       }),
-      assignedAttribute: t.field({
-        type: 'AssignedAttribute',
-        nullable: true,
+      assignedAttribute: assignedAttributeField(t, {
+        with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } },
         subGraphs: ['public', 'org', 'admin'],
         description: 'A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`.',
         args: {
-          slug: t.arg.string({ required: true, description: 'The attribute slug to fetch.' }),
           channel: t.arg.int({ required: false }),
           viewerOrg: t.arg.globalID({ for: 'Organization', required: false }),
         },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { channelListings: true, attributeValues: { with: ASSIGNED_WITH } } } },
-        resolve: (product, args) => {
-          const p = product as unknown as { channelListings?: GraftListing[], attributeValues?: PavRow[] }
-          const org = resolveGraftOrg(args, p.channelListings ?? [])
-          return groupAssigned(p.attributeValues ?? [], org).find(g => g.attribute.slug === args.slug) ?? null
-        },
+        rows: p => p.attributeValues ?? [],
+        org: (p, args) => resolveGraftOrg(args, p.channelListings ?? []),
       }),
       media: t.connection({
         type: 'ProductMedia',
@@ -198,7 +188,7 @@ export function registerProductNode(builder: ProductGraphQLSchemaBuilder): void 
             return false
           return ctx.runEffect(
             Effect.gen(function* () {
-              return yield* (yield* AdoptionService).isAdopted({ productId: product.id, orgId })
+              return yield* (yield* ProductService).isAdopted({ productId: product.id, orgId })
             }),
           )
         },

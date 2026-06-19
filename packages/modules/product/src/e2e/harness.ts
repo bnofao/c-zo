@@ -132,8 +132,9 @@ export async function bootProductApp(options: BootProductOptions = {}): Promise<
     return { token: body.token, userId: signUpCount, ip }
   }
 
-  // Grant a GLOBAL role (for base/global rows — `{ auth: true }` defers to the
-  // user's global role). Reuses auth's OrganizationService global-role path.
+  // Grant a GLOBAL role (e.g. `product:viewer`/`product:admin`). Global (org-null)
+  // rows are gated by the org-less `permission` scope — i.e. the user's global
+  // role. Reuses auth's OrganizationService global-role path.
   const grantGlobalRole: ProductHarness['grantGlobalRole'] = (userId, role) =>
     app.runEffect(Effect.gen(function* () {
       const users = yield* User.UserService

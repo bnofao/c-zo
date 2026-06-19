@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm'
 import { Effect } from 'effect'
 import { products as productsTable } from '../database/schema'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import { AdoptionService } from './adoption'
 import { CategoryService } from './category'
 import { ChannelListingService } from './channel-listing'
 import { ProductService } from './product'
@@ -109,7 +108,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('ChannelListingService', (it)
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* ChannelListingService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const type = yield* makeType(null, 'cl-gt')
       const product = yield* makeProduct(null, type.id, 'cl-gp')
       const channel = yield* makeChannel(ORG, 'cl-gc')

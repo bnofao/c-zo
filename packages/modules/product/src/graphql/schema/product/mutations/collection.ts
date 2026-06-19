@@ -12,7 +12,7 @@ import {
   CollectionService,
   CollectionSlugTaken,
 } from '../../../../services'
-import { loadCollectionOrganizationId } from '../authz'
+import { loadCollectionOrganizationId, ownerScope } from '../authz'
 import { sg } from '../subgraphs'
 
 export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder): void {
@@ -71,12 +71,7 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org').field,
       description: 'Updates a collection\'s mutable fields using optimistic locking. Requires the `product:update` permission in the collection\'s organization.',
       errors: { types: [CollectionNotFound, CollectionSlugTaken, OptimisticLockError], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCollectionOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const collection = await ctx.runEffect(
@@ -111,12 +106,7 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org').field,
       description: 'Soft-deletes a collection by setting its `deletedAt` timestamp, using optimistic locking. Requires the `product:delete` permission in the collection\'s organization.',
       errors: { types: [CollectionNotFound, OptimisticLockError], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCollectionOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['delete'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.id.id)), ['delete']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const collection = await ctx.runEffect(
@@ -145,12 +135,7 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org').field,
       description: 'Adds a product to a collection, creating a many-to-many membership. Requires the `product:update` permission in the collection\'s organization.',
       errors: { types: [CollectionNotFound], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const collection = await ctx.runEffect(
@@ -180,12 +165,7 @@ export function registerCollectionMutations(builder: ProductGraphQLSchemaBuilder
       ...sg('org').field,
       description: 'Removes a product from a collection, deleting the many-to-many membership. Requires the `product:update` permission in the collection\'s organization.',
       errors: { types: [CollectionNotFound], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const collection = await ctx.runEffect(

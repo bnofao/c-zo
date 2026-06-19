@@ -1,6 +1,7 @@
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
+import { layer as ProductEventsLayer } from './events/product'
 import * as Prod from './product'
 import * as ProductType from './product-type'
 import * as Var from './variant'
@@ -8,6 +9,7 @@ import * as Var from './variant'
 const TestLayer = Var.VariantServiceLive.pipe(
   Layer.provideMerge(Prod.ProductServiceLive),
   Layer.provideMerge(ProductType.ProductTypeServiceLive),
+  Layer.provideMerge(ProductEventsLayer),
   Layer.provideMerge(ProductPostgresLayer),
 )
 

@@ -10,11 +10,10 @@
 
 import type { ProductGraphQLSchemaBuilder } from '../../..'
 import type { variantInventoryItems } from '../../../../database/schema'
-import type { VavRow } from './assigned'
 import type { GraftListing } from './merge'
+import { assignedAttributeField, assignedAttributesField } from '@czo/attribute/graphql'
 import { resolveArrayConnection } from '@czo/kit/graphql'
 import { translatedField } from '@czo/translation/graphql'
-import { groupAssigned } from './assigned'
 import { graftAuthScopes, resolveGraftOrg } from './merge'
 
 // The typed value relations a grouped assignment needs loaded per attribute-value
@@ -57,10 +56,11 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
       product: t.relation('product', { description: 'The product this variant belongs to.' }),
 
       // ── Graft fields (custom in-memory; org from channel or viewerOrg) ──
-      // Typed assigned attributes — groups the merged base∪org rows by attribute
-      // and resolves each into the cross-module `AssignedAttribute` interface.
-      assignedAttributes: t.field({
-        type: ['AssignedAttribute'],
+      // Typed assigned attributes — base∪org rows grouped into the cross-module
+      // `AssignedAttribute` interface (helper owned by @czo/attribute). Listings
+      // hang off the parent product, so the org is resolved through `product`.
+      assignedAttributes: assignedAttributesField(t, {
+        with: { product: { with: { channelListings: true } }, attributeValues: { with: ASSIGNED_WITH } },
         subGraphs: ['public', 'org', 'admin'],
         description: 'The variant\'s attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base.',
         args: {
@@ -68,29 +68,20 @@ export function registerVariantNode(builder: ProductGraphQLSchemaBuilder): void 
           viewerOrg: t.arg.globalID({ for: 'Organization', required: false, description: 'Optional viewer organization; overlays that org\'s grafts.' }),
         },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { product: { with: { channelListings: true } }, attributeValues: { with: ASSIGNED_WITH } } } },
-        resolve: (variant, args) => {
-          const v = variant as unknown as { product?: { channelListings?: GraftListing[] }, attributeValues?: VavRow[] }
-          return groupAssigned(v.attributeValues ?? [], resolveGraftOrg(args, v.product?.channelListings ?? []))
-        },
+        rows: v => v.attributeValues ?? [],
+        org: (v, args) => resolveGraftOrg(args, v.product?.channelListings ?? []),
       }),
-      assignedAttribute: t.field({
-        type: 'AssignedAttribute',
-        nullable: true,
+      assignedAttribute: assignedAttributeField(t, {
+        with: { product: { with: { channelListings: true } }, attributeValues: { with: ASSIGNED_WITH } },
         subGraphs: ['public', 'org', 'admin'],
         description: 'A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`.',
         args: {
-          slug: t.arg.string({ required: true, description: 'The attribute slug to fetch.' }),
           channel: t.arg.int({ required: false }),
           viewerOrg: t.arg.globalID({ for: 'Organization', required: false }),
         },
         authScopes: (_parent, args) => graftAuthScopes(args),
-        extensions: { pothosDrizzleSelect: { with: { product: { with: { channelListings: true } }, attributeValues: { with: ASSIGNED_WITH } } } },
-        resolve: (variant, args) => {
-          const v = variant as unknown as { product?: { channelListings?: GraftListing[] }, attributeValues?: VavRow[] }
-          const org = resolveGraftOrg(args, v.product?.channelListings ?? [])
-          return groupAssigned(v.attributeValues ?? [], org).find(g => g.attribute.slug === args.slug) ?? null
-        },
+        rows: v => v.attributeValues ?? [],
+        org: (v, args) => resolveGraftOrg(args, v.product?.channelListings ?? []),
       }),
       // variantInventoryItems carries a NOT NULL org → these are pure grafts;
       // only the viewer/publishing org's bindings are visible (no base/global rows exist).

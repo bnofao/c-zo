@@ -253,6 +253,8 @@ describe('product org-owned flow e2e', () => {
           base: name
           fr: name(locale:"fr")
           assignedAttributes(viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug value } } }
+          oneMaterial: assignedAttribute(slug:"material", viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { value } } }
+          oneMissing: assignedAttribute(slug:"does-not-exist", viewerOrg:$org){ __typename }
           channelListings { edges { node { id } } }
           variants{
             edges { node {
@@ -281,6 +283,12 @@ describe('product org-owned flow e2e', () => {
     expect(material).toBeTruthy()
     expect(material.__typename).toBe('AssignedDropdownAttribute')
     expect(material.values.map((v: any) => v.value)).toContain('Cotton')
+    // Singular accessor (assignedAttribute(slug)) on the org-owned product: a
+    // known slug returns the one typed attribute; an unknown slug → null.
+    expect(product.oneMaterial.__typename).toBe('AssignedDropdownAttribute')
+    expect(product.oneMaterial.attribute.slug).toBe('material')
+    expect(product.oneMaterial.values.map((v: any) => v.value)).toContain('Cotton')
+    expect(product.oneMissing).toBeNull()
     expect(product.channelListings.edges.length).toBeGreaterThan(0)
     const boundEdge = product.variants.edges.find(
       (e: any) => e.node.priceSet != null,

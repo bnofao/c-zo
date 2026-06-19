@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupAssigned } from './assigned'
+import { groupAssigned } from './assigned-field'
 
 // `groupAssigned` derives the kind from the attribute's `type` (no `valueKind`
 // column), so each row's attribute carries a representative type for its kind.

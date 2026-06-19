@@ -2,7 +2,6 @@ import { Price } from '@czo/price/services'
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import { AdoptionService } from './adoption'
 import { PriceBindingService } from './price-binding'
 import { ProductService } from './product'
 import { ProductTypeService } from './product-type'
@@ -123,7 +122,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('PriceBindingService', (it) =
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* PriceBindingService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const type = yield* makeType(null, 'pb-gt')
       const product = yield* makeProduct(null, type.id, 'pb-gp')
       const variant = yield* makeVariant(product.id)
