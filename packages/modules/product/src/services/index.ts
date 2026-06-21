@@ -78,7 +78,6 @@ export type {
   UnlinkInventoryItemInput,
   VariantInventoryItem,
 } from './inventory-binding'
-export * from './matrix'
 export {
   MediaDbFailed,
   MediaNotFound,
@@ -164,13 +163,15 @@ export type {
 } from './translation'
 export {
   DuplicateVariantMatrix,
+  isDuplicateMatrix,
   SkuTaken,
   VariantDbFailed,
   VariantNotFound,
+  variantSelectionKey,
   VariantService,
   VariantServiceLive,
 } from './variant'
-export type { CreateVariantInput, ProductVariant, UpdateVariantInput } from './variant'
+export type { CreateVariantInput, ProductVariant, SelectionPair, UpdateVariantInput } from './variant'
 
 /**
  * Composite layer for the product module.
