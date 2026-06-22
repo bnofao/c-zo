@@ -14,7 +14,7 @@ import {
   MediaService,
   ProductNotAdopted,
 } from '../../../../services'
-import { loadMediaOrganizationId } from '../authz'
+import { loadMediaOrganizationId, ownerScope } from '../authz'
 import { productEnumRefs } from '../inputs'
 import { sg } from '../subgraphs'
 
@@ -81,12 +81,7 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       ...sg('org', 'admin').field,
       description: 'Updates an existing media asset, authorized against the owning organization of the media row.',
       errors: { types: [MediaNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadMediaOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadMediaOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const media = await ctx.runEffect(
@@ -122,12 +117,7 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       ...sg('org', 'admin').field,
       description: 'Soft-deletes an existing media asset, authorized against the owning organization of the media row.',
       errors: { types: [MediaNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadMediaOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadMediaOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const media = await ctx.runEffect(
@@ -156,12 +146,7 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       ...sg('org', 'admin').field,
       description: 'Attaches a media asset to a specific product variant via the global link table, authorized against the owning organization of the media row.',
       errors: { types: [MediaNotFound], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -193,12 +178,7 @@ export function registerMediaMutations(builder: ProductGraphQLSchemaBuilder): vo
       ...sg('org', 'admin').field,
       description: 'Detaches a media asset from a specific product variant via the global link table, authorized against the owning organization of the media row.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadMediaOrganizationId(ctx, Number(args.input.mediaId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(

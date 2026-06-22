@@ -45,6 +45,7 @@ export default defineConfig({
       '@czo/price/graphql': resolve(__dirname, '../price/src/graphql/index.ts'),
       '@czo/stock-location/graphql': resolve(__dirname, '../stock-location/src/graphql/index.ts'),
       '@czo/kit/email': resolve(__dirname, '../../kit/src/email/index.ts'),
+      '@czo/kit/queue': resolve(__dirname, '../../kit/src/queue/index.ts'),
       '@czo/attribute': resolve(__dirname, '../attribute/src/index.ts'),
       '@czo/channel': resolve(__dirname, '../channel/src/index.ts'),
       '@czo/inventory': resolve(__dirname, '../inventory/src/index.ts'),

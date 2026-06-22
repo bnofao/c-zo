@@ -1,8 +1,9 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
+import type { AttributeType, ScalarAttributeType } from './attribute'
 import { DrizzleDb } from '@czo/kit/db'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import {
   attributeBooleanValues,
@@ -23,6 +24,11 @@ export { AttributeDbFailed } from './attribute'
 export class TypedValueNotFound extends Data.TaggedError('TypedValueNotFound') {
   readonly code = 'TYPED_VALUE_NOT_FOUND'
   get message() { return 'Typed value not found' }
+}
+
+export class TypedValueShapeMismatch extends Data.TaggedError('TypedValueShapeMismatch') {
+  readonly code = 'TYPED_VALUE_SHAPE_MISMATCH'
+  get message() { return 'The provided value shape does not match the attribute type' }
 }
 
 // ─── Domain models ────────────────────────────────────────────────────────────
@@ -69,6 +75,14 @@ export interface CreateFileInput extends CreateBase {
 }
 export type UpdateFileInput = Partial<{ fileUrl: string, mimetype: string }>
 
+/** A scalar typed value's data — exactly one shape, discriminated by presence. */
+export type ScalarValue
+  = | { readonly text: { readonly plain: string, readonly rich?: unknown | null } }
+    | { readonly numeric: number }
+    | { readonly boolean: boolean }
+    | { readonly date: Date }
+    | { readonly file: { readonly fileUrl: string, readonly mimetype: string } }
+
 // ─── Service contract ─────────────────────────────────────────────────────────
 
 type Fail<A> = Effect.Effect<A, TypedValueNotFound | AttributeDbFailed>
@@ -97,6 +111,28 @@ export class TypedValueService extends Context.Service<
     readonly createFile: (input: CreateFileInput) => CreateFail<AttributeFileValue>
     readonly updateFile: (id: number, input: UpdateFileInput) => Fail<AttributeFileValue>
     readonly deleteFile: (id: number) => Fail<AttributeFileValue>
+
+    /**
+     * Bulk-delete typed scalar values, grouped by the attribute's `type` →
+     * value ids. Types that have no scalar table (the select/catalog kinds:
+     * DROPDOWN, MULTISELECT, SWATCH, REFERENCE) are silently skipped, so callers
+     * can hand over a product's full attribute-type grouping without filtering.
+     */
+    readonly purgeValues: (values: ReadonlyMap<AttributeType, ReadonlyArray<number>>) => Effect.Effect<void, AttributeDbFailed>
+
+    /**
+     * Create the scalar typed-value row matching the attribute `type`, returning
+     * its id. A `value` shape that does not match `type` fails with
+     * TypedValueShapeMismatch.
+     */
+    readonly createScalar: (type: ScalarAttributeType, attributeId: number, organizationId: number | null, value: ScalarValue) => Effect.Effect<number, TypedValueShapeMismatch | AttributeParentNotOwned | AttributeDbFailed>
+    /**
+     * Delete the scalar typed-value row for an attribute `type` by id (orphan
+     * cleanup). Accepts any `AttributeType` and no-ops for select/catalog types
+     * (DROPDOWN/MULTISELECT/SWATCH/REFERENCE) whose rows are shared — so callers
+     * can hand it the attribute's type without pre-filtering.
+     */
+    readonly deleteScalar: (type: AttributeType, valueId: number) => Effect.Effect<void, AttributeDbFailed>
   }
 >()('@czo/attribute/TypedValueService') {}
 
@@ -143,22 +179,123 @@ const make = Effect.gen(function* () {
         return yield* Effect.fail(new AttributeParentNotOwned())
     })
 
+  const createText: TypedValueServiceImpl['createText'] = input =>
+    Effect.gen(function* () {
+      yield* ensureParentOwned(input.attributeId, input.organizationId)
+      const [row] = yield* dbErr(db.insert(attributeTextValues).values({
+        attributeId: input.attributeId,
+        organizationId: input.organizationId,
+        plain: input.plain,
+        rich: input.rich ?? null,
+        externalSource: input.externalSource ?? null,
+        externalId: input.externalId ?? null,
+      }).returning())
+      return row!
+    })
+
+  const createNumeric: TypedValueServiceImpl['createNumeric'] = input =>
+    Effect.gen(function* () {
+      yield* ensureParentOwned(input.attributeId, input.organizationId)
+      const [row] = yield* dbErr(db.insert(attributeNumericValues).values({
+        attributeId: input.attributeId,
+        organizationId: input.organizationId,
+        value: input.value,
+        externalSource: input.externalSource ?? null,
+        externalId: input.externalId ?? null,
+      }).returning())
+      return row!
+    })
+
+  const createBoolean: TypedValueServiceImpl['createBoolean'] = input =>
+    Effect.gen(function* () {
+      yield* ensureParentOwned(input.attributeId, input.organizationId)
+      const [row] = yield* dbErr(db.insert(attributeBooleanValues).values({
+        attributeId: input.attributeId,
+        organizationId: input.organizationId,
+        value: input.value,
+        externalSource: input.externalSource ?? null,
+        externalId: input.externalId ?? null,
+      }).returning())
+      return row!
+    })
+
+  const createDate: TypedValueServiceImpl['createDate'] = input =>
+    Effect.gen(function* () {
+      yield* ensureParentOwned(input.attributeId, input.organizationId)
+      const [row] = yield* dbErr(db.insert(attributeDateValues).values({
+        attributeId: input.attributeId,
+        organizationId: input.organizationId,
+        value: input.value,
+        externalSource: input.externalSource ?? null,
+        externalId: input.externalId ?? null,
+      }).returning())
+      return row!
+    })
+
+  const createFile: TypedValueServiceImpl['createFile'] = input =>
+    Effect.gen(function* () {
+      yield* ensureParentOwned(input.attributeId, input.organizationId)
+      const [row] = yield* dbErr(db.insert(attributeFileValues).values({
+        attributeId: input.attributeId,
+        organizationId: input.organizationId,
+        fileUrl: input.fileUrl,
+        mimetype: input.mimetype,
+        externalSource: input.externalSource ?? null,
+        externalId: input.externalId ?? null,
+      }).returning())
+      return row!
+    })
+
+  /** The scalar table holding values of attribute `type`, or `null` for select/catalog types. */
+  const scalarTableFor = (type: AttributeType): TypedTable | null => {
+    switch (type) {
+      case 'PLAIN_TEXT':
+      case 'RICH_TEXT': return attributeTextValues
+      case 'NUMERIC': return attributeNumericValues
+      case 'BOOLEAN': return attributeBooleanValues
+      case 'DATE':
+      case 'DATE_TIME': return attributeDateValues
+      case 'FILE': return attributeFileValues
+      default: return null // DROPDOWN / MULTISELECT / SWATCH / REFERENCE — no scalar table
+    }
+  }
+
+  const createScalar: TypedValueServiceImpl['createScalar'] = (type, attributeId, organizationId, value) =>
+    Effect.gen(function* () {
+      if (type === 'PLAIN_TEXT' || type === 'RICH_TEXT') {
+        if (!('text' in value))
+          return yield* Effect.fail(new TypedValueShapeMismatch())
+        return (yield* createText({ attributeId, organizationId, plain: value.text.plain, rich: value.text.rich ?? null })).id
+      }
+      if (type === 'NUMERIC') {
+        if (!('numeric' in value))
+          return yield* Effect.fail(new TypedValueShapeMismatch())
+        return (yield* createNumeric({ attributeId, organizationId, value: value.numeric })).id
+      }
+      if (type === 'BOOLEAN') {
+        if (!('boolean' in value))
+          return yield* Effect.fail(new TypedValueShapeMismatch())
+        return (yield* createBoolean({ attributeId, organizationId, value: value.boolean })).id
+      }
+      if (type === 'DATE' || type === 'DATE_TIME') {
+        if (!('date' in value))
+          return yield* Effect.fail(new TypedValueShapeMismatch())
+        return (yield* createDate({ attributeId, organizationId, value: value.date })).id
+      }
+      // FILE
+      if (!('file' in value))
+        return yield* Effect.fail(new TypedValueShapeMismatch())
+      return (yield* createFile({ attributeId, organizationId, fileUrl: value.file.fileUrl, mimetype: value.file.mimetype })).id
+    })
+
+  const deleteScalar: TypedValueServiceImpl['deleteScalar'] = (type, valueId) => {
+    const table = scalarTableFor(type)
+    return table ? dbErr(db.delete(table).where(eq(table.id, valueId))).pipe(Effect.asVoid) : Effect.void
+  }
+
   return TypedValueService.of({
     // ── text ──
-    createText: input =>
-      Effect.gen(function* () {
-        yield* ensureParentOwned(input.attributeId, input.organizationId)
-        const [row] = yield* dbErr(db.insert(attributeTextValues).values({
-          attributeId: input.attributeId,
-          organizationId: input.organizationId,
-          plain: input.plain,
-          rich: input.rich ?? null,
-          externalSource: input.externalSource ?? null,
-          externalId: input.externalId ?? null,
-        }).returning())
-        return row!
-      }),
-
+    createText,
     updateText: (id, input) =>
       Effect.gen(function* () {
         yield* ensureExists(attributeTextValues, id)
@@ -168,7 +305,6 @@ const make = Effect.gen(function* () {
         }).where(eq(attributeTextValues.id, id)).returning())
         return row!
       }),
-
     deleteText: id =>
       Effect.gen(function* () {
         yield* ensureExists(attributeTextValues, id)
@@ -177,19 +313,7 @@ const make = Effect.gen(function* () {
       }),
 
     // ── numeric ──
-    createNumeric: input =>
-      Effect.gen(function* () {
-        yield* ensureParentOwned(input.attributeId, input.organizationId)
-        const [row] = yield* dbErr(db.insert(attributeNumericValues).values({
-          attributeId: input.attributeId,
-          organizationId: input.organizationId,
-          value: input.value,
-          externalSource: input.externalSource ?? null,
-          externalId: input.externalId ?? null,
-        }).returning())
-        return row!
-      }),
-
+    createNumeric,
     updateNumeric: (id, input) =>
       Effect.gen(function* () {
         yield* ensureExists(attributeNumericValues, id)
@@ -198,7 +322,6 @@ const make = Effect.gen(function* () {
         }).where(eq(attributeNumericValues.id, id)).returning())
         return row!
       }),
-
     deleteNumeric: id =>
       Effect.gen(function* () {
         yield* ensureExists(attributeNumericValues, id)
@@ -207,19 +330,7 @@ const make = Effect.gen(function* () {
       }),
 
     // ── boolean ──
-    createBoolean: input =>
-      Effect.gen(function* () {
-        yield* ensureParentOwned(input.attributeId, input.organizationId)
-        const [row] = yield* dbErr(db.insert(attributeBooleanValues).values({
-          attributeId: input.attributeId,
-          organizationId: input.organizationId,
-          value: input.value,
-          externalSource: input.externalSource ?? null,
-          externalId: input.externalId ?? null,
-        }).returning())
-        return row!
-      }),
-
+    createBoolean,
     updateBoolean: (id, input) =>
       Effect.gen(function* () {
         yield* ensureExists(attributeBooleanValues, id)
@@ -228,7 +339,6 @@ const make = Effect.gen(function* () {
         }).where(eq(attributeBooleanValues.id, id)).returning())
         return row!
       }),
-
     deleteBoolean: id =>
       Effect.gen(function* () {
         yield* ensureExists(attributeBooleanValues, id)
@@ -237,19 +347,7 @@ const make = Effect.gen(function* () {
       }),
 
     // ── date ──
-    createDate: input =>
-      Effect.gen(function* () {
-        yield* ensureParentOwned(input.attributeId, input.organizationId)
-        const [row] = yield* dbErr(db.insert(attributeDateValues).values({
-          attributeId: input.attributeId,
-          organizationId: input.organizationId,
-          value: input.value,
-          externalSource: input.externalSource ?? null,
-          externalId: input.externalId ?? null,
-        }).returning())
-        return row!
-      }),
-
+    createDate,
     updateDate: (id, input) =>
       Effect.gen(function* () {
         yield* ensureExists(attributeDateValues, id)
@@ -258,7 +356,6 @@ const make = Effect.gen(function* () {
         }).where(eq(attributeDateValues.id, id)).returning())
         return row!
       }),
-
     deleteDate: id =>
       Effect.gen(function* () {
         yield* ensureExists(attributeDateValues, id)
@@ -267,20 +364,7 @@ const make = Effect.gen(function* () {
       }),
 
     // ── file ──
-    createFile: input =>
-      Effect.gen(function* () {
-        yield* ensureParentOwned(input.attributeId, input.organizationId)
-        const [row] = yield* dbErr(db.insert(attributeFileValues).values({
-          attributeId: input.attributeId,
-          organizationId: input.organizationId,
-          fileUrl: input.fileUrl,
-          mimetype: input.mimetype,
-          externalSource: input.externalSource ?? null,
-          externalId: input.externalId ?? null,
-        }).returning())
-        return row!
-      }),
-
+    createFile,
     updateFile: (id, input) =>
       Effect.gen(function* () {
         yield* ensureExists(attributeFileValues, id)
@@ -290,12 +374,27 @@ const make = Effect.gen(function* () {
         }).where(eq(attributeFileValues.id, id)).returning())
         return row!
       }),
-
     deleteFile: id =>
       Effect.gen(function* () {
         yield* ensureExists(attributeFileValues, id)
         const [row] = yield* dbErr(db.delete(attributeFileValues).where(eq(attributeFileValues.id, id)).returning())
         return row!
+      }),
+
+    // ── scalar dispatch (by attribute type) ──
+    createScalar,
+    deleteScalar,
+
+    purgeValues: values =>
+      Effect.gen(function* () {
+        for (const [type, ids] of values) {
+          if (ids.length === 0)
+            continue
+          const table = scalarTableFor(type)
+          if (!table)
+            continue
+          yield* dbErr(db.delete(table).where(inArray(table.id, ids)))
+        }
       }),
   } satisfies TypedValueServiceImpl)
 })

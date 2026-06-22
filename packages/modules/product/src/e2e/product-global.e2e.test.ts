@@ -14,8 +14,9 @@
 //     grafts; with viewerOrg B shows base only (no A grafts). Publication exists
 //     on A's channel, not B's.
 //   • Unadopt: org A's grafts are purged; base data is intact.
-//   • Denial: org A (no global role) cannot create a GLOBAL product; an org-C
-//     user with no access reading an org-owned product node resolves to null.
+//   • Denial: org A (global product:viewer, lacking create) cannot create a
+//     GLOBAL product; an org-C user with no access reading an org-owned product
+//     node resolves to null.
 //
 // Upstream rows (attributes, values, price sets, inventory items, channels) are
 // seeded directly through their services via `runEffect`, as in the org-owned
@@ -25,11 +26,11 @@ import type { ProductHarness } from './harness'
 import { Attribute as AttributeSvc, AttributeValue as AttributeValueSvc } from '@czo/attribute/services'
 import { Channel as ChannelSvc } from '@czo/channel/services'
 import { Inventory as InventorySvc } from '@czo/inventory/services'
-import { decodeGlobalID } from '@czo/kit/graphql'
+import { decodeGlobalID, encodeGlobalID } from '@czo/kit/graphql'
 import { Price as PriceSvc } from '@czo/price/services'
 import { Effect } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { ProductService } from '../services'
+import { ProductService, purgeDeferred } from '../services'
 import { bootProductApp } from './harness'
 
 describe('product global-catalog + two-org-graft e2e', () => {
@@ -90,6 +91,14 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const b = await h.createOrgWithProductAccess(bUser, 'Bravo', 'bravo')
     bOrgGlobalId = b.orgGlobalId
     bOrgNumericId = b.orgNumericId
+
+    // Read model: a GLOBAL (org-null) row read by id / node requires the GLOBAL
+    // `product:read` role (the org-less `permission` scope) — the same gate as
+    // the global list/by-id queries. So an org member that overlays global
+    // products holds the read-only `product:viewer` global role; their org-scoped
+    // graft access is unaffected (that path checks org membership, not this role).
+    await h.grantGlobalRole(aUser.userId, 'product:viewer')
+    await h.grantGlobalRole(bUser.userId, 'product:viewer')
 
     // Org C — signed up, no product access anywhere.
     const cUser = await h.signUp('c@x.io', 'COwner', 'password1234')
@@ -337,6 +346,13 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(material.__typename).toBe('AssignedDropdownAttribute')
     expect(material.values.map((v: any) => v.value)).toContain('Cotton')
 
+    // Singular accessor (assignedAttribute(slug)) through the SAME viewerOrg=A
+    // graft path: a known slug returns the one typed attribute; an unknown → null.
+    expect(product.oneMaterial.__typename).toBe('AssignedDropdownAttribute')
+    expect(product.oneMaterial.attribute.slug).toBe('material')
+    expect(product.oneMaterial.values.map((v: any) => v.value)).toContain('Cotton')
+    expect(product.oneMissing).toBeNull()
+
     // A's bound price set + inventory link are visible on the variant.
     const bound = product.variants.edges.find((e: any) => e.node.priceSet != null)
     expect(bound).toBeTruthy()
@@ -361,6 +377,9 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const bMaterial = product.assignedAttributes.find((a: any) => a.attribute.slug === 'material')
     expect(bMaterial).toBeUndefined()
     expect(product.assignedAttributes).toHaveLength(0)
+    // Singular accessor sees nothing for B either — A's graft never leaks.
+    expect(product.oneMaterial).toBeNull()
+    expect(product.oneMissing).toBeNull()
 
     // No price binding visible for B (priceSet is per-viewer-org).
     const anyBound = product.variants.edges.some((e: any) => e.node.priceSet != null)
@@ -369,7 +388,12 @@ describe('product global-catalog + two-org-graft e2e', () => {
     const anyInv = product.variants.edges.some((e: any) => e.node.inventoryItems.edges.length > 0)
     expect(anyInv).toBe(false)
 
-    // B never published → no listing on B's channel.
+    // B never published → no listing on B's channel. NB: `channelListings` is
+    // publication metadata, NOT a per-viewer graft — it is intentionally
+    // unfiltered by viewer org (the same rows back the public storefront), so A's
+    // listing IS visible here. "No A grafts" above refers to the per-viewer grafts
+    // (attribute values, price set, inventory) that DO stay isolated, asserted
+    // empty above; we only assert B's own channel is absent.
     const chans: number[] = product.channelListings.edges.map((e: any) => e.node.channelId)
     expect(chans).not.toContain(bChannelId)
   })
@@ -467,6 +491,8 @@ describe('product global-catalog + two-org-graft e2e', () => {
           organizationId
           forB: isAdopted(viewerOrg:$org)
           assignedAttributes(viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { slug value } } }
+          oneMaterial: assignedAttribute(slug:"material", viewerOrg:$org){ __typename attribute { slug } ... on AssignedDropdownAttribute { values { value } } }
+          oneMissing: assignedAttribute(slug:"does-not-exist", viewerOrg:$org){ __typename }
           channelListings{ edges { node { id channelId isPublished } } }
           variants{
             edges { node {
@@ -494,6 +520,9 @@ describe('product global-catalog + two-org-graft e2e', () => {
     )
     expect(unadopt.errors).toBeUndefined()
     expect(unadopt.data.unadoptProduct.data.success).toBe(true)
+    // Heavy attribute/price/inventory cleanup is deferred to the queue worker;
+    // drain it inline so the overlay assertions below see the fully-purged state.
+    await h.app.runEffect(purgeDeferred(globalProductNumericId, aOrgNumericId))
 
     const res = await readOverlay(aOrgGlobalId, aToken)
     const product = res.data.product
@@ -541,7 +570,7 @@ describe('product global-catalog + two-org-graft e2e', () => {
 
   // ── 6. Denial: global-create without global role; node-guard deny-as-null ─────
 
-  it('org A (no global role) cannot create a GLOBAL product', async () => {
+  it('org A (global product:viewer, no create) cannot create a GLOBAL product', async () => {
     const res = await h.gql(
       `mutation($input:CreateProductInput!){ createProduct(input:$input){ __typename ... on CreateProductSuccess { data { product { id } } } } }`,
       { input: { productTypeId: globalTypeNumericId, handle: 'a-sneaky-global', name: 'Sneaky' } },
@@ -550,6 +579,34 @@ describe('product global-catalog + two-org-graft e2e', () => {
     expect(res.errors).toBeDefined()
     expect(res.errors!.length).toBeGreaterThan(0)
     expect(res.data?.createProduct ?? null).toBeNull()
+  })
+
+  it('by-id read: a NOT-FOUND id resolves to null (not a 403) even for a user without the global role', async () => {
+    // cToken has no global role and no org access. A non-existent Product id must
+    // resolve to `null` (the field is nullable; the resolver maps NotFound → null),
+    // NOT a scope-auth error: `loadProductOrganizationId` reports not-found
+    // distinctly from global, so `ownerScope` defers (`{ auth: true }`) instead of
+    // masking the missing row as a gate 403.
+    const res = await h.gql(
+      `query($id:ID!){ product(id:$id){ id } }`,
+      { id: encodeGlobalID('Product', 999999) },
+      cToken,
+    )
+    expect(res.errors).toBeUndefined()
+    expect(res.data.product).toBeNull()
+  })
+
+  it('by-id read: an EXISTING global product is denied to a user without the global product:read role', async () => {
+    // The same cToken (no global role) reading the real global product by id is
+    // gated by the global `product:read` role — proving not-found (null above) and
+    // global (denied here) are gated differently, not collapsed.
+    const res = await h.gql(
+      `query($id:ID!){ product(id:$id){ id } }`,
+      { id: globalProductGlobalId },
+      cToken,
+    )
+    expect(res.errors).toBeDefined()
+    expect(res.data?.product ?? null).toBeNull()
   })
 
   it('node-guard: org C reading an org-A-owned product node resolves to null (deny-as-null)', async () => {

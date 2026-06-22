@@ -2,7 +2,6 @@ import { Channel } from '@czo/channel/services'
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import { AdoptionService } from './adoption'
 import { ChannelListingService } from './channel-listing'
 import { MediaService } from './media'
 import { ProductService } from './product'
@@ -49,7 +48,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('MediaService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* MediaService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const type = yield* makeType(null, 'md-gt')
       const product = yield* makeProduct(null, type.id, 'md-gp')
 
@@ -96,7 +95,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('MediaService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* MediaService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const type = yield* makeType(null, 'md-mt')
       const product = yield* makeProduct(null, type.id, 'md-mp')
       yield* adoption.adoptProduct({ productId: product.id, orgId: ORG })
@@ -148,7 +147,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('MediaService', (it) => {
       yield* truncateProductAttribute
       const media = yield* MediaService
       const listings = yield* ChannelListingService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const channels = yield* Channel.ChannelService
       const type = yield* makeType(null, 'md-ut')
       const product = yield* makeProduct(null, type.id, 'md-up')

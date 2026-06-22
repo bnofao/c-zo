@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isDuplicateMatrix, variantSelectionKey } from './matrix'
+import { isDuplicateMatrix, variantSelectionKey } from './variant'
 
 describe('variantSelectionKey', () => {
   it('is order-independent: [{1,5},{2,9}] === [{2,9},{1,5}]', () => {

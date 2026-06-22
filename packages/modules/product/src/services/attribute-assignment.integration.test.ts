@@ -2,10 +2,10 @@ import { Attribute, AttributeValue, TypedValue } from '@czo/attribute/services'
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import { AdoptionService } from './adoption'
 import { AttributeAssignmentService } from './attribute-assignment'
 import { ProductService } from './product'
 import { ProductTypeService } from './product-type'
+import { purgeDeferred } from './subscribers/unadopt-queue'
 import { VariantService } from './variant'
 
 layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService', (it) => {
@@ -91,7 +91,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       }).pipe(Effect.flip)
       expect(err._tag).toBe('ProductNotAdopted')
 
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       yield* adoption.adoptProduct({ productId: p.id, orgId: 1 })
       const rows = yield* assign.assignProductValue({
         productId: p.id,
@@ -164,7 +164,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       yield* declare({ productTypeId: t.id, organizationId: 1, attributeId: attr.id, assignment: 'PRODUCT' })
       const p = yield* makeProduct(null, t.id, 'ext-prod')
       const assign = yield* AttributeAssignmentService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       yield* adoption.adoptProduct({ productId: p.id, orgId: 1 })
       yield* adoption.adoptProduct({ productId: p.id, orgId: 2 })
 
@@ -377,7 +377,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       yield* declare({ productTypeId: t.id, organizationId: null, attributeId: attr.id, assignment: 'PRODUCT' })
       const p = yield* makeProduct(null, t.id, 'ov-prod')
       const assign = yield* AttributeAssignmentService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
 
       // base write (org null)
       yield* assign.assignProductValue({
@@ -413,7 +413,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       const p = yield* makeProduct(null, t.id, 'vsel-prod')
       const variant = yield* makeVariant(p.id)
       const assign = yield* AttributeAssignmentService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
 
       // base write
       yield* assign.assignVariantValue({
@@ -514,7 +514,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       yield* declare({ productTypeId: t.id, organizationId: null, attributeId: numAttr.id, assignment: 'PRODUCT' })
       const p = yield* makeProduct(null, t.id, 'ua-prod')
       const assign = yield* AttributeAssignmentService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
 
       // base writes (org null) — must survive unadopt
       yield* assign.assignProductValue({ productId: p.id, organizationId: null, attributeId: ddAttr.id, value: { valueIds: [v1.id] } })
@@ -530,6 +530,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AttributeAssignmentService',
       expect(before).toHaveLength(3)
 
       yield* adoption.unadoptProduct({ productId: p.id, orgId: 1 })
+      yield* purgeDeferred(p.id, 1)
 
       // after unadopt: org-1 grafts gone, base survives → 1
       const after = yield* assign.listProductValues({ productId: p.id, orgId: 1 })

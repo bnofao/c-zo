@@ -10,6 +10,7 @@ import type { FileInfo } from './schema/scalars'
 // and object refs (e.g. `'Organization'`) resolve against the shared interfaces.
 import '@czo/auth/graphql'
 
+export { assignedAttributeField, assignedAttributesField } from './assigned-field'
 export { attributeNodeGuards } from './node-guards'
 export { type AttributeBuilder, registerAttributeSchema } from './schema'
 export type { AnyAssignment, AttributeAssignment } from './schema/assigned'

@@ -1,9 +1,11 @@
 // @czo/product GraphQL queries (Task 20a).
 //
 // Two read flavours:
-//   - ADMIN by-id / list — gated by the owning org's `product:read` permission
-//     (global rows → the user's global role via `{ auth: true }` defer). Lists
-//     call the service `list*(orgId)` which already merges base ∪ org rows.
+//   - ADMIN by-id / list — gated by the owning org's `product:read` permission;
+//     global (org-null) rows require the GLOBAL `product:read` role (the org-less
+//     `permission` scope), matching the global list connections so the by-id read
+//     is never weaker than the list. Lists call the service `list*(orgId)` which
+//     already merges base ∪ org rows.
 //   - STOREFRONT by-handle / by-slug — PUBLIC (no authScopes); org-scoping is
 //     supplied by an explicit `viewerOrg` arg and enforced inside the service.
 //
@@ -33,6 +35,7 @@ import {
   loadCollectionOrganizationId,
   loadProductOrganizationId,
   loadProductTypeOrganizationId,
+  ownerScope,
 } from './authz'
 import { buildOrderBy, mergeWhere } from './types/merge'
 import { buildProductWhere } from './types/where'
@@ -46,12 +49,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
       subGraphs: ['org', 'admin'],
       description: 'Fetch a single product type by id (admin). A global type requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'ProductType', required: true, description: 'The relay global id of the ProductType to fetch.' }) },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductTypeOrganizationId(ctx, Number(args.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['read'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductTypeOrganizationId(ctx, Number(args.id.id)), ['read']),
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(
           Effect.gen(function* () {
@@ -121,12 +119,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
       subGraphs: ['org', 'admin'],
       description: 'Fetch a single product by id (admin). A global product requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Product', required: true, description: 'The relay global id of the Product to fetch.' }) },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductOrganizationId(ctx, Number(args.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['read'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.id.id)), ['read']),
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(
           Effect.gen(function* () {
@@ -292,12 +285,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
       subGraphs: ['org', 'admin'],
       description: 'Fetch a single category by id (admin). A global category requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Category', required: true, description: 'The relay global id of the Category to fetch.' }) },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCategoryOrganizationId(ctx, Number(args.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['read'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.id.id)), ['read']),
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(
           Effect.gen(function* () {
@@ -367,12 +355,7 @@ export function registerProductQueries(builder: ProductGraphQLSchemaBuilder): vo
       subGraphs: ['org', 'admin'],
       description: 'Fetch a single collection by id (admin). Collections are org-only; requires `product:read` in the owning org. Returns null if not found or soft-deleted.',
       args: { id: t.arg.globalID({ for: 'Collection', required: true, description: 'The relay global id of the Collection to fetch.' }) },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadCollectionOrganizationId(ctx, Number(args.id.id))
-        if (organization == null)
-          return { auth: true }
-        return { permission: { resource: 'product', actions: ['read'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.id.id)), ['read']),
       resolve: async (_root, args, ctx) =>
         ctx.runEffect(
           Effect.gen(function* () {

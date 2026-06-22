@@ -1,10 +1,8 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
-import type { ProductNotAdopted } from './adoption'
-import type { ProductNotFound } from './product'
+import type { ProductNotAdopted, ProductNotFound } from './product'
 import type { ProductTypeNotFound } from './product-type'
-import type { AttributeType, ValueKind } from './value-kind'
 import type { VariantNotFound } from './variant'
 import {
   attributeReferenceValues as attributeReferenceValuesTable,
@@ -19,15 +17,13 @@ import {
   productAttributeValues as productAttributeValuesTable,
   variantAttributeValues as variantAttributeValuesTable,
 } from '../database/schema'
-import { AdoptionService } from './adoption'
 import { ProductService } from './product'
 import { ProductTypeService } from './product-type'
-import { isSelectType, valueKindForType } from './value-kind'
 import { VariantService } from './variant'
 
 // ─── Re-export propagated errors for callers that import from this file ───────
 
-export { ProductNotAdopted } from './adoption'
+export { ProductNotAdopted } from './product'
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
 
@@ -63,13 +59,8 @@ export interface SelectValue {
   readonly valueIds: ReadonlyArray<number>
 }
 
-/** Scalar value: exactly one of the typed shapes, discriminated by presence. */
-export type ScalarValue
-  = | { readonly text: { readonly plain: string, readonly rich?: unknown | null } }
-    | { readonly numeric: number }
-    | { readonly boolean: boolean }
-    | { readonly date: Date }
-    | { readonly file: { readonly fileUrl: string, readonly mimetype: string } }
+/** Scalar value shape — owned by `@czo/attribute` (aliased here for callers). */
+export type ScalarValue = TypedValue.ScalarValue
 
 export type AssignmentValue = SelectValue | ScalarValue
 
@@ -112,11 +103,6 @@ type AttributeAssignmentServiceImpl = Context.Service.Shape<typeof AttributeAssi
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
-/** Select kinds carry a catalog id; scalar kinds carry a typed-value id. */
-function isSelectKind(kind: ValueKind): boolean {
-  return kind === 'VALUE' || kind === 'SWATCH' || kind === 'REFERENCE'
-}
-
 /** Narrow an `AssignmentValue` to its select form. */
 function asSelect(value: AssignmentValue): SelectValue | null {
   return 'valueIds' in value ? value : null
@@ -129,7 +115,6 @@ export const make = Effect.gen(function* () {
   const productService = yield* ProductService
   const variantService = yield* VariantService
   const typeService = yield* ProductTypeService
-  const adoptionService = yield* AdoptionService
   const attributeService = yield* Attribute.AttributeService
   const typedValueService = yield* TypedValue.TypedValueService
 
@@ -138,8 +123,8 @@ export const make = Effect.gen(function* () {
     eff.pipe(Effect.mapError(cause => new ProductAssignmentDbFailed({ cause })))
 
   /** Load the attribute's `type` once, folding attribute-module errors. */
-  const resolveAttributeType = (attributeId: number): Effect.Effect<AttributeType, ProductAssignmentDbFailed> =>
-    dbErr(attributeService.findById(attributeId)).pipe(Effect.map(attr => attr.type as AttributeType))
+  const resolveAttributeType = (attributeId: number): Effect.Effect<Attribute.AttributeType, ProductAssignmentDbFailed> =>
+    dbErr(attributeService.findById(attributeId)).pipe(Effect.map(attr => attr.type as Attribute.AttributeType))
 
   /**
    * Type-gating: the attribute must be declared on the type for this org at the
@@ -165,14 +150,14 @@ export const make = Effect.gen(function* () {
         return yield* Effect.fail(new AttributeNotAssignedToType())
     })
 
-  /** Validate that a select-catalog row exists for (kind, attributeId, valueId). */
-  const ensureCatalogValue = (kind: ValueKind, attributeId: number, valueId: number) =>
+  /** Validate that a select-catalog row exists for (type, attributeId, valueId). */
+  const ensureCatalogValue = (type: Attribute.AttributeType, attributeId: number, valueId: number) =>
     Effect.gen(function* () {
-      const table = kind === 'SWATCH'
+      const table = type === 'SWATCH'
         ? attributeSwatchValuesTable
-        : kind === 'REFERENCE'
+        : type === 'REFERENCE'
           ? attributeReferenceValuesTable
-          : attributeValuesTable
+          : attributeValuesTable // DROPDOWN / MULTISELECT
       const [row] = yield* dbErr(db
         .select({ id: table.id, attributeId: table.attributeId })
         .from(table)
@@ -182,66 +167,9 @@ export const make = Effect.gen(function* () {
         return yield* Effect.fail(new ValueKindMismatch())
     })
 
-  /**
-   * Create the scalar typed-value row matching `kind`, returning its id. A value
-   * shape that does not match the kind surfaces as ValueKindMismatch.
-   */
-  const mintScalar = (kind: ValueKind, attributeId: number, organizationId: number | null, value: AssignmentValue) =>
-    Effect.gen(function* () {
-      if (kind === 'TEXT') {
-        if (!('text' in value))
-          return yield* Effect.fail(new ValueKindMismatch())
-        const row = yield* dbErr(typedValueService.createText({ attributeId, organizationId, plain: value.text.plain, rich: value.text.rich ?? null }))
-        return row.id
-      }
-      if (kind === 'NUMERIC') {
-        if (!('numeric' in value))
-          return yield* Effect.fail(new ValueKindMismatch())
-        const row = yield* dbErr(typedValueService.createNumeric({ attributeId, organizationId, value: value.numeric }))
-        return row.id
-      }
-      if (kind === 'BOOLEAN') {
-        if (!('boolean' in value))
-          return yield* Effect.fail(new ValueKindMismatch())
-        const row = yield* dbErr(typedValueService.createBoolean({ attributeId, organizationId, value: value.boolean }))
-        return row.id
-      }
-      if (kind === 'DATE') {
-        if (!('date' in value))
-          return yield* Effect.fail(new ValueKindMismatch())
-        const row = yield* dbErr(typedValueService.createDate({ attributeId, organizationId, value: value.date }))
-        return row.id
-      }
-      // FILE
-      if (!('file' in value))
-        return yield* Effect.fail(new ValueKindMismatch())
-      const row = yield* dbErr(typedValueService.createFile({ attributeId, organizationId, fileUrl: value.file.fileUrl, mimetype: value.file.mimetype }))
-      return row.id
-    })
-
-  /** Delete the scalar typed-value row of `kind` by id (orphan cleanup). */
-  const deleteScalar = (kind: ValueKind, valueId: number) =>
-    Effect.gen(function* () {
-      switch (kind) {
-        case 'TEXT':
-          yield* dbErr(typedValueService.deleteText(valueId))
-          break
-        case 'NUMERIC':
-          yield* dbErr(typedValueService.deleteNumeric(valueId))
-          break
-        case 'BOOLEAN':
-          yield* dbErr(typedValueService.deleteBoolean(valueId))
-          break
-        case 'DATE':
-          yield* dbErr(typedValueService.deleteDate(valueId))
-          break
-        case 'FILE':
-          yield* dbErr(typedValueService.deleteFile(valueId))
-          break
-        default:
-          break
-      }
-    })
+  /** Map a `createScalar`/`deleteScalar` failure into this service's error union. */
+  const mapScalarError = (e: { readonly _tag: string }) =>
+    e._tag === 'TypedValueShapeMismatch' ? new ValueKindMismatch() : new ProductAssignmentDbFailed({ cause: e })
 
   // ── assignProductValue ──────────────────────────────────────────────────────
 
@@ -252,23 +180,22 @@ export const make = Effect.gen(function* () {
         Effect.mapError(e => e._tag === 'ProductNotFound' ? e : new ProductAssignmentDbFailed({ cause: e })),
       )
       if (product.organizationId === null && input.organizationId !== null)
-        yield* adoptionService.requireAdopted({ productId: input.productId, orgId: input.organizationId })
+        yield* productService.requireAdopted({ productId: input.productId, orgId: input.organizationId })
 
-      // 1-2. Resolve attribute type + kind.
+      // 1. Resolve the attribute's type.
       const type = yield* resolveAttributeType(input.attributeId)
-      const kind = valueKindForType(type)
 
       // 3. Type-gating at PRODUCT level.
       yield* ensureDeclared(product.productTypeId, input.organizationId, input.attributeId, 'PRODUCT')
 
       // 4-6. Validate shape + persist pivot rows.
-      if (isSelectType(type)) {
+      if (Attribute.isSelectType(type)) {
         const select = asSelect(input.value)
         if (!select)
           return yield* Effect.fail(new ValueKindMismatch())
         const rows: ProductAttributeValue[] = []
         for (const valueId of select.valueIds) {
-          yield* ensureCatalogValue(kind, input.attributeId, valueId)
+          yield* ensureCatalogValue(type, input.attributeId, valueId)
           const [row] = yield* dbErr(db.insert(productAttributeValuesTable).values({
             productId: input.productId,
             organizationId: input.organizationId,
@@ -279,7 +206,11 @@ export const make = Effect.gen(function* () {
         }
         return rows
       }
-      const newValueId = yield* mintScalar(kind, input.attributeId, input.organizationId, input.value)
+      if ('valueIds' in input.value) // a select value given for a scalar attribute
+        return yield* Effect.fail(new ValueKindMismatch())
+      const newValueId = yield* typedValueService
+        .createScalar(type, input.attributeId, input.organizationId, input.value)
+        .pipe(Effect.mapError(mapScalarError))
       const [row] = yield* dbErr(db.insert(productAttributeValuesTable).values({
         productId: input.productId,
         organizationId: input.organizationId,
@@ -303,23 +234,22 @@ export const make = Effect.gen(function* () {
 
       // 0. Adoption guard.
       if (product.organizationId === null && input.organizationId !== null)
-        yield* adoptionService.requireAdopted({ productId: product.id, orgId: input.organizationId })
+        yield* productService.requireAdopted({ productId: product.id, orgId: input.organizationId })
 
-      // 1-2. kind.
+      // 1. Resolve the attribute's type.
       const type = yield* resolveAttributeType(input.attributeId)
-      const kind = valueKindForType(type)
 
       // 3. Type-gating at VARIANT level.
       yield* ensureDeclared(product.productTypeId, input.organizationId, input.attributeId, 'VARIANT')
 
       // 4-6. Persist.
-      if (isSelectType(type)) {
+      if (Attribute.isSelectType(type)) {
         const select = asSelect(input.value)
         if (!select)
           return yield* Effect.fail(new ValueKindMismatch())
         const rows: VariantAttributeValue[] = []
         for (const valueId of select.valueIds) {
-          yield* ensureCatalogValue(kind, input.attributeId, valueId)
+          yield* ensureCatalogValue(type, input.attributeId, valueId)
           const [row] = yield* dbErr(db.insert(variantAttributeValuesTable).values({
             variantId: input.variantId,
             organizationId: input.organizationId,
@@ -330,7 +260,11 @@ export const make = Effect.gen(function* () {
         }
         return rows
       }
-      const newValueId = yield* mintScalar(kind, input.attributeId, input.organizationId, input.value)
+      if ('valueIds' in input.value) // a select value given for a scalar attribute
+        return yield* Effect.fail(new ValueKindMismatch())
+      const newValueId = yield* typedValueService
+        .createScalar(type, input.attributeId, input.organizationId, input.value)
+        .pipe(Effect.mapError(mapScalarError))
       const [row] = yield* dbErr(db.insert(variantAttributeValuesTable).values({
         variantId: input.variantId,
         organizationId: input.organizationId,
@@ -347,11 +281,11 @@ export const make = Effect.gen(function* () {
       const pivot = yield* dbErr(db.query.productAttributeValues.findFirst({ where: { id: pivotId } }))
       if (!pivot)
         return yield* Effect.fail(new AssignmentNotFound())
-      // The kind isn't stored on the pivot — derive it from the attribute's type.
-      const kind = valueKindForType(yield* resolveAttributeType(pivot.attributeId))
+      // The type isn't stored on the pivot — derive it from the attribute.
+      const type = yield* resolveAttributeType(pivot.attributeId)
       yield* dbErr(db.delete(productAttributeValuesTable).where(eq(productAttributeValuesTable.id, pivotId)))
-      if (!isSelectKind(kind))
-        yield* deleteScalar(kind, pivot.valueId)
+      // `deleteScalar` no-ops for select/catalog types, so no pre-filter needed.
+      yield* dbErr(typedValueService.deleteScalar(type, pivot.valueId))
     })
 
   const unassignVariantValue: AttributeAssignmentServiceImpl['unassignVariantValue'] = pivotId =>
@@ -359,11 +293,11 @@ export const make = Effect.gen(function* () {
       const pivot = yield* dbErr(db.query.variantAttributeValues.findFirst({ where: { id: pivotId } }))
       if (!pivot)
         return yield* Effect.fail(new AssignmentNotFound())
-      // The kind isn't stored on the pivot — derive it from the attribute's type.
-      const kind = valueKindForType(yield* resolveAttributeType(pivot.attributeId))
+      // The type isn't stored on the pivot — derive it from the attribute.
+      const type = yield* resolveAttributeType(pivot.attributeId)
       yield* dbErr(db.delete(variantAttributeValuesTable).where(eq(variantAttributeValuesTable.id, pivotId)))
-      if (!isSelectKind(kind))
-        yield* deleteScalar(kind, pivot.valueId)
+      // `deleteScalar` no-ops for select/catalog types, so no pre-filter needed.
+      yield* dbErr(typedValueService.deleteScalar(type, pivot.valueId))
     })
 
   // ── overlay reads ─────────────────────────────────────────────────────────

@@ -189,33 +189,37 @@ export function mergeModuleDb(modules: ReadonlyArray<Module>): {
   return { dbSchemas, relations }
 }
 
+/**
+ * Compose module layers (deps-first `provideMerge` fold) and wire `DrizzleDb`
+ * (+ optional host `services`) so module-internal services resolve it, while
+ * keeping `DrizzleDb` in the surface outputs. Shared by `buildApp` (HTTP) and
+ * `buildRuntime` (worker) so the two never derive the runtime differently.
+ */
+export function foldModuleLayers(
+  modules: ReadonlyArray<Module>,
+  drizzleLayer: Layer.Layer<DrizzleDb, unknown, never>,
+  services?: Layer.Layer<any, unknown, never>,
+): Layer.Layer<DrizzleDb, unknown, never> {
+  const raw = modules.reduce<Layer.Layer<never, never, never>>(
+    (acc, m) => Layer.provideMerge(m.layer, acc),
+    Layer.empty,
+  )
+  return raw.pipe(
+    Layer.provideMerge(services ? Layer.mergeAll(drizzleLayer, services) : drizzleLayer),
+  ) as Layer.Layer<DrizzleDb, unknown, never>
+}
+
 export function buildApp(options: BuildAppOptions): BuiltApp {
   // 1. Merge DB contributions (schemas + relations) — see `mergeModuleDb`.
   const { dbSchemas, relations } = mergeModuleDb(options.modules)
 
-  // 2. Module layers — fold with `provideMerge` so each module is
-  //    provided by all earlier modules: a module listed AFTER its
-  //    dependencies (e.g. `stock-location` after `auth`) resolves their
-  //    exported services (`OrganizationService`, `AccessService`) at its
-  //    own construction. Sibling `Layer.merge` does NOT cross-wire — it
-  //    would leave the dependent's requirement unsatisfied at build time.
-  //    `provideMerge` keeps every module's outputs visible at the surface.
-  //    NB: each `m.layer` is typed `Layer<never, never, never>` via the
-  //    contract's cast, but at runtime the services it provides (e.g.
-  //    `UserService`) reach for `DrizzleDb`. `DrizzleLayer` is piped in
-  //    below so those resolutions succeed.
-  const moduleLayersRaw = options.modules.reduce<Layer.Layer<never, never, never>>(
-    (acc, m) => Layer.provideMerge(m.layer, acc),
-    Layer.empty,
-  )
-
-  // 3. GraphQL contributions — flat-map keeps O(n) and skips undefined.
+  // 2. GraphQL contributions — flat-map keeps O(n) and skips undefined.
   const graphQLContributions = options.modules.flatMap(m => m.graphql?.contribution ? [m.graphql.contribution] : [])
   const authScopes = options.modules.flatMap(m => m.graphql?.authScope ? [m.graphql.authScope] : [])
   const graphQLContexts = options.modules.flatMap(m => m.graphql?.contexts ? [m.graphql.contexts] : [])
   const nodeGuards = Object.assign({}, ...options.modules.flatMap(m => m.graphql?.nodeGuards ? [m.graphql.nodeGuards] : []))
 
-  // 4. Infrastructure layers.
+  // 3. Infrastructure layers.
   const SchemaRegistryLayer = buildSchemaRegistryLayer(dbSchemas, relations)
   const DrizzleLayer = options.db ?? DrizzleDbLayer.pipe(
     Layer.provide(SchemaRegistryLayer),
@@ -236,11 +240,7 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   // construction. `provideMerge` keeps `DrizzleDb` in the layer's
   // outputs so the rest of the program (main effect, resolvers) can
   // still pull it.
-  const moduleLayers = moduleLayersRaw.pipe(
-    Layer.provideMerge(
-      options.services ? Layer.mergeAll(DrizzleLayer, options.services) : DrizzleLayer,
-    ),
-  )
+  const moduleLayers = foldModuleLayers(options.modules, DrizzleLayer, options.services)
 
   const appLayer = options.services
     ? Layer.mergeAll(moduleLayers, GraphQLBuilderLayer, RateLimiterLive, options.services)
@@ -444,9 +444,64 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
   return { program, modules: options.modules, startup, started, teardown, assembleApp, appLayer }
 }
 
+export interface BuildRuntimeOptions {
+  readonly modules: ReadonlyArray<Module>
+  readonly services?: Layer.Layer<any, unknown, never>
+  readonly db?: Layer.Layer<DrizzleDb, unknown, never>
+}
+
+/**
+ * HTTP-less sibling of `buildApp`: composes the module runtime (services +
+ * `DrizzleDb`) and the sequenced lifecycle effects, WITHOUT GraphQL/Yoga. The
+ * worker process provides this + a `PersistedQueueFactory` and forks each
+ * module's `queues` consumers.
+ */
+export function buildRuntime(options: BuildRuntimeOptions): {
+  runtimeLayer: Layer.Layer<DrizzleDb, unknown, never>
+  startup: Effect.Effect<void>
+  started: Effect.Effect<void>
+  teardown: Effect.Effect<void>
+  modules: ReadonlyArray<Module>
+} {
+  const { dbSchemas, relations } = mergeModuleDb(options.modules)
+  const drizzleLayer = options.db ?? DrizzleDbLayer.pipe(
+    Layer.provide(buildSchemaRegistryLayer(dbSchemas, relations)),
+    Layer.provide(DatabaseConfigFromEnv),
+  )
+  const runtimeLayer = foldModuleLayers(options.modules, drizzleLayer, options.services)
+  const startup = Effect.gen(function* () {
+    for (const m of options.modules) {
+      if (m.onStart)
+        yield* m.onStart
+    }
+  })
+  const started = Effect.gen(function* () {
+    for (const m of options.modules) {
+      if (m.onStarted)
+        yield* m.onStarted
+    }
+  })
+  const teardown = Effect.gen(function* () {
+    for (const m of [...options.modules].reverse()) {
+      if (m.onStop)
+        yield* m.onStop
+    }
+  })
+  return { runtimeLayer, startup, started, teardown, modules: options.modules }
+}
+
 const ConfigProviderLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnv()).pipe(
   Layer.provide(NodeFileSystem.layer),
 )
+
+/**
+ * Run a long-running worker program. Mirrors `runApp`'s run mechanism
+ * (`NodeRuntime.runMain` + `ConfigProviderLayer`) so the worker process owns
+ * signal handling + exit codes; the program parks on `Effect.never`.
+ */
+export function runWorker(program: Effect.Effect<void, unknown, never>): void {
+  NodeRuntime.runMain(program.pipe(Effect.provide(ConfigProviderLayer)))
+}
 
 /**
  * Production entry point — hands the built program to `NodeRuntime.runMain`

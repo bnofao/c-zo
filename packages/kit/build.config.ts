@@ -20,6 +20,7 @@ export default defineBuildConfig({
     'src/openapi/index',
     'src/graphql/index',
     'src/db/index',
+    'src/queue/index',
     'src/ratelimit/index',
     'src/testing/index',
   ],

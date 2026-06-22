@@ -9,9 +9,9 @@
  *    `AccessService`;
  *  - `ProductModuleLive` requires `DrizzleDb` (provided by `buildApp`);
  *  - authorization is enforced at request time by auth's `permission` authScope
- *    (membership + permission), reached via `ctx.runEffect`; global/base rows
- *    are readable by any authenticated viewer, org-owned rows require the
- *    `permission` scope.
+ *    (membership + permission), reached via `ctx.runEffect`; global (org-null)
+ *    rows require the GLOBAL `product` role (the org-less `permission` scope),
+ *    org-owned rows require the `permission` scope in their org.
  *
  * The host manifest must therefore list this module AFTER all of the above.
  */
@@ -21,7 +21,7 @@ import { defineModule } from '@czo/kit/module'
 import { productNodeGuards, registerProductSchema } from '@czo/product/graphql'
 import { productRelations } from '@czo/product/relations'
 import * as productSchema from '@czo/product/schema'
-import { ProductModuleLive } from '@czo/product/services'
+import { ProductModuleLive, unadoptCleanupConsumer } from '@czo/product/services'
 import { Effect } from 'effect'
 
 // Access domain for products. Statements enumerate the permissions a role may
@@ -56,6 +56,7 @@ export default defineModule(() => ({
     // never a weaker read than the per-id queries.
     nodeGuards: productNodeGuards,
   },
+  queues: [unadoptCleanupConsumer],
   onStart: Effect.gen(function* () {
     const access = yield* Access.AccessService
     yield* access.register({

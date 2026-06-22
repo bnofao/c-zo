@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect'
 import { ProductPostgresLayer, truncateProduct } from '../testing/postgres'
 import * as Cat from './category'
 import * as Col from './collection'
+import { layer as ProductEventsLayer } from './events/product'
 import * as Prod from './product'
 import * as ProductType from './product-type'
 import * as Tr from './translation'
@@ -16,6 +17,7 @@ const TestLayer = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(Prod.ProductServiceLive),
   Layer.provideMerge(ProductType.ProductTypeServiceLive),
+  Layer.provideMerge(ProductEventsLayer),
   Layer.provideMerge(ProductPostgresLayer),
 )
 

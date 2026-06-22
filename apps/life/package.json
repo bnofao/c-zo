@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development node --import ./src/register-otel.mjs --import tsx --watch src/main.ts",
+    "worker": "node --import ./src/register-otel.mjs --import tsx src/worker.ts",
     "start": "node --import ./src/register-otel.mjs --import tsx src/main.ts",
     "emit:sdl": "node --import tsx scripts/emit-admin-sdl.ts",
     "check-types": "pnpm tsc --noEmit",

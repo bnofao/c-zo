@@ -15,15 +15,9 @@ import {
   loadCollectionOrganizationId,
   loadProductOrganizationId,
   loadVariantOrganizationId,
+  ownerScope,
 } from '../authz'
 import { sg } from '../subgraphs'
-
-/** Build the dual scope from a resolved entity org (null → global perm). */
-function scopeFor(organization: number | null) {
-  if (organization == null)
-    return { permission: { resource: 'product' as const, actions: ['update' as const] } }
-  return { permission: { resource: 'product' as const, actions: ['update' as const], organization } }
-}
 
 export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilder): void {
   // ── Product translations ───────────────────────────────────────────────────
@@ -50,8 +44,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       description:
         'Creates or updates the localized translation of a product\'s name and description for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadProductOrganizationId(ctx, Number(args.input.productId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.input.productId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -99,8 +92,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a product for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadProductOrganizationId(ctx, Number(args.input.productId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.input.productId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -147,8 +139,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       description:
         'Creates or updates the localized translation of a category\'s name and description for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -196,8 +187,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a category for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCategoryOrganizationId(ctx, Number(args.input.categoryId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -244,8 +234,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       description:
         'Creates or updates the localized translation of a collection\'s name and description for the given locale.',
       errors: { types: [], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -293,8 +282,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org').field,
       description: 'Deletes the localized translation row of a collection for the given locale.',
       errors: { types: [], ...sg('org').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadCollectionOrganizationId(ctx, Number(args.input.collectionId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -340,8 +328,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       description:
         'Creates or updates the localized translation of a product variant\'s name for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(
@@ -388,8 +375,7 @@ export function registerTranslationMutations(builder: ProductGraphQLSchemaBuilde
       ...sg('org', 'admin').field,
       description: 'Deletes the localized translation row of a product variant for the given locale.',
       errors: { types: [], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) =>
-        scopeFor(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id))),
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadVariantOrganizationId(ctx, Number(args.input.variantId.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         await ctx.runEffect(

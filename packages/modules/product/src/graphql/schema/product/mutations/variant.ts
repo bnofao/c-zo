@@ -14,7 +14,7 @@ import {
   VariantNotFound,
   VariantService,
 } from '../../../../services'
-import { loadProductOrganizationId, loadVariantOrganizationId } from '../authz'
+import { loadProductOrganizationId, loadVariantOrganizationId, ownerScope } from '../authz'
 import { sg } from '../subgraphs'
 
 export function registerVariantMutations(builder: ProductGraphQLSchemaBuilder): void {
@@ -34,12 +34,7 @@ export function registerVariantMutations(builder: ProductGraphQLSchemaBuilder): 
       ...sg('org', 'admin').field,
       description: 'Creates a variant under a product. Validates that the option selection is unique among sibling variants; the selection itself is persisted separately via assignVariantValue. Authorization is inherited from the parent product\'s scope (global or org).',
       errors: { types: [VariantNotFound, SkuTaken, DuplicateVariantMatrix], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadProductOrganizationId(ctx, Number(args.input.productId.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['create'] } }
-        return { permission: { resource: 'product', actions: ['create'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadProductOrganizationId(ctx, Number(args.input.productId.id)), ['create']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const variant = await ctx.runEffect(
@@ -75,12 +70,7 @@ export function registerVariantMutations(builder: ProductGraphQLSchemaBuilder): 
       ...sg('org', 'admin').field,
       description: 'Updates a variant\'s sku and position. Uses optimistic locking via the version field. Authorization is inherited from the variant\'s scope (global or org).',
       errors: { types: [VariantNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadVariantOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['update'] } }
-        return { permission: { resource: 'product', actions: ['update'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadVariantOrganizationId(ctx, Number(args.input.id.id)), ['update']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const variant = await ctx.runEffect(
@@ -114,12 +104,7 @@ export function registerVariantMutations(builder: ProductGraphQLSchemaBuilder): 
       ...sg('org', 'admin').field,
       description: 'Soft-deletes a variant by setting its deletedAt timestamp. Uses optimistic locking via the version field. Authorization is inherited from the variant\'s scope (global or org).',
       errors: { types: [VariantNotFound, OptimisticLockError], ...sg('org', 'admin').errorOpts },
-      authScopes: async (_parent, args, ctx) => {
-        const organization = await loadVariantOrganizationId(ctx, Number(args.input.id.id))
-        if (organization == null)
-          return { permission: { resource: 'product', actions: ['delete'] } }
-        return { permission: { resource: 'product', actions: ['delete'], organization } }
-      },
+      authScopes: async (_parent, args, ctx) => ownerScope(await loadVariantOrganizationId(ctx, Number(args.input.id.id)), ['delete']),
       resolve: async (_root, args, ctx) => {
         const input = args.input
         const variant = await ctx.runEffect(

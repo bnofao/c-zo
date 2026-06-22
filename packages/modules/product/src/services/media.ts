@@ -1,18 +1,17 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
-import type { ProductNotAdopted } from './adoption'
+import type { ProductNotAdopted } from './product'
 import { DrizzleDb, OptimisticLockError, optimisticUpdate } from '@czo/kit/db'
 import { sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { productMedia as productMediaTable, variantMedia as variantMediaTable } from '../database/schema'
-import { AdoptionService } from './adoption'
 import { ProductService } from './product'
 import { VariantService } from './variant'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
-export { ProductNotAdopted } from './adoption'
+export { ProductNotAdopted } from './product'
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
 
@@ -78,7 +77,6 @@ export const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const productService = yield* ProductService
   const variantService = yield* VariantService
-  const adoptionService = yield* AdoptionService
 
   /** Map any DB-layer error to MediaDbFailed. */
   const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
@@ -113,7 +111,7 @@ export const make = Effect.gen(function* () {
         Effect.mapError(e => new MediaDbFailed({ cause: e })),
       )
       if (product.organizationId === null)
-        yield* adoptionService.requireAdopted({ productId: product.id, orgId: organizationId })
+        yield* productService.requireAdopted({ productId: product.id, orgId: organizationId })
     })
 
   const addMedia: MediaServiceImpl['addMedia'] = input =>

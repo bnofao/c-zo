@@ -3,11 +3,11 @@ import { Price } from '@czo/price/services'
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import { AdoptionService } from './adoption'
 import { InventoryBindingService } from './inventory-binding'
 import { PriceBindingService } from './price-binding'
 import { ProductService } from './product'
 import { ProductTypeService } from './product-type'
+import { purgeDeferred } from './subscribers/unadopt-queue'
 import { VariantService } from './variant'
 
 const ORG = 1
@@ -126,7 +126,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('InventoryBindingService', (i
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const svc = yield* InventoryBindingService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const type = yield* makeType(null, 'ib-gt')
       const product = yield* makeProduct(null, type.id, 'ib-gp')
       const variant = yield* makeVariant(product.id)
@@ -147,7 +147,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('InventoryBindingService', (i
       yield* truncateProductAttribute
       const invBind = yield* InventoryBindingService
       const priceBind = yield* PriceBindingService
-      const adoption = yield* AdoptionService
+      const adoption = yield* ProductService
       const priceSvc = yield* Price.PriceService
 
       const type = yield* makeType(null, 'ib-unadopt-t')
@@ -165,6 +165,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('InventoryBindingService', (i
       expect((yield* invBind.listVariantInventoryItems({ variantId: variant.id, orgId: ORG })).length).toBe(1)
 
       yield* adoption.unadoptProduct({ productId: product.id, orgId: ORG })
+      yield* purgeDeferred(product.id, ORG)
 
       expect((yield* priceBind.listVariantPriceSets({ variantId: variant.id, orgId: ORG })).length).toBe(0)
       expect((yield* invBind.listVariantInventoryItems({ variantId: variant.id, orgId: ORG })).length).toBe(0)

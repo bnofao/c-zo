@@ -1,20 +1,19 @@
 import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { Relations } from '../database/relations'
-import type { ProductNotAdopted } from './adoption'
+import type { ProductNotAdopted } from './product'
 import { Channel } from '@czo/channel/services'
 import { DrizzleDb } from '@czo/kit/db'
 import { sql } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { productChannelListings as productChannelListingsTable } from '../database/schema'
-import { AdoptionService } from './adoption'
 import { CrossOrgGraftDenied } from './price-binding'
 import { ProductNotFound, ProductService } from './product'
 
 // ─── Re-export for callers that only import from this file ────────────────────
 
-export { ProductNotAdopted } from './adoption'
 export { CrossOrgGraftDenied } from './price-binding'
+export { ProductNotAdopted } from './product'
 export { ProductNotFound } from './product'
 
 // ─── Tagged errors ────────────────────────────────────────────────────────────
@@ -84,7 +83,6 @@ type ChannelListingServiceImpl = Context.Service.Shape<typeof ChannelListingServ
 export const make = Effect.gen(function* () {
   const db = (yield* DrizzleDb) as Database<Relations>
   const productService = yield* ProductService
-  const adoptionService = yield* AdoptionService
   const channelService = yield* Channel.ChannelService
 
   /** Map any DB-layer error to ChannelListingDbFailed. */
@@ -106,7 +104,7 @@ export const make = Effect.gen(function* () {
         Effect.mapError(e => e._tag === 'ProductNotFound' ? e : new ChannelListingDbFailed({ cause: e })),
       )
       if (product.organizationId === null) {
-        yield* adoptionService.requireAdopted({ productId: product.id, orgId: organizationId })
+        yield* productService.requireAdopted({ productId: product.id, orgId: organizationId })
         return
       }
       if (product.organizationId !== organizationId)

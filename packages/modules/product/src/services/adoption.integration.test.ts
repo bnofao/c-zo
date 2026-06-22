@@ -9,10 +9,12 @@ import type { Relations } from '../database/relations'
 import { DrizzleDb } from '@czo/kit/db'
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
+import { variantPriceSets as variantPriceSetsTable } from '../database/schema'
 import { ProductAttributeLayer, truncateProductAttribute } from '../testing/cross-module-postgres'
-import * as Adoption from './adoption'
 import * as Prod from './product'
 import * as ProductType from './product-type'
+import { purgeDeferred } from './subscribers/unadopt-queue'
+import * as Variant from './variant'
 
 layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
   // ─── helpers ─────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const adoption = yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       expect(adoption.productId).toBe(p.id)
       expect(adoption.organizationId).toBe(1)
@@ -61,7 +63,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeOrgProduct(1)
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const err = yield* svc.adoptProduct({ productId: p.id, orgId: 2 }).pipe(Effect.flip)
       expect(err._tag).toBe('CannotAdoptOwnedProduct')
     }))
@@ -69,7 +71,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
   it.effect('adopt a non-existent product → ProductNotFound', () =>
     Effect.gen(function* () {
       yield* truncateProductAttribute
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const err = yield* svc.adoptProduct({ productId: 999999, orgId: 1 }).pipe(Effect.flip)
       expect(err._tag).toBe('ProductNotFound')
     }))
@@ -78,7 +80,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       const adopters = yield* svc.listAdopters(p.id)
@@ -92,7 +94,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 99 })
       expect(adopted).toBe(false)
     }))
@@ -101,7 +103,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       const adopted2 = yield* svc.isAdopted({ productId: p.id, orgId: 2 })
       expect(adopted2).toBe(false)
@@ -113,7 +115,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.unadoptProduct({ productId: p.id, orgId: 1 })
       const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 1 })
@@ -130,7 +132,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.unadoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
@@ -142,9 +144,47 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const err = yield* svc.unadoptProduct({ productId: p.id, orgId: 1 }).pipe(Effect.flip)
       expect(err._tag).toBe('AdoptionNotFound')
+    }))
+
+  it.effect('unadopt (hybrid): adoption row gone + deferred grafts remain until purgeDeferred runs', () =>
+    Effect.gen(function* () {
+      yield* truncateProductAttribute
+      const p = yield* makeGlobalProduct()
+      const variantSvc = yield* Variant.VariantService
+      const variant = yield* variantSvc.createVariant({ productId: p.id })
+
+      // Seed a "deferred" graft: a variant price-set row for this org.
+      // variantPriceSets has no FK on priceSetId so we can use a synthetic id.
+      const db = (yield* DrizzleDb) as Database<Relations>
+      yield* db.insert(variantPriceSetsTable).values({
+        variantId: variant.id,
+        organizationId: 1,
+        priceSetId: 99999,
+      })
+
+      const svc = yield* Prod.ProductService
+      yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
+      yield* svc.unadoptProduct({ productId: p.id, orgId: 1 })
+
+      // (a) Adoption row is gone (sync).
+      const adopted = yield* svc.isAdopted({ productId: p.id, orgId: 1 })
+      expect(adopted).toBe(false)
+
+      // (b) Deferred grafts are STILL present — no worker ran, no queue wired.
+      const graftsAfterUnadopt = yield* db.query.variantPriceSets.findMany({
+        where: { variantId: variant.id, organizationId: 1 },
+      })
+      expect(graftsAfterUnadopt.length).toBe(1)
+
+      // (c) Calling purgeDeferred directly removes them (worker equivalent).
+      yield* purgeDeferred(p.id, 1)
+      const graftsAfterPurge = yield* db.query.variantPriceSets.findMany({
+        where: { variantId: variant.id, organizationId: 1 },
+      })
+      expect(graftsAfterPurge.length).toBe(0)
     }))
 
   // ─── requireAdopted ───────────────────────────────────────────────────────
@@ -153,7 +193,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.requireAdopted({ productId: p.id, orgId: 1 })
       // no error thrown — test passes implicitly
@@ -163,7 +203,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       const err = yield* svc.requireAdopted({ productId: p.id, orgId: 1 }).pipe(Effect.flip)
       expect(err._tag).toBe('ProductNotAdopted')
     }))
@@ -181,7 +221,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
       // Org-1-owned product (not adoptable)
       const orgOwned = yield* makeOrgProduct(1, 'org-owned')
 
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
       yield* svc.adoptProduct({ productId: global1.id, orgId: 1 })
       yield* svc.adoptProduct({ productId: global2.id, orgId: 2 })
 
@@ -201,7 +241,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
       const adopted = yield* makeGlobalProduct('adopted-g')
       const unadopted = yield* makeGlobalProduct('unadopted-g')
 
-      const adoptionSvc = yield* Adoption.AdoptionService
+      const adoptionSvc = yield* Prod.ProductService
       yield* adoptionSvc.adoptProduct({ productId: adopted.id, orgId: 1 })
 
       const prodSvc = yield* Prod.ProductService
@@ -217,7 +257,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct('readopt-g')
-      const adoptionSvc = yield* Adoption.AdoptionService
+      const adoptionSvc = yield* Prod.ProductService
       yield* adoptionSvc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* adoptionSvc.unadoptProduct({ productId: p.id, orgId: 1 })
 
@@ -234,7 +274,7 @@ layer(ProductAttributeLayer, { timeout: 180_000 })('AdoptionService', (it) => {
     Effect.gen(function* () {
       yield* truncateProductAttribute
       const p = yield* makeGlobalProduct()
-      const svc = yield* Adoption.AdoptionService
+      const svc = yield* Prod.ProductService
 
       yield* svc.adoptProduct({ productId: p.id, orgId: 1 })
       yield* svc.adoptProduct({ productId: p.id, orgId: 2 })

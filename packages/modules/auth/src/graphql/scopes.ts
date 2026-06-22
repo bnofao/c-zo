@@ -3,11 +3,12 @@ import { Effect } from 'effect'
 import { ApiKeyService } from '../services/api-key'
 import { OrganizationService } from '../services/organization'
 import { UserService } from '../services/user'
+import { cachedPermission } from './permission-cache'
 
 export function authScopes(ctx: GraphQLContextMap) {
   return {
     auth: !!ctx?.auth?.user,
-    permission: async (
+    permission: (
       { resource, actions, organization }:
       { resource: string, actions: string[], organization?: number },
     ) => {
@@ -15,31 +16,42 @@ export function authScopes(ctx: GraphQLContextMap) {
       if (!userId)
         return false
 
-      return ctx.runEffect(
-        Effect.gen(function* () {
-          if (organization != null) {
-            // Org-scoped: authorize against the TARGET org using the actor's
-            // member role IN that org. Non-member / roleless member → deny.
-            const orgSvc = yield* OrganizationService
-            const membership = yield* orgSvc.findFirstMember(organization, {
-              where: { userId: Number(userId) },
-            }).pipe(Effect.catchTag('MemberNotFound', () => Effect.succeed(null)))
-            if (!membership?.role)
-              return false
-            const orgPerm = yield* OrganizationService
-            return yield* orgPerm.hasPermission({
-              orgId: String(organization),
-              role: membership.role,
+      // Per-request memo: identical permission checks across multiple graft
+      // fields reuse one evaluation (one `members` lookup) instead of N. Keyed
+      // on the full decision tuple; `ctx` identity scopes it to this request.
+      // `actions` are hardcoded single-word literals (read/update/delete/…), so
+      // `join(',')` is unambiguous; switch to a comma-free separator if action
+      // values ever become composite/config-driven.
+      const key = `${userId}:${organization ?? ''}:${resource}:${actions.join(',')}`
+      return cachedPermission(
+        ctx,
+        key,
+        () => ctx.runEffect(
+          Effect.gen(function* () {
+            if (organization != null) {
+              // Org-scoped: authorize against the TARGET org using the actor's
+              // member role IN that org. Non-member / roleless member → deny.
+              const orgSvc = yield* OrganizationService
+              const membership = yield* orgSvc.findFirstMember(organization, {
+                where: { userId: Number(userId) },
+              }).pipe(Effect.catchTag('MemberNotFound', () => Effect.succeed(null)))
+              if (!membership?.role)
+                return false
+              const orgPerm = yield* OrganizationService
+              return yield* orgPerm.hasPermission({
+                orgId: String(organization),
+                role: membership.role,
+                permissions: { [resource]: actions },
+              })
+            }
+            // No org context — session-based check via UserService.
+            const users = yield* UserService
+            return yield* users.hasPermission({
+              role: ctx.auth?.user?.role ?? undefined,
               permissions: { [resource]: actions },
             })
-          }
-          // No org context — session-based check via UserService.
-          const users = yield* UserService
-          return yield* users.hasPermission({
-            role: ctx.auth?.user?.role ?? undefined,
-            permissions: { [resource]: actions },
-          })
-        }),
+          }),
+        ),
       )
     },
     apiKeyOwner: async (
