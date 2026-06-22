@@ -14,15 +14,22 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@fontsource-variable/geist": "catalog:",
     "@radix-ui/react-slot": "catalog:common",
     "class-variance-authority": "catalog:common",
     "clsx": "catalog:common",
+    "date-fns": "catalog:",
     "lucide-react": "catalog:common",
     "next-themes": "catalog:common",
+    "radix-ui": "catalog:",
     "react": "catalog:common",
+    "react-day-picker": "catalog:",
     "react-dom": "catalog:common",
+    "react-resizable-panels": "catalog:",
     "tailwind-merge": "catalog:common",
     "tw-animate-css": "catalog:common",
+    "vaul": "catalog:",
     "zod": "catalog:common"
   },
   "devDependencies": {
@@ -33,6 +40,7 @@
     "@types/react-dom": "catalog:types",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "shadcn": "catalog:",
     "tailwindcss": "catalog:dev",
     "typescript": "catalog:dev"
   }

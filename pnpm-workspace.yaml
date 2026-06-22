@@ -7,12 +7,20 @@ packages:
 catalog:
   '@adonisjs/fold': ^10.2.0
   '@ariakit/react': ^0.4.15
+  '@base-ui/react': 1.6.0
   '@better-auth/api-key': ^1.6.9
   '@dnd-kit/core': ^6.1.0
   '@dnd-kit/sortable': ^8.0.0
   '@dnd-kit/utilities': ^3.2.2
   '@eddeee888/gcg-typescript-resolver-files': ^0.14.0
+  '@effect/opentelemetry': 4.0.0-beta.70
+  '@effect/platform': 4.0.0-beta.66
+  '@effect/platform-node': 4.0.0-beta.70
+  '@effect/sql-pg': 4.0.0-beta.70
+  '@effect/vitest': 4.0.0-beta.70
+  '@fontsource-variable/geist': ^5.2.9
   '@graphql-tools/schema': 10.0.30
+  '@graphql-typed-document-node/core': ^3.2.0
   '@hookform/error-message': ^2.0.1
   '@hookform/resolvers': 3.4.2
   '@medusajs/admin-sdk': 2.10.3
@@ -47,11 +55,16 @@ catalog:
   '@standard-schema/spec': ^1.1.0
   '@swc/jest': ^0.2.36
   '@tanstack/react-query': 5.64.2
+  '@tanstack/react-router': ^1.170.16
+  '@tanstack/react-router-devtools': ^1.167.0
+  '@tanstack/react-router-with-query': ^1.130.17
+  '@tanstack/react-start': ^1.168.26
   '@tanstack/react-table': 8.20.5
   '@tanstack/react-virtual': ^3.8.3
+  '@tanstack/router-plugin': ^1.168.18
   '@types/jest': ^29.5.13
   '@uiw/react-json-view': ^2.0.0-alpha.17
-  '@vitejs/plugin-react': 4.2.1
+  '@vitejs/plugin-react': ^5.2.0
   ajv: ^8.17.1
   autoprefixer: ^10.4.17
   awilix: ^8.0.1
@@ -61,15 +74,7 @@ catalog:
   cmdk: ^0.2.0
   copy-to-clipboard: ^3.3.3
   date-fns: ^3.6.0
-  # Effect 4 beta — @effect/* packages match `effect` (lockstep). Exception:
-  # @effect/platform has no 4.0.0-beta.70 publish and is not pulled by the
-  # Effect 4 platform-node stack, so it stays at the last available beta.
   effect: 4.0.0-beta.70
-  '@effect/opentelemetry': 4.0.0-beta.70
-  '@effect/platform': 4.0.0-beta.66
-  '@effect/platform-node': 4.0.0-beta.70
-  '@effect/sql-pg': 4.0.0-beta.70
-  '@effect/vitest': 4.0.0-beta.70
   errx: ^0.1.0
   exsolve: ^1.0.7
   graphql-rate-limit-directive: ^2.0.6
@@ -102,18 +107,22 @@ catalog:
   react: ^19.1.1
   react-country-flag: ^3.1.0
   react-currency-input-field: ^3.6.11
+  react-day-picker: ^10.0.1
   react-dom: ^19.1.1
   react-helmet-async: ^2.0.5
   react-hook-form: 7.49.1
   react-i18next: 13.5.0
   react-jwt: ^1.2.0
+  react-resizable-panels: ^4.11.2
   react-router-dom: 6.20.1
+  shadcn: ^4.11.0
   tinyglobby: ^0.2.15
   ts-node: ^10.9.2
   tsup: ^8.0.2
   ulid: ^3.0.1
   unbuild: 3.6.1
   unimport: ^5.4.1
+  vaul: ^1.1.2
   vite-plugin-inspect: ^0.8.7
   yalc: ^1.0.0-pre.53
 
@@ -132,10 +141,11 @@ catalogs:
     vite: ^7.1.7
   common:
     '@adonisjs/fold': ^10.2.0
-    '@node-rs/argon2': ^2.0.2
     '@better-auth/api-key': ^1.6.9
+    '@envelop/graphql-middleware': ^9.1.1
     '@graphql-tools/merge': ^9.1.3
     '@graphql-tools/utils': ^10.8.6
+    '@node-rs/argon2': ^2.0.2
     '@opentelemetry/api': ^1.9.0
     '@radix-ui/react-slot': ^1.2.3
     better-auth: ^1.2.0
@@ -155,7 +165,6 @@ catalogs:
     exsolve: ^1.0.7
     fs-exists-cached: ^1.0.0
     fs-extra: ^11.2.0
-    '@envelop/graphql-middleware': ^9.1.1
     graphql: ^16.11.0
     graphql-middleware: ^6.1.35
     graphql-scalars: ^1.24.0
@@ -165,7 +174,7 @@ catalogs:
     jiti: ^2.6.1
     jose: ^6.0.0
     kysely: ^0.28.8
-    lucide-react: ^0.475.0
+    lucide-react: 0.475.0
     next-themes: ^0.4.6
     node-schedule: ^2.1.1
     pathe: ^2.0.3
@@ -183,17 +192,30 @@ catalogs:
     uuid: ^9.0.0
     yargs: ^15.3.1
     zod: ^4.1.11
+  conflicts_@better-auth/api-key_:
+    '@better-auth/api-key': ''
+  conflicts_@better-auth/api-key_b:
+    '@better-auth/api-key': b
+  conflicts_@better-auth/api-key_ba:
+    '@better-auth/api-key': ba
+  conflicts_conflicts_@better-auth/api-key_b_:
+    '@better-auth/api-key': ''
+  conflicts_conflicts_@better-auth/api-key_b_c:
+    '@better-auth/api-key': c
+  conflicts_conflicts_@better-auth/api-key_b_ca:
+    '@better-auth/api-key': ca
   dev:
     '@antfu/eslint-config': ^5.4.1
-    '@testcontainers/postgresql': ^11.8.0
     '@eddeee888/gcg-typescript-resolver-files': ^0.14.0
     '@eslint-react/eslint-plugin': ^1.52.6
     '@graphql-codegen/cli': ^6.0.1
+    '@graphql-codegen/client-preset': ^4.5.1
     '@graphql-codegen/typescript': ^4.1.6
     '@graphql-codegen/typescript-resolvers': ^4.4.6
     '@next/eslint-plugin-next': ^15.4.5
     '@swc/core': 1.5.7
     '@tailwindcss/postcss': ^4.1.11
+    '@testcontainers/postgresql': ^11.8.0
     '@turbo/gen': ^2.5.5
     drizzle-kit: 1.0.0-rc.3
     eslint-plugin-format: ^1.0.1
@@ -212,6 +234,7 @@ catalogs:
     typescript: ^5.9.2
     unbuild: 3.6.1
     unimport: ^5.4.1
+    vite: ^7.1.7
   inlined:
     '@antfu/utils': ^9.2.1
   testing:
@@ -233,18 +256,6 @@ catalogs:
     '@types/react-dom': ^19.1.7
     '@types/request-ip': ^0.0.41
     '@types/yargs': ^15.0.15
-  conflicts_@better-auth/api-key_:
-    '@better-auth/api-key': ''
-  conflicts_@better-auth/api-key_b:
-    '@better-auth/api-key': b
-  conflicts_@better-auth/api-key_ba:
-    '@better-auth/api-key': ba
-  conflicts_conflicts_@better-auth/api-key_b_:
-    '@better-auth/api-key': ''
-  conflicts_conflicts_@better-auth/api-key_b_c:
-    '@better-auth/api-key': c
-  conflicts_conflicts_@better-auth/api-key_b_ca:
-    '@better-auth/api-key': ca
 
 ignoreWorkspaceRootCheck: true
 
@@ -252,9 +263,6 @@ onlyBuiltDependencies:
   - esbuild
   - simple-git-hooks
 
-# Vendored one-line fix: @pothos/plugin-relay@4.7.0 `globalID({ for })` crashes at
-# schema build when `for` is a string type name (`'parseId' in <string>` throws);
-# the patch guards it with `typeof type === 'object'`. Remove when fixed upstream.
 patchedDependencies:
   '@pothos/plugin-relay@4.7.0': patches/@pothos__plugin-relay@4.7.0.patch
 

@@ -1,0 +1,46 @@
+{
+  "name": "@czo/tour",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "vite build",
+    "start": "node dist/server/server.js",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@czo/kit": "workspace:*",
+    "@graphql-typed-document-node/core": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-router-with-query": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@workspace/ui": "workspace:*",
+    "graphql": "catalog:common",
+    "lucide-react": "catalog:common",
+    "react": "catalog:common",
+    "react-dom": "catalog:common"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "catalog:dev",
+    "@graphql-codegen/client-preset": "catalog:dev",
+    "@tailwindcss/postcss": "catalog:dev",
+    "@tanstack/react-router-devtools": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@types/node": "catalog:types",
+    "@types/react": "catalog:types",
+    "@types/react-dom": "catalog:types",
+    "@vitejs/plugin-react": "catalog:",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "tailwindcss": "catalog:dev",
+    "typescript": "catalog:dev",
+    "vite": "catalog:dev",
+    "vitest": "catalog:testing"
+  }
+}
