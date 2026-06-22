@@ -27,6 +27,16 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
       },
     }))
 
+  // ── me — the current authenticated principal (viewer) ─────────────────────
+  builder.queryField('me', t =>
+    t.field({
+      type: 'User',
+      nullable: true,
+      subGraphs: ['account', 'admin'],
+      description: 'The currently authenticated user (viewer), or null when the request is anonymous. Reads the resolved session principal; any authenticated caller may read itself.',
+      resolve: (_root, _args, ctx) => (ctx.auth?.user ?? null) as never,
+    }))
+
   // ── users(connection) — paginated list with optional search ───────────────
   builder.queryField('users', t =>
     t.drizzleConnection({

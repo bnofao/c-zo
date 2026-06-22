@@ -1,0 +1,37 @@
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { Separator } from '@workspace/ui/components/separator'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@workspace/ui/components/sidebar'
+import { TooltipProvider } from '@workspace/ui/components/tooltip'
+import { AppSidebar } from '../components/app-sidebar'
+import { fetchMe } from '../server/auth.server'
+
+export const Route = createFileRoute('/_authed')({
+  beforeLoad: async () => {
+    const me = await fetchMe()
+    if (!me)
+      throw redirect({ to: '/login' })
+    return { me }
+  },
+  component: AuthedLayout,
+})
+
+function AuthedLayout() {
+  const { me } = Route.useRouteContext()
+  return (
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar me={me} />
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <span className="text-sm font-medium">Czo Admin</span>
+          </header>
+          <div className="flex-1 p-6">
+            <Outlet />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
+  )
+}

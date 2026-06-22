@@ -48,3 +48,10 @@ logs
 lib-cov
 temp
 .worktrees/
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+packages/ui/.ds-entry.mjs
+packages/ui/.ds-compiled.css

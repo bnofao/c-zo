@@ -1,0 +1,4885 @@
+# GENERATED — admin sub-graph SDL. Run `pnpm --filter @czo/life emit:sdl`.
+
+input AddMediaInput {
+  """Accessibility alt text describing the media asset."""
+  alt: String
+
+  """
+  References an Organization node. When null, the media is created as a global BASE row; when set, it is created as an organization-scoped GRAFT over the product.
+  """
+  organizationId: ID
+
+  """Ordering position of the media within the product gallery."""
+  position: Int
+
+  """Identifies the product the media asset is attached to."""
+  productId: Int!
+
+  """The kind of media asset, either IMAGE or VIDEO."""
+  type: ProductMediaType
+
+  """The URL of the media asset to display."""
+  url: String!
+}
+
+type AddMediaPayload {
+  """The newly created product media asset."""
+  media: ProductMedia!
+}
+
+union AddMediaResult = AddMediaSuccess | ProductNotAdoptedError
+
+type AddMediaSuccess {
+  data: AddMediaPayload!
+}
+
+input ApproveListingInput {
+  """Global ID of the ProductChannelListing to approve."""
+  listingId: ID!
+}
+
+type ApproveListingPayload {
+  """The approved listing."""
+  listing: ProductChannelListing!
+}
+
+union ApproveListingResult = ApproveListingSuccess | ChannelListingNotFoundError | MarketplaceCategoryNotGlobalError | NotAMarketplaceChannelError | ProductNotFoundError | ProductTypeNotGlobalError
+
+type ApproveListingSuccess {
+  data: ApproveListingPayload!
+}
+
+input ApproveTaxonomyRequestInput {
+  """Global ID of the request to approve."""
+  requestId: ID!
+}
+
+type ApproveTaxonomyRequestPayload {
+  """The approved request."""
+  request: TaxonomyRequest!
+}
+
+union ApproveTaxonomyRequestResult = ApproveTaxonomyRequestSuccess | AttributeNotFoundError | CategoryAlreadyGlobalError | CategoryNotFoundError | CategoryParentNotGlobalError | CategorySlugTakenError | ProductTypeAlreadyGlobalError | ProductTypeNotFoundError | ProductTypeSlugTakenError | TaxonomyRequestNotFoundError | TaxonomyRequestNotPendingError
+
+type ApproveTaxonomyRequestSuccess {
+  data: ApproveTaxonomyRequestPayload!
+}
+
+input AssignProductValueInput {
+  """
+  The attribute being assigned; it must be declared on the product's type.
+  """
+  attributeId: Int!
+
+  """
+  When null the assignment is a global BASE write; when set it is an org GRAFT scoped to this Organization, requiring a live adoption if the product is global.
+  """
+  organizationId: ID
+
+  """The Product node to assign the value onto."""
+  productId: ID!
+
+  """
+  The value to assign: valueIds for select types, otherwise exactly one scalar member.
+  """
+  value: AssignmentValueInput!
+}
+
+type AssignProductValuePayload {
+  """The ids of the affected assignment pivot rows."""
+  pivotIds: [Int!]!
+}
+
+union AssignProductValueResult = AssignProductValueSuccess | AttributeNotAssignedToTypeError | ProductNotAdoptedError | ProductNotFoundError | ProductTypeNotFoundError | ValueKindMismatchError
+
+type AssignProductValueSuccess {
+  data: AssignProductValuePayload!
+}
+
+input AssignVariantValueInput {
+  """
+  The attribute being assigned; it must be declared on the product's type.
+  """
+  attributeId: Int!
+
+  """
+  When null the assignment is a global BASE write; when set it is an org GRAFT scoped to this Organization, requiring a live adoption if the variant's product is global.
+  """
+  organizationId: ID
+
+  """
+  The value to assign: valueIds for select types, otherwise exactly one scalar member.
+  """
+  value: AssignmentValueInput!
+
+  """The ProductVariant node to assign the value onto."""
+  variantId: ID!
+}
+
+type AssignVariantValuePayload {
+  """The ids of the affected assignment pivot rows."""
+  pivotIds: [Int!]!
+}
+
+union AssignVariantValueResult = AssignVariantValueSuccess | AttributeNotAssignedToTypeError | ProductNotAdoptedError | ProductNotFoundError | ProductTypeNotFoundError | ValueKindMismatchError | VariantNotFoundError
+
+type AssignVariantValueSuccess {
+  data: AssignVariantValuePayload!
+}
+
+"""A file attribute value: the asset URL and its MIME type."""
+input AssignmentFileValueInput {
+  """URL of the uploaded file asset."""
+  fileUrl: String!
+
+  """MIME type of the file (e.g. `application/pdf`)."""
+  mimetype: String!
+}
+
+type AssignmentNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A text attribute value: required plain text plus optional rich (structured JSON) content.
+"""
+input AssignmentTextValueInput {
+  """Plain-text representation of the value."""
+  plain: String!
+
+  """Optional structured rich-text payload (e.g. a document AST)."""
+  rich: JSON
+}
+
+"""
+The value to assign for an attribute. Exactly one member must match the attribute's type: `valueIds` for select types, otherwise one of the scalar members. A mismatched shape is rejected as ValueKindMismatch.
+"""
+input AssignmentValueInput {
+  """For BOOLEAN attributes: the boolean value."""
+  boolean: Boolean
+
+  """For DATE/DATETIME attributes: the date value."""
+  date: DateTime
+
+  """For FILE attributes: the file value."""
+  file: AssignmentFileValueInput
+
+  """For NUMBER attributes: the numeric value."""
+  numeric: Float
+
+  """For TEXT attributes: the text value."""
+  text: AssignmentTextValueInput
+
+  """
+  For select attributes (DROPDOWN/MULTISELECT/SWATCH/REFERENCE): the chosen catalog value id(s).
+  """
+  valueIds: [Int!]
+}
+
+"""
+A typed descriptor that products and variants can carry values for. PLATFORM (organizationId null, platform-admin-managed) or ORG-OWNED. Choice types expose one of the values/swatchValues/referenceValues connections (per `type`); non-choice types hold a single typed value resolved elsewhere.
+"""
+type Attribute implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """
+  Whether this attribute may be used as a storefront/listing filter facet.
+  """
+  isFilterable: Boolean!
+
+  """
+  Whether a value for this attribute is mandatory on the entities that carry it.
+  """
+  isRequired: Boolean!
+
+  """Freeform JSON metadata attached to the attribute."""
+  metadata: JSONObject
+
+  """Human-readable attribute name."""
+  name: String!
+
+  """Owning organization, or null for a PLATFORM (global) attribute."""
+  organizationId: Int
+
+  """
+  For REFERENCE attributes, the name of the entity its values point at; null otherwise.
+  """
+  referenceEntity: String
+
+  """
+  Catalog values for a REFERENCE attribute (ordered by position); empty for other types.
+  """
+  referenceValues(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.
+    """
+    organizationId: ID
+  ): AttributeReferenceValuesConnection!
+
+  """URL-safe slug, unique within the attribute's scope."""
+  slug: String!
+
+  """
+  Catalog values for a SWATCH attribute (ordered by position); empty for other types.
+  """
+  swatchValues(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.
+    """
+    organizationId: ID
+  ): AttributeSwatchValuesConnection!
+
+  """
+  The attribute's type, which fixes how its value(s) are stored and which value connection is populated.
+  """
+  type: AttributeType!
+
+  """For NUMBER attributes, the unit of measure; null otherwise."""
+  unit: AttributeUnit
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Catalog values for a DROPDOWN/MULTISELECT attribute (ordered by position); empty for other types.
+  """
+  values(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Viewer organization. For a global attribute, omit for platform-only values or supply an org to add its values; for an org-owned attribute it must name the owning org.
+    """
+    organizationId: ID
+  ): AttributeValuesConnection!
+
+  """Optimistic-lock version, incremented on each update."""
+  version: Int!
+}
+
+"""The single value of a BOOLEAN attribute."""
+type AttributeBooleanValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """The boolean value."""
+  value: Boolean!
+}
+
+"""The single value of a DATE or DATETIME attribute."""
+type AttributeDateValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """The date/time value."""
+  value: DateTime!
+}
+
+"""The single value of a FILE attribute: the stored file reference."""
+type AttributeFileValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+
+  """The stored file (URL + MIME type)."""
+  file: FileInfo!
+  id: ID!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+}
+
+type AttributeNotAssignedToTypeError implements Error {
+  code: String!
+  message: String!
+}
+
+type AttributeNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+The single value of a NUMBER attribute (interpreted in the attribute's unit, when set).
+"""
+type AttributeNumericValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """The numeric value."""
+  value: Float!
+}
+
+"""
+One ordering clause for the `attributes` connection (field + direction). Multiple clauses are applied in order.
+"""
+input AttributeOrderByInput {
+  """Ascending or descending."""
+  direction: AttributeOrderDirection!
+
+  """The attribute field to sort by."""
+  field: AttributeOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum AttributeOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `attributes` connection can be ordered by."""
+enum AttributeOrderField {
+  CREATED_AT
+  NAME
+  SLUG
+  UPDATED_AT
+}
+
+type AttributeParentNotOwnedError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A catalog value of a REFERENCE attribute: a label pointing at another entity by id.
+"""
+type AttributeReferenceValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Sort order among the attribute's reference values."""
+  position: Int!
+
+  """
+  Id of the referenced entity (interpreted per the attribute's referenceEntity).
+  """
+  referenceId: Int!
+
+  """URL-safe slug, unique within the attribute and scope."""
+  slug: String!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """Human-readable label of the reference."""
+  value: String!
+}
+
+type AttributeReferenceValuesConnection {
+  edges: [AttributeReferenceValuesConnectionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AttributeReferenceValuesConnectionEdge {
+  cursor: String!
+  node: AttributeReferenceValue!
+}
+
+type AttributeSlugTakenError implements Error {
+  code: String!
+  message: String!
+  slug: String!
+}
+
+"""
+A catalog value of a SWATCH attribute: a label plus an optional color and/or image file.
+"""
+type AttributeSwatchValue implements Node {
+  """Optional color (e.g. a hex code) representing the swatch."""
+  color: String
+
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+
+  """Optional image file backing the swatch; null when none is stored."""
+  file: FileInfo
+  id: ID!
+
+  """Sort order among the attribute's swatch values."""
+  position: Int!
+
+  """URL-safe slug, unique within the attribute and scope."""
+  slug: String!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """Human-readable label of the swatch."""
+  value: String!
+}
+
+type AttributeSwatchValuesConnection {
+  edges: [AttributeSwatchValuesConnectionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AttributeSwatchValuesConnectionEdge {
+  cursor: String!
+  node: AttributeSwatchValue!
+}
+
+"""
+The single value of a TEXT attribute: plain text plus optional structured rich content.
+"""
+type AttributeTextValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Plain-text representation of the value."""
+  plain: String!
+
+  """
+  Optional structured rich-text payload (e.g. a document AST); null when unset.
+  """
+  rich: JSONObject
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+}
+
+"""
+The kind of an attribute. Choice types (DROPDOWN, MULTISELECT, SWATCH, REFERENCE) carry a list of catalog values; the rest (TEXT, NUMBER, BOOLEAN, DATE, DATETIME, FILE) carry a single typed value.
+"""
+enum AttributeType {
+  BOOLEAN
+  DATE
+  DATE_TIME
+  DROPDOWN
+  FILE
+  MULTISELECT
+  NUMERIC
+  PLAIN_TEXT
+  REFERENCE
+  RICH_TEXT
+  SWATCH
+}
+
+"""Filter attributes by their type (AttributeType enum)."""
+input AttributeTypeFilterInput {
+  """Match attributes whose type equals this value."""
+  eq: AttributeType
+
+  """Match attributes whose type is any of these values."""
+  in: [AttributeType!]
+
+  """Match attributes whose type differs from this value."""
+  ne: AttributeType
+}
+
+"""
+The unit of measure for a NUMBER attribute (e.g. weight, length, volume); null for non-numeric attributes.
+"""
+enum AttributeUnit {
+  CENTIMETER
+  FOOT
+  GALLON
+  GRAM
+  INCH
+  KILOGRAM
+  LITER
+  METER
+  MILLILITER
+  MILLIMETER
+  OUNCE
+  PERCENT
+  PIECE
+  POUND
+  SQUARE_CENTIMETER
+  SQUARE_METER
+}
+
+"""Filter attributes by their unit (AttributeUnit enum)."""
+input AttributeUnitFilterInput {
+  """Match attributes whose unit equals this value."""
+  eq: AttributeUnit
+
+  """Match attributes whose unit is any of these values."""
+  in: [AttributeUnit!]
+
+  """Match attributes whose unit differs from this value."""
+  ne: AttributeUnit
+}
+
+"""A catalog value of a DROPDOWN or MULTISELECT attribute."""
+type AttributeValue implements Node {
+  """Timestamp when this row was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Sort order among the attribute's values."""
+  position: Int!
+
+  """URL-safe slug, unique within the attribute and scope."""
+  slug: String!
+
+  """Timestamp when this row was last updated."""
+  updatedAt: DateTime!
+
+  """Human-readable label of the value."""
+  value: String!
+}
+
+type AttributeValueNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type AttributeValueSlugTakenError implements Error {
+  code: String!
+  message: String!
+  slug: String!
+}
+
+type AttributeValuesConnection {
+  edges: [AttributeValuesConnectionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type AttributeValuesConnectionEdge {
+  cursor: String!
+  node: AttributeValue!
+}
+
+"""
+Filter predicate for the `attributes` connection. Field filters are AND-combined; use the AND/OR/NOT members to compose arbitrary boolean trees.
+"""
+input AttributeWhereInput {
+  """All sub-predicates must match."""
+  AND: [AttributeWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: AttributeWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [AttributeWhereInput!]
+
+  """Filter by creation timestamp."""
+  createdAt: DateTimeFilterInput
+
+  """Filter by the isFilterable flag."""
+  isFilterable: BooleanFilterInput
+
+  """Filter by the isRequired flag."""
+  isRequired: BooleanFilterInput
+
+  """Filter by attribute name."""
+  name: StringFilterInput
+
+  """Filter by the referenced entity name (REFERENCE attributes)."""
+  referenceEntity: StringFilterInput
+
+  """Filter by attribute slug."""
+  slug: StringFilterInput
+
+  """Filter by attribute type."""
+  type: AttributeTypeFilterInput
+
+  """Filter by attribute unit."""
+  unit: AttributeUnitFilterInput
+
+  """Filter by last-update timestamp."""
+  updatedAt: DateTimeFilterInput
+}
+
+input BanUserInput {
+  """
+  Duration, in seconds, after which the ban expires; omit for a permanent ban.
+  """
+  expiresIn: Int
+
+  """Global ID of the user to ban."""
+  id: ID!
+
+  """Reason recorded for the ban."""
+  reason: String
+}
+
+type BanUserPayload {
+  """The banned user."""
+  user: User!
+}
+
+union BanUserResult = BanUserSuccess | CannotBanSelfError | ForbiddenError | UserAlreadyBannedError | UserNotFoundError
+
+type BanUserSuccess {
+  data: BanUserPayload!
+}
+
+input BooleanFilterInput {
+  AND: [BooleanFilterInput!]
+  NOT: BooleanFilterInput
+  OR: [BooleanFilterInput!]
+  eq: Boolean
+}
+
+type CannotBanSelfError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotChainImpersonationError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotDemoteSelfError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotImpersonateAdminError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotImpersonateBannedUserError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotImpersonateSelfError implements Error {
+  code: String!
+  message: String!
+}
+
+type CannotRemoveSelfError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A node in the category tree. Categories are either global (organizationId null) or owned by a single organization, nest via a self parent/children relation, and group products through many-to-many placements.
+"""
+type Category implements Node {
+  """
+  Direct child categories, excluding soft-deleted ones, ordered by their sibling position.
+  """
+  children(after: String, before: String, first: Int, last: Int): CategoryChildrenConnection!
+
+  """Timestamp at which the category was created."""
+  createdAt: DateTime!
+
+  """
+  Optional descriptive text for the category, resolved for the requested locale and falling back to the base value.
+  """
+  description(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String
+  id: ID!
+
+  """
+  Display name of the category, resolved for the requested locale and falling back to the base value.
+  """
+  name(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String!
+
+  """
+  The owning organization, or null when the category is global and shared across all organizations.
+  """
+  organizationId: Int
+
+  """The parent category in the tree, or null when this is a root category."""
+  parent: Category
+
+  """Sort order of this category among its siblings under the same parent."""
+  position: Int!
+
+  """Product placements that assign products to this category."""
+  products(after: String, before: String, first: Int, last: Int): CategoryProductsConnection!
+
+  """
+  URL-friendly identifier for the category, unique within its owning scope.
+  """
+  slug: String!
+
+  """Timestamp of the most recent update to the category."""
+  updatedAt: DateTime!
+
+  """
+  Optimistic-locking version, incremented on each update to detect concurrent writes.
+  """
+  version: Int!
+}
+
+type CategoryAlreadyGlobalError implements Error {
+  code: String!
+  message: String!
+}
+
+type CategoryChildrenConnection {
+  edges: [CategoryChildrenConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CategoryChildrenConnectionEdge {
+  cursor: String!
+  node: Category!
+}
+
+type CategoryCycleError implements Error {
+  code: String!
+  message: String!
+}
+
+type CategoryNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+One ordering clause for the `categories` connection (field + direction). Multiple clauses are applied in order.
+"""
+input CategoryOrderByInput {
+  """Ascending or descending."""
+  direction: CategoryOrderDirection!
+
+  """The category field to sort by."""
+  field: CategoryOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum CategoryOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `categories` connection can be ordered by."""
+enum CategoryOrderField {
+  CREATED_AT
+  NAME
+  POSITION
+}
+
+type CategoryParentNotGlobalError implements Error {
+  code: String!
+  message: String!
+}
+
+type CategoryProductsConnection {
+  edges: [CategoryProductsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CategoryProductsConnectionEdge {
+  cursor: String!
+  node: ProductCategory!
+}
+
+type CategorySlugTakenError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+Filter predicate for the `categories` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
+"""
+input CategoryWhereInput {
+  """All sub-predicates must match."""
+  AND: [CategoryWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: CategoryWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [CategoryWhereInput!]
+
+  """Filter by the parent category id."""
+  parentId: IntFilterInput
+}
+
+"""
+An organization-scoped sales channel — a storefront or market through which products are sold and published. Links to the stock locations that fulfil it.
+"""
+type Channel implements Node {
+  """Timestamp when the channel was created."""
+  createdAt: DateTime!
+
+  """Optional freeform description of the channel."""
+  description: String
+
+  """URL-safe handle, unique within the owning organization."""
+  handle: String!
+  id: ID!
+
+  """Whether the channel is currently active (available for selling)."""
+  isActive: Boolean!
+
+  """Whether this is the organization's default sales channel."""
+  isDefault: Boolean!
+
+  """Freeform JSON metadata attached to the channel."""
+  metadata: JSONObject
+
+  """Human-readable channel name."""
+  name: String!
+
+  """Timestamp when the channel was last updated."""
+  updatedAt: DateTime!
+
+  """Optimistic-lock version, incremented on each update."""
+  version: Int!
+}
+
+type ChannelHandleTakenError implements Error {
+  code: String!
+  handle: String!
+  message: String!
+}
+
+type ChannelListingNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type ChannelNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+One ordering clause for the `channels` connection (field + direction). Multiple clauses are applied in order.
+"""
+input ChannelOrderByInput {
+  """Ascending or descending."""
+  direction: ChannelOrderDirection!
+
+  """The channel field to sort by."""
+  field: ChannelOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum ChannelOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `channels` connection can be ordered by."""
+enum ChannelOrderField {
+  CREATED_AT
+  HANDLE
+  NAME
+}
+
+"""
+Filter predicate for the `channels` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
+"""
+input ChannelWhereInput {
+  """All sub-predicates must match."""
+  AND: [ChannelWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: ChannelWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [ChannelWhereInput!]
+
+  """Filter by creation timestamp."""
+  createdAt: DateTimeFilterInput
+
+  """Filter by channel handle."""
+  handle: StringFilterInput
+
+  """Filter by active state."""
+  isActive: BooleanFilterInput
+
+  """Filter by default-channel flag."""
+  isDefault: BooleanFilterInput
+
+  """Filter by channel name."""
+  name: StringFilterInput
+
+  """Filter by owning organization id."""
+  organizationId: IntFilterInput
+}
+
+"""
+A curated, organization-scoped grouping of products, related to its members many-to-many. Collections exist only at the organization tier; there is no global collection.
+"""
+type Collection implements Node {
+  """Timestamp at which the collection was created."""
+  createdAt: DateTime!
+
+  """
+  Free-form summary of the collection, returned in the requested locale when a translation exists, otherwise the base value.
+  """
+  description(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String
+  id: ID!
+
+  """
+  Display name of the collection, returned in the requested locale when a translation exists, otherwise the base value.
+  """
+  name(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String!
+
+  """Identifier of the organization that owns this collection."""
+  organizationId: Int!
+
+  """
+  Products that belong to this collection, paginated as a Relay connection.
+  """
+  products(after: String, before: String, first: Int, last: Int): CollectionProductsConnection!
+
+  """URL-friendly identifier, unique within the owning organization."""
+  slug: String!
+
+  """Timestamp at which the collection was last modified."""
+  updatedAt: DateTime!
+
+  """Optimistic-lock counter that increments on every update."""
+  version: Int!
+}
+
+"""
+One ordering clause for the `collections` connection (field + direction). Multiple clauses are applied in order.
+"""
+input CollectionOrderByInput {
+  """Ascending or descending."""
+  direction: CollectionOrderDirection!
+
+  """The collection field to sort by."""
+  field: CollectionOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum CollectionOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `collections` connection can be ordered by."""
+enum CollectionOrderField {
+  CREATED_AT
+  NAME
+}
+
+"""A link row recording that a product belongs to a collection."""
+type CollectionProduct implements Node {
+  """The collection the product is a member of."""
+  collectionId: Int!
+  id: ID!
+
+  """The product that is a member of the collection."""
+  productId: Int!
+}
+
+type CollectionProductsConnection {
+  edges: [CollectionProductsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CollectionProductsConnectionEdge {
+  cursor: String!
+  node: CollectionProduct!
+}
+
+input CreateAttributeBooleanValueInput {
+  """The BOOLEAN attribute to set the value on."""
+  attributeId: ID!
+
+  """Optional identifier of this value within its external source."""
+  externalId: String
+
+  """Optional identifier of the external system this value originates from."""
+  externalSource: String
+
+  """
+  Organization that owns the value; omit or null to create a platform-scoped value (requires the global role).
+  """
+  organizationId: ID
+
+  """The boolean value to store."""
+  value: Boolean!
+}
+
+type CreateAttributeBooleanValuePayload {
+  """The newly created boolean value."""
+  value: AttributeBooleanValue!
+}
+
+union CreateAttributeBooleanValueResult = AttributeParentNotOwnedError | CreateAttributeBooleanValueSuccess
+
+type CreateAttributeBooleanValueSuccess {
+  data: CreateAttributeBooleanValuePayload!
+}
+
+input CreateAttributeDateValueInput {
+  """The DATE or DATETIME attribute to set the value on."""
+  attributeId: ID!
+
+  """Optional identifier of this value within its external source."""
+  externalId: String
+
+  """Optional identifier of the external system this value originates from."""
+  externalSource: String
+
+  """
+  Organization that owns the value; omit or null to create a platform-scoped value (requires the global role).
+  """
+  organizationId: ID
+
+  """The date/time value to store."""
+  value: DateTime!
+}
+
+type CreateAttributeDateValuePayload {
+  """The newly created date value."""
+  value: AttributeDateValue!
+}
+
+union CreateAttributeDateValueResult = AttributeParentNotOwnedError | CreateAttributeDateValueSuccess
+
+type CreateAttributeDateValueSuccess {
+  data: CreateAttributeDateValuePayload!
+}
+
+input CreateAttributeFileValueInput {
+  """The FILE attribute to set the value on."""
+  attributeId: ID!
+
+  """Optional identifier of this value within its external source."""
+  externalId: String
+
+  """Optional identifier of the external system this value originates from."""
+  externalSource: String
+
+  """The file to store, given as its URL and MIME type."""
+  file: FileInfoInput!
+
+  """
+  Organization that owns the value; omit or null to create a platform-scoped value (requires the global role).
+  """
+  organizationId: ID
+}
+
+type CreateAttributeFileValuePayload {
+  """The newly created file value."""
+  value: AttributeFileValue!
+}
+
+union CreateAttributeFileValueResult = AttributeParentNotOwnedError | CreateAttributeFileValueSuccess
+
+type CreateAttributeFileValueSuccess {
+  data: CreateAttributeFileValuePayload!
+}
+
+input CreateAttributeInput {
+  """Identifier of this attribute in the external source system."""
+  externalId: String
+
+  """Name of the external system this attribute was imported from."""
+  externalSource: String
+
+  """Whether this attribute can be used as a filter facet."""
+  isFilterable: Boolean
+
+  """Whether a value for this attribute is mandatory."""
+  isRequired: Boolean
+
+  """Freeform JSON metadata associated with the attribute."""
+  metadata: JSONObject
+
+  """Human-readable display name of the attribute."""
+  name: String!
+
+  """
+  Target entity referenced by a REFERENCE-typed attribute; required for REFERENCE and rejected otherwise.
+  """
+  referenceEntity: String
+
+  """
+  URL-safe identifier, unique within the attribute's scope; auto-derived from the name when omitted.
+  """
+  slug: String
+
+  """Data type of the attribute, which determines the shape of its values."""
+  type: AttributeType!
+
+  """Measurement unit, applicable only to NUMBER-typed attributes."""
+  unit: AttributeUnit
+}
+
+input CreateAttributeNumericValueInput {
+  """The NUMBER attribute to set the value on."""
+  attributeId: ID!
+
+  """Optional identifier of this value within its external source."""
+  externalId: String
+
+  """Optional identifier of the external system this value originates from."""
+  externalSource: String
+
+  """
+  Organization that owns the value; omit or null to create a platform-scoped value (requires the global role).
+  """
+  organizationId: ID
+
+  """The numeric value to store."""
+  value: Float!
+}
+
+type CreateAttributeNumericValuePayload {
+  """The newly created numeric value."""
+  value: AttributeNumericValue!
+}
+
+union CreateAttributeNumericValueResult = AttributeParentNotOwnedError | CreateAttributeNumericValueSuccess
+
+type CreateAttributeNumericValueSuccess {
+  data: CreateAttributeNumericValuePayload!
+}
+
+type CreateAttributePayload {
+  """The newly created platform attribute."""
+  attribute: Attribute!
+}
+
+input CreateAttributeReferenceInput {
+  """The REFERENCE attribute that owns the new reference value."""
+  attributeId: ID!
+
+  """
+  Owning organization; omit or null to create a platform-scoped reference.
+  """
+  organizationId: ID
+
+  """
+  Sort order of the value among its siblings; appended last when omitted.
+  """
+  position: Int
+
+  """Identifier of the entity this value points at."""
+  referenceId: Int!
+
+  """
+  URL-friendly identifier, unique within the attribute and scope; auto-derived from the value when omitted.
+  """
+  slug: String
+
+  """The displayed text of the reference value."""
+  value: String!
+}
+
+type CreateAttributeReferencePayload {
+  """The newly created reference value."""
+  value: AttributeReferenceValue!
+}
+
+union CreateAttributeReferenceResult = AttributeParentNotOwnedError | AttributeValueSlugTakenError | CreateAttributeReferenceSuccess
+
+type CreateAttributeReferenceSuccess {
+  data: CreateAttributeReferencePayload!
+}
+
+union CreateAttributeResult = AttributeSlugTakenError | CreateAttributeSuccess | ReferenceEntityNotAllowedError | ReferenceEntityRequiredError | UnitNotAllowedError
+
+type CreateAttributeSuccess {
+  data: CreateAttributePayload!
+}
+
+input CreateAttributeSwatchInput {
+  """The SWATCH attribute that owns the new swatch value."""
+  attributeId: ID!
+
+  """Hex color of the swatch; either this or a file must be supplied."""
+  color: String
+
+  """
+  Image file backing the swatch; either this or a color must be supplied.
+  """
+  file: FileInfoInput
+
+  """Owning organization; omit or null to create a platform-scoped swatch."""
+  organizationId: ID
+
+  """
+  Sort order of the swatch among its siblings; appended last when omitted.
+  """
+  position: Int
+
+  """
+  URL-friendly identifier, unique within the attribute and scope; auto-derived from the value when omitted.
+  """
+  slug: String
+
+  """The displayed text of the swatch value."""
+  value: String!
+}
+
+type CreateAttributeSwatchPayload {
+  """The newly created swatch value."""
+  value: AttributeSwatchValue!
+}
+
+union CreateAttributeSwatchResult = AttributeParentNotOwnedError | AttributeValueSlugTakenError | CreateAttributeSwatchSuccess | SwatchRequiresColorOrFileError | SwatchVisualInvalidError
+
+type CreateAttributeSwatchSuccess {
+  data: CreateAttributeSwatchPayload!
+}
+
+input CreateAttributeTextValueInput {
+  """The TEXT attribute to set the value on."""
+  attributeId: ID!
+
+  """Optional identifier of this value within its external source."""
+  externalId: String
+
+  """Optional identifier of the external system this value originates from."""
+  externalSource: String
+
+  """
+  Organization that owns the value; omit or null to create a platform-scoped value (requires the global role).
+  """
+  organizationId: ID
+
+  """The plain-text representation of the value."""
+  plain: String!
+
+  """Optional rich-text representation stored as a JSON document."""
+  rich: JSONObject
+}
+
+type CreateAttributeTextValuePayload {
+  """The newly created text value."""
+  value: AttributeTextValue!
+}
+
+union CreateAttributeTextValueResult = AttributeParentNotOwnedError | CreateAttributeTextValueSuccess
+
+type CreateAttributeTextValueSuccess {
+  data: CreateAttributeTextValuePayload!
+}
+
+input CreateAttributeValueInput {
+  """The DROPDOWN or MULTISELECT attribute that owns the new choice value."""
+  attributeId: ID!
+
+  """Owning organization; omit or null to create a platform-scoped value."""
+  organizationId: ID
+
+  """
+  Sort order of the value among its siblings; appended last when omitted.
+  """
+  position: Int
+
+  """
+  URL-friendly identifier, unique within the attribute and scope; auto-derived from the value when omitted.
+  """
+  slug: String
+
+  """The displayed text of the choice value."""
+  value: String!
+}
+
+type CreateAttributeValuePayload {
+  """The newly created choice value."""
+  value: AttributeValue!
+}
+
+union CreateAttributeValueResult = AttributeParentNotOwnedError | AttributeValueSlugTakenError | CreateAttributeValueSuccess
+
+type CreateAttributeValueSuccess {
+  data: CreateAttributeValuePayload!
+}
+
+input CreateCategoryInput {
+  """An optional long-form description of the category."""
+  description: String
+
+  """The display name of the category."""
+  name: String!
+
+  """
+  The id of the parent category in the tree; omit to create the category at the root.
+  """
+  parentId: Int
+
+  """The ordering position among sibling categories."""
+  position: Int
+
+  """The URL-friendly identifier, unique within the category's scope."""
+  slug: String!
+}
+
+type CreateCategoryPayload {
+  """The newly created global category."""
+  category: Category!
+}
+
+union CreateCategoryResult = CategoryNotFoundError | CategorySlugTakenError | CreateCategorySuccess
+
+type CreateCategorySuccess {
+  data: CreateCategoryPayload!
+}
+
+input CreateLocaleInput {
+  """
+  BCP-47 locale code; trimmed and lowercased. Must be unique in the registry.
+  """
+  code: String!
+
+  """
+  Whether the locale is active on creation; defaults to the service default.
+  """
+  isActive: Boolean
+
+  """Human-readable display name of the locale."""
+  name: String!
+}
+
+type CreateLocalePayload {
+  """The newly created locale."""
+  locale: Locale!
+}
+
+union CreateLocaleResult = CreateLocaleSuccess | LocaleCodeTakenError | ValidationError
+
+type CreateLocaleSuccess {
+  data: CreateLocalePayload!
+}
+
+input CreatePlatformChannelInput {
+  """Optional longer description of the sales channel."""
+  description: String
+
+  """
+  URL-safe identifier, unique among platform channels; derived from the name when omitted.
+  """
+  handle: String
+
+  """
+  Whether the channel is available for selling; defaults to true when omitted.
+  """
+  isActive: Boolean
+
+  """
+  Marks this channel as the platform default; defaults to false when omitted.
+  """
+  isDefault: Boolean
+
+  """Freeform key-value metadata attached to the channel."""
+  metadata: JSONObject
+
+  """Human-readable display name of the sales channel."""
+  name: String!
+}
+
+type CreatePlatformChannelPayload {
+  """The newly created platform channel."""
+  channel: Channel!
+}
+
+union CreatePlatformChannelResult = ChannelHandleTakenError | CreatePlatformChannelSuccess | ValidationError
+
+type CreatePlatformChannelSuccess {
+  data: CreatePlatformChannelPayload!
+}
+
+input CreateProductInput {
+  """An optional long-form description of the product."""
+  description: String
+
+  """The URL handle, which must be unique within the product's scope."""
+  handle: String!
+
+  """The display name of the product."""
+  name: String!
+
+  """
+  The product type to assign; a global product requires a global product type.
+  """
+  productTypeId: Int!
+
+  """An optional URL for the product's thumbnail image."""
+  thumbnailUrl: String
+}
+
+type CreateProductPayload {
+  """The newly created global product."""
+  product: Product!
+}
+
+union CreateProductResult = CreateProductSuccess | GlobalProductRequiresGlobalTypeError | HandleTakenError | ProductNotFoundError | ProductTypeNotFoundError
+
+type CreateProductSuccess {
+  data: CreateProductPayload!
+}
+
+input CreateProductTypeInput {
+  """
+  Whether products of this type are physical goods that require shipping.
+  """
+  isShippingRequired: Boolean!
+
+  """Human-readable display name of the product type."""
+  name: String!
+
+  """URL-safe identifier for the product type."""
+  slug: String!
+}
+
+type CreateProductTypePayload {
+  """The newly created global product type."""
+  productType: ProductType!
+}
+
+union CreateProductTypeResult = CreateProductTypeSuccess
+
+type CreateProductTypeSuccess {
+  data: CreateProductTypePayload!
+}
+
+input CreateUserInput {
+  """Email address for the new user; normalized to lowercase."""
+  email: String!
+
+  """Display name for the new user."""
+  name: String!
+
+  """Initial password for the new user's credential account."""
+  password: String!
+
+  """Global platform roles to assign to the new user."""
+  role: [String!]
+}
+
+type CreateUserPayload {
+  """The newly created user."""
+  user: User!
+}
+
+union CreateUserResult = CreateUserSuccess | CredentialLinkFailedError | InvalidRoleError | PasswordHashFailedError | UserAlreadyExistsError | ValidationError
+
+type CreateUserSuccess {
+  data: CreateUserPayload!
+}
+
+input CreateVariantInput {
+  """Optional sort position ordering the variant among its siblings."""
+  position: Int
+
+  """Global ID of the parent Product node the new variant belongs to."""
+  productId: ID!
+
+  """
+  Option selection (attribute/value pairs) identifying the variant. Only validated for uniqueness among siblings here; it is persisted separately via assignVariantValue.
+  """
+  selection: [VariantSelectionPairInput!]
+
+  """Optional stock-keeping unit. Must be unique when provided."""
+  sku: String
+}
+
+type CreateVariantPayload {
+  """The newly created variant."""
+  variant: ProductVariant!
+}
+
+union CreateVariantResult = CreateVariantSuccess | DuplicateVariantMatrixError | ProductSkuTakenError | VariantNotFoundError
+
+type CreateVariantSuccess {
+  data: CreateVariantPayload!
+}
+
+type CredentialLinkFailedError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
+scalar DateTime
+
+input DateTimeFilterInput {
+  AND: [DateTimeFilterInput!]
+  NOT: DateTimeFilterInput
+  OR: [DateTimeFilterInput!]
+  eq: DateTime
+  gt: DateTime
+  gte: DateTime
+  in: [DateTime!]
+  lt: DateTime
+  lte: DateTime
+  ne: DateTime
+  notIn: [DateTime!]
+}
+
+input DeclareAttributeInput {
+  """Whether the attribute applies to the PRODUCT or to each VARIANT."""
+  assignment: ProductAttributeAssignment!
+
+  """Identifier of the attribute to declare on the type."""
+  attributeId: Int!
+
+  """
+  References an Organization node. When set this is an org GRAFT extension where that organization extends a typically-global type, gated on that org; when null it is a BASE declaration scoped to the type's own org or global scope.
+  """
+  organizationId: ID
+
+  """Ordering position of the attribute within the type's declarations."""
+  position: Int!
+
+  """References the ProductType node the attribute is being attached to."""
+  productTypeId: ID!
+
+  """Whether this attribute participates in the variant selection matrix."""
+  variantSelection: Boolean!
+}
+
+type DeclareAttributePayload {
+  """The resulting attribute declaration attached to the product type."""
+  attribute: ProductTypeAttribute!
+}
+
+union DeclareAttributeResult = DeclareAttributeSuccess | InvalidAttributeDeclarationError
+
+type DeclareAttributeSuccess {
+  data: DeclareAttributePayload!
+}
+
+input DeleteAttributeBooleanValueInput {
+  """The boolean value to clear."""
+  id: ID!
+}
+
+type DeleteAttributeBooleanValuePayload {
+  """The boolean value that was cleared."""
+  value: AttributeBooleanValue!
+}
+
+union DeleteAttributeBooleanValueResult = DeleteAttributeBooleanValueSuccess | TypedValueNotFoundError
+
+type DeleteAttributeBooleanValueSuccess {
+  data: DeleteAttributeBooleanValuePayload!
+}
+
+input DeleteAttributeDateValueInput {
+  """The date value to clear."""
+  id: ID!
+}
+
+type DeleteAttributeDateValuePayload {
+  """The date value that was cleared."""
+  value: AttributeDateValue!
+}
+
+union DeleteAttributeDateValueResult = DeleteAttributeDateValueSuccess | TypedValueNotFoundError
+
+type DeleteAttributeDateValueSuccess {
+  data: DeleteAttributeDateValuePayload!
+}
+
+input DeleteAttributeFileValueInput {
+  """The file value to clear."""
+  id: ID!
+}
+
+type DeleteAttributeFileValuePayload {
+  """The file value that was cleared."""
+  value: AttributeFileValue!
+}
+
+union DeleteAttributeFileValueResult = DeleteAttributeFileValueSuccess | TypedValueNotFoundError
+
+type DeleteAttributeFileValueSuccess {
+  data: DeleteAttributeFileValuePayload!
+}
+
+input DeleteAttributeInput {
+  """Global id of the attribute to delete."""
+  id: ID!
+}
+
+input DeleteAttributeNumericValueInput {
+  """The numeric value to clear."""
+  id: ID!
+}
+
+type DeleteAttributeNumericValuePayload {
+  """The numeric value that was cleared."""
+  value: AttributeNumericValue!
+}
+
+union DeleteAttributeNumericValueResult = DeleteAttributeNumericValueSuccess | TypedValueNotFoundError
+
+type DeleteAttributeNumericValueSuccess {
+  data: DeleteAttributeNumericValuePayload!
+}
+
+type DeleteAttributePayload {
+  """The attribute that was deleted."""
+  attribute: Attribute!
+}
+
+input DeleteAttributeReferenceInput {
+  """The reference value to delete."""
+  id: ID!
+}
+
+type DeleteAttributeReferencePayload {
+  """The reference value that was deleted."""
+  value: AttributeReferenceValue!
+}
+
+union DeleteAttributeReferenceResult = AttributeValueNotFoundError | DeleteAttributeReferenceSuccess
+
+type DeleteAttributeReferenceSuccess {
+  data: DeleteAttributeReferencePayload!
+}
+
+union DeleteAttributeResult = AttributeNotFoundError | DeleteAttributeSuccess
+
+type DeleteAttributeSuccess {
+  data: DeleteAttributePayload!
+}
+
+input DeleteAttributeSwatchInput {
+  """The swatch value to delete."""
+  id: ID!
+}
+
+type DeleteAttributeSwatchPayload {
+  """The swatch value that was deleted."""
+  value: AttributeSwatchValue!
+}
+
+union DeleteAttributeSwatchResult = AttributeValueNotFoundError | DeleteAttributeSwatchSuccess
+
+type DeleteAttributeSwatchSuccess {
+  data: DeleteAttributeSwatchPayload!
+}
+
+input DeleteAttributeTextValueInput {
+  """The text value to clear."""
+  id: ID!
+}
+
+type DeleteAttributeTextValuePayload {
+  """The text value that was cleared."""
+  value: AttributeTextValue!
+}
+
+union DeleteAttributeTextValueResult = DeleteAttributeTextValueSuccess | TypedValueNotFoundError
+
+type DeleteAttributeTextValueSuccess {
+  data: DeleteAttributeTextValuePayload!
+}
+
+input DeleteAttributeValueInput {
+  """The choice value to delete."""
+  id: ID!
+}
+
+type DeleteAttributeValuePayload {
+  """The choice value that was deleted."""
+  value: AttributeValue!
+}
+
+union DeleteAttributeValueResult = AttributeValueNotFoundError | DeleteAttributeValueSuccess
+
+type DeleteAttributeValueSuccess {
+  data: DeleteAttributeValuePayload!
+}
+
+input DeleteCategoryInput {
+  """References the Category node to delete."""
+  id: ID!
+
+  """
+  The expected current version for optimistic-lock checking; a stale value is rejected.
+  """
+  version: Int!
+}
+
+type DeleteCategoryPayload {
+  """The soft-deleted category."""
+  category: Category!
+}
+
+union DeleteCategoryResult = CategoryNotFoundError | DeleteCategorySuccess | OptimisticLockError
+
+type DeleteCategorySuccess {
+  data: DeleteCategoryPayload!
+}
+
+input DeleteChannelInput {
+  """Identifies the Channel node to soft-delete."""
+  id: ID!
+
+  """Expected current version for optimistic-lock concurrency control."""
+  version: Int!
+}
+
+type DeleteChannelPayload {
+  """The soft-deleted sales channel."""
+  channel: Channel!
+}
+
+union DeleteChannelResult = ChannelNotFoundError | DeleteChannelSuccess | OptimisticLockError
+
+type DeleteChannelSuccess {
+  data: DeleteChannelPayload!
+}
+
+input DeleteLocaleInput {
+  """The Locale to soft-delete."""
+  id: ID!
+
+  """
+  Optimistic-lock version; must match the current row or the delete is rejected.
+  """
+  version: Int!
+}
+
+type DeleteLocalePayload {
+  """The soft-deleted locale."""
+  locale: Locale!
+}
+
+union DeleteLocaleResult = DeleteLocaleSuccess | LocaleNotFoundError | OptimisticLockError
+
+type DeleteLocaleSuccess {
+  data: DeleteLocalePayload!
+}
+
+input DeleteProductInput {
+  """The Product to soft-delete."""
+  id: ID!
+
+  """
+  The optimistic-lock version, which must match the current row or the delete is rejected.
+  """
+  version: Int!
+}
+
+type DeleteProductPayload {
+  """The soft-deleted product, with its deletedAt timestamp set."""
+  product: Product!
+}
+
+union DeleteProductResult = DeleteProductSuccess | OptimisticLockError | ProductNotFoundError
+
+type DeleteProductSuccess {
+  data: DeleteProductPayload!
+}
+
+input DeleteProductTypeInput {
+  """References the ProductType node to soft-delete."""
+  id: ID!
+
+  """
+  Expected current version for optimistic-lock concurrency control; the deletion fails if it no longer matches.
+  """
+  version: Int!
+}
+
+type DeleteProductTypePayload {
+  """The soft-deleted product type."""
+  productType: ProductType!
+}
+
+union DeleteProductTypeResult = DeleteProductTypeSuccess | OptimisticLockError | ProductTypeNotFoundError
+
+type DeleteProductTypeSuccess {
+  data: DeleteProductTypePayload!
+}
+
+input DeleteVariantInput {
+  """Global ID of the ProductVariant node to soft-delete."""
+  id: ID!
+
+  """
+  Expected current version for optimistic locking; a mismatch raises OptimisticLockError.
+  """
+  version: Int!
+}
+
+type DeleteVariantPayload {
+  """The soft-deleted variant."""
+  variant: ProductVariant!
+}
+
+union DeleteVariantResult = DeleteVariantSuccess | OptimisticLockError | VariantNotFoundError
+
+type DeleteVariantSuccess {
+  data: DeleteVariantPayload!
+}
+
+type DuplicateVariantMatrixError implements Error {
+  code: String!
+  message: String!
+}
+
+interface Error {
+  code: String!
+  message: String!
+}
+
+type FieldError {
+  code: String!
+  message: String!
+  path: String!
+}
+
+"""
+A file reference attached to an attribute value (swatch image or file value): a URL plus its MIME type.
+"""
+type FileInfo {
+  """MIME type of the file (e.g. `image/png`)."""
+  mimetype: String!
+
+  """URL of the file asset."""
+  url: String!
+}
+
+"""
+Write counterpart of FileInfo: the file URL and its MIME type to store on an attribute value.
+"""
+input FileInfoInput {
+  """MIME type of the file (e.g. `image/png`)."""
+  mimetype: String!
+
+  """URL of the file asset."""
+  url: String!
+}
+
+type ForbiddenError implements Error {
+  code: String!
+  message: String!
+  requiredPermission: String!
+}
+
+type GlobalProductRequiresGlobalTypeError implements Error {
+  code: String!
+  message: String!
+}
+
+type HandleTakenError implements Error {
+  code: String!
+  message: String!
+}
+
+type ImpersonationNotActiveError implements Error {
+  code: String!
+  message: String!
+}
+
+type ImpersonationTtlTooLongError implements Error {
+  code: String!
+  message: String!
+}
+
+input IntFilterInput {
+  AND: [IntFilterInput!]
+  NOT: IntFilterInput
+  OR: [IntFilterInput!]
+  eq: Int
+  gt: Int
+  gte: Int
+  in: [Int!]
+  lt: Int
+  lte: Int
+  ne: Int
+  notIn: [Int!]
+}
+
+type InvalidAttributeDeclarationError implements Error {
+  code: String!
+  message: String!
+}
+
+type InvalidRoleError implements Error {
+  code: String!
+  message: String!
+  role: String!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
+
+input LinkVariantMediaInput {
+  """References the ProductMedia node to attach to the variant."""
+  mediaId: ID!
+
+  """References the ProductVariant node to attach the media asset to."""
+  variantId: ID!
+}
+
+type LinkVariantMediaPayload {
+  """True when the media asset was successfully linked to the variant."""
+  success: Boolean!
+}
+
+union LinkVariantMediaResult = LinkVariantMediaSuccess | MediaNotFoundError
+
+type LinkVariantMediaSuccess {
+  data: LinkVariantMediaPayload!
+}
+
+"""
+A platform-wide locale in the global registry. Consumer modules key their translations by a locale `code`; one locale is the platform default.
+"""
+type Locale implements Node {
+  """BCP-47 locale code (e.g. `fr`, `en-US`), unique and lowercased."""
+  code: String!
+
+  """Timestamp when the locale was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """
+  Whether the locale is available for use (inactive locales are kept but not offered).
+  """
+  isActive: Boolean!
+
+  """Human-readable display name of the locale."""
+  name: String!
+
+  """Timestamp when the locale was last updated."""
+  updatedAt: DateTime!
+
+  """Optimistic-lock version, incremented on each update."""
+  version: Int!
+}
+
+type LocaleCodeTakenError implements Error {
+  code: String!
+  localeCode: String!
+  message: String!
+}
+
+type LocaleNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type MarketplaceCategoryNotGlobalError implements Error {
+  code: String!
+  message: String!
+}
+
+type MediaNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type Mutation {
+  """
+  Adds a media asset to a product, either as a global BASE row when organizationId is null or as an organization-scoped GRAFT when it is set.
+  """
+  addMedia(input: AddMediaInput!): AddMediaResult!
+
+  """
+  Approves a product's marketplace listing, making it live-eligible (live once the org keeps it published). Requires the global `channel:update` role.
+  """
+  approveListing(input: ApproveListingInput!): ApproveListingResult!
+
+  """
+  Approves a taxonomy request: creates the global entity (create) or flips the org entity to global (promote). Requires the global `product:create` role; product-type requests additionally require the global `attribute:create` role.
+  """
+  approveTaxonomyRequest(input: ApproveTaxonomyRequestInput!): ApproveTaxonomyRequestResult!
+
+  """
+  Assigns an attribute value onto a product. A BASE assignment (no organizationId) is global; an org GRAFT (organizationId set) requires a live adoption when the product is global.
+  """
+  assignProductValue(input: AssignProductValueInput!): AssignProductValueResult!
+
+  """
+  Assigns an attribute value onto a product variant. A BASE assignment (no organizationId) is global; an org GRAFT (organizationId set) requires a live adoption when the product is global.
+  """
+  assignVariantValue(input: AssignVariantValueInput!): AssignVariantValueResult!
+
+  """
+  Bans a user from the platform, optionally with a reason and expiry. Cannot be used to ban oneself. Admin-only.
+  """
+  banUser(input: BanUserInput!): BanUserResult!
+
+  """
+  Creates a platform-wide attribute owned by no organization. Requires the global attribute:create role.
+  """
+  createAttribute(input: CreateAttributeInput!): CreateAttributeResult!
+
+  """
+  Sets the typed value of a BOOLEAN attribute, creating its single AttributeBooleanValue node.
+  """
+  createAttributeBooleanValue(input: CreateAttributeBooleanValueInput!): CreateAttributeBooleanValueResult!
+
+  """
+  Sets the typed value of a DATE or DATETIME attribute, creating its single AttributeDateValue node.
+  """
+  createAttributeDateValue(input: CreateAttributeDateValueInput!): CreateAttributeDateValueResult!
+
+  """
+  Sets the typed value of a FILE attribute, creating its single AttributeFileValue node.
+  """
+  createAttributeFileValue(input: CreateAttributeFileValueInput!): CreateAttributeFileValueResult!
+
+  """
+  Sets the typed value of a NUMBER attribute, creating its single AttributeNumericValue node.
+  """
+  createAttributeNumericValue(input: CreateAttributeNumericValueInput!): CreateAttributeNumericValueResult!
+
+  """
+  Creates a reference choice value pointing at another entity on a REFERENCE attribute.
+  """
+  createAttributeReference(input: CreateAttributeReferenceInput!): CreateAttributeReferenceResult!
+
+  """
+  Creates a swatch choice value (color and/or image) on a SWATCH attribute.
+  """
+  createAttributeSwatch(input: CreateAttributeSwatchInput!): CreateAttributeSwatchResult!
+
+  """
+  Sets the typed value of a TEXT attribute, creating its single AttributeTextValue node.
+  """
+  createAttributeTextValue(input: CreateAttributeTextValueInput!): CreateAttributeTextValueResult!
+
+  """Creates a plain choice value on a DROPDOWN or MULTISELECT attribute."""
+  createAttributeValue(input: CreateAttributeValueInput!): CreateAttributeValueResult!
+
+  """
+  Creates a GLOBAL (base) category, gated on the global `product` create permission.
+  """
+  createCategory(input: CreateCategoryInput!): CreateCategoryResult!
+
+  """
+  Add a locale to the platform registry. Requires the global `locale:create` permission. Fails with LocaleCodeTaken if the code already exists.
+  """
+  createLocale(input: CreateLocaleInput!): CreateLocaleResult!
+
+  """
+  Creates a platform-wide channel (no owning organization), manageable only by a platform operator.
+  """
+  createPlatformChannel(input: CreatePlatformChannelInput!): CreatePlatformChannelResult!
+
+  """
+  Creates a GLOBAL (base) product, gated on the global `product` create permission. A global product requires a global product type.
+  """
+  createProduct(input: CreateProductInput!): CreateProductResult!
+
+  """
+  Creates a GLOBAL product type, the pivot declaring which attributes apply to its products and variants. Gated on the global `product` create permission.
+  """
+  createProductType(input: CreateProductTypeInput!): CreateProductTypeResult!
+
+  """
+  Creates a new platform user with a credential account and optional global roles. Admin-only.
+  """
+  createUser(input: CreateUserInput!): CreateUserResult!
+
+  """
+  Creates a variant under a product. Validates that the option selection is unique among sibling variants; the selection itself is persisted separately via assignVariantValue. Authorization is inherited from the parent product's scope (global or org).
+  """
+  createVariant(input: CreateVariantInput!): CreateVariantResult!
+
+  """
+  Attaches an attribute to a product type. A BASE declaration (organizationId null) is scoped to the type's own org or global scope; an org GRAFT (organizationId set) lets that organization extend a typically-global type. Gates on the resulting scope.
+  """
+  declareAttribute(input: DeclareAttributeInput!): DeclareAttributeResult!
+
+  """Permanently deletes an attribute, cascading to all of its value rows."""
+  deleteAttribute(input: DeleteAttributeInput!): DeleteAttributeResult!
+
+  """
+  Clears the typed value of a BOOLEAN attribute, removing its AttributeBooleanValue node.
+  """
+  deleteAttributeBooleanValue(input: DeleteAttributeBooleanValueInput!): DeleteAttributeBooleanValueResult!
+
+  """
+  Clears the typed value of a DATE or DATETIME attribute, removing its AttributeDateValue node.
+  """
+  deleteAttributeDateValue(input: DeleteAttributeDateValueInput!): DeleteAttributeDateValueResult!
+
+  """
+  Clears the typed value of a FILE attribute, removing its AttributeFileValue node.
+  """
+  deleteAttributeFileValue(input: DeleteAttributeFileValueInput!): DeleteAttributeFileValueResult!
+
+  """
+  Clears the typed value of a NUMBER attribute, removing its AttributeNumericValue node.
+  """
+  deleteAttributeNumericValue(input: DeleteAttributeNumericValueInput!): DeleteAttributeNumericValueResult!
+
+  """Deletes a reference choice value from a REFERENCE attribute."""
+  deleteAttributeReference(input: DeleteAttributeReferenceInput!): DeleteAttributeReferenceResult!
+
+  """Deletes a swatch choice value from a SWATCH attribute."""
+  deleteAttributeSwatch(input: DeleteAttributeSwatchInput!): DeleteAttributeSwatchResult!
+
+  """
+  Clears the typed value of a TEXT attribute, removing its AttributeTextValue node.
+  """
+  deleteAttributeTextValue(input: DeleteAttributeTextValueInput!): DeleteAttributeTextValueResult!
+
+  """Deletes a plain choice value from a DROPDOWN or MULTISELECT attribute."""
+  deleteAttributeValue(input: DeleteAttributeValueInput!): DeleteAttributeValueResult!
+
+  """
+  Soft-deletes a category, marking it as removed while preserving the record.
+  """
+  deleteCategory(input: DeleteCategoryInput!): DeleteCategoryResult!
+
+  """
+  Soft-deletes a sales channel, marking it removed without erasing the row.
+  """
+  deleteChannel(input: DeleteChannelInput!): DeleteChannelResult!
+
+  """
+  Soft-delete a locale from the registry. Requires the global `locale:delete` permission.
+  """
+  deleteLocale(input: DeleteLocaleInput!): DeleteLocaleResult!
+
+  """
+  Soft-deletes a product by setting its deletedAt timestamp. Authorization gates on the global `product` delete permission for a GLOBAL product (organizationId null) or on `product:delete` in the owning organization.
+  """
+  deleteProduct(input: DeleteProductInput!): DeleteProductResult!
+
+  """
+  Soft-deletes a product type. Gates on the type's own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.
+  """
+  deleteProductType(input: DeleteProductTypeInput!): DeleteProductTypeResult!
+
+  """
+  Soft-deletes a variant by setting its deletedAt timestamp. Uses optimistic locking via the version field. Authorization is inherited from the variant's scope (global or org).
+  """
+  deleteVariant(input: DeleteVariantInput!): DeleteVariantResult!
+
+  """
+  Attaches a media asset to a specific product variant via the global link table, authorized against the owning organization of the media row.
+  """
+  linkVariantMedia(input: LinkVariantMediaInput!): LinkVariantMediaResult!
+
+  """
+  Places a product into a category, either as a global base placement or as an organization-specific graft.
+  """
+  placeProduct(input: PlaceProductInput!): PlaceProductResult!
+
+  """
+  Rejects a product's marketplace listing with a reason. Requires the global `channel:update` role.
+  """
+  rejectListing(input: RejectListingInput!): RejectListingResult!
+
+  """
+  Rejects a taxonomy request with a reason. Requires the global `product:create` role.
+  """
+  rejectTaxonomyRequest(input: RejectTaxonomyRequestInput!): RejectTaxonomyRequestResult!
+
+  """
+  Deletes the localized translation row of a category for the given locale.
+  """
+  removeCategoryTranslation(input: RemoveCategoryTranslationInput!): RemoveCategoryTranslationResult!
+
+  """
+  Soft-deletes an existing media asset, authorized against the owning organization of the media row.
+  """
+  removeMedia(input: RemoveMediaInput!): RemoveMediaResult!
+
+  """
+  Removes a product's placement from a category, either the global base placement or an organization-specific graft.
+  """
+  removePlacement(input: RemovePlacementInput!): RemovePlacementResult!
+
+  """
+  Deletes the localized translation row of a product for the given locale.
+  """
+  removeProductTranslation(input: RemoveProductTranslationInput!): RemoveProductTranslationResult!
+
+  """
+  Soft-deletes a user account, setting its deletedAt timestamp. Cannot be used to remove oneself. Admin-only.
+  """
+  removeUser(input: RemoveUserInput!): RemoveUserResult!
+
+  """
+  Deletes the localized translation row of a product variant for the given locale.
+  """
+  removeVariantTranslation(input: RemoveVariantTranslationInput!): RemoveVariantTranslationResult!
+
+  """Reorders the reference values of a REFERENCE attribute."""
+  reorderAttributeReferences(input: ReorderAttributeReferencesInput!): ReorderAttributeReferencesPayload!
+
+  """Reorders the swatch values of a SWATCH attribute."""
+  reorderAttributeSwatches(input: ReorderAttributeSwatchesInput!): ReorderAttributeSwatchesPayload!
+
+  """
+  Reorders the plain choice values of a DROPDOWN or MULTISELECT attribute.
+  """
+  reorderAttributeValues(input: ReorderAttributeValuesInput!): ReorderAttributeValuesPayload!
+
+  """
+  Revokes a single session identified by its token, signing out that session. Admin-only.
+  """
+  revokeSession(input: RevokeSessionInput!): RevokeSessionPayload!
+
+  """
+  Revokes all active sessions for a given user, signing them out everywhere. Admin-only.
+  """
+  revokeSessions(input: RevokeSessionsInput!): RevokeSessionsPayload!
+
+  """
+  Moves a category to a new parent in the tree, or detaches it to the root; a move that would form a cycle is rejected.
+  """
+  setCategoryParent(input: SetCategoryParentInput!): SetCategoryParentResult!
+
+  """
+  Sets a user's global platform role. Cannot be used to demote oneself. Admin-only.
+  """
+  setRole(input: SetRoleInput!): SetRoleResult!
+
+  """Sets a new password on a user's credential account. Admin-only."""
+  setUserPassword(input: SetUserPasswordInput!): SetUserPasswordResult!
+
+  """
+  Starts impersonating another user. Requires the global user:impersonate permission; mints a child session whose parent_token links back to the admin's session.
+  """
+  startImpersonation(input: StartImpersonationInput!): StartImpersonationResult!
+
+  """
+  Stops the active impersonation by walking back up to the parent (admin) session. Requires an active impersonation session.
+  """
+  stopImpersonation(input: StopImpersonationInput!): StopImpersonationResult!
+
+  """
+  Suspends a previously-approved marketplace listing with a reason (takes it off the marketplace). Requires the global `channel:update` role.
+  """
+  suspendListing(input: SuspendListingInput!): SuspendListingResult!
+
+  """
+  Removes an attribute value assignment from a product, identified by its pivot row id.
+  """
+  unassignProductValue(input: UnassignProductValueInput!): UnassignProductValueResult!
+
+  """
+  Removes an attribute value assignment from a product variant, identified by its pivot row id.
+  """
+  unassignVariantValue(input: UnassignVariantValueInput!): UnassignVariantValueResult!
+
+  """
+  Lifts an active ban on a user, restoring their platform access. Admin-only.
+  """
+  unbanUser(input: UnbanUserInput!): UnbanUserResult!
+
+  """
+  Detaches an attribute declaration from a product type. Gates on the type's own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.
+  """
+  undeclareAttribute(input: UndeclareAttributeInput!): UndeclareAttributeResult!
+
+  """
+  Detaches a media asset from a specific product variant via the global link table, authorized against the owning organization of the media row.
+  """
+  unlinkVariantMedia(input: UnlinkVariantMediaInput!): UnlinkVariantMediaResult!
+
+  """
+  Updates mutable fields of an existing attribute, guarded by optimistic locking.
+  """
+  updateAttribute(input: UpdateAttributeInput!): UpdateAttributeResult!
+
+  """Updates the stored flag of an existing BOOLEAN attribute value."""
+  updateAttributeBooleanValue(input: UpdateAttributeBooleanValueInput!): UpdateAttributeBooleanValueResult!
+
+  """
+  Updates the stored date/time of an existing DATE or DATETIME attribute value.
+  """
+  updateAttributeDateValue(input: UpdateAttributeDateValueInput!): UpdateAttributeDateValueResult!
+
+  """Updates the stored file of an existing FILE attribute value."""
+  updateAttributeFileValue(input: UpdateAttributeFileValueInput!): UpdateAttributeFileValueResult!
+
+  """Updates the stored number of an existing NUMBER attribute value."""
+  updateAttributeNumericValue(input: UpdateAttributeNumericValueInput!): UpdateAttributeNumericValueResult!
+
+  """Updates a reference choice value on a REFERENCE attribute."""
+  updateAttributeReference(input: UpdateAttributeReferenceInput!): UpdateAttributeReferenceResult!
+
+  """Updates a swatch choice value on a SWATCH attribute."""
+  updateAttributeSwatch(input: UpdateAttributeSwatchInput!): UpdateAttributeSwatchResult!
+
+  """
+  Updates the plain and/or rich representation of an existing TEXT attribute value.
+  """
+  updateAttributeTextValue(input: UpdateAttributeTextValueInput!): UpdateAttributeTextValueResult!
+
+  """Updates a plain choice value on a DROPDOWN or MULTISELECT attribute."""
+  updateAttributeValue(input: UpdateAttributeValueInput!): UpdateAttributeValueResult!
+
+  """
+  Updates an existing category's editable fields, guarded by optimistic locking.
+  """
+  updateCategory(input: UpdateCategoryInput!): UpdateCategoryResult!
+
+  """Updates an existing sales channel's fields."""
+  updateChannel(input: UpdateChannelInput!): UpdateChannelResult!
+
+  """
+  Update a locale's name or active state. Requires the global `locale:update` permission.
+  """
+  updateLocale(input: UpdateLocaleInput!): UpdateLocaleResult!
+
+  """
+  Updates an existing media asset, authorized against the owning organization of the media row.
+  """
+  updateMedia(input: UpdateMediaInput!): UpdateMediaResult!
+
+  """
+  Updates a product. Authorization gates on the global `product` update permission for a GLOBAL product (organizationId null) or on `product:update` in the owning organization.
+  """
+  updateProduct(input: UpdateProductInput!): UpdateProductResult!
+
+  """
+  Updates a product type. Gates on the type's own scope: the global `product` permission for a GLOBAL type, or the owning organization otherwise.
+  """
+  updateProductType(input: UpdateProductTypeInput!): UpdateProductTypeResult!
+
+  """
+  Updates an existing user's profile and, optionally, their global roles. Admin-only.
+  """
+  updateUser(input: UpdateUserInput!): UpdateUserResult!
+
+  """
+  Updates a variant's sku and position. Uses optimistic locking via the version field. Authorization is inherited from the variant's scope (global or org).
+  """
+  updateVariant(input: UpdateVariantInput!): UpdateVariantResult!
+
+  """
+  Creates or updates the localized translation of a category's name and description for the given locale.
+  """
+  upsertCategoryTranslation(input: UpsertCategoryTranslationInput!): UpsertCategoryTranslationResult!
+
+  """
+  Creates or updates the localized translation of a product's name and description for the given locale.
+  """
+  upsertProductTranslation(input: UpsertProductTranslationInput!): UpsertProductTranslationResult!
+
+  """
+  Creates or updates the localized translation of a product variant's name for the given locale.
+  """
+  upsertVariantTranslation(input: UpsertVariantTranslationInput!): UpsertVariantTranslationResult!
+}
+
+interface Node {
+  id: ID!
+}
+
+type NotAMarketplaceChannelError implements Error {
+  code: String!
+  message: String!
+}
+
+type OptimisticLockError implements Error {
+  actualVersion: Int
+  code: String!
+  entityId: ID!
+  expectedVersion: Int!
+  message: String!
+}
+
+"""Direction in which results are sorted."""
+enum OrderDirection {
+  """Sort in ascending order."""
+  ASC
+
+  """Sort in descending order."""
+  DESC
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+type PasswordHashFailedError implements Error {
+  code: String!
+  message: String!
+}
+
+input PlaceProductInput {
+  """References the Category node the product is placed into."""
+  categoryId: ID!
+
+  """
+  References an Organization node; when null the placement is a global base placement, otherwise it is an org-specific graft.
+  """
+  organizationId: ID
+
+  """The id of the product to place into the category."""
+  productId: Int!
+}
+
+type PlaceProductPayload {
+  """The id of the category the product was placed into."""
+  categoryId: Int!
+
+  """The id of the product that was placed."""
+  productId: Int!
+}
+
+union PlaceProductResult = CategoryNotFoundError | PlaceProductSuccess
+
+type PlaceProductSuccess {
+  data: PlaceProductPayload!
+}
+
+"""
+A sellable product. Either global (platform-managed, organizationId null) or org-owned. An org adopts a global product, then grafts org-scoped overlays (attribute values, media, categories, channel listings, variants) onto the base; graft reads merge the base rows with the viewer org's rows.
+"""
+type Product implements Node {
+  """
+  Attribute values describing this product, ordered by position. Merges base values with the viewer org's grafted values.
+  """
+  attributeValues(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductAttributeValuesConnection!
+
+  """
+  Categories this product is assigned to. Merges base assignments with the viewer org's grafted assignments.
+  """
+  categories(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductCategoriesConnection!
+
+  """
+  Sales-channel listings for this product, scoped via their channel. Excludes soft-deleted rows; no viewer-org overlay applies.
+  """
+  channelListings(after: String, before: String, first: Int, last: Int): ProductChannelListingsConnection!
+
+  """
+  Collections that include this product. A global link table, not an org graft, so no viewer-org overlay applies.
+  """
+  collections(after: String, before: String, first: Int, last: Int): ProductCollectionsConnection!
+
+  """Timestamp when the product was created."""
+  createdAt: DateTime!
+
+  """
+  Long-form description, overlaid with the requested locale's translation when available, falling back to the base value.
+  """
+  description(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String
+
+  """URL-friendly slug uniquely identifying the product within its scope."""
+  handle: String!
+  id: ID!
+
+  """
+  Whether the given viewer organization has adopted this global product. False when no viewer org is given, and false for org-owned products.
+  """
+  isAdopted(
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): Boolean!
+
+  """
+  Media assets for this product, ordered by position. Merges base media with the viewer org's grafted media; excludes soft-deleted rows.
+  """
+  media(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductMediaConnection!
+
+  """
+  Display name, overlaid with the requested locale's translation when available, falling back to the base value.
+  """
+  name(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String!
+
+  """Owning organization; null for global, platform-managed products."""
+  organizationId: Int
+
+  """The product type this product belongs to."""
+  productType: ProductType!
+
+  """URL of the product's thumbnail image, if set."""
+  thumbnailUrl: String
+
+  """Timestamp when the product was last updated."""
+  updatedAt: DateTime!
+
+  """
+  Purchasable variants of this product. Merges base variants with the viewer org's grafted variants; excludes soft-deleted rows.
+  """
+  variants(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductVariantsConnection!
+
+  """Optimistic-lock version, incremented on every update."""
+  version: Int!
+}
+
+"""
+Where an attribute is assigned on a product type: PRODUCT (one value per product) or VARIANT (selectable per variant). Attributes flagged for variant selection drive the variant matrix.
+"""
+enum ProductAttributeAssignment {
+  PRODUCT
+  VARIANT
+}
+
+"""
+A graft row binding a product to one of its attribute values; null organizationId is the base assignment, a set organizationId is a specific org's overlay.
+"""
+type ProductAttributeValue implements Node {
+  """The attribute (in the attribute module) this value belongs to."""
+  attributeId: Int!
+  id: ID!
+
+  """
+  The owning organization of this graft, or null when it is the shared base assignment.
+  """
+  organizationId: Int
+
+  """Ordering of this value among the product's attribute values."""
+  position: Int!
+
+  """The product this attribute value is assigned to."""
+  productId: Int!
+
+  """The specific attribute value assigned to the product."""
+  valueId: Int!
+}
+
+type ProductAttributeValuesConnection {
+  edges: [ProductAttributeValuesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductAttributeValuesConnectionEdge {
+  cursor: String!
+  node: ProductAttributeValue!
+}
+
+type ProductCategoriesConnection {
+  edges: [ProductCategoriesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductCategoriesConnectionEdge {
+  cursor: String!
+  node: ProductCategory!
+}
+
+"""
+A graft row placing a product into a category; null organizationId is the base placement, a set organizationId is a specific org's overlay.
+"""
+type ProductCategory implements Node {
+  """The category the product is placed in."""
+  categoryId: Int!
+  id: ID!
+
+  """
+  The owning organization of this placement, or null when it is the shared base placement.
+  """
+  organizationId: Int
+
+  """The product placed in the category."""
+  productId: Int!
+}
+
+"""
+A graft row publishing a product onto a sales channel, carrying that channel-specific publication state.
+"""
+type ProductChannelListing implements Node {
+  """
+  The moment the product becomes purchasable on this channel, or null if not set.
+  """
+  availableForPurchaseAt: DateTime
+
+  """The sales channel (in the channel module) the product is listed on."""
+  channelId: Int!
+  id: ID!
+
+  """
+  Whether the org has published this listing (the org gate). On a marketplace channel the product is live only once also approved.
+  """
+  isPublished: Boolean!
+
+  """The product being listed on the channel."""
+  productId: Int!
+
+  """
+  The moment the product was published on this channel, or null while unpublished.
+  """
+  publishedAt: DateTime
+
+  """Why the listing was rejected or suspended; null otherwise."""
+  reviewReason: String
+
+  """
+  Admin moderation state on the marketplace channel. Always APPROVED for an org's own-channel listing.
+  """
+  reviewState: ProductListingReviewState!
+
+  """When an admin last set the review state, or null if never reviewed."""
+  reviewedAt: DateTime
+
+  """Optimistic-locking version of the listing row."""
+  version: Int!
+
+  """
+  Whether the product appears in browse and collection listings on this channel.
+  """
+  visibleInListings: Boolean!
+}
+
+type ProductChannelListingsConnection {
+  edges: [ProductChannelListingsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductChannelListingsConnectionEdge {
+  cursor: String!
+  node: ProductChannelListing!
+}
+
+type ProductCollectionsConnection {
+  edges: [ProductCollectionsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductCollectionsConnectionEdge {
+  cursor: String!
+  node: CollectionProduct!
+}
+
+"""
+Admin moderation state of a product listing on the marketplace: PENDING (awaiting review), APPROVED (live-eligible), REJECTED, or SUSPENDED.
+"""
+enum ProductListingReviewState {
+  APPROVED
+  PENDING
+  REJECTED
+  SUSPENDED
+}
+
+"""
+A media asset (image or video) attached to a product. Exists either as a global BASE row (no organization) or as an organization-specific graft, and may be linked to particular variants.
+"""
+type ProductMedia implements Node {
+  """Alternative text describing the asset for accessibility."""
+  alt: String
+
+  """When the asset was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """The owning organization for a graft; null for a global base asset."""
+  organizationId: Int
+
+  """Sort order determining how this asset is sequenced among others."""
+  position: Int!
+
+  """Whether the asset is an image or a video."""
+  type: String!
+
+  """When the asset was last modified."""
+  updatedAt: DateTime!
+
+  """The source URL of the media asset."""
+  url: String!
+
+  """Optimistic-lock revision counter, incremented on each update."""
+  version: Int!
+}
+
+type ProductMediaConnection {
+  edges: [ProductMediaConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductMediaConnectionEdge {
+  cursor: String!
+  node: ProductMedia!
+}
+
+"""The kind of a product/variant media asset: IMAGE or VIDEO."""
+enum ProductMediaType {
+  IMAGE
+  VIDEO
+}
+
+type ProductNotAdoptedError implements Error {
+  code: String!
+  message: String!
+}
+
+type ProductNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+One ordering clause for the `products` connection (field + direction). Multiple clauses are applied in order.
+"""
+input ProductOrderByInput {
+  """Ascending or descending."""
+  direction: ProductOrderDirection!
+
+  """The product field to sort by."""
+  field: ProductOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum ProductOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `products` connection can be ordered by."""
+enum ProductOrderField {
+  CREATED_AT
+  NAME
+}
+
+type ProductSkuTakenError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A central pivot that declares which attributes apply to its products and variants. A type is global (organizationId null) or org-owned, and an org can extend a global type with its own attribute declarations.
+"""
+type ProductType implements Node {
+  """
+  Attribute declarations for this type, ordered by position, covering both base declarations and org grafts.
+  """
+  attributes(after: String, before: String, first: Int, last: Int): ProductTypeAttributesConnection!
+
+  """When the product type was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """Marks the type as physical goods that require shipping."""
+  isShippingRequired: Boolean!
+
+  """Human-readable name of the product type."""
+  name: String!
+
+  """Owning organization, or null when the type is global."""
+  organizationId: Int
+
+  """URL-friendly identifier for the product type."""
+  slug: String!
+
+  """When the product type was last updated."""
+  updatedAt: DateTime!
+
+  """Optimistic-lock version, incremented on each update."""
+  version: Int!
+}
+
+type ProductTypeAlreadyGlobalError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+Declares that an attribute applies to a product type, either to its products or its variants. Base declarations belong to the type itself; org extensions graft additional declarations onto a (typically global) type.
+"""
+type ProductTypeAttribute implements Node {
+  """Whether this attribute applies at the PRODUCT or VARIANT level."""
+  assignment: String!
+
+  """
+  Cross-module reference to the @czo/attribute attribute being declared; resolved out-of-band by the client.
+  """
+  attributeId: Int!
+  id: ID!
+
+  """
+  Owning organization for an org graft, or null for a base declaration that ships with the type.
+  """
+  organizationId: Int
+
+  """Ordering of this declaration within its product type."""
+  position: Int!
+
+  """
+  When true, this attribute participates in the variant selection matrix used to generate variants.
+  """
+  variantSelection: Boolean!
+}
+
+type ProductTypeAttributesConnection {
+  edges: [ProductTypeAttributesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductTypeAttributesConnectionEdge {
+  cursor: String!
+  node: ProductTypeAttribute!
+}
+
+type ProductTypeNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type ProductTypeNotGlobalError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+One ordering clause for the `productTypes` connection (field + direction). Multiple clauses are applied in order.
+"""
+input ProductTypeOrderByInput {
+  """Ascending or descending."""
+  direction: ProductTypeOrderDirection!
+
+  """The product-type field to sort by."""
+  field: ProductTypeOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum ProductTypeOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the `productTypes` connection can be ordered by."""
+enum ProductTypeOrderField {
+  CREATED_AT
+  NAME
+}
+
+type ProductTypeSlugTakenError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+Filter predicate for the `productTypes` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
+"""
+input ProductTypeWhereInput {
+  """All sub-predicates must match."""
+  AND: [ProductTypeWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: ProductTypeWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [ProductTypeWhereInput!]
+
+  """Filter by the isShippingRequired flag."""
+  isShippingRequired: BooleanFilterInput
+}
+
+"""
+A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links.
+"""
+type ProductVariant implements Node {
+  """
+  Attribute values assigned to this variant; merges base (org-null) rows with the viewer organization's overlay rows.
+  """
+  attributeValues(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductVariantAttributeValuesConnection!
+
+  """Timestamp when this variant was created."""
+  createdAt: DateTime!
+  id: ID!
+
+  """
+  Inventory links for this variant scoped to the viewer organization; these are pure org grafts with no base rows, so omitting viewerOrg yields none.
+  """
+  inventoryItems(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): ProductVariantInventoryItemsConnection!
+
+  """
+  Media assets linked to this variant via the global link table; not org-scoped.
+  """
+  media(after: String, before: String, first: Int, last: Int): ProductVariantMediaConnection!
+
+  """
+  Display name of the variant in the requested locale, or null when no translation exists.
+  """
+  name(
+    """
+    BCP-47 locale code (e.g. `fr`). Returns the translation for that locale, falling back to the base value when absent or untranslated.
+    """
+    locale: String
+  ): String
+
+  """Owning organization, or null for a base (org-null) variant."""
+  organizationId: Int
+
+  """Sort order of this variant among its siblings."""
+  position: Int!
+
+  """
+  The viewer organization's price-set binding for this variant (unique per org), or null when no viewer org is given or no binding exists.
+  """
+  priceSet(
+    """
+    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
+    """
+    viewerOrg: ID
+  ): VariantPriceSet
+
+  """The product this variant belongs to."""
+  product: Product!
+
+  """Stock-keeping unit identifying this variant; null when unset."""
+  sku: String
+
+  """Timestamp when this variant was last updated."""
+  updatedAt: DateTime!
+
+  """Optimistic-lock version, incremented on each update."""
+  version: Int!
+}
+
+type ProductVariantAttributeValuesConnection {
+  edges: [ProductVariantAttributeValuesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductVariantAttributeValuesConnectionEdge {
+  cursor: String!
+  node: VariantAttributeValue!
+}
+
+type ProductVariantInventoryItemsConnection {
+  edges: [ProductVariantInventoryItemsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductVariantInventoryItemsConnectionEdge {
+  cursor: String!
+  node: VariantInventoryItem!
+}
+
+type ProductVariantMediaConnection {
+  edges: [ProductVariantMediaConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductVariantMediaConnectionEdge {
+  cursor: String!
+  node: VariantMedia!
+}
+
+type ProductVariantsConnection {
+  edges: [ProductVariantsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ProductVariantsConnectionEdge {
+  cursor: String!
+  node: ProductVariant!
+}
+
+"""
+Filter predicate for the `products` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
+"""
+input ProductWhereInput {
+  """All sub-predicates must match."""
+  AND: [ProductWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: ProductWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [ProductWhereInput!]
+
+  """Filter by the referenced product type id."""
+  productTypeId: IntFilterInput
+}
+
+type Query {
+  """
+  Paginated (relay) connection over the global products an org has adopted. Requires `product:read` in the given org.
+  """
+  adoptedProducts(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [ProductOrderByInput!]
+
+    """The organization whose adopted global products to list."""
+    organization: ID!
+
+    """Free-text search across name and handle (case-insensitive substring)."""
+    search: String
+
+    """Optional filter predicate."""
+    where: ProductWhereInput
+  ): QueryAdoptedProductsConnection!
+
+  """
+  Fetch a single attribute by relay id or by slug. Access is gated on `attribute:read` for the looked-up row's own scope: a platform (org-null) attribute needs the global role, an org-owned one needs the role in its org. Returns null when no match is visible.
+  """
+  attribute(
+    """Relay global id of the Attribute to fetch. Provide either id or slug."""
+    id: ID
+
+    """Slug of the attribute to fetch. Provide either id or slug."""
+    slug: String
+  ): Attribute
+
+  """
+  Paginated (relay) connection over platform attributes (owned by no organization). Requires the global attribute:read role.
+  """
+  attributes(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [AttributeOrderByInput!]
+
+    """Optional filter predicate."""
+    where: AttributeWhereInput
+  ): QueryAttributesConnection!
+
+  """
+  Paginated (relay) connection over the GLOBAL (platform) categories, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.
+  """
+  categories(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [CategoryOrderByInput!]
+
+    """Free-text search across name and slug (case-insensitive substring)."""
+    search: String
+
+    """Optional filter predicate."""
+    where: CategoryWhereInput
+  ): QueryCategoriesConnection!
+
+  """
+  Fetch a single category by id (admin). A global category requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.
+  """
+  category(
+    """The relay global id of the Category to fetch."""
+    id: ID!
+  ): Category
+
+  """
+  Fetch a single channel by id. Requires `channel:read` in the channel's owning organization. Returns null if not found or soft-deleted.
+  """
+  channel(
+    """Relay global id of the Channel to fetch."""
+    id: ID!
+  ): Channel
+
+  """
+  Fetch a single collection by id (admin). Collections are org-only; requires `product:read` in the owning org. Returns null if not found or soft-deleted.
+  """
+  collection(
+    """The relay global id of the Collection to fetch."""
+    id: ID!
+  ): Collection
+
+  """
+  Paginated (relay) connection over an org's collections (admin). Collections are org-only (no global tier), with optional free-text search and ordering. Requires `product:read` in the given org.
+  """
+  collections(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [CollectionOrderByInput!]
+
+    """The organization whose collections to list."""
+    organization: ID!
+
+    """Free-text search across name and slug (case-insensitive substring)."""
+    search: String
+  ): QueryCollectionsConnection!
+
+  """
+  The platform default locale, used as the fallback when a translation is missing. Null if none is configured. Public read.
+  """
+  defaultLocale: Locale
+
+  """Fetch a single locale by id. Public read; returns null if not found."""
+  locale(
+    """Relay global id of the Locale to fetch."""
+    id: ID!
+  ): Locale
+
+  """
+  Paginated (relay) connection over the platform locale registry. Public read.
+  """
+  locales(
+    """When true, return only active locales; defaults to false (all)."""
+    activeOnly: Boolean
+    after: String
+    before: String
+    first: Int
+    last: Int
+  ): QueryLocalesConnection!
+
+  """
+  The currently authenticated user (viewer), or null when the request is anonymous. Reads the resolved session principal; any authenticated caller may read itself.
+  """
+  me: User
+  node(id: ID!): Node
+  nodes(ids: [ID!]!): [Node]!
+
+  """
+  Lists platform-wide channels (no owning organization), with optional free-text search, filtering, and ordering. Requires the global `channel:read` role.
+  """
+  platformChannels(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [ChannelOrderByInput!]
+
+    """Free-text search across name and handle (case-insensitive substring)."""
+    search: String
+
+    """Optional filter predicate."""
+    where: ChannelWhereInput
+  ): QueryPlatformChannelsConnection!
+
+  """
+  Fetch a single product by id (admin). A global product requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.
+  """
+  product(
+    """The relay global id of the Product to fetch."""
+    id: ID!
+  ): Product
+
+  """
+  Fetch a single product type by id (admin). A global type requires the global `product:read` role; an org-owned one requires `product:read` in its org. Returns null if not found or soft-deleted.
+  """
+  productType(
+    """The relay global id of the ProductType to fetch."""
+    id: ID!
+  ): ProductType
+
+  """
+  Paginated (relay) connection over the GLOBAL (platform) product types, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.
+  """
+  productTypes(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [ProductTypeOrderByInput!]
+
+    """Free-text search across name and slug (case-insensitive substring)."""
+    search: String
+
+    """Optional filter predicate."""
+    where: ProductTypeWhereInput
+  ): QueryProductTypesConnection!
+
+  """
+  Paginated (relay) connection over the GLOBAL (platform) products, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role.
+  """
+  products(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [ProductOrderByInput!]
+
+    """Free-text search across name and handle (case-insensitive substring)."""
+    search: String
+
+    """Optional filter predicate."""
+    where: ProductWhereInput
+  ): QueryProductsConnection!
+
+  """
+  Paginated (relay) connection over the taxonomy requests awaiting platform review, with optional filtering and ordering. Requires the global `product:read` role.
+  """
+  taxonomyRequests(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Optional ordering clauses; defaults to newest-first (createdAt desc)."""
+    orderBy: [TaxonomyRequestOrderByInput!]
+
+    """Optional filter predicate."""
+    where: TaxonomyRequestWhereInput
+  ): QueryTaxonomyRequestsConnection!
+
+  """
+  Fetches a single user by their global ID, returning null if no such user exists.
+  """
+  user(
+    """Global ID of the user to fetch."""
+    id: ID!
+  ): User
+
+  """
+  Returns a paginated connection of users, with optional full-text search, filtering, and ordering.
+  """
+  users(
+    after: String
+    before: String
+    first: Int
+    last: Int
+
+    """Ordering criteria applied to the returned users."""
+    orderBy: [UserOrderByInput!]
+
+    """Free-text term to search users by."""
+    search: String
+
+    """Filter conditions restricting which users are returned."""
+    where: UserWhereInput
+  ): QueryUsersConnection!
+}
+
+type QueryAdoptedProductsConnection {
+  edges: [QueryAdoptedProductsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryAdoptedProductsConnectionEdge {
+  cursor: String!
+  node: Product!
+}
+
+type QueryAttributesConnection {
+  edges: [QueryAttributesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryAttributesConnectionEdge {
+  cursor: String!
+  node: Attribute!
+}
+
+type QueryCategoriesConnection {
+  edges: [QueryCategoriesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryCategoriesConnectionEdge {
+  cursor: String!
+  node: Category!
+}
+
+type QueryCollectionsConnection {
+  edges: [QueryCollectionsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryCollectionsConnectionEdge {
+  cursor: String!
+  node: Collection!
+}
+
+type QueryLocalesConnection {
+  edges: [QueryLocalesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryLocalesConnectionEdge {
+  cursor: String!
+  node: Locale!
+}
+
+type QueryPlatformChannelsConnection {
+  edges: [QueryPlatformChannelsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryPlatformChannelsConnectionEdge {
+  cursor: String!
+  node: Channel!
+}
+
+type QueryProductTypesConnection {
+  edges: [QueryProductTypesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryProductTypesConnectionEdge {
+  cursor: String!
+  node: ProductType!
+}
+
+type QueryProductsConnection {
+  edges: [QueryProductsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryProductsConnectionEdge {
+  cursor: String!
+  node: Product!
+}
+
+type QueryTaxonomyRequestsConnection {
+  edges: [QueryTaxonomyRequestsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryTaxonomyRequestsConnectionEdge {
+  cursor: String!
+  node: TaxonomyRequest!
+}
+
+type QueryUsersConnection {
+  edges: [QueryUsersConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryUsersConnectionEdge {
+  cursor: String!
+  node: User!
+}
+
+type ReferenceEntityNotAllowedError implements Error {
+  code: String!
+  message: String!
+}
+
+type ReferenceEntityRequiredError implements Error {
+  code: String!
+  message: String!
+}
+
+input RejectListingInput {
+  """Global ID of the ProductChannelListing to reject."""
+  listingId: ID!
+
+  """Why the listing is rejected; surfaced to the owning org."""
+  reason: String!
+}
+
+type RejectListingPayload {
+  """The rejected listing."""
+  listing: ProductChannelListing!
+}
+
+union RejectListingResult = ChannelListingNotFoundError | NotAMarketplaceChannelError | RejectListingSuccess
+
+type RejectListingSuccess {
+  data: RejectListingPayload!
+}
+
+input RejectTaxonomyRequestInput {
+  """Why the request is rejected; surfaced to the org."""
+  reason: String!
+
+  """Global ID of the request to reject."""
+  requestId: ID!
+}
+
+type RejectTaxonomyRequestPayload {
+  """The rejected request."""
+  request: TaxonomyRequest!
+}
+
+union RejectTaxonomyRequestResult = RejectTaxonomyRequestSuccess | TaxonomyRequestNotFoundError | TaxonomyRequestNotPendingError
+
+type RejectTaxonomyRequestSuccess {
+  data: RejectTaxonomyRequestPayload!
+}
+
+input RemoveCategoryTranslationInput {
+  """Global ID of the Category node whose translation is being removed."""
+  categoryId: ID!
+
+  """Registered locale code identifying which translation to delete."""
+  localeCode: String!
+}
+
+type RemoveCategoryTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union RemoveCategoryTranslationResult = RemoveCategoryTranslationSuccess
+
+type RemoveCategoryTranslationSuccess {
+  data: RemoveCategoryTranslationPayload!
+}
+
+input RemoveMediaInput {
+  """References the ProductMedia node to remove."""
+  id: ID!
+
+  """
+  The expected current version for optimistic-locking; the removal fails if it does not match.
+  """
+  version: Int!
+}
+
+type RemoveMediaPayload {
+  """The soft-deleted product media asset."""
+  media: ProductMedia!
+}
+
+union RemoveMediaResult = MediaNotFoundError | OptimisticLockError | RemoveMediaSuccess
+
+type RemoveMediaSuccess {
+  data: RemoveMediaPayload!
+}
+
+input RemovePlacementInput {
+  """References the Category node the product is removed from."""
+  categoryId: ID!
+
+  """
+  References an Organization node; when null the global base placement is removed, otherwise the org-specific graft is removed.
+  """
+  organizationId: ID
+
+  """The id of the product whose placement is removed."""
+  productId: Int!
+}
+
+type RemovePlacementPayload {
+  """Whether the placement was removed."""
+  success: Boolean!
+}
+
+union RemovePlacementResult = RemovePlacementSuccess
+
+type RemovePlacementSuccess {
+  data: RemovePlacementPayload!
+}
+
+input RemoveProductTranslationInput {
+  """Registered locale code identifying which translation to delete."""
+  localeCode: String!
+
+  """Global ID of the Product node whose translation is being removed."""
+  productId: ID!
+}
+
+type RemoveProductTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union RemoveProductTranslationResult = RemoveProductTranslationSuccess
+
+type RemoveProductTranslationSuccess {
+  data: RemoveProductTranslationPayload!
+}
+
+input RemoveUserInput {
+  """Global ID of the user to remove."""
+  id: ID!
+}
+
+type RemoveUserPayload {
+  """Whether the user was successfully removed."""
+  success: Boolean!
+}
+
+union RemoveUserResult = CannotRemoveSelfError | RemoveUserSuccess | UserNotFoundError
+
+type RemoveUserSuccess {
+  data: RemoveUserPayload!
+}
+
+input RemoveVariantTranslationInput {
+  """Registered locale code identifying which translation to delete."""
+  localeCode: String!
+
+  """
+  Global ID of the ProductVariant node whose translation is being removed.
+  """
+  variantId: ID!
+}
+
+type RemoveVariantTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union RemoveVariantTranslationResult = RemoveVariantTranslationSuccess
+
+type RemoveVariantTranslationSuccess {
+  data: RemoveVariantTranslationPayload!
+}
+
+input ReorderAttributeReferencesInput {
+  """The attribute whose reference values are being reordered."""
+  attributeId: ID!
+
+  """The reference value ids in their desired display order."""
+  orderedIds: [ID!]!
+}
+
+type ReorderAttributeReferencesPayload {
+  """True when the references were reordered."""
+  success: Boolean!
+}
+
+input ReorderAttributeSwatchesInput {
+  """The attribute whose swatch values are being reordered."""
+  attributeId: ID!
+
+  """The swatch value ids in their desired display order."""
+  orderedIds: [ID!]!
+}
+
+type ReorderAttributeSwatchesPayload {
+  """True when the swatches were reordered."""
+  success: Boolean!
+}
+
+input ReorderAttributeValuesInput {
+  """The attribute whose choice values are being reordered."""
+  attributeId: ID!
+
+  """The choice value ids in their desired display order."""
+  orderedIds: [ID!]!
+}
+
+type ReorderAttributeValuesPayload {
+  """True when the values were reordered."""
+  success: Boolean!
+}
+
+input RevokeSessionInput {
+  """Token of the specific session to revoke."""
+  sessionToken: String!
+}
+
+type RevokeSessionPayload {
+  """Whether the session was successfully revoked."""
+  success: Boolean!
+}
+
+input RevokeSessionsInput {
+  """Global ID of the user whose sessions should all be revoked."""
+  id: ID!
+}
+
+type RevokeSessionsPayload {
+  success: Boolean!
+}
+
+"""
+An authenticated session belonging to a user, viewed in an admin-scoped context.
+"""
+type Session {
+  """
+  Type of actor that owns the session, distinguishing users from other principals.
+  """
+  actorType: String!
+
+  """Timestamp at which the session was created."""
+  createdAt: DateTime!
+
+  """Timestamp at which the session expires and is no longer valid."""
+  expiresAt: DateTime!
+
+  """Unique identifier of the session."""
+  id: ID!
+
+  """
+  Identifier of the admin user impersonating the session owner, if this is an impersonation session.
+  """
+  impersonatedBy: String
+
+  """IP address from which the session was established."""
+  ipAddress: String
+
+  """User-agent string of the client that established the session."""
+  userAgent: String
+
+  """Identifier of the user that owns this session."""
+  userId: String!
+}
+
+input SetCategoryParentInput {
+  """References the Category node to re-parent."""
+  id: ID!
+
+  """
+  The id of the new parent category; pass null to detach the category to the root.
+  """
+  parentId: Int
+
+  """
+  The expected current version for optimistic-lock checking; a stale value is rejected.
+  """
+  version: Int!
+}
+
+type SetCategoryParentPayload {
+  """The re-parented category."""
+  category: Category!
+}
+
+union SetCategoryParentResult = CategoryCycleError | CategoryNotFoundError | OptimisticLockError | SetCategoryParentSuccess
+
+type SetCategoryParentSuccess {
+  data: SetCategoryParentPayload!
+}
+
+input SetRoleInput {
+  """Global ID of the user whose role is being set."""
+  id: ID!
+
+  """Global platform role to assign to the user."""
+  role: String!
+}
+
+type SetRolePayload {
+  """The user with their updated global role."""
+  user: User!
+}
+
+union SetRoleResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | SetRoleSuccess | UserNotFoundError
+
+type SetRoleSuccess {
+  data: SetRolePayload!
+}
+
+input SetUserPasswordInput {
+  """Global ID of the user whose password is being set."""
+  id: ID!
+
+  """New password to set on the user's credential account."""
+  newPassword: String!
+}
+
+type SetUserPasswordPayload {
+  """Whether the password was successfully set."""
+  success: Boolean!
+}
+
+union SetUserPasswordResult = PasswordHashFailedError | SetUserPasswordSuccess | UserNotFoundError
+
+type SetUserPasswordSuccess {
+  data: SetUserPasswordPayload!
+}
+
+input StartImpersonationInput {
+  """Optional human-readable reason recorded for audit purposes."""
+  reason: String
+
+  """The global ID of the user to impersonate."""
+  targetUserId: ID!
+
+  """Optional lifetime of the impersonation session, in seconds."""
+  ttl: Int
+}
+
+type StartImpersonationPayload {
+  """The newly minted child session that acts as the impersonated user."""
+  session: Session!
+
+  """The target user now being impersonated."""
+  user: User!
+}
+
+union StartImpersonationResult = CannotChainImpersonationError | CannotImpersonateAdminError | CannotImpersonateBannedUserError | CannotImpersonateSelfError | ImpersonationTtlTooLongError | StartImpersonationSuccess | UserNotFoundError
+
+type StartImpersonationSuccess {
+  data: StartImpersonationPayload!
+}
+
+input StopImpersonationInput {
+  """Optional client-supplied identifier echoed back by the relay mutation."""
+  clientMutationId: String
+}
+
+type StopImpersonationPayload {
+  """The restored parent (admin) session."""
+  session: Session!
+
+  """The admin user the session reverts to."""
+  user: User!
+}
+
+union StopImpersonationResult = ImpersonationNotActiveError | StopImpersonationSuccess
+
+type StopImpersonationSuccess {
+  data: StopImpersonationPayload!
+}
+
+input StringFilterInput {
+  AND: [StringFilterInput!]
+  NOT: StringFilterInput
+  OR: [StringFilterInput!]
+  eq: String
+  ilike: String
+  in: [String!]
+  like: String
+  ne: String
+  notIlike: String
+  notIn: [String!]
+  notLike: String
+}
+
+input SuspendListingInput {
+  """Global ID of the ProductChannelListing to suspend."""
+  listingId: ID!
+
+  """Why the listing is suspended; surfaced to the owning org."""
+  reason: String!
+}
+
+type SuspendListingPayload {
+  """The suspended listing."""
+  listing: ProductChannelListing!
+}
+
+union SuspendListingResult = ChannelListingNotFoundError | NotAMarketplaceChannelError | SuspendListingSuccess
+
+type SuspendListingSuccess {
+  data: SuspendListingPayload!
+}
+
+type SwatchRequiresColorOrFileError implements Error {
+  code: String!
+  message: String!
+}
+
+type SwatchVisualInvalidError implements Error {
+  code: String!
+  message: String!
+  reason: String!
+}
+
+"""The taxonomy entity a request concerns."""
+enum TaxonomyEntityType {
+  CATEGORY
+  PRODUCT_TYPE
+}
+
+"""
+An org's request to create or promote a global taxonomy entity, awaiting platform review.
+"""
+type TaxonomyRequest implements Node {
+  """The taxonomy entity concerned."""
+  entityType: TaxonomyEntityType!
+  id: ID!
+
+  """Create a new global entity, or promote an existing org one."""
+  kind: TaxonomyRequestKind!
+
+  """The organization that submitted the request."""
+  organizationId: Int!
+
+  """For a creation: the proposed name."""
+  proposedName: String
+
+  """For a creation: the proposed slug."""
+  proposedSlug: String
+
+  """The resulting global entity id once approved."""
+  resultId: Int
+
+  """Why the request was rejected; null otherwise."""
+  reviewReason: String
+
+  """When an admin reviewed it, or null while pending."""
+  reviewedAt: DateTime
+
+  """Pending, approved, or rejected."""
+  state: TaxonomyRequestState!
+
+  """For a promotion: the org-tier entity id to promote."""
+  targetId: Int
+}
+
+"""
+Whether the request asks to CREATE a new global taxonomy or PROMOTE an existing org one.
+"""
+enum TaxonomyRequestKind {
+  CREATE
+  PROMOTE
+}
+
+type TaxonomyRequestNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+type TaxonomyRequestNotPendingError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+One ordering clause for the taxonomy-request connections (field + direction). Multiple clauses are applied in order.
+"""
+input TaxonomyRequestOrderByInput {
+  """Ascending or descending."""
+  direction: TaxonomyRequestOrderDirection!
+
+  """The taxonomy-request field to sort by."""
+  field: TaxonomyRequestOrderField!
+}
+
+"""Sort direction: ascending or descending."""
+enum TaxonomyRequestOrderDirection {
+  ASC
+  DESC
+}
+
+"""A field the taxonomy-request connections can be ordered by."""
+enum TaxonomyRequestOrderField {
+  CREATED_AT
+  REVIEWED_AT
+}
+
+"""Moderation state of a taxonomy request."""
+enum TaxonomyRequestState {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
+"""
+Filter predicate for taxonomy-request connections. Field filters are AND-combined; use AND/OR/NOT to compose.
+"""
+input TaxonomyRequestWhereInput {
+  """All sub-predicates must match."""
+  AND: [TaxonomyRequestWhereInput!]
+
+  """The sub-predicate must not match."""
+  NOT: TaxonomyRequestWhereInput
+
+  """At least one sub-predicate must match."""
+  OR: [TaxonomyRequestWhereInput!]
+
+  """Filter by entity type (equals)."""
+  entityType: TaxonomyEntityType
+
+  """Filter by request kind (equals)."""
+  kind: TaxonomyRequestKind
+
+  """Filter by review state (equals)."""
+  state: TaxonomyRequestState
+}
+
+type TypedValueNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+input UnassignProductValueInput {
+  """
+  The id of the assignment pivot row to remove. Select-type values keep the shared catalog row; scalar-type values delete the minted value row.
+  """
+  pivotId: Int!
+
+  """
+  The id of the owning product, used only to resolve the authorization organization.
+  """
+  subjectId: Int!
+}
+
+type UnassignProductValuePayload {
+  """True when the assignment was removed."""
+  success: Boolean!
+}
+
+union UnassignProductValueResult = AssignmentNotFoundError | UnassignProductValueSuccess
+
+type UnassignProductValueSuccess {
+  data: UnassignProductValuePayload!
+}
+
+input UnassignVariantValueInput {
+  """
+  The id of the assignment pivot row to remove. Select-type values keep the shared catalog row; scalar-type values delete the minted value row.
+  """
+  pivotId: Int!
+
+  """
+  The id of the owning variant, used only to resolve the authorization organization.
+  """
+  subjectId: Int!
+}
+
+type UnassignVariantValuePayload {
+  """True when the assignment was removed."""
+  success: Boolean!
+}
+
+union UnassignVariantValueResult = AssignmentNotFoundError | UnassignVariantValueSuccess
+
+type UnassignVariantValueSuccess {
+  data: UnassignVariantValuePayload!
+}
+
+input UnbanUserInput {
+  """Global ID of the user to unban."""
+  id: ID!
+}
+
+type UnbanUserPayload {
+  """The unbanned user."""
+  user: User!
+}
+
+union UnbanUserResult = UnbanUserSuccess | UserNotBannedError | UserNotFoundError
+
+type UnbanUserSuccess {
+  data: UnbanUserPayload!
+}
+
+input UndeclareAttributeInput {
+  """Identifier of the attribute declaration to detach from the type."""
+  attributeAssignmentId: Int!
+
+  """References the ProductType node the attribute declaration belongs to."""
+  productTypeId: ID!
+}
+
+type UndeclareAttributePayload {
+  """True when the attribute declaration was detached."""
+  success: Boolean!
+}
+
+union UndeclareAttributeResult = UndeclareAttributeSuccess
+
+type UndeclareAttributeSuccess {
+  data: UndeclareAttributePayload!
+}
+
+type UnitNotAllowedError implements Error {
+  code: String!
+  message: String!
+}
+
+input UnlinkVariantMediaInput {
+  """References the ProductMedia node to detach from the variant."""
+  mediaId: ID!
+
+  """References the ProductVariant node to detach the media asset from."""
+  variantId: ID!
+}
+
+type UnlinkVariantMediaPayload {
+  """True when the media asset was successfully unlinked from the variant."""
+  success: Boolean!
+}
+
+union UnlinkVariantMediaResult = UnlinkVariantMediaSuccess
+
+type UnlinkVariantMediaSuccess {
+  data: UnlinkVariantMediaPayload!
+}
+
+input UpdateAttributeBooleanValueInput {
+  """The boolean value to update."""
+  id: ID!
+
+  """New boolean value; omit to leave it unchanged."""
+  value: Boolean
+}
+
+type UpdateAttributeBooleanValuePayload {
+  """The updated boolean value."""
+  value: AttributeBooleanValue!
+}
+
+union UpdateAttributeBooleanValueResult = TypedValueNotFoundError | UpdateAttributeBooleanValueSuccess
+
+type UpdateAttributeBooleanValueSuccess {
+  data: UpdateAttributeBooleanValuePayload!
+}
+
+input UpdateAttributeDateValueInput {
+  """The date value to update."""
+  id: ID!
+
+  """New date/time value; omit to leave it unchanged."""
+  value: DateTime
+}
+
+type UpdateAttributeDateValuePayload {
+  """The updated date value."""
+  value: AttributeDateValue!
+}
+
+union UpdateAttributeDateValueResult = TypedValueNotFoundError | UpdateAttributeDateValueSuccess
+
+type UpdateAttributeDateValueSuccess {
+  data: UpdateAttributeDateValuePayload!
+}
+
+input UpdateAttributeFileValueInput {
+  """New file (URL and MIME type); omit to leave it unchanged."""
+  file: FileInfoInput
+
+  """The file value to update."""
+  id: ID!
+}
+
+type UpdateAttributeFileValuePayload {
+  """The updated file value."""
+  value: AttributeFileValue!
+}
+
+union UpdateAttributeFileValueResult = TypedValueNotFoundError | UpdateAttributeFileValueSuccess
+
+type UpdateAttributeFileValueSuccess {
+  data: UpdateAttributeFileValuePayload!
+}
+
+input UpdateAttributeInput {
+  """New external source identifier; left unchanged when omitted."""
+  externalId: String
+
+  """New external source name; left unchanged when omitted."""
+  externalSource: String
+
+  """Global id of the attribute to update."""
+  id: ID!
+
+  """New filterable flag; left unchanged when omitted."""
+  isFilterable: Boolean
+
+  """New required flag; left unchanged when omitted."""
+  isRequired: Boolean
+
+  """Replacement freeform JSON metadata; left unchanged when omitted."""
+  metadata: JSONObject
+
+  """New display name; left unchanged when omitted."""
+  name: String
+
+  """
+  New measurement unit, applicable only to NUMBER-typed attributes; left unchanged when omitted.
+  """
+  unit: AttributeUnit
+
+  """Expected current version for optimistic-lock concurrency control."""
+  version: Int!
+}
+
+input UpdateAttributeNumericValueInput {
+  """The numeric value to update."""
+  id: ID!
+
+  """New numeric value; omit to leave it unchanged."""
+  value: Float
+}
+
+type UpdateAttributeNumericValuePayload {
+  """The updated numeric value."""
+  value: AttributeNumericValue!
+}
+
+union UpdateAttributeNumericValueResult = TypedValueNotFoundError | UpdateAttributeNumericValueSuccess
+
+type UpdateAttributeNumericValueSuccess {
+  data: UpdateAttributeNumericValuePayload!
+}
+
+type UpdateAttributePayload {
+  """The updated attribute."""
+  attribute: Attribute!
+}
+
+input UpdateAttributeReferenceInput {
+  """The reference value to update."""
+  id: ID!
+
+  """
+  New sort position among siblings; leave unset to keep the current order.
+  """
+  position: Int
+
+  """New target entity id; leave unset to keep the current reference."""
+  referenceId: Int
+
+  """
+  New slug, unique within the attribute and scope; leave unset to keep the current slug.
+  """
+  slug: String
+
+  """New displayed text; leave unset to keep the current value."""
+  value: String
+}
+
+type UpdateAttributeReferencePayload {
+  """The updated reference value."""
+  value: AttributeReferenceValue!
+}
+
+union UpdateAttributeReferenceResult = AttributeValueNotFoundError | AttributeValueSlugTakenError | UpdateAttributeReferenceSuccess
+
+type UpdateAttributeReferenceSuccess {
+  data: UpdateAttributeReferencePayload!
+}
+
+union UpdateAttributeResult = AttributeNotFoundError | OptimisticLockError | UnitNotAllowedError | UpdateAttributeSuccess
+
+type UpdateAttributeSuccess {
+  data: UpdateAttributePayload!
+}
+
+input UpdateAttributeSwatchInput {
+  """
+  New hex color; pass null to clear it, leave unset to keep the current color.
+  """
+  color: String
+
+  """
+  New backing image; pass null to clear it, leave unset to keep the current file.
+  """
+  file: FileInfoInput
+
+  """The swatch value to update."""
+  id: ID!
+
+  """
+  New sort position among siblings; leave unset to keep the current order.
+  """
+  position: Int
+
+  """
+  New slug, unique within the attribute and scope; leave unset to keep the current slug.
+  """
+  slug: String
+
+  """New displayed text; leave unset to keep the current value."""
+  value: String
+}
+
+type UpdateAttributeSwatchPayload {
+  """The updated swatch value."""
+  value: AttributeSwatchValue!
+}
+
+union UpdateAttributeSwatchResult = AttributeValueNotFoundError | AttributeValueSlugTakenError | SwatchRequiresColorOrFileError | SwatchVisualInvalidError | UpdateAttributeSwatchSuccess
+
+type UpdateAttributeSwatchSuccess {
+  data: UpdateAttributeSwatchPayload!
+}
+
+input UpdateAttributeTextValueInput {
+  """The text value to update."""
+  id: ID!
+
+  """New plain-text representation; omit to leave it unchanged."""
+  plain: String
+
+  """
+  New rich-text JSON document; omit to leave it unchanged, pass null to clear it.
+  """
+  rich: JSONObject
+}
+
+type UpdateAttributeTextValuePayload {
+  """The updated text value."""
+  value: AttributeTextValue!
+}
+
+union UpdateAttributeTextValueResult = TypedValueNotFoundError | UpdateAttributeTextValueSuccess
+
+type UpdateAttributeTextValueSuccess {
+  data: UpdateAttributeTextValuePayload!
+}
+
+input UpdateAttributeValueInput {
+  """The choice value to update."""
+  id: ID!
+
+  """
+  New sort position among siblings; leave unset to keep the current order.
+  """
+  position: Int
+
+  """
+  New slug, unique within the attribute and scope; leave unset to keep the current slug.
+  """
+  slug: String
+
+  """New displayed text; leave unset to keep the current value."""
+  value: String
+}
+
+type UpdateAttributeValuePayload {
+  """The updated choice value."""
+  value: AttributeValue!
+}
+
+union UpdateAttributeValueResult = AttributeValueNotFoundError | AttributeValueSlugTakenError | UpdateAttributeValueSuccess
+
+type UpdateAttributeValueSuccess {
+  data: UpdateAttributeValuePayload!
+}
+
+input UpdateCategoryInput {
+  """A new long-form description for the category."""
+  description: String
+
+  """References the Category node to update."""
+  id: ID!
+
+  """A new display name for the category."""
+  name: String
+
+  """A new ordering position among sibling categories."""
+  position: Int
+
+  """A new URL-friendly identifier, unique within the category's scope."""
+  slug: String
+
+  """
+  The expected current version for optimistic-lock checking; a stale value is rejected.
+  """
+  version: Int!
+}
+
+type UpdateCategoryPayload {
+  """The updated category."""
+  category: Category!
+}
+
+union UpdateCategoryResult = CategoryNotFoundError | CategorySlugTakenError | OptimisticLockError | UpdateCategorySuccess
+
+type UpdateCategorySuccess {
+  data: UpdateCategoryPayload!
+}
+
+input UpdateChannelInput {
+  """New description; left unchanged when omitted."""
+  description: String
+
+  """
+  New URL-safe identifier, unique within the organization; left unchanged when omitted.
+  """
+  handle: String
+
+  """Identifies the Channel node to update."""
+  id: ID!
+
+  """New availability state; left unchanged when omitted."""
+  isActive: Boolean
+
+  """New default-channel flag; left unchanged when omitted."""
+  isDefault: Boolean
+
+  """New freeform metadata; left unchanged when omitted."""
+  metadata: JSONObject
+
+  """New display name; left unchanged when omitted."""
+  name: String
+
+  """Expected current version for optimistic-lock concurrency control."""
+  version: Int!
+}
+
+type UpdateChannelPayload {
+  """The updated sales channel."""
+  channel: Channel!
+}
+
+union UpdateChannelResult = ChannelNotFoundError | OptimisticLockError | UpdateChannelSuccess | ValidationError
+
+type UpdateChannelSuccess {
+  data: UpdateChannelPayload!
+}
+
+input UpdateLocaleInput {
+  """The Locale to update."""
+  id: ID!
+
+  """New active state; omit to leave unchanged."""
+  isActive: Boolean
+
+  """New display name; omit to leave unchanged."""
+  name: String
+
+  """
+  Optimistic-lock version; must match the current row or the update is rejected.
+  """
+  version: Int!
+}
+
+type UpdateLocalePayload {
+  """The updated locale."""
+  locale: Locale!
+}
+
+union UpdateLocaleResult = LocaleNotFoundError | OptimisticLockError | UpdateLocaleSuccess | ValidationError
+
+type UpdateLocaleSuccess {
+  data: UpdateLocalePayload!
+}
+
+input UpdateMediaInput {
+  """
+  New accessibility alt text for the media asset; left unchanged when omitted.
+  """
+  alt: String
+
+  """References the ProductMedia node to update."""
+  id: ID!
+
+  """
+  A new ordering position within the product gallery; left unchanged when omitted.
+  """
+  position: Int
+
+  """A new media kind, either IMAGE or VIDEO; left unchanged when omitted."""
+  type: ProductMediaType
+
+  """A new URL for the media asset; left unchanged when omitted."""
+  url: String
+
+  """
+  The expected current version for optimistic-locking; the update fails if it does not match.
+  """
+  version: Int!
+}
+
+type UpdateMediaPayload {
+  """The updated product media asset."""
+  media: ProductMedia!
+}
+
+union UpdateMediaResult = MediaNotFoundError | OptimisticLockError | UpdateMediaSuccess
+
+type UpdateMediaSuccess {
+  data: UpdateMediaPayload!
+}
+
+input UpdateProductInput {
+  """The new long-form description; omit to leave it unchanged."""
+  description: String
+
+  """The Product to update."""
+  id: ID!
+
+  """The new display name; omit to leave it unchanged."""
+  name: String
+
+  """The new thumbnail image URL; omit to leave it unchanged."""
+  thumbnailUrl: String
+
+  """
+  The optimistic-lock version, which must match the current row or the update is rejected.
+  """
+  version: Int!
+}
+
+type UpdateProductPayload {
+  """The updated product."""
+  product: Product!
+}
+
+union UpdateProductResult = OptimisticLockError | ProductNotFoundError | UpdateProductSuccess
+
+type UpdateProductSuccess {
+  data: UpdateProductPayload!
+}
+
+input UpdateProductTypeInput {
+  """References the ProductType node to update."""
+  id: ID!
+
+  """New shipping-required flag; omit to leave unchanged."""
+  isShippingRequired: Boolean
+
+  """New display name; omit to leave unchanged."""
+  name: String
+
+  """New URL-safe identifier; omit to leave unchanged."""
+  slug: String
+
+  """
+  Expected current version for optimistic-lock concurrency control; the update fails if it no longer matches.
+  """
+  version: Int!
+}
+
+type UpdateProductTypePayload {
+  """The updated product type."""
+  productType: ProductType!
+}
+
+union UpdateProductTypeResult = OptimisticLockError | ProductTypeNotFoundError | UpdateProductTypeSuccess
+
+type UpdateProductTypeSuccess {
+  data: UpdateProductTypePayload!
+}
+
+input UpdateUserInput {
+  """Global ID of the user to update."""
+  id: ID!
+
+  """New display name for the user."""
+  name: String
+
+  """
+  New set of global platform roles to assign to the user; requires the user:set-role permission.
+  """
+  role: [String!]
+}
+
+type UpdateUserPayload {
+  """The updated user."""
+  user: User!
+}
+
+union UpdateUserResult = ForbiddenError | InvalidRoleError | UpdateUserSuccess | UserNoChangesError | UserNotFoundError | ValidationError
+
+type UpdateUserSuccess {
+  data: UpdateUserPayload!
+}
+
+input UpdateVariantInput {
+  """Global ID of the ProductVariant node to update."""
+  id: ID!
+
+  """New sort position ordering the variant among its siblings."""
+  position: Int
+
+  """New stock-keeping unit. Must be unique when provided."""
+  sku: String
+
+  """
+  Expected current version for optimistic locking; a mismatch raises OptimisticLockError.
+  """
+  version: Int!
+}
+
+type UpdateVariantPayload {
+  """The updated variant."""
+  variant: ProductVariant!
+}
+
+union UpdateVariantResult = OptimisticLockError | UpdateVariantSuccess | VariantNotFoundError
+
+type UpdateVariantSuccess {
+  data: UpdateVariantPayload!
+}
+
+input UpsertCategoryTranslationInput {
+  """Global ID of the Category node whose translation is being written."""
+  categoryId: ID!
+
+  """Optional localized category description for this locale."""
+  description: String
+
+  """
+  Registered locale code identifying which language this translation targets.
+  """
+  localeCode: String!
+
+  """Localized category name for this locale."""
+  name: String!
+}
+
+type UpsertCategoryTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union UpsertCategoryTranslationResult = UpsertCategoryTranslationSuccess
+
+type UpsertCategoryTranslationSuccess {
+  data: UpsertCategoryTranslationPayload!
+}
+
+input UpsertProductTranslationInput {
+  """Optional localized product description for this locale."""
+  description: String
+
+  """
+  Registered locale code identifying which language this translation targets.
+  """
+  localeCode: String!
+
+  """Localized product name for this locale."""
+  name: String!
+
+  """Global ID of the Product node whose translation is being written."""
+  productId: ID!
+}
+
+type UpsertProductTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union UpsertProductTranslationResult = UpsertProductTranslationSuccess
+
+type UpsertProductTranslationSuccess {
+  data: UpsertProductTranslationPayload!
+}
+
+input UpsertVariantTranslationInput {
+  """
+  Registered locale code identifying which language this translation targets.
+  """
+  localeCode: String!
+
+  """Localized variant name for this locale."""
+  name: String!
+
+  """
+  Global ID of the ProductVariant node whose translation is being written.
+  """
+  variantId: ID!
+}
+
+type UpsertVariantTranslationPayload {
+  """True when the translation operation completed successfully."""
+  success: Boolean!
+}
+
+union UpsertVariantTranslationResult = UpsertVariantTranslationSuccess
+
+type UpsertVariantTranslationSuccess {
+  data: UpsertVariantTranslationPayload!
+}
+
+"""
+A platform account, identified globally and distinct from per-organization memberships.
+"""
+type User implements Node {
+  """
+  Timestamp at which the user's ban expires, or null for a permanent ban.
+  """
+  banExpires: DateTime
+
+  """Reason recorded for the user's ban."""
+  banReason: String
+
+  """Whether the user is currently banned from the platform."""
+  banned: Boolean
+
+  """Timestamp at which the user account was created."""
+  createdAt: DateTime!
+
+  """Email address used to identify and contact the user."""
+  email: String!
+
+  """Whether the user has confirmed ownership of their email address."""
+  emailVerified: Boolean!
+  id: ID!
+
+  """URL of the user's avatar image."""
+  image: String
+
+  """Display name of the user."""
+  name: String!
+
+  """
+  Platform-level global role of the user, distinct from per-organization membership roles; defaults to "user".
+  """
+  role: String!
+
+  """Whether two-factor authentication is enabled for the user."""
+  twoFactorEnabled: Boolean
+
+  """Timestamp at which the user account was last updated."""
+  updatedAt: DateTime!
+}
+
+type UserAlreadyBannedError implements Error {
+  code: String!
+  message: String!
+}
+
+type UserAlreadyExistsError implements Error {
+  code: String!
+  message: String!
+}
+
+type UserNoChangesError implements Error {
+  code: String!
+  message: String!
+}
+
+type UserNotBannedError implements Error {
+  code: String!
+  message: String!
+}
+
+type UserNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""Specifies a field and direction by which to order a list of users."""
+input UserOrderByInput {
+  """Direction in which to sort the chosen field."""
+  direction: OrderDirection!
+
+  """Field to order users by."""
+  field: UserOrderField!
+}
+
+"""Fields by which a list of users can be ordered."""
+enum UserOrderField {
+  """Order by account creation timestamp."""
+  CREATED_AT
+
+  """Order by email address."""
+  EMAIL
+
+  """Order by display name."""
+  NAME
+}
+
+"""
+Filter conditions for selecting users, combinable via the AND, OR, and NOT operators.
+"""
+input UserWhereInput {
+  """Match users satisfying all of the given sub-filters."""
+  AND: [UserWhereInput!]
+
+  """Match users that do not satisfy the given sub-filter."""
+  NOT: UserWhereInput
+
+  """Match users satisfying any of the given sub-filters."""
+  OR: [UserWhereInput!]
+
+  """Filter users by ban expiry timestamp."""
+  banExpires: DateTimeFilterInput
+
+  """Filter users by the recorded ban reason."""
+  banReason: StringFilterInput
+
+  """Filter users by whether they are currently banned."""
+  banned: BooleanFilterInput
+
+  """Filter users by account creation timestamp."""
+  createdAt: DateTimeFilterInput
+
+  """Filter users by email address."""
+  email: StringFilterInput
+
+  """Filter users by whether their email is verified."""
+  emailVerified: BooleanFilterInput
+
+  """Filter users by display name."""
+  name: StringFilterInput
+
+  """Filter users by whether two-factor authentication is enabled."""
+  twoFactorEnabled: BooleanFilterInput
+}
+
+type ValidationError implements Error {
+  code: String!
+  fields: [FieldError!]!
+  message: String!
+}
+
+type ValueKindMismatchError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+A graft row binding a variant to one of its selection attribute values; null organizationId is the base assignment, a set organizationId is a specific org's overlay.
+"""
+type VariantAttributeValue implements Node {
+  """The attribute (in the attribute module) this value belongs to."""
+  attributeId: Int!
+  id: ID!
+
+  """
+  The owning organization of this graft, or null when it is the shared base assignment.
+  """
+  organizationId: Int
+
+  """Ordering of this value among the variant's attribute values."""
+  position: Int!
+
+  """The specific attribute value selected for the variant."""
+  valueId: Int!
+
+  """The variant this selection value is assigned to."""
+  variantId: Int!
+}
+
+"""
+A graft row linking a variant to an inventory item it draws stock from, with the quantity each unit requires.
+"""
+type VariantInventoryItem implements Node {
+  id: ID!
+
+  """The inventory item (in the inventory module) the variant draws from."""
+  inventoryItemId: Int!
+
+  """The owning organization of this inventory link."""
+  organizationId: Int!
+
+  """How many units of the inventory item one variant unit consumes."""
+  requiredQuantity: Int!
+
+  """The variant that consumes the inventory item."""
+  variantId: Int!
+}
+
+"""A link row associating a variant with a media asset."""
+type VariantMedia implements Node {
+  id: ID!
+
+  """The media asset linked to the variant."""
+  mediaId: Int!
+
+  """The variant the media asset is attached to."""
+  variantId: Int!
+}
+
+type VariantNotFoundError implements Error {
+  code: String!
+  message: String!
+}
+
+"""
+The binding between a variant and a price set for a single viewer organization. The price set itself lives in @czo/price and is resolved out-of-band via priceSetId (no foreign key).
+"""
+type VariantPriceSet {
+  """Unique identifier of this variant-to-price-set binding."""
+  id: Int!
+
+  """Identifier of the organization that owns this binding."""
+  organizationId: Int!
+
+  """
+  Cross-module reference to the bound PriceSet in @czo/price; resolve the node separately.
+  """
+  priceSetId: Int!
+}
+
+"""
+One (attribute, value) pair of a variant's option selection. The full set of pairs defines the variant's position in the product's option matrix and must be unique among siblings.
+"""
+input VariantSelectionPairInput {
+  """
+  Raw id of a variant-selection attribute declared on the product's type.
+  """
+  attributeId: Int!
+
+  """Raw id of the chosen catalog value for that attribute."""
+  valueId: Int!
+}
