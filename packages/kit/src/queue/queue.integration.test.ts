@@ -1,7 +1,7 @@
-import { PgClient } from '@effect/sql-pg'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import { Effect, Fiber, Layer, Redacted, Schema } from 'effect'
 import { afterAll, beforeAll, expect, it } from 'vitest'
+import { makePgClientLayer } from '../db'
 import { defineQueue, JobQueueLive, makeConsumer, offer } from './index'
 
 const Job = Schema.Struct({ productId: Schema.Number, orgId: Schema.Number })
@@ -13,7 +13,7 @@ let factory: Layer.Layer<any, any, never>
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:17').start()
   const url = Redacted.make(container.getConnectionUri())
-  factory = JobQueueLive.pipe(Layer.provide(PgClient.layer({ url })))
+  factory = JobQueueLive.pipe(Layer.provide(makePgClientLayer(url)))
 }, 120_000)
 
 afterAll(async () => {

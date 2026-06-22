@@ -118,6 +118,29 @@ function rawTypeParser(id: number, format?: 'text' | 'binary') {
 }
 
 /**
+ * Build a `pg.Pool` we own, with the canonical type-parser override AND an
+ * idle-client `error` listener.
+ *
+ * A pooled connection can fail while sitting idle — a DB failover/restart in
+ * production, or the Testcontainers Postgres being stopped at the end of a test
+ * run (Postgres `57P01`, "terminating connection due to administrator command").
+ * node-postgres surfaces that on the pool's `error` event; with NO listener it
+ * re-emits it as an uncaught exception that crashes the process (in tests:
+ * Vitest reports an unhandled error and fails the whole run even though every
+ * test passed). The pool has already evicted the dead client by the time this
+ * fires, and in-flight queries reject through their own promise, so dropping the
+ * idle-connection error here is the documented node-postgres pattern.
+ */
+function makeOwnedPool(url: Redacted.Redacted<string>) {
+  const pool = new pg.Pool({
+    connectionString: Redacted.value(url),
+    types: { getTypeParser: rawTypeParser },
+  })
+  pool.on('error', () => {})
+  return pool
+}
+
+/**
  * Build one db for a single connection URL. We OWN the `pg.Pool` so two drizzle
  * views can share it:
  *  - the effect-postgres client (`PgClient.fromPool`) used by service code, and
@@ -132,10 +155,7 @@ function rawTypeParser(id: number, format?: 'text' | 'binary') {
 function makeClientDb(url: Redacted.Redacted<string>, relations: RelationsEntry) {
   return Effect.gen(function* () {
     const pool = yield* Effect.acquireRelease(
-      Effect.sync(() => new pg.Pool({
-        connectionString: Redacted.value(url),
-        types: { getTypeParser: rawTypeParser },
-      })),
+      Effect.sync(() => makeOwnedPool(url)),
       p => Effect.promise(() => p.end()),
     )
 
@@ -163,10 +183,19 @@ function makeClientDb(url: Redacted.Redacted<string>, relations: RelationsEntry)
  * Testcontainers URI without duplicating the OID list or parser logic).
  */
 export function makePgClientLayer(url: Redacted.Redacted<string>) {
-  return PgClient.layer({
-    url,
-    types: { getTypeParser: rawTypeParser },
-  })
+  // Own the `pg.Pool` (rather than `PgClient.layer({ url })`) so the idle-client
+  // `error` listener from `makeOwnedPool` is attached — otherwise a connection
+  // dying at container teardown (57P01) crashes the test run. Pool lifecycle is
+  // tied to this Layer's scope; `PgClient.fromPool` only consumes it.
+  return Layer.unwrap(
+    Effect.gen(function* () {
+      const pool = yield* Effect.acquireRelease(
+        Effect.sync(() => makeOwnedPool(url)),
+        p => Effect.promise(() => p.end()),
+      )
+      return PgClient.layerFrom(PgClient.fromPool({ acquire: Effect.succeed(pool) }))
+    }),
+  )
 }
 
 /**
