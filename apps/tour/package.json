@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "node dist/server/server.js",
     "codegen": "graphql-codegen --config codegen.ts",
+    "i18n:pull": "tolgee --api-url \"$TOLGEE_API_URL\" --api-key \"$TOLGEE_API_KEY\" pull",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run"
@@ -20,6 +21,7 @@
     "@tanstack/react-router-with-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tanstack/react-table": "catalog:",
+    "@tolgee/react": "catalog:",
     "@workspace/ui": "workspace:*",
     "graphql": "catalog:common",
     "lucide-react": "catalog:common",
@@ -32,6 +34,7 @@
     "@tailwindcss/postcss": "catalog:dev",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@tolgee/cli": "catalog:",
     "@types/node": "catalog:types",
     "@types/react": "catalog:types",
     "@types/react-dom": "catalog:types",

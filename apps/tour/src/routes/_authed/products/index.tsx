@@ -1,6 +1,7 @@
 import type { ProductRow } from '../../../server/products.server'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useTranslate } from '@tolgee/react'
 import { fetchProducts } from '../../../server/products.server'
 
 function productsQuery(after: string | null) {
@@ -17,14 +18,15 @@ export const Route = createFileRoute('/_authed/products/')({
 
 function ProductsPage() {
   const { data } = useSuspenseQuery(productsQuery(null))
+  const { t } = useTranslate()
   return (
     <div>
-      <h1 className="mb-4 text-lg font-semibold">Products</h1>
+      <h1 className="mb-4 text-lg font-semibold">{t('products.title')}</h1>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-muted-foreground">
-            <th className="py-1">Name</th>
-            <th>Handle</th>
+            <th className="py-1">{t('common.col.name')}</th>
+            <th>{t('common.col.handle')}</th>
           </tr>
         </thead>
         <tbody>
@@ -39,7 +41,7 @@ function ProductsPage() {
         </tbody>
       </table>
       {data.hasNextPage
-        ? <p className="mt-3 text-xs text-muted-foreground">More available (pagination wired in a follow-up).</p>
+        ? <p className="mt-3 text-xs text-muted-foreground">{t('products.morePaginated')}</p>
         : null}
     </div>
   )

@@ -1,5 +1,6 @@
 import type { MeUser } from '../server/auth.server'
 import { useRouter } from '@tanstack/react-router'
+import { useTranslate } from '@tolgee/react'
 import { Avatar, AvatarFallback } from '@workspace/ui/components/avatar'
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ import {
 import { ChevronsUpDown, LogOut } from 'lucide-react'
 import * as React from 'react'
 import { signOut } from '../server/auth.server'
+import { LocaleSwitcher } from './locale-switcher'
 
 function initials(name: string, email: string) {
   return (name?.trim() || email).slice(0, 2).toUpperCase()
@@ -27,6 +29,7 @@ function initials(name: string, email: string) {
 export function NavUser({ user }: { user: MeUser }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const { t } = useTranslate()
   const [signingOut, setSigningOut] = React.useState(false)
 
   async function onSignOut() {
@@ -77,9 +80,13 @@ export function NavUser({ user }: { user: MeUser }) {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <LocaleSwitcher />
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
               <DropdownMenuItem disabled={signingOut} onClick={onSignOut}>
                 <LogOut />
-                Sign out
+                {t('nav.signOut')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
