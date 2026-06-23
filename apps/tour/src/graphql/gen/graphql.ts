@@ -134,6 +134,80 @@ export type AssignVariantValueSuccess = {
   data: AssignVariantValuePayload;
 };
 
+/** An attribute assigned to an object, with its typed value(s) resolved inline. */
+export type AssignedAttribute = {
+  /** The attribute. */
+  attribute: Attribute;
+};
+
+export type AssignedBooleanAttribute = AssignedAttribute & {
+  __typename?: 'AssignedBooleanAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** The boolean value. */
+  value: Scalars['Boolean']['output'];
+};
+
+export type AssignedDateAttribute = AssignedAttribute & {
+  __typename?: 'AssignedDateAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** The date/datetime value. */
+  value: Scalars['DateTime']['output'];
+};
+
+export type AssignedDropdownAttribute = AssignedAttribute & {
+  __typename?: 'AssignedDropdownAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** Selected dropdown/multiselect values. */
+  values: Array<AttributeValue>;
+};
+
+export type AssignedFileAttribute = AssignedAttribute & {
+  __typename?: 'AssignedFileAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** File MIME type. */
+  mimetype: Scalars['String']['output'];
+  /** File URL. */
+  url: Scalars['String']['output'];
+};
+
+export type AssignedNumericAttribute = AssignedAttribute & {
+  __typename?: 'AssignedNumericAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** The numeric value. */
+  value: Scalars['Float']['output'];
+};
+
+export type AssignedReferenceAttribute = AssignedAttribute & {
+  __typename?: 'AssignedReferenceAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** Selected reference values. */
+  values: Array<AttributeReferenceValue>;
+};
+
+export type AssignedSwatchAttribute = AssignedAttribute & {
+  __typename?: 'AssignedSwatchAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** Selected swatch values. */
+  values: Array<AttributeSwatchValue>;
+};
+
+export type AssignedTextAttribute = AssignedAttribute & {
+  __typename?: 'AssignedTextAttribute';
+  /** The attribute. */
+  attribute: Attribute;
+  /** Plain-text value. */
+  plain: Scalars['String']['output'];
+  /** Optional rich-text payload. */
+  rich?: Maybe<Scalars['JSONObject']['output']>;
+};
+
 /** A file attribute value: the asset URL and its MIME type. */
 export type AssignmentFileValueInput = {
   /** URL of the uploaded file asset. */
@@ -1712,6 +1786,20 @@ export type FileInfoInput = {
   url: Scalars['String']['input'];
 };
 
+export type FloatFilterInput = {
+  AND?: InputMaybe<Array<FloatFilterInput>>;
+  NOT?: InputMaybe<FloatFilterInput>;
+  OR?: InputMaybe<Array<FloatFilterInput>>;
+  eq?: InputMaybe<Scalars['Float']['input']>;
+  gt?: InputMaybe<Scalars['Float']['input']>;
+  gte?: InputMaybe<Scalars['Float']['input']>;
+  in?: InputMaybe<Array<Scalars['Float']['input']>>;
+  lt?: InputMaybe<Scalars['Float']['input']>;
+  lte?: InputMaybe<Scalars['Float']['input']>;
+  ne?: InputMaybe<Scalars['Float']['input']>;
+  notIn?: InputMaybe<Array<Scalars['Float']['input']>>;
+};
+
 export type ForbiddenError = Error & {
   __typename?: 'ForbiddenError';
   code: Scalars['String']['output'];
@@ -1729,6 +1817,15 @@ export type HandleTakenError = Error & {
   __typename?: 'HandleTakenError';
   code: Scalars['String']['output'];
   message: Scalars['String']['output'];
+};
+
+export type IdFilterInput = {
+  AND?: InputMaybe<Array<IdFilterInput>>;
+  NOT?: InputMaybe<IdFilterInput>;
+  OR?: InputMaybe<Array<IdFilterInput>>;
+  eq?: InputMaybe<Scalars['ID']['input']>;
+  in?: InputMaybe<Array<Scalars['ID']['input']>>;
+  notIn?: InputMaybe<Array<Scalars['ID']['input']>>;
 };
 
 export type ImpersonationNotActiveError = Error & {
@@ -2493,9 +2590,11 @@ export type PlaceProductSuccess = {
 /** A sellable product. Either global (platform-managed, organizationId null) or org-owned. An org adopts a global product, then grafts org-scoped overlays (attribute values, media, categories, channel listings, variants) onto the base; graft reads merge the base rows with the viewer org's rows. */
 export type Product = Node & {
   __typename?: 'Product';
-  /** Attribute values describing this product, ordered by position. Merges base values with the viewer org's grafted values. */
-  attributeValues: ProductAttributeValuesConnection;
-  /** Categories this product is assigned to. Merges base assignments with the viewer org's grafted assignments. */
+  /** A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`. */
+  assignedAttribute?: Maybe<AssignedAttribute>;
+  /** The product's attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base. */
+  assignedAttributes: Array<AssignedAttribute>;
+  /** Categories this product is assigned to. Merges base assignments with the publishing/viewer organization's grafted assignments. Pass `channel` for the storefront or `viewerOrg` for a specific org. */
   categories: ProductCategoriesConnection;
   /** Sales-channel listings for this product, scoped via their channel. Excludes soft-deleted rows; no viewer-org overlay applies. */
   channelListings: ProductChannelListingsConnection;
@@ -2510,7 +2609,7 @@ export type Product = Node & {
   id: Scalars['ID']['output'];
   /** Whether the given viewer organization has adopted this global product. False when no viewer org is given, and false for org-owned products. */
   isAdopted: Scalars['Boolean']['output'];
-  /** Media assets for this product, ordered by position. Merges base media with the viewer org's grafted media; excludes soft-deleted rows. */
+  /** Media assets for this product, ordered by position. Merges base media with the publishing/viewer organization's grafted media; excludes soft-deleted rows. Pass `channel` for the storefront or `viewerOrg` for a specific org. */
   media: ProductMediaConnection;
   /** Display name, overlaid with the requested locale's translation when available, falling back to the base value. */
   name: Scalars['String']['output'];
@@ -2522,7 +2621,7 @@ export type Product = Node & {
   thumbnailUrl?: Maybe<Scalars['String']['output']>;
   /** Timestamp when the product was last updated. */
   updatedAt: Scalars['DateTime']['output'];
-  /** Purchasable variants of this product. Merges base variants with the viewer org's grafted variants; excludes soft-deleted rows. */
+  /** Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows). */
   variants: ProductVariantsConnection;
   /** Optimistic-lock version, incremented on every update. */
   version: Scalars['Int']['output'];
@@ -2530,11 +2629,16 @@ export type Product = Node & {
 
 
 /** A sellable product. Either global (platform-managed, organizationId null) or org-owned. An org adopts a global product, then grafts org-scoped overlays (attribute values, media, categories, channel listings, variants) onto the base; graft reads merge the base rows with the viewer org's rows. */
-export type ProductAttributeValuesArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
+export type ProductAssignedAttributeArgs = {
+  channel?: InputMaybe<Scalars['Int']['input']>;
+  slug: Scalars['String']['input'];
+  viewerOrg?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+/** A sellable product. Either global (platform-managed, organizationId null) or org-owned. An org adopts a global product, then grafts org-scoped overlays (attribute values, media, categories, channel listings, variants) onto the base; graft reads merge the base rows with the viewer org's rows. */
+export type ProductAssignedAttributesArgs = {
+  channel?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
 };
 
@@ -2543,6 +2647,7 @@ export type ProductAttributeValuesArgs = {
 export type ProductCategoriesArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
+  channel?: InputMaybe<Scalars['Int']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
@@ -2583,6 +2688,7 @@ export type ProductIsAdoptedArgs = {
 export type ProductMediaArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
+  channel?: InputMaybe<Scalars['Int']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
@@ -2601,7 +2707,6 @@ export type ProductVariantsArgs = {
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
-  viewerOrg?: InputMaybe<Scalars['ID']['input']>;
 };
 
 /** Where an attribute is assigned on a product type: PRODUCT (one value per product) or VARIANT (selectable per variant). Attributes flagged for variant selection drive the variant matrix. */
@@ -2626,16 +2731,32 @@ export type ProductAttributeValue = Node & {
   valueId: Scalars['Int']['output'];
 };
 
-export type ProductAttributeValuesConnection = {
-  __typename?: 'ProductAttributeValuesConnection';
-  edges: Array<ProductAttributeValuesConnectionEdge>;
-  pageInfo: PageInfo;
+/** Typed predicate on an attribute value. Set one selector: `slug`/`name` (select & swatch values), `numeric`, `boolean`, `date`, or `reference`. */
+export type ProductAttributeValueWhereInput = {
+  /** Match a boolean value. */
+  boolean?: InputMaybe<BooleanFilterInput>;
+  /** Match a date/datetime value (supports ranges). */
+  date?: InputMaybe<DateTimeFilterInput>;
+  /** Match the value display label (select/swatch). */
+  name?: InputMaybe<StringFilterInput>;
+  /** Match a numeric value (supports ranges). */
+  numeric?: InputMaybe<FloatFilterInput>;
+  /** Match a reference value by its referenced entity id. */
+  reference?: InputMaybe<IntFilterInput>;
+  /** Match the value slug (select/swatch). */
+  slug?: InputMaybe<StringFilterInput>;
 };
 
-export type ProductAttributeValuesConnectionEdge = {
-  __typename?: 'ProductAttributeValuesConnectionEdge';
-  cursor: Scalars['String']['output'];
-  node: ProductAttributeValue;
+/** One attribute facet. The attribute is identified by `slug`, `name`, or `ids`; `value` narrows by the attribute's value. Only filterable attributes match. Multiple facets on `attributes` are AND-ed. */
+export type ProductAttributeWhereInput = {
+  /** Match the attribute by relay id(s). */
+  ids?: InputMaybe<IdFilterInput>;
+  /** Match the attribute name. */
+  name?: InputMaybe<StringFilterInput>;
+  /** Match the attribute slug. */
+  slug?: InputMaybe<StringFilterInput>;
+  /** Predicate on the value the product carries for this attribute. */
+  value?: InputMaybe<ProductAttributeValueWhereInput>;
 };
 
 export type ProductCategoriesConnection = {
@@ -2672,6 +2793,8 @@ export type ProductChannelListing = Node & {
   id: Scalars['ID']['output'];
   /** Whether the org has published this listing (the org gate). On a marketplace channel the product is live only once also approved. */
   isPublished: Scalars['Boolean']['output'];
+  /** The organization that published this listing (null for legacy rows). */
+  organizationId?: Maybe<Scalars['Int']['output']>;
   /** The product being listed on the channel. */
   productId: Scalars['Int']['output'];
   /** The moment the product was published on this channel, or null while unpublished. */
@@ -2916,12 +3039,14 @@ export type ProductTypeWhereInput = {
 /** A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links. */
 export type ProductVariant = Node & {
   __typename?: 'ProductVariant';
-  /** Attribute values assigned to this variant; merges base (org-null) rows with the viewer organization's overlay rows. */
-  attributeValues: ProductVariantAttributeValuesConnection;
+  /** A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`. */
+  assignedAttribute?: Maybe<AssignedAttribute>;
+  /** The variant's attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base. */
+  assignedAttributes: Array<AssignedAttribute>;
   /** Timestamp when this variant was created. */
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
-  /** Inventory links for this variant scoped to the viewer organization; these are pure org grafts with no base rows, so omitting viewerOrg yields none. */
+  /** Inventory links for this variant scoped to the publishing/viewer organization; these are pure org grafts with no base rows, so resolving no org yields none. Pass `channel` for the storefront or `viewerOrg` for a specific org. */
   inventoryItems: ProductVariantInventoryItemsConnection;
   /** Media assets linked to this variant via the global link table; not org-scoped. */
   media: ProductVariantMediaConnection;
@@ -2945,11 +3070,16 @@ export type ProductVariant = Node & {
 
 
 /** A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links. */
-export type ProductVariantAttributeValuesArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
+export type ProductVariantAssignedAttributeArgs = {
+  channel?: InputMaybe<Scalars['Int']['input']>;
+  slug: Scalars['String']['input'];
+  viewerOrg?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+/** A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links. */
+export type ProductVariantAssignedAttributesArgs = {
+  channel?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
 };
 
@@ -2958,6 +3088,7 @@ export type ProductVariantAttributeValuesArgs = {
 export type ProductVariantInventoryItemsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
+  channel?: InputMaybe<Scalars['Int']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
@@ -2981,19 +3112,8 @@ export type ProductVariantNameArgs = {
 
 /** A purchasable variant of a product, identified by a unique option selection (attribute/value pairs) among its siblings. Carries org-overlay graft connections for attribute values, price sets, and inventory links. */
 export type ProductVariantPriceSetArgs = {
+  channel?: InputMaybe<Scalars['Int']['input']>;
   viewerOrg?: InputMaybe<Scalars['ID']['input']>;
-};
-
-export type ProductVariantAttributeValuesConnection = {
-  __typename?: 'ProductVariantAttributeValuesConnection';
-  edges: Array<ProductVariantAttributeValuesConnectionEdge>;
-  pageInfo: PageInfo;
-};
-
-export type ProductVariantAttributeValuesConnectionEdge = {
-  __typename?: 'ProductVariantAttributeValuesConnectionEdge';
-  cursor: Scalars['String']['output'];
-  node: VariantAttributeValue;
 };
 
 export type ProductVariantInventoryItemsConnection = {
@@ -3032,7 +3152,7 @@ export type ProductVariantsConnectionEdge = {
   node: ProductVariant;
 };
 
-/** Filter predicate for the `products` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees. */
+/** Filter predicate for the product connections. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees. */
 export type ProductWhereInput = {
   /** All sub-predicates must match. */
   AND?: InputMaybe<Array<ProductWhereInput>>;
@@ -3040,8 +3160,18 @@ export type ProductWhereInput = {
   NOT?: InputMaybe<ProductWhereInput>;
   /** At least one sub-predicate must match. */
   OR?: InputMaybe<Array<ProductWhereInput>>;
-  /** Filter by the referenced product type id. */
-  productTypeId?: InputMaybe<IntFilterInput>;
+  /** Facet by attributes and their typed values. Each entry is one facet; entries are AND-ed. Only `isFilterable` attributes match. */
+  attributes?: InputMaybe<Array<ProductAttributeWhereInput>>;
+  /** Filter to products assigned to the given categories (relay ids). */
+  categories?: InputMaybe<IdFilterInput>;
+  /** Filter to products in the given collections (relay ids). */
+  collections?: InputMaybe<IdFilterInput>;
+  /** Filter by URL handle. */
+  handle?: InputMaybe<StringFilterInput>;
+  /** Filter by display name (base column; not locale-overlaid). */
+  name?: InputMaybe<StringFilterInput>;
+  /** Filter by the referenced product type (relay id). */
+  productType?: InputMaybe<IdFilterInput>;
 };
 
 export type Query = {
@@ -3086,6 +3216,8 @@ export type Query = {
   taxonomyRequests: QueryTaxonomyRequestsConnection;
   /** Fetches a single user by their global ID, returning null if no such user exists. */
   user?: Maybe<User>;
+  /** Live user totals per admin filter bucket (all/admins/unverified/banned), independent of pagination, search, or the active tab. */
+  userCounts: UserCounts;
   /** Returns a paginated connection of users, with optional full-text search, filtering, and ordering. */
   users: QueryUsersConnection;
 };
@@ -4511,6 +4643,19 @@ export type UserAlreadyExistsError = Error & {
   message: Scalars['String']['output'];
 };
 
+/** Live (non-deleted) user totals per admin filter bucket, used to badge the user-management tabs. */
+export type UserCounts = {
+  __typename?: 'UserCounts';
+  /** Number of live users with the global "admin" role. */
+  admins: Scalars['Int']['output'];
+  /** Total number of live users. */
+  all: Scalars['Int']['output'];
+  /** Number of live users that are currently banned. */
+  banned: Scalars['Int']['output'];
+  /** Number of live users whose email is not yet verified. */
+  unverified: Scalars['Int']['output'];
+};
+
 export type UserNoChangesError = Error & {
   __typename?: 'UserNoChangesError';
   code: Scalars['String']['output'];
@@ -4569,6 +4714,8 @@ export type UserWhereInput = {
   emailVerified?: InputMaybe<BooleanFilterInput>;
   /** Filter users by display name. */
   name?: InputMaybe<StringFilterInput>;
+  /** Filter users by their global platform role (e.g. "admin"). */
+  role?: InputMaybe<StringFilterInput>;
   /** Filter users by whether two-factor authentication is enabled. */
   twoFactorEnabled?: InputMaybe<BooleanFilterInput>;
 };
@@ -4671,6 +4818,22 @@ export type AdminProductsQueryVariables = Exact<{
 
 export type AdminProductsQuery = { __typename?: 'Query', products: { __typename?: 'QueryProductsConnection', edges: Array<{ __typename?: 'QueryProductsConnectionEdge', node: { __typename?: 'Product', id: string, name: string, handle: string } }>, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null, hasNextPage: boolean } } };
 
+export type AdminUsersQueryVariables = Exact<{
+  first: Scalars['Int']['input'];
+  after?: InputMaybe<Scalars['String']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  where?: InputMaybe<UserWhereInput>;
+  orderBy?: InputMaybe<Array<UserOrderByInput> | UserOrderByInput>;
+}>;
+
+
+export type AdminUsersQuery = { __typename?: 'Query', users: { __typename?: 'QueryUsersConnection', edges: Array<{ __typename?: 'QueryUsersConnectionEdge', node: { __typename?: 'User', id: string, name: string, email: string, role: string, banned?: boolean | null, emailVerified: boolean, createdAt: string } }>, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null, hasNextPage: boolean } } };
+
+export type AdminUserCountsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AdminUserCountsQuery = { __typename?: 'Query', userCounts: { __typename?: 'UserCounts', all: number, admins: number, unverified: number, banned: number } };
+
 export class TypedDocumentString<TResult, TVariables>
   extends String
   implements DocumentTypeDecoration<TResult, TVariables>
@@ -4727,3 +4890,40 @@ export const AdminProductsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<AdminProductsQuery, AdminProductsQueryVariables>;
+export const AdminUsersDocument = new TypedDocumentString(`
+    query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!]) {
+  users(
+    first: $first
+    after: $after
+    search: $search
+    where: $where
+    orderBy: $orderBy
+  ) {
+    edges {
+      node {
+        id
+        name
+        email
+        role
+        banned
+        emailVerified
+        createdAt
+      }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminUsersQuery, AdminUsersQueryVariables>;
+export const AdminUserCountsDocument = new TypedDocumentString(`
+    query AdminUserCounts {
+  userCounts {
+    all
+    admins
+    unverified
+    banned
+  }
+}
+    `) as unknown as TypedDocumentString<AdminUserCountsQuery, AdminUserCountsQueryVariables>;

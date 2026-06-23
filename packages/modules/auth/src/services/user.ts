@@ -4,7 +4,7 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { Context, Data, Effect, Layer } from 'effect'
 import { AccessService } from './access'
 import { UserEvents } from './events/user'
@@ -150,6 +150,14 @@ export interface SetUserPasswordInput {
 type FindFirstConfig = NonNullable<Parameters<Database<Relations>['query']['users']['findFirst']>[0]> & { excludeDeleted?: boolean }
 type FindManyConfig = NonNullable<Parameters<Database<Relations>['query']['users']['findMany']>[0]> & { excludeDeleted?: boolean }
 
+/** Live-user totals per admin filter bucket (excludes soft-deleted rows). */
+export interface UserCounts {
+  readonly all: number
+  readonly admins: number
+  readonly unverified: number
+  readonly banned: number
+}
+
 /**
  * Strip the non-Drizzle `excludeDeleted` flag and, unless it's explicitly
  * `false`, AND-merge `deletedAt: { isNull: true }` into the `where`. RQBv2's
@@ -169,6 +177,8 @@ export class UserService extends Context.Service<
     readonly findMany: (
       config?: FindManyConfig,
     ) => Effect.Effect<readonly User[], UserDbFailed>
+
+    readonly counts: () => Effect.Effect<UserCounts, UserDbFailed>
 
     readonly findFirst: (
       config?: FindFirstConfig,
@@ -264,6 +274,19 @@ const make = Effect.gen(function* () {
       dbErr(db.query.users.findMany(withDeletedFilter(config))).pipe(
         Effect.map(rows => rows),
       ),
+
+    counts: () => {
+      // Global per-bucket totals over live (non-deleted) users; `admins`,
+      // `unverified`, `banned` mirror the admin UI's filter tabs. Counted in
+      // parallel — independent `$count` queries, no ordering dependency.
+      const live = isNull(users.deletedAt)
+      return Effect.all({
+        all: dbErr(db.$count(users, live)),
+        admins: dbErr(db.$count(users, and(live, eq(users.role, 'admin')))),
+        unverified: dbErr(db.$count(users, and(live, eq(users.emailVerified, false)))),
+        banned: dbErr(db.$count(users, and(live, eq(users.banned, true)))),
+      }, { concurrency: 'unbounded' })
+    },
 
     findFirst: (config?) =>
       Effect.gen(function* () {

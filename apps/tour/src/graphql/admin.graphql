@@ -127,6 +127,84 @@ type AssignVariantValueSuccess {
   data: AssignVariantValuePayload!
 }
 
+"""
+An attribute assigned to an object, with its typed value(s) resolved inline.
+"""
+interface AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+}
+
+type AssignedBooleanAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """The boolean value."""
+  value: Boolean!
+}
+
+type AssignedDateAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """The date/datetime value."""
+  value: DateTime!
+}
+
+type AssignedDropdownAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """Selected dropdown/multiselect values."""
+  values: [AttributeValue!]!
+}
+
+type AssignedFileAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """File MIME type."""
+  mimetype: String!
+
+  """File URL."""
+  url: String!
+}
+
+type AssignedNumericAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """The numeric value."""
+  value: Float!
+}
+
+type AssignedReferenceAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """Selected reference values."""
+  values: [AttributeReferenceValue!]!
+}
+
+type AssignedSwatchAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """Selected swatch values."""
+  values: [AttributeSwatchValue!]!
+}
+
+type AssignedTextAttribute implements AssignedAttribute {
+  """The attribute."""
+  attribute: Attribute!
+
+  """Plain-text value."""
+  plain: String!
+
+  """Optional rich-text payload."""
+  rich: JSONObject
+}
+
 """A file attribute value: the asset URL and its MIME type."""
 input AssignmentFileValueInput {
   """URL of the uploaded file asset."""
@@ -1890,6 +1968,20 @@ input FileInfoInput {
   url: String!
 }
 
+input FloatFilterInput {
+  AND: [FloatFilterInput!]
+  NOT: FloatFilterInput
+  OR: [FloatFilterInput!]
+  eq: Float
+  gt: Float
+  gte: Float
+  in: [Float!]
+  lt: Float
+  lte: Float
+  ne: Float
+  notIn: [Float!]
+}
+
 type ForbiddenError implements Error {
   code: String!
   message: String!
@@ -1904,6 +1996,15 @@ type GlobalProductRequiresGlobalTypeError implements Error {
 type HandleTakenError implements Error {
   code: String!
   message: String!
+}
+
+input IDFilterInput {
+  AND: [IDFilterInput!]
+  NOT: IDFilterInput
+  OR: [IDFilterInput!]
+  eq: ID
+  in: [ID!]
+  notIn: [ID!]
 }
 
 type ImpersonationNotActiveError implements Error {
@@ -2479,26 +2580,40 @@ A sellable product. Either global (platform-managed, organizationId null) or org
 """
 type Product implements Node {
   """
-  Attribute values describing this product, ordered by position. Merges base values with the viewer org's grafted values.
+  A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`.
   """
-  attributeValues(
-    after: String
-    before: String
-    first: Int
-    last: Int
+  assignedAttribute(
+    channel: Int
 
-    """
-    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
-    """
+    """The attribute slug to fetch."""
+    slug: String!
     viewerOrg: ID
-  ): ProductAttributeValuesConnection!
+  ): AssignedAttribute
 
   """
-  Categories this product is assigned to. Merges base assignments with the viewer org's grafted assignments.
+  The product's attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base.
+  """
+  assignedAttributes(
+    """
+    Storefront sales-channel id; resolves the publishing org. Public — publication is the gate.
+    """
+    channel: Int
+
+    """Optional viewer organization; overlays that org's grafts."""
+    viewerOrg: ID
+  ): [AssignedAttribute!]!
+
+  """
+  Categories this product is assigned to. Merges base assignments with the publishing/viewer organization's grafted assignments. Pass `channel` for the storefront or `viewerOrg` for a specific org.
   """
   categories(
     after: String
     before: String
+
+    """
+    Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.
+    """
+    channel: Int
     first: Int
     last: Int
 
@@ -2546,11 +2661,16 @@ type Product implements Node {
   ): Boolean!
 
   """
-  Media assets for this product, ordered by position. Merges base media with the viewer org's grafted media; excludes soft-deleted rows.
+  Media assets for this product, ordered by position. Merges base media with the publishing/viewer organization's grafted media; excludes soft-deleted rows. Pass `channel` for the storefront or `viewerOrg` for a specific org.
   """
   media(
     after: String
     before: String
+
+    """
+    Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.
+    """
+    channel: Int
     first: Int
     last: Int
 
@@ -2583,19 +2703,9 @@ type Product implements Node {
   updatedAt: DateTime!
 
   """
-  Purchasable variants of this product. Merges base variants with the viewer org's grafted variants; excludes soft-deleted rows.
+  Purchasable variants of this product (scoped via the product relation; excludes soft-deleted rows).
   """
-  variants(
-    after: String
-    before: String
-    first: Int
-    last: Int
-
-    """
-    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
-    """
-    viewerOrg: ID
-  ): ProductVariantsConnection!
+  variants(after: String, before: String, first: Int, last: Int): ProductVariantsConnection!
 
   """Optimistic-lock version, incremented on every update."""
   version: Int!
@@ -2632,14 +2742,44 @@ type ProductAttributeValue implements Node {
   valueId: Int!
 }
 
-type ProductAttributeValuesConnection {
-  edges: [ProductAttributeValuesConnectionEdge!]!
-  pageInfo: PageInfo!
+"""
+Typed predicate on an attribute value. Set one selector: `slug`/`name` (select & swatch values), `numeric`, `boolean`, `date`, or `reference`.
+"""
+input ProductAttributeValueWhereInput {
+  """Match a boolean value."""
+  boolean: BooleanFilterInput
+
+  """Match a date/datetime value (supports ranges)."""
+  date: DateTimeFilterInput
+
+  """Match the value display label (select/swatch)."""
+  name: StringFilterInput
+
+  """Match a numeric value (supports ranges)."""
+  numeric: FloatFilterInput
+
+  """Match a reference value by its referenced entity id."""
+  reference: IntFilterInput
+
+  """Match the value slug (select/swatch)."""
+  slug: StringFilterInput
 }
 
-type ProductAttributeValuesConnectionEdge {
-  cursor: String!
-  node: ProductAttributeValue!
+"""
+One attribute facet. The attribute is identified by `slug`, `name`, or `ids`; `value` narrows by the attribute's value. Only filterable attributes match. Multiple facets on `attributes` are AND-ed.
+"""
+input ProductAttributeWhereInput {
+  """Match the attribute by relay id(s)."""
+  ids: IDFilterInput
+
+  """Match the attribute name."""
+  name: StringFilterInput
+
+  """Match the attribute slug."""
+  slug: StringFilterInput
+
+  """Predicate on the value the product carries for this attribute."""
+  value: ProductAttributeValueWhereInput
 }
 
 type ProductCategoriesConnection {
@@ -2686,6 +2826,9 @@ type ProductChannelListing implements Node {
   Whether the org has published this listing (the org gate). On a marketplace channel the product is live only once also approved.
   """
   isPublished: Boolean!
+
+  """The organization that published this listing (null for legacy rows)."""
+  organizationId: Int
 
   """The product being listed on the channel."""
   productId: Int!
@@ -2963,30 +3106,44 @@ A purchasable variant of a product, identified by a unique option selection (att
 """
 type ProductVariant implements Node {
   """
-  Attribute values assigned to this variant; merges base (org-null) rows with the viewer organization's overlay rows.
+  A single assigned attribute by slug (PDP accessor). Same scoping as `assignedAttributes`.
   """
-  attributeValues(
-    after: String
-    before: String
-    first: Int
-    last: Int
+  assignedAttribute(
+    channel: Int
 
-    """
-    Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
-    """
+    """The attribute slug to fetch."""
+    slug: String!
     viewerOrg: ID
-  ): ProductVariantAttributeValuesConnection!
+  ): AssignedAttribute
+
+  """
+  The variant's attributes with typed values resolved inline. Pass `channel` for the storefront (the org that published the product there) or `viewerOrg` for a specific org; omit for base.
+  """
+  assignedAttributes(
+    """
+    Storefront sales-channel id; resolves the publishing org. Public — publication is the gate.
+    """
+    channel: Int
+
+    """Optional viewer organization; overlays that org's grafts."""
+    viewerOrg: ID
+  ): [AssignedAttribute!]!
 
   """Timestamp when this variant was created."""
   createdAt: DateTime!
   id: ID!
 
   """
-  Inventory links for this variant scoped to the viewer organization; these are pure org grafts with no base rows, so omitting viewerOrg yields none.
+  Inventory links for this variant scoped to the publishing/viewer organization; these are pure org grafts with no base rows, so resolving no org yields none. Pass `channel` for the storefront or `viewerOrg` for a specific org.
   """
   inventoryItems(
     after: String
     before: String
+
+    """
+    Storefront sales-channel id; overlays the grafts of the org that published this product on the channel. Public — publication is the gate.
+    """
+    channel: Int
     first: Int
     last: Int
 
@@ -3022,6 +3179,11 @@ type ProductVariant implements Node {
   """
   priceSet(
     """
+    Storefront sales-channel id; resolves the price binding of the org that published this product on the channel. Public — publication is the gate.
+    """
+    channel: Int
+
+    """
     Optional viewer organization; overlays that org's grafts onto the base rows. Omit for base-only.
     """
     viewerOrg: ID
@@ -3038,16 +3200,6 @@ type ProductVariant implements Node {
 
   """Optimistic-lock version, incremented on each update."""
   version: Int!
-}
-
-type ProductVariantAttributeValuesConnection {
-  edges: [ProductVariantAttributeValuesConnectionEdge!]!
-  pageInfo: PageInfo!
-}
-
-type ProductVariantAttributeValuesConnectionEdge {
-  cursor: String!
-  node: VariantAttributeValue!
 }
 
 type ProductVariantInventoryItemsConnection {
@@ -3081,7 +3233,7 @@ type ProductVariantsConnectionEdge {
 }
 
 """
-Filter predicate for the `products` connection. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
+Filter predicate for the product connections. Field filters are AND-combined; use AND/OR/NOT to compose arbitrary boolean trees.
 """
 input ProductWhereInput {
   """All sub-predicates must match."""
@@ -3093,8 +3245,25 @@ input ProductWhereInput {
   """At least one sub-predicate must match."""
   OR: [ProductWhereInput!]
 
-  """Filter by the referenced product type id."""
-  productTypeId: IntFilterInput
+  """
+  Facet by attributes and their typed values. Each entry is one facet; entries are AND-ed. Only `isFilterable` attributes match.
+  """
+  attributes: [ProductAttributeWhereInput!]
+
+  """Filter to products assigned to the given categories (relay ids)."""
+  categories: IDFilterInput
+
+  """Filter to products in the given collections (relay ids)."""
+  collections: IDFilterInput
+
+  """Filter by URL handle."""
+  handle: StringFilterInput
+
+  """Filter by display name (base column; not locale-overlaid)."""
+  name: StringFilterInput
+
+  """Filter by the referenced product type (relay id)."""
+  productType: IDFilterInput
 }
 
 type Query {
@@ -3335,6 +3504,11 @@ type Query {
     """Global ID of the user to fetch."""
     id: ID!
   ): User
+
+  """
+  Live user totals per admin filter bucket (all/admins/unverified/banned), independent of pagination, search, or the active tab.
+  """
+  userCounts: UserCounts!
 
   """
   Returns a paginated connection of users, with optional full-text search, filtering, and ordering.
@@ -4712,6 +4886,23 @@ type UserAlreadyExistsError implements Error {
   message: String!
 }
 
+"""
+Live (non-deleted) user totals per admin filter bucket, used to badge the user-management tabs.
+"""
+type UserCounts {
+  """Number of live users with the global "admin" role."""
+  admins: Int!
+
+  """Total number of live users."""
+  all: Int!
+
+  """Number of live users that are currently banned."""
+  banned: Int!
+
+  """Number of live users whose email is not yet verified."""
+  unverified: Int!
+}
+
 type UserNoChangesError implements Error {
   code: String!
   message: String!
@@ -4781,6 +4972,9 @@ input UserWhereInput {
 
   """Filter users by display name."""
   name: StringFilterInput
+
+  """Filter users by their global platform role (e.g. "admin")."""
+  role: StringFilterInput
 
   """Filter users by whether two-factor authentication is enabled."""
   twoFactorEnabled: BooleanFilterInput

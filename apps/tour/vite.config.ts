@@ -4,7 +4,10 @@ import viteReact from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  server: { port: 3000 },
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+  },
   plugins: [
     // importProtection is the build-time guard that blocks `**/*.server.*` files
     // from being imported into client code by FILENAME. It's disabled because our

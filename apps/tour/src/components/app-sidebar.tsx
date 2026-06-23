@@ -17,7 +17,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@workspace/ui/components/sidebar'
-import { ChevronRight, Command, LayoutDashboard, Package } from 'lucide-react'
+import { ChevronRight, Command, LayoutDashboard, Package, Users } from 'lucide-react'
 import * as React from 'react'
 import { NavUser } from './nav-user'
 
@@ -84,6 +84,13 @@ export function AppSidebar({ me, ...props }: { me: MeUser } & React.ComponentPro
                 </SidebarMenuSub>
               </CollapsibleContent>
             </Collapsible>
+
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip={t('nav.users')} isActive={pathname.startsWith('/users')} render={<Link to="/users" />}>
+                <Users />
+                <span>{t('nav.users')}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
