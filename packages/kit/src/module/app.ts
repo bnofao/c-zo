@@ -521,11 +521,16 @@ export interface RunOptions {
 /**
  * Run a long-running worker program. Mirrors `runApp`'s run mechanism so the
  * worker process owns signal handling + exit codes; the program parks on
- * `Effect.never`. The worker provides its own persistence (SQL-backed) inside
- * `program`, so — unlike `runApp` — no `Persistence` layer is added here.
+ * `Effect.never`.
+ *
+ * Provides `Persistence.layerMemory` like `runApp`: `PersistedQueue` requires
+ * the generic `Persistence` service at runtime (durable job rows live in the
+ * SQL `job_queue` store inside `JobQueueLive`, independent of this). Without it
+ * the worker crashes forking its consumers ("Service not found: Persistence").
  */
 export function runWorker(program: Effect.Effect<void, unknown, never>, options: RunOptions): void {
   const extra = Layer.mergeAll(
+    Persistence.layerMemory,
     options.configProvider ?? Layer.empty,
     options.runtimeLayer ?? Layer.empty,
   )
