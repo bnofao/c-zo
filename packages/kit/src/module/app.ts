@@ -27,8 +27,7 @@ import { buildSchemaRegistryLayer, DatabaseConfigFromEnv, DrizzleDbLayer } from 
 import { GraphQLBuilder, makeGraphQLBuilder } from '@czo/kit/graphql'
 import { findDuplicateRoutes, mountOpenApi } from '@czo/kit/openapi'
 import { RateLimiterLive } from '@czo/kit/ratelimit'
-import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
-import { ConfigProvider, Effect, Layer } from 'effect'
+import { Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { defaultKeyGenerator, rateLimitDirective } from 'graphql-rate-limit-directive'
 import { createYoga } from 'graphql-yoga'
@@ -490,28 +489,67 @@ export function buildRuntime(options: BuildRuntimeOptions): {
   return { runtimeLayer, startup, started, teardown, modules: options.modules }
 }
 
-const ConfigProviderLayer = ConfigProvider.layerAdd(ConfigProvider.fromDotEnv()).pipe(
-  Layer.provide(NodeFileSystem.layer),
-)
-
 /**
- * Run a long-running worker program. Mirrors `runApp`'s run mechanism
- * (`NodeRuntime.runMain` + `ConfigProviderLayer`) so the worker process owns
- * signal handling + exit codes; the program parks on `Effect.never`.
+ * The environment's `runMain` — schedules the program, owns SIGINT/SIGTERM
+ * handling and exit-code reporting, returns synchronously. The caller supplies
+ * it so kit stays platform-agnostic: Node passes `NodeRuntime.runMain` (from
+ * `@effect/platform-node`), Bun/edge their own equivalent.
  */
-export function runWorker(program: Effect.Effect<void, unknown, never>): void {
-  NodeRuntime.runMain(program.pipe(Effect.provide(ConfigProviderLayer)))
+export type RunMain = (effect: Effect.Effect<void, unknown, never>) => void
+
+/** Shared options for the terminal runners (`runApp` / `runWorker`). */
+export interface RunOptions {
+  /** Environment runner — e.g. `NodeRuntime.runMain`. */
+  readonly runMain: RunMain
+  /**
+   * Optional `ConfigProvider` layer (e.g. dotenv via `NodeFileSystem` —
+   * platform-specific, so the app owns it). Omit to use only the default
+   * environment-variable provider. Error channel is widened (`fromDotEnv`
+   * surfaces `PlatformError`); it's absorbed by the program's `unknown` error.
+   */
+  readonly configProvider?: Layer.Layer<never, unknown, never>
+  /**
+   * Optional app-owned layer merged into the program context — typically
+   * telemetry (e.g. Effect's `Otlp.layerProtobuf`). Default services installed
+   * here (Tracer / Logger / Metrics) reach the whole program: for `runApp`,
+   * every per-request resolver (`runEffect` closes over the captured context);
+   * for `runWorker`, every forked queue consumer (forks inherit the context).
+   */
+  readonly runtimeLayer?: Layer.Layer<never, unknown, never>
 }
 
 /**
- * Production entry point — hands the built program to `NodeRuntime.runMain`
- * for SIGINT/SIGTERM handling and exit-code reporting.
+ * Run a long-running worker program. Mirrors `runApp`'s run mechanism so the
+ * worker process owns signal handling + exit codes; the program parks on
+ * `Effect.never`.
  *
- * `runMain` schedules the program on the event loop and **returns
- * synchronously**. The program stays alive via `Effect.never` inside
- * `built.program`; the event loop keeps the process running. Signal
- * handling + exit codes are owned by `runMain`.
+ * Provides `Persistence.layerMemory` like `runApp`: `PersistedQueue` requires
+ * the generic `Persistence` service at runtime (durable job rows live in the
+ * SQL `job_queue` store inside `JobQueueLive`, independent of this). Without it
+ * the worker crashes forking its consumers ("Service not found: Persistence").
  */
-export function runApp(built: BuiltApp): void {
-  NodeRuntime.runMain(built.program.pipe(Effect.provide(ConfigProviderLayer), Effect.provide(Persistence.layerMemory)))
+export function runWorker(program: Effect.Effect<void, unknown, never>, options: RunOptions): void {
+  const extra = Layer.mergeAll(
+    Persistence.layerMemory,
+    options.configProvider ?? Layer.empty,
+    options.runtimeLayer ?? Layer.empty,
+  )
+  options.runMain(Effect.provide(program, extra))
+}
+
+/**
+ * Production entry point — hands the built program to the supplied `runMain`
+ * for signal handling and exit-code reporting.
+ *
+ * The program stays alive via `Effect.never` inside `built.program`; the event
+ * loop keeps the process running. Pass `options.runtimeLayer` (telemetry) to
+ * trace the server + every resolver.
+ */
+export function runApp(built: BuiltApp, options: RunOptions): void {
+  const envLayer = Layer.mergeAll(
+    Persistence.layerMemory,
+    options.configProvider ?? Layer.empty,
+    options.runtimeLayer ?? Layer.empty,
+  )
+  options.runMain(Effect.provide(built.program, envLayer))
 }

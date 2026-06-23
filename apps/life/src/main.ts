@@ -5,14 +5,18 @@
  * Bootstrap is now just:
  *   1. Validate env (AUTH_SECRET).
  *   2. `buildApp({ modules, … })` — pure layer composition.
- *   3. `runApp(built)` — hands the program to `NodeRuntime.runMain`.
+ *   3. `runApp(built, { runMain, … })` — runs via the Node runner (kit is
+ *      platform-agnostic; `./runtime` supplies the Node bindings).
  *
  * Notes:
  *  - `/health` is mounted via the `httpApp` factory (no runtime needed).
  *  - `/api/auth/**` is mounted by the auth module's `http` hook.
- *  - Telemetry (OTel SDK + Effect Tracer bridge) is intentionally
- *    omitted here — to be re-added once the observability story is
- *    consolidated.
+ *  - Telemetry: Effect-native OTLP export (`Otlp.layerProtobuf`) over HTTP to
+ *    an OpenTelemetry Collector, enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is
+ *    set. Passed as `runApp`'s runtime layer so the captured request context
+ *    carries the Tracer/Logger/Metrics into every resolver. Captures Effect
+ *    spans (services, resolvers, `@effect/sql-pg` queries); HTTP-server root
+ *    spans would need the `@opentelemetry` http instrumentation (not wired).
  */
 import process from 'node:process'
 
@@ -24,6 +28,7 @@ import { Layer } from 'effect'
 import { defineHandler, H3 } from 'h3'
 
 import { modules } from './modules'
+import { dotEnvConfigProvider, makeTelemetryLayer, runMain } from './runtime'
 
 const logger = useLogger('life:bootstrap')
 
@@ -75,6 +80,14 @@ logger.success(
   `life modules ready (${built.modules.length}: ${built.modules.map(m => m.name).join(', ')})`,
 )
 
-// ─── 3. Run ──────────────────────────────────────────────────────────────────
+// ─── 3. Telemetry (optional, OTLP/HTTP → collector) ──────────────────────────
 
-runApp(built)
+// Effect-native OTLP export, skipped when OTEL_EXPORTER_OTLP_ENDPOINT is unset
+// so local dev stays quiet. See ./runtime makeTelemetryLayer.
+const telemetryLayer = makeTelemetryLayer('life')
+if (telemetryLayer)
+  logger.info(`telemetry: OTLP export → ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}`)
+
+// ─── 4. Run ──────────────────────────────────────────────────────────────────
+
+runApp(built, { runMain, configProvider: dotEnvConfigProvider, runtimeLayer: telemetryLayer })

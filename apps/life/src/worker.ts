@@ -13,6 +13,7 @@ import { JobQueueLiveFromEnv } from '@czo/kit/queue'
 import { Effect, Layer } from 'effect'
 
 import { modules } from './modules'
+import { dotEnvConfigProvider, makeTelemetryLayer, runMain } from './runtime'
 
 const logger = useLogger('life:worker')
 
@@ -43,4 +44,15 @@ const program = Effect.gen(function* () {
   Effect.provide(Layer.mergeAll(runtimeLayer, JobQueueLiveFromEnv)),
 )
 
-runWorker(program as Effect.Effect<void, unknown, never>)
+// Effect-native OTLP export for the worker — forked queue consumers inherit the
+// program context, so their spans/metrics reach the collector. Off when
+// OTEL_EXPORTER_OTLP_ENDPOINT is unset. Distinct service name from the server.
+const telemetryLayer = makeTelemetryLayer('life-worker')
+if (telemetryLayer)
+  logger.info(`telemetry: OTLP export → ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}`)
+
+runWorker(program as Effect.Effect<void, unknown, never>, {
+  runMain,
+  configProvider: dotEnvConfigProvider,
+  runtimeLayer: telemetryLayer,
+})
