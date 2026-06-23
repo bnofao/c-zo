@@ -1,0 +1,82 @@
+# Observability stack (OTel Collector + Tempo + Loki + Prometheus) for Coolify.
+#
+# Grafana is NOT included here — you already run it. See README.md for how to
+# connect your existing Grafana to this stack's network and add the datasources.
+#
+# Deploy in Coolify as a "Docker Compose" resource pointing at this directory
+# in the repo (so the sibling *.yaml config files are bind-mounted). If you
+# must paste raw compose instead, switch the bind mounts to inline `configs:`
+# (see README "Raw-paste mode").
+#
+# Pin image tags to the current stable releases before deploying — the tags
+# below are known-good baselines, not necessarily the latest.
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    environment:
+      # Postgres metrics receiver connection. Set PG_METRICS_USER/PASSWORD on the
+      # resource (a read-only pg_monitor role); endpoint/database default to the
+      # in-network DB. Empty creds → scrape errors only (collector still serves).
+      PG_METRICS_ENDPOINT: ${PG_METRICS_ENDPOINT:-postgres:5432}
+      PG_METRICS_DATABASE: ${PG_METRICS_DATABASE:-db_password_manager}
+      PG_METRICS_USER: ${PG_METRICS_USER:-}
+      PG_METRICS_PASSWORD: ${PG_METRICS_PASSWORD:-}
+    # SECURITY: the OTLP receiver is unauthenticated, so it is NOT published to
+    # the host. Apps reach it in-network via http://otel-collector:4318 — attach
+    # `life` to the `czo-observability` network (same as Grafana). Only publish
+    # if an app is genuinely off-network, and then bind to a private interface
+    # AND add auth (bearer header / mTLS), e.g.:
+    #   ports:
+    #     - "127.0.0.1:4318:4318"   # never 0.0.0.0 without auth + TLS
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - obs
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+    networks:
+      - obs
+
+  loki:
+    image: grafana/loki:3.4.2
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - obs
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=14d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - obs
+
+networks:
+  obs:
+    name: czo-observability   # attach your Grafana resource to this network
+
+volumes:
+  tempo-data:
+  loki-data:
+  prometheus-data:

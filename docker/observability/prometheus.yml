@@ -1,0 +1,23 @@
+# Prometheus — PRODUCTION (Coolify).
+# Pull model: scrapes the OTel Collector's Prometheus exporter (:8889),
+# which is where `life`'s OTLP metrics surface. Grafana datasource URL ->
+# http://prometheus:9090.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]   # app metrics (via the collector)
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Uncomment if RabbitMQ runs in the same network and exposes the
+  # prometheus plugin (port 15692):
+  # - job_name: rabbitmq
+  #   static_configs:
+  #     - targets: ["rabbitmq:15692"]

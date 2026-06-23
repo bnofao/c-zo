@@ -1,0 +1,34 @@
+# Grafana Tempo — single-binary, local filesystem storage.
+# Suitable for one app / small scale. For HA or object storage (S3), see
+# https://grafana.com/docs/tempo/latest/configuration/.
+
+server:
+  http_listen_port: 3200      # Grafana datasource URL -> http://tempo:3200
+  grpc_listen_port: 9095
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317   # the OTel Collector exports here
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 336h          # 14 days trace retention
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+
+usage_report:
+  reporting_enabled: false

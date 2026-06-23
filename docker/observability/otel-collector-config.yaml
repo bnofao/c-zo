@@ -1,0 +1,92 @@
+# OpenTelemetry Collector — PRODUCTION (Coolify).
+#
+# Receives OTLP/HTTP+gRPC from `life` (Effect `Otlp.layerProtobuf`) and fans
+# the three signals out to the Grafana stack:
+#   traces  -> Tempo       (OTLP/gRPC)
+#   metrics -> Prometheus  (scraped off this collector's :8889 exporter)
+#   logs    -> Loki        (native OTLP endpoint /otlp/v1/logs)
+#
+# NOTE vs docker/otel-collector-config.yaml (dev): dev exports traces to
+# Jaeger. This prod config targets Tempo instead — switch the `traces`
+# exporter back to `otlp/jaeger` if you prefer Jaeger.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Postgres SERVER metrics (backends, commits/rollbacks, db/table/index sizes,
+  # bloat, replication, …) — pulled over SQL on an interval. Complements the
+  # app-side query spans from @effect/sql-pg. Needs a read-only monitoring role
+  # (pg_monitor) and network reach to the DB.
+  #
+  # OPT-IN: this receiver REQUIRES username+password and the collector REFUSES
+  # to start if they're missing — so it's commented out by default to keep the
+  # base stack bootable. To enable: set PG_METRICS_USER/PASSWORD on the resource
+  # (see README), uncomment this block, and add `postgresql` to the metrics
+  # pipeline below.
+  # postgresql:
+  #   endpoint: ${env:PG_METRICS_ENDPOINT}
+  #   username: ${env:PG_METRICS_USER}
+  #   password: ${env:PG_METRICS_PASSWORD}
+  #   databases:
+  #     - ${env:PG_METRICS_DATABASE}
+  #   collection_interval: 30s
+  #   tls:
+  #     insecure: true
+
+processors:
+  memory_limiter:
+    check_interval: 2s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: upsert
+
+exporters:
+  # Traces -> Tempo (gRPC OTLP). In-cluster, TLS off.
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Metrics -> exposed for Prometheus to scrape (pull model).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Logs -> Loki native OTLP ingest (exporter appends /v1/logs to the base).
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]   # add `postgresql` here once the receiver above is enabled
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp/loki]

@@ -1,0 +1,53 @@
+# Grafana datasource provisioning for the LGTM stack.
+#
+# Drop into your Grafana provisioning dir (/etc/grafana/provisioning/datasources/)
+# OR recreate these three datasources via the Grafana UI.
+#
+# IMPORTANT: Grafana must be able to resolve `tempo`/`loki`/`prometheus` by
+# name — i.e. it must share the Docker network with this stack (see README).
+# If Grafana lives in a different Coolify resource, either attach it to this
+# stack's network or replace the URLs with the reachable host:port.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # Trace -> Logs: jump from a span to its logs in Loki by trace_id.
+      tracesToLogsV2:
+        datasourceUid: loki
+        filterByTraceID: true
+        spanStartTimeShift: -1h
+        spanEndTimeShift: 1h
+      # Trace -> Metrics + service graph (RED metrics) via Prometheus.
+      tracesToMetrics:
+        datasourceUid: prometheus
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Logs -> Trace: turn a `trace_id` log field into a link into Tempo.
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: '${__value.raw}'
