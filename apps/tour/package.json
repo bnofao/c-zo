@@ -41,9 +41,9 @@
     "@vitejs/plugin-react": "catalog:",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "nitro": "catalog:dev",
     "tailwindcss": "catalog:dev",
     "typescript": "catalog:dev",
-    "nitro": "catalog:dev",
     "vite": "catalog:dev",
     "vitest": "catalog:testing"
   }
