@@ -62,6 +62,8 @@ catalog:
   '@tanstack/react-table': 8.20.5
   '@tanstack/react-virtual': ^3.8.3
   '@tanstack/router-plugin': ^1.168.18
+  '@tolgee/cli': ^2.19.0
+  '@tolgee/react': ^7.1.1
   '@types/jest': ^29.5.13
   '@uiw/react-json-view': ^2.0.0-alpha.17
   '@vitejs/plugin-react': ^5.2.0

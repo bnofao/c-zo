@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tolgee/tolgee-cli/main/schema.json",
+  "format": "JSON_TOLGEE",
+  "pull": {
+    "path": "src/i18n"
+  }
+}

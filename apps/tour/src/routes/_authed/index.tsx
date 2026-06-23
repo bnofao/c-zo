@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { ProductRow } from '../../server/products.server'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useTranslate } from '@tolgee/react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
@@ -21,48 +22,49 @@ export const Route = createFileRoute('/_authed/')({
 })
 
 interface Section {
-  label: string
-  description: string
+  labelKey: string
+  descKey: string
   icon: LucideIcon
   to?: '/products'
 }
 
 const sections: Section[] = [
-  { label: 'Products', description: 'Global catalog products', icon: Package, to: '/products' },
-  { label: 'Categories', description: 'Taxonomy categories', icon: FolderTree },
-  { label: 'Collections', description: 'Curated collections', icon: Layers },
-  { label: 'Attributes', description: 'Product attributes', icon: SlidersHorizontal },
-  { label: 'Users', description: 'Platform accounts', icon: Users },
-  { label: 'Taxonomy requests', description: 'Pending moderation', icon: Inbox },
+  { labelKey: 'nav.products', descKey: 'dashboard.sections.products', icon: Package, to: '/products' },
+  { labelKey: 'nav.categories', descKey: 'dashboard.sections.categories', icon: FolderTree },
+  { labelKey: 'nav.collections', descKey: 'dashboard.sections.collections', icon: Layers },
+  { labelKey: 'nav.attributes', descKey: 'dashboard.sections.attributes', icon: SlidersHorizontal },
+  { labelKey: 'nav.users', descKey: 'dashboard.sections.users', icon: Users },
+  { labelKey: 'nav.taxonomyRequests', descKey: 'dashboard.sections.taxonomyRequests', icon: Inbox },
 ]
 
 function DashboardPage() {
   const { data } = useSuspenseQuery(recentProductsQuery)
+  const { t } = useTranslate()
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Platform administration for life.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sections.map(section => <SectionCard key={section.label} section={section} />)}
+        {sections.map(section => <SectionCard key={section.labelKey} section={section} t={t} />)}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent products</CardTitle>
-          <CardDescription>The latest products in the global catalog.</CardDescription>
+          <CardTitle>{t('dashboard.recentProducts.title')}</CardTitle>
+          <CardDescription>{t('dashboard.recentProducts.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           {data.rows.length === 0
-            ? <p className="text-sm text-muted-foreground">No products yet.</p>
+            ? <p className="text-sm text-muted-foreground">{t('dashboard.recentProducts.empty')}</p>
             : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Handle</TableHead>
+                      <TableHead>{t('common.col.name')}</TableHead>
+                      <TableHead>{t('common.col.handle')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -89,8 +91,8 @@ function DashboardPage() {
   )
 }
 
-function SectionCard({ section }: { section: Section }) {
-  const { label, description, icon: Icon, to } = section
+function SectionCard({ section, t }: { section: Section, t: (key: string) => string }) {
+  const { labelKey, descKey, icon: Icon, to } = section
   const card = (
     <Card className={to ? 'transition-colors hover:bg-accent' : 'opacity-60'}>
       <CardHeader>
@@ -99,10 +101,10 @@ function SectionCard({ section }: { section: Section }) {
             <Icon className="size-4" />
           </span>
           <div className="flex flex-col gap-0.5">
-            <CardTitle className="text-base">{label}</CardTitle>
-            <CardDescription>{description}</CardDescription>
+            <CardTitle className="text-base">{t(labelKey)}</CardTitle>
+            <CardDescription>{t(descKey)}</CardDescription>
           </div>
-          {to ? null : <Badge variant="secondary" className="ml-auto">Soon</Badge>}
+          {to ? null : <Badge variant="secondary" className="ml-auto">{t('dashboard.soon')}</Badge>}
         </div>
       </CardHeader>
     </Card>

@@ -1,5 +1,6 @@
 import type { MeUser } from '../server/auth.server'
 import { Link, useRouterState } from '@tanstack/react-router'
+import { useTranslate } from '@tolgee/react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@workspace/ui/components/collapsible'
 import {
   Sidebar,
@@ -21,11 +22,12 @@ import * as React from 'react'
 import { NavUser } from './nav-user'
 
 // Catalog sub-areas without routes yet render as muted placeholders.
-const catalogSoon = ['Categories', 'Collections', 'Attributes']
+const catalogSoon = ['nav.categories', 'nav.collections', 'nav.attributes'] as const
 
 export function AppSidebar({ me, ...props }: { me: MeUser } & React.ComponentProps<typeof Sidebar>) {
   const pathname = useRouterState({ select: s => s.location.pathname })
   const inCatalog = pathname.startsWith('/products')
+  const { t } = useTranslate()
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -47,35 +49,35 @@ export function AppSidebar({ me, ...props }: { me: MeUser } & React.ComponentPro
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('nav.platform')}</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Dashboard" isActive={pathname === '/'} render={<Link to="/" />}>
+              <SidebarMenuButton tooltip={t('nav.dashboard')} isActive={pathname === '/'} render={<Link to="/" />}>
                 <LayoutDashboard />
-                <span>Dashboard</span>
+                <span>{t('nav.dashboard')}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
 
             <Collapsible defaultOpen render={<SidebarMenuItem />}>
-              <SidebarMenuButton tooltip="Catalog" isActive={inCatalog} render={<Link to="/products" />}>
+              <SidebarMenuButton tooltip={t('nav.catalog')} isActive={inCatalog} render={<Link to="/products" />}>
                 <Package />
-                <span>Catalog</span>
+                <span>{t('nav.catalog')}</span>
               </SidebarMenuButton>
               <CollapsibleTrigger render={<SidebarMenuAction className="aria-expanded:rotate-90" />}>
                 <ChevronRight />
-                <span className="sr-only">Toggle catalog</span>
+                <span className="sr-only">{t('nav.toggleCatalog')}</span>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarMenuSub>
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton isActive={inCatalog} render={<Link to="/products" />}>
-                      <span>Products</span>
+                      <span>{t('nav.products')}</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
-                  {catalogSoon.map(label => (
-                    <SidebarMenuSubItem key={label}>
+                  {catalogSoon.map(key => (
+                    <SidebarMenuSubItem key={key}>
                       <SidebarMenuSubButton render={<a href="#" onClick={e => e.preventDefault()} />}>
-                        <span className="text-muted-foreground">{label}</span>
+                        <span className="text-muted-foreground">{t(key)}</span>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}

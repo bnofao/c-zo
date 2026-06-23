@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useTranslate } from '@tolgee/react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
@@ -24,6 +25,7 @@ function LogoMark() {
 }
 
 function LoginPage() {
+  const { t } = useTranslate()
   const router = useRouter()
   const [show, setShow] = React.useState(false)
   const [remember, setRemember] = React.useState(true)
@@ -40,10 +42,10 @@ function LoginPage() {
       if (res.ok)
         await router.navigate({ to: '/' })
       else
-        setError('Identifiants invalides')
+        setError(t('login.invalidCredentials'))
     }
     catch {
-      setError('Identifiants invalides')
+      setError(t('login.invalidCredentials'))
     }
     finally {
       setPending(false)
@@ -60,35 +62,35 @@ function LoginPage() {
           style={{ background: 'radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%)' }}
         />
         <div className="relative max-w-80">
-          <Badge variant="secondary" className="mb-4">Console interne</Badge>
+          <Badge variant="secondary" className="mb-4">{t('login.brandBadge')}</Badge>
           <p className="text-[25px] font-semibold leading-tight tracking-tight text-balance">
-            Pilotez vos opérations depuis un seul tableau de bord.
+            {t('login.brandTagline')}
           </p>
         </div>
-        <span className="relative text-xs text-muted-foreground">Czo © 2026 — Tous droits réservés</span>
+        <span className="relative text-xs text-muted-foreground">{t('login.copyright')}</span>
       </div>
 
       {/* Form panel. */}
       <div className="grid place-items-center bg-background p-9">
         <div className="w-full max-w-sm">
-          <h1 className="mb-1 text-[22px] font-semibold tracking-tight">Bon retour</h1>
-          <p className="mb-6 text-sm text-muted-foreground">Connectez-vous pour continuer.</p>
+          <h1 className="mb-1 text-[22px] font-semibold tracking-tight">{t('login.title')}</h1>
+          <p className="mb-6 text-sm text-muted-foreground">{t('login.subtitle')}</p>
 
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="identifier" className="text-sm font-medium">Email ou identifiant</label>
+              <label htmlFor="identifier" className="text-sm font-medium">{t('login.identifierLabel')}</label>
               <Input
                 id="identifier"
                 name="identifier"
                 type="text"
-                placeholder="vous@entreprise.com ou votre.identifiant"
+                placeholder={t('login.identifierPlaceholder')}
                 autoComplete="username"
                 required
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
+              <label htmlFor="password" className="text-sm font-medium">{t('login.passwordLabel')}</label>
               <div className="relative">
                 <Input
                   id="password"
@@ -102,7 +104,7 @@ function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShow(s => !s)}
-                  aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  aria-label={t(show ? 'login.hidePassword' : 'login.showPassword')}
                   className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:text-foreground"
                 >
                   {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -118,20 +120,20 @@ function LoginPage() {
                   onChange={e => setRemember(e.target.checked)}
                   className="size-[15px] accent-primary"
                 />
-                Se souvenir de moi
+                {t('login.remember')}
               </label>
               <a
                 href="#"
                 onClick={e => e.preventDefault()}
                 className="text-sm font-medium hover:underline"
               >
-                Mot de passe oublié&nbsp;?
+                {t('login.forgot')}
               </a>
             </div>
 
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-            <Button type="submit" className="w-full" disabled={pending}>Se connecter</Button>
+            <Button type="submit" className="w-full" disabled={pending}>{t('login.submit')}</Button>
           </form>
         </div>
       </div>

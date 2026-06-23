@@ -1,8 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
+import { TolgeeProvider } from '@tolgee/react'
+import * as React from 'react'
+import { getLocale } from '../i18n/locale.server'
+import { createTolgee } from '../i18n/tolgee'
 import styles from '../styles.css?url'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Read the locale server-side so the very first SSR render uses it. On client
+  // navigations this is served from the dehydrated loader data; the switcher
+  // calls `router.invalidate()` to re-run it after changing the cookie.
+  loader: async () => ({ locale: await getLocale() }),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -15,18 +23,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 })
 
 function RootDocument() {
+  const { locale } = Route.useLoaderData()
+  // Build the instance once per router (per request on the server, once on the
+  // client). The initial language matches the SSR-resolved locale, so server
+  // and client hydrate identically.
+  const [tolgee] = React.useState(() => createTolgee(locale))
+
   return (
     // suppressHydrationWarning: browser extensions (Dark Reader, Grammarly, …)
-    // and theme scripts commonly mutate <html>'s class/attributes before React
-    // hydrates, which would otherwise log a hydration mismatch. Scoped to this
-    // one element (not its children); our <html> only carries a static `lang`,
-    // so this never masks a real mismatch.
-    <html lang="en" suppressHydrationWarning>
+    // mutate <html> before React hydrates. Scoped to this element only.
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <Outlet />
+        <TolgeeProvider tolgee={tolgee} options={{ useSuspense: false }}>
+          <Outlet />
+        </TolgeeProvider>
         <Scripts />
       </body>
     </html>
