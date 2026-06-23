@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/.output
+**/coverage
+**/*.log
+.git
+.github
+.claude
+scratchpad
+**/.env
+**/.env.*
