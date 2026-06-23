@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
-    "start": "node dist/server/server.js",
+    "start": "node .output/server/index.mjs",
     "codegen": "graphql-codegen --config codegen.ts",
     "i18n:pull": "tolgee --api-url \"$TOLGEE_API_URL\" --api-key \"$TOLGEE_API_KEY\" pull",
     "lint": "eslint . --max-warnings 0",
@@ -41,6 +41,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "nitro": "catalog:dev",
     "tailwindcss": "catalog:dev",
     "typescript": "catalog:dev",
     "vite": "catalog:dev",
