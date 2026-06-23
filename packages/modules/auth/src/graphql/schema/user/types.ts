@@ -1,5 +1,5 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
-import type { SessionRow } from '../../../services/user'
+import type { SessionRow, UserCounts } from '../../../services/user'
 
 // User sub-module — Pothos type definitions
 //
@@ -28,6 +28,18 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
       userAgent: t.string({ description: 'User-agent string of the client that established the session.', resolve: s => s.userAgent, nullable: true }),
       impersonatedBy: t.string({ description: 'Identifier of the admin user impersonating the session owner, if this is an impersonation session.', resolve: s => s.impersonatedBy, nullable: true }),
       actorType: t.string({ description: 'Type of actor that owns the session, distinguishing users from other principals.', resolve: s => s.actorType }),
+    }),
+  })
+
+  // ── UserCounts (admin filter-tab totals) ──────────────────────────────────
+  builder.objectRef<UserCounts>('UserCounts').implement({
+    subGraphs: ['admin'],
+    description: 'Live (non-deleted) user totals per admin filter bucket, used to badge the user-management tabs.',
+    fields: t => ({
+      all: t.exposeInt('all', { description: 'Total number of live users.' }),
+      admins: t.exposeInt('admins', { description: 'Number of live users with the global "admin" role.' }),
+      unverified: t.exposeInt('unverified', { description: 'Number of live users whose email is not yet verified.' }),
+      banned: t.exposeInt('banned', { description: 'Number of live users that are currently banned.' }),
     }),
   })
 

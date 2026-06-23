@@ -37,6 +37,19 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
       resolve: (_root, _args, ctx) => (ctx.auth?.user ?? null) as never,
     }))
 
+  // ── userCounts — per-tab totals for the admin user list ───────────────────
+  builder.queryField('userCounts', t =>
+    t.field({
+      type: 'UserCounts',
+      subGraphs: ['admin'],
+      description: 'Live user totals per admin filter bucket (all/admins/unverified/banned), independent of pagination, search, or the active tab.',
+      authScopes: { permission: { resource: 'user', actions: ['read'] } },
+      resolve: (_root, _args, ctx) => ctx.runEffect(Effect.gen(function* () {
+        const svc = yield* UserService
+        return yield* svc.counts()
+      })) as never,
+    }))
+
   // ── users(connection) — paginated list with optional search ───────────────
   builder.queryField('users', t =>
     t.drizzleConnection({
@@ -50,12 +63,24 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query, _root, args, ctx) => {
+        // Free-text search: fold `args.search` into an RQBv2 OR clause over the
+        // user-facing text columns, mirroring the product module's convention
+        // (`{ OR: [{ col: { ilike: `%term%` } }, ...] }`). AND-merge it with the
+        // structured `where` so search narrows, never replaces, the filters.
+        const s = args.search?.trim()
+        const searchClause = s
+          ? { OR: [{ name: { ilike: `%${s}%` } }, { email: { ilike: `%${s}%` } }] }
+          : null
+        const where = { AND: [args.where, searchClause].filter(Boolean) }
         const program = Effect.gen(function* () {
           const svc = yield* UserService
           return yield* svc.findMany(query({
-            where: args.where as any,
-            orderBy: args.orderBy
-              ? args.orderBy.map(o => ({ [o.field]: o.direction }))
+            where: where as any,
+            // Fold the clauses into a single object: plugin-drizzle's cursor
+            // parser expects the RQB object form (`{ createdAt: 'desc' }`), not
+            // an array of single-key objects (which crashes `parseOrderBy`).
+            orderBy: args.orderBy?.length
+              ? Object.fromEntries(args.orderBy.map(o => [o.field, o.direction]))
               : undefined,
           }))
         })

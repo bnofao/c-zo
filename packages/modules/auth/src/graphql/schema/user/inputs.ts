@@ -57,6 +57,7 @@ export function registerUserInputs(builder: AuthGraphQLSchemaBuilder): void {
     fields: t => ({
       name: t.field({ description: 'Filter users by display name.', type: 'StringFilterInput' }),
       email: t.field({ description: 'Filter users by email address.', type: 'StringFilterInput' }),
+      role: t.field({ description: 'Filter users by their global platform role (e.g. "admin").', type: 'StringFilterInput' }),
       emailVerified: t.field({ description: 'Filter users by whether their email is verified.', type: 'BooleanFilterInput' }),
       twoFactorEnabled: t.field({ description: 'Filter users by whether two-factor authentication is enabled.', type: 'BooleanFilterInput' }),
       banned: t.field({ description: 'Filter users by whether they are currently banned.', type: 'BooleanFilterInput' }),

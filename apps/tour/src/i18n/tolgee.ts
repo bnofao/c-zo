@@ -13,10 +13,17 @@ import { LOCALES } from './locales'
  * Note: @tolgee/react v7 removed the separate `ReactPlugin` — React integration
  * is built into `TolgeeProvider` directly; only `FormatSimple` is needed here.
  */
-export function createTolgee(language: string) {
+export function createTolgee(language: string, inContext = false) {
+  // The in-context observer (DevTools) injects invisible key-markers into
+  // translated text. If they were present on the server HTML or the first client
+  // render they'd break hydration — so both build a plain instance, and the root
+  // upgrades to the in-context instance only AFTER hydration (see __root.tsx).
+  // `import.meta.env.DEV` is a static guard so the API key never ships to prod.
+  const dev = inContext && import.meta.env.DEV
+
   let tolgee = Tolgee().use(FormatSimple())
 
-  if (import.meta.env.DEV)
+  if (dev)
     tolgee = tolgee.use(DevTools())
 
   return tolgee.init({
@@ -25,7 +32,7 @@ export function createTolgee(language: string) {
     defaultLanguage: 'en',
     fallbackLanguage: 'en',
     staticData: { 'en': en, 'fr-FR': frFR },
-    apiUrl: import.meta.env.DEV ? import.meta.env.VITE_TOLGEE_API_URL : undefined,
-    apiKey: import.meta.env.DEV ? import.meta.env.VITE_TOLGEE_API_KEY : undefined,
+    apiUrl: dev ? import.meta.env.VITE_TOLGEE_API_URL : undefined,
+    apiKey: dev ? import.meta.env.VITE_TOLGEE_API_KEY : undefined,
   })
 }

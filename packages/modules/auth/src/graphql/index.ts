@@ -2,7 +2,7 @@ import type { Relations } from '@czo/auth/relations'
 import type { ApiKey, Organization, User } from '@czo/auth/services'
 import type { BooleanFilter, DateTimeFilter, OrderByInput, SchemaBuilder, StringFilter } from '@czo/kit/graphql'
 import type { ResolvedSession } from '../services/session'
-import type { SessionRow } from '../services/user'
+import type { SessionRow, UserCounts } from '../services/user'
 
 export { registerAuthSchema } from './schema'
 export { authScopes } from './scopes'
@@ -30,6 +30,7 @@ declare module '@czo/kit/graphql' {
     Invitation: Organization.OrganizationInvitation
     ApiKey: ApiKey.ApiKey
     Session: SessionRow
+    UserCounts: UserCounts
   }
 
   interface BuilderAuthScopes {
@@ -57,6 +58,7 @@ declare module '@czo/kit/graphql' {
 export interface UserWhereInput {
   name?: StringFilter
   email?: StringFilter
+  role?: StringFilter
   emailVerified?: BooleanFilter
   twoFactorEnabled?: BooleanFilter
   banned?: BooleanFilter

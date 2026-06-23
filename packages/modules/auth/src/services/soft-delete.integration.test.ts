@@ -254,6 +254,25 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('soft-delete f
       expect(restored?.deletedAt).toBeNull()
     }))
 
+  it.effect('UserService.counts() reports per-bucket totals and excludes soft-deleted users', () =>
+    Effect.gen(function* () {
+      yield* truncateAuth
+      const db = (yield* DrizzleDb) as Database<Relations>
+      const now = new Date()
+      yield* db.insert(users).values([
+        { name: 'Admin', email: 'a@x.com', role: 'admin', emailVerified: true, createdAt: now, updatedAt: now },
+        { name: 'Plain', email: 'p@x.com', role: 'user', emailVerified: true, createdAt: now, updatedAt: now },
+        { name: 'Unverified', email: 'u@x.com', role: 'user', emailVerified: false, createdAt: now, updatedAt: now },
+        { name: 'Banned', email: 'b@x.com', role: 'user', emailVerified: true, banned: true, createdAt: now, updatedAt: now },
+        // Soft-deleted admin — must be excluded from every bucket.
+        { name: 'Ghost', email: 'g@x.com', role: 'admin', emailVerified: true, createdAt: now, updatedAt: now, deletedAt: now },
+      ])
+      const userService = yield* User.UserService
+
+      const counts = yield* userService.counts()
+      expect(counts).toEqual({ all: 4, admins: 1, unverified: 1, banned: 1 })
+    }))
+
   it.effect('OrganizationService.listMembers excludes a member whose user is soft-deleted', () =>
     Effect.gen(function* () {
       yield* truncateAuth

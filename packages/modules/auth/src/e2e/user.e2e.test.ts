@@ -9,6 +9,18 @@ const LIST_USERS = `query {
   }
 }`
 
+const LIST_USERS_ORDERED = `query ($orderBy: [UserOrderByInput!]) {
+  users(orderBy: $orderBy) {
+    edges { node { id email createdAt } }
+  }
+}`
+
+const LIST_USERS_FILTERED = `query ($where: UserWhereInput) {
+  users(where: $where) {
+    edges { node { id email role } }
+  }
+}`
+
 const BAN_USER = `mutation ($input: BanUserInput!) {
   banUser(input: $input) {
     __typename
@@ -78,6 +90,38 @@ describe('user-admin (E2E)', () => {
     )
     expect(res.errors).toBeTruthy()
     expect(res.data?.user ?? null).toBeNull()
+  })
+
+  it('admin lists users ordered by createdAt (orderBy folds array → object for the cursor parser)', async () => {
+    const admin = await adminActor(h, 'user-admin-orderby@ex.com')
+    await h.signUp('user-orderby-extra@ex.com', 'Extra', 'password123!')
+
+    const res = await h.gql(
+      LIST_USERS_ORDERED,
+      { orderBy: [{ field: 'CREATED_AT', direction: 'DESC' }] },
+      admin.token,
+      admin.ip,
+    )
+    expect(res.errors).toBeUndefined()
+    const rows = res.data?.users?.edges?.map((e: { node: { createdAt: string } }) => e.node.createdAt) ?? []
+    expect(rows.length).toBeGreaterThanOrEqual(2)
+    // Descending by creation time: each timestamp is ≤ the previous one.
+    const sorted = [...rows].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+    expect(rows).toEqual(sorted)
+  })
+
+  it('admin filters users by role (powers the Administrateurs tab)', async () => {
+    const admin = await adminActor(h, 'user-role-filter-admin@ex.com')
+    // A plain (non-admin) user that must NOT appear in the role=admin result.
+    await h.signUp('user-role-filter-plain@ex.com', 'Plain', 'password123!')
+
+    const admins = await h.gql(LIST_USERS_FILTERED, { where: { role: { eq: 'admin' } } }, admin.token, admin.ip)
+    expect(admins.errors).toBeUndefined()
+    const emails = admins.data?.users?.edges?.map((e: { node: { email: string } }) => e.node.email) ?? []
+    const roles = admins.data?.users?.edges?.map((e: { node: { role: string } }) => e.node.role) ?? []
+    expect(roles.length).toBeGreaterThanOrEqual(1)
+    expect(roles.every((r: string) => r === 'admin')).toBe(true)
+    expect(emails).not.toContain('user-role-filter-plain@ex.com')
   })
 
   it('admin lists users and bans a victim', async () => {

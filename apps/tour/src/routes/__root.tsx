@@ -24,10 +24,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootDocument() {
   const { locale } = Route.useLoaderData()
-  // Build the instance once per router (per request on the server, once on the
-  // client). The initial language matches the SSR-resolved locale, so server
-  // and client hydrate identically.
-  const [tolgee] = React.useState(() => createTolgee(locale))
+  // Build a PLAIN instance for the server render and the first client render, so
+  // the markup matches and hydration succeeds. The initial language matches the
+  // SSR-resolved locale.
+  const [tolgee, setTolgee] = React.useState(() => createTolgee(locale))
+
+  React.useEffect(() => {
+    // After hydration, upgrade to the in-context (DevTools) instance for
+    // Alt+click editing. Its observer injects invisible markers that would break
+    // hydration if present on the first render — so it only attaches now. DEV +
+    // an API key only; the `DEV` guard keeps DevTools and the key out of prod.
+    if (import.meta.env.DEV && import.meta.env.VITE_TOLGEE_API_KEY) {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect -- one-time post-hydration upgrade
+      setTolgee(createTolgee(locale, true))
+    }
+  }, [locale])
 
   return (
     // suppressHydrationWarning: browser extensions (Dark Reader, Grammarly, …)
