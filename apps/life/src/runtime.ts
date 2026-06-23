@@ -7,7 +7,7 @@
  */
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
 import process from 'node:process'
-import { ConfigProvider, Layer } from 'effect'
+import { ConfigProvider, Effect, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { Otlp } from 'effect/unstable/observability'
 
@@ -17,9 +17,14 @@ export const runMain = NodeRuntime.runMain
 /**
  * Adds a `.env` file source on top of the default environment-variable
  * `ConfigProvider`. Reads the file via `NodeFileSystem`, so it's Node-bound.
+ *
+ * `.env` is OPTIONAL — containers (and CI) supply config via real env vars and
+ * ship no `.env`. `fromDotEnv` fails with `NotFound` when the file is absent,
+ * so fall back to the plain env-var provider; otherwise the process crashes at
+ * boot in any environment without a `.env`.
  */
 export const dotEnvConfigProvider: Layer.Layer<never, unknown, never> = ConfigProvider
-  .layerAdd(ConfigProvider.fromDotEnv())
+  .layerAdd(ConfigProvider.fromDotEnv().pipe(Effect.orElseSucceed(() => ConfigProvider.fromEnv())))
   .pipe(Layer.provide(NodeFileSystem.layer))
 
 /**
