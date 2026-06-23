@@ -5,14 +5,18 @@
  * Bootstrap is now just:
  *   1. Validate env (AUTH_SECRET).
  *   2. `buildApp({ modules, … })` — pure layer composition.
- *   3. `runApp(built)` — hands the program to `NodeRuntime.runMain`.
+ *   3. `runApp(built, { runMain, … })` — runs via the Node runner (kit is
+ *      platform-agnostic; `./runtime` supplies the Node bindings).
  *
  * Notes:
  *  - `/health` is mounted via the `httpApp` factory (no runtime needed).
  *  - `/api/auth/**` is mounted by the auth module's `http` hook.
- *  - Telemetry (OTel SDK + Effect Tracer bridge) is intentionally
- *    omitted here — to be re-added once the observability story is
- *    consolidated.
+ *  - Telemetry: Effect-native OTLP export (`Otlp.layerProtobuf`) over HTTP to
+ *    an OpenTelemetry Collector, enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is
+ *    set. Passed as `runApp`'s runtime layer so the captured request context
+ *    carries the Tracer/Logger/Metrics into every resolver. Captures Effect
+ *    spans (services, resolvers, `@effect/sql-pg` queries); HTTP-server root
+ *    spans would need the `@opentelemetry` http instrumentation (not wired).
  */
 import process from 'node:process'
 
@@ -21,9 +25,12 @@ import * as Email from '@czo/kit/email/smtp'
 import { buildApp, runApp } from '@czo/kit/module'
 import { JobQueueLiveFromEnv } from '@czo/kit/queue'
 import { Layer } from 'effect'
+import { FetchHttpClient } from 'effect/unstable/http'
+import { Otlp } from 'effect/unstable/observability'
 import { defineHandler, H3 } from 'h3'
 
 import { modules } from './modules'
+import { dotEnvConfigProvider, runMain } from './runtime'
 
 const logger = useLogger('life:bootstrap')
 
@@ -75,6 +82,26 @@ logger.success(
   `life modules ready (${built.modules.length}: ${built.modules.map(m => m.name).join(', ')})`,
 )
 
-// ─── 3. Run ──────────────────────────────────────────────────────────────────
+// ─── 3. Telemetry (optional, OTLP/HTTP → collector) ──────────────────────────
 
-runApp(built)
+// Effect-native OTLP exporter for logs + metrics + traces. `layerProtobuf`
+// posts to `${baseUrl}/v1/{logs,metrics,traces}`; `FetchHttpClient` (global
+// fetch, Node 24) satisfies its only requirement. Skipped when no endpoint is
+// configured so local dev stays quiet.
+const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+const telemetryLayer = otlpEndpoint
+  ? Otlp.layerProtobuf({
+      baseUrl: otlpEndpoint,
+      resource: {
+        serviceName: process.env.OTEL_SERVICE_NAME ?? 'life',
+        serviceVersion: '0.1.0',
+      },
+    }).pipe(Layer.provide(FetchHttpClient.layer))
+  : undefined
+
+if (telemetryLayer)
+  logger.info(`telemetry: OTLP export → ${otlpEndpoint}`)
+
+// ─── 4. Run ──────────────────────────────────────────────────────────────────
+
+runApp(built, { runMain, configProvider: dotEnvConfigProvider, runtimeLayer: telemetryLayer })

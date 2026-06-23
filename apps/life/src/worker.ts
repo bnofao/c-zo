@@ -13,6 +13,7 @@ import { JobQueueLiveFromEnv } from '@czo/kit/queue'
 import { Effect, Layer } from 'effect'
 
 import { modules } from './modules'
+import { dotEnvConfigProvider, runMain } from './runtime'
 
 const logger = useLogger('life:worker')
 
@@ -43,4 +44,4 @@ const program = Effect.gen(function* () {
   Effect.provide(Layer.mergeAll(runtimeLayer, JobQueueLiveFromEnv)),
 )
 
-runWorker(program as Effect.Effect<void, unknown, never>)
+runWorker(program as Effect.Effect<void, unknown, never>, { runMain, configProvider: dotEnvConfigProvider })
