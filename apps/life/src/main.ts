@@ -25,12 +25,10 @@ import * as Email from '@czo/kit/email/smtp'
 import { buildApp, runApp } from '@czo/kit/module'
 import { JobQueueLiveFromEnv } from '@czo/kit/queue'
 import { Layer } from 'effect'
-import { FetchHttpClient } from 'effect/unstable/http'
-import { Otlp } from 'effect/unstable/observability'
 import { defineHandler, H3 } from 'h3'
 
 import { modules } from './modules'
-import { dotEnvConfigProvider, runMain } from './runtime'
+import { dotEnvConfigProvider, makeTelemetryLayer, runMain } from './runtime'
 
 const logger = useLogger('life:bootstrap')
 
@@ -84,23 +82,11 @@ logger.success(
 
 // ─── 3. Telemetry (optional, OTLP/HTTP → collector) ──────────────────────────
 
-// Effect-native OTLP exporter for logs + metrics + traces. `layerProtobuf`
-// posts to `${baseUrl}/v1/{logs,metrics,traces}`; `FetchHttpClient` (global
-// fetch, Node 24) satisfies its only requirement. Skipped when no endpoint is
-// configured so local dev stays quiet.
-const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-const telemetryLayer = otlpEndpoint
-  ? Otlp.layerProtobuf({
-      baseUrl: otlpEndpoint,
-      resource: {
-        serviceName: process.env.OTEL_SERVICE_NAME ?? 'life',
-        serviceVersion: '0.1.0',
-      },
-    }).pipe(Layer.provide(FetchHttpClient.layer))
-  : undefined
-
+// Effect-native OTLP export, skipped when OTEL_EXPORTER_OTLP_ENDPOINT is unset
+// so local dev stays quiet. See ./runtime makeTelemetryLayer.
+const telemetryLayer = makeTelemetryLayer('life')
 if (telemetryLayer)
-  logger.info(`telemetry: OTLP export → ${otlpEndpoint}`)
+  logger.info(`telemetry: OTLP export → ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}`)
 
 // ─── 4. Run ──────────────────────────────────────────────────────────────────
 

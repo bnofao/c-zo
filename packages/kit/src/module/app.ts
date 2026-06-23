@@ -508,6 +508,14 @@ export interface RunOptions {
    * surfaces `PlatformError`); it's absorbed by the program's `unknown` error.
    */
   readonly configProvider?: Layer.Layer<never, unknown, never>
+  /**
+   * Optional app-owned layer merged into the program context — typically
+   * telemetry (e.g. Effect's `Otlp.layerProtobuf`). Default services installed
+   * here (Tracer / Logger / Metrics) reach the whole program: for `runApp`,
+   * every per-request resolver (`runEffect` closes over the captured context);
+   * for `runWorker`, every forked queue consumer (forks inherit the context).
+   */
+  readonly runtimeLayer?: Layer.Layer<never, unknown, never>
 }
 
 /**
@@ -517,9 +525,11 @@ export interface RunOptions {
  * `program`, so — unlike `runApp` — no `Persistence` layer is added here.
  */
 export function runWorker(program: Effect.Effect<void, unknown, never>, options: RunOptions): void {
-  options.runMain(
-    options.configProvider ? Effect.provide(program, options.configProvider) : program,
+  const extra = Layer.mergeAll(
+    options.configProvider ?? Layer.empty,
+    options.runtimeLayer ?? Layer.empty,
   )
+  options.runMain(Effect.provide(program, extra))
 }
 
 /**
@@ -527,18 +537,10 @@ export function runWorker(program: Effect.Effect<void, unknown, never>, options:
  * for signal handling and exit-code reporting.
  *
  * The program stays alive via `Effect.never` inside `built.program`; the event
- * loop keeps the process running.
- *
- * `runtimeLayer` is an optional app-owned layer merged into the program's
- * context — typically telemetry (e.g. Effect's `Otlp.layerProtobuf`). Because
- * `runEffect` closes over the program's captured `Context`, default services
- * installed here (Tracer / Logger / Metrics) reach every per-request resolver
- * effect, not just the boot program.
+ * loop keeps the process running. Pass `options.runtimeLayer` (telemetry) to
+ * trace the server + every resolver.
  */
-export function runApp(
-  built: BuiltApp,
-  options: RunOptions & { readonly runtimeLayer?: Layer.Layer<never, unknown, never> },
-): void {
+export function runApp(built: BuiltApp, options: RunOptions): void {
   const envLayer = Layer.mergeAll(
     Persistence.layerMemory,
     options.configProvider ?? Layer.empty,

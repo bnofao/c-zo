@@ -6,7 +6,10 @@
  * would only need its own sibling here.
  */
 import { NodeFileSystem, NodeRuntime } from '@effect/platform-node'
+import process from 'node:process'
 import { ConfigProvider, Layer } from 'effect'
+import { FetchHttpClient } from 'effect/unstable/http'
+import { Otlp } from 'effect/unstable/observability'
 
 /** Node's `runMain`: signal handling + exit-code reporting. */
 export const runMain = NodeRuntime.runMain
@@ -18,3 +21,19 @@ export const runMain = NodeRuntime.runMain
 export const dotEnvConfigProvider: Layer.Layer<never, unknown, never> = ConfigProvider
   .layerAdd(ConfigProvider.fromDotEnv())
   .pipe(Layer.provide(NodeFileSystem.layer))
+
+/**
+ * Effect-native OTLP export layer (logs + metrics + traces) for the given
+ * service name, or `undefined` when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset
+ * (telemetry off). `serviceName` is the per-process default; `OTEL_SERVICE_NAME`
+ * overrides it. Passed to `runApp`/`runWorker` as their `runtimeLayer`.
+ */
+export function makeTelemetryLayer(serviceName: string): Layer.Layer<never, never, never> | undefined {
+  const baseUrl = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+  if (!baseUrl)
+    return undefined
+  return Otlp.layerProtobuf({
+    baseUrl,
+    resource: { serviceName: process.env.OTEL_SERVICE_NAME ?? serviceName, serviceVersion: '0.1.0' },
+  }).pipe(Layer.provide(FetchHttpClient.layer))
+}
