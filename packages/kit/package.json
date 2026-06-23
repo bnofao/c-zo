@@ -70,16 +70,6 @@
     "check-types": "pnpm tsc --noEmit"
   },
   "peerDependencies": {
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
-    "@opentelemetry/instrumentation": "^0.218.0",
-    "@opentelemetry/instrumentation-http": "^0.218.0",
-    "@opentelemetry/instrumentation-pg": "^0.70.0",
-    "@opentelemetry/resources": "^2.0.0",
-    "@opentelemetry/sdk-metrics": "^2.0.0",
-    "@opentelemetry/sdk-trace-base": "^2.0.0",
-    "@opentelemetry/sdk-trace-node": "^2.0.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0",
     "@pothos/core": "catalog:",
     "amqplib": "^0.10.0",
     "bullmq": "^5.0.0",
@@ -89,36 +79,6 @@
     "ioredis": "^5.0.0"
   },
   "peerDependenciesMeta": {
-    "@opentelemetry/exporter-metrics-otlp-http": {
-      "optional": true
-    },
-    "@opentelemetry/exporter-trace-otlp-http": {
-      "optional": true
-    },
-    "@opentelemetry/instrumentation": {
-      "optional": true
-    },
-    "@opentelemetry/instrumentation-http": {
-      "optional": true
-    },
-    "@opentelemetry/instrumentation-pg": {
-      "optional": true
-    },
-    "@opentelemetry/resources": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-metrics": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-trace-base": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-trace-node": {
-      "optional": true
-    },
-    "@opentelemetry/semantic-conventions": {
-      "optional": true
-    },
     "graphql": {
       "optional": true
     },
@@ -134,8 +94,6 @@
   },
   "dependencies": {
     "@adonisjs/fold": "catalog:common",
-    "@effect/opentelemetry": "catalog:",
-    "@effect/platform-node": "catalog:",
     "@effect/sql-pg": "catalog:",
     "@graphql-tools/utils": "catalog:common",
     "@opentelemetry/api": "catalog:common",
