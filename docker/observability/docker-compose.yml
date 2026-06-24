@@ -32,10 +32,11 @@ services:
       PG_METRICS_USER: ${PG_METRICS_USER:-}
       PG_METRICS_PASSWORD: ${PG_METRICS_PASSWORD:-}
     # SECURITY: the OTLP receiver is unauthenticated, so it is NOT published to
-    # the host. Apps reach it in-network via http://otel-collector:4318 — attach
-    # `life` to the `czo-observability` network (same as Grafana). Only publish
-    # if an app is genuinely off-network, and then bind to a private interface
-    # AND add auth (bearer header / mTLS), e.g.:
+    # the host. Apps reach it in-network via http://otel-collector:4318 over the
+    # shared `coolify` network. (Trade-off: any container on `coolify` can reach
+    # it — acceptable in-host, but it's why the port is never host-published.)
+    # Only publish if an app is genuinely off-network, and then bind to a private
+    # interface AND add auth (bearer header / mTLS), e.g.:
     #   ports:
     #     - "127.0.0.1:4318:4318"   # never 0.0.0.0 without auth + TLS
     depends_on:
@@ -44,7 +45,7 @@ services:
       - prometheus
     restart: unless-stopped
     networks:
-      - obs
+      - coolify
 
   tempo:
     image: grafana/tempo:2.7.1
@@ -56,7 +57,7 @@ services:
       - tempo-data:/var/tempo
     restart: unless-stopped
     networks:
-      - obs
+      - coolify
 
   loki:
     image: grafana/loki:3.4.2
@@ -68,7 +69,7 @@ services:
       - loki-data:/loki
     restart: unless-stopped
     networks:
-      - obs
+      - coolify
 
   prometheus:
     image: prom/prometheus:v3.1.0
@@ -82,11 +83,14 @@ services:
       - prometheus-data:/prometheus
     restart: unless-stopped
     networks:
-      - obs
+      - coolify
 
 networks:
-  obs:
-    name: czo-observability   # attach your Grafana resource to this network
+  # Coolify's shared default network (created at install). External = pre-existing;
+  # all Coolify resources already on it (life, Grafana, …) resolve these services
+  # by name with no manual network attachment.
+  coolify:
+    external: true
 
 volumes:
   tempo-data:

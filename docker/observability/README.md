@@ -31,11 +31,12 @@ Grafana ── Tempo + Prometheus + Loki datasources (correlated)
    compose is **self-contained** — it deploys identically from Git or raw-paste,
    with no dependency on the sibling `*.yaml` files at deploy time. (Those files
    stay the editable source of truth; keep them and the inline blocks in sync.)
-2. Deploy. Coolify creates the `czo-observability` network and named volumes.
-3. **Connect Grafana AND `life`** to the `czo-observability` network (each
-   resource → Networks → attach `czo-observability`). Grafana then resolves
-   `tempo`/`loki`/`prometheus` by name; `life` reaches the collector at
-   `http://otel-collector:4318` — no host port needed.
+2. Deploy. The stack joins Coolify's shared **`coolify`** network (declared
+   `external: true`) and creates the named volumes.
+3. **Ensure Grafana and `life` are on the `coolify` network** too (Coolify's
+   default — most resources already are; check each resource → Networks).
+   Grafana then resolves `tempo`/`loki`/`prometheus` by name; `life` reaches the
+   collector at `http://otel-collector:4318` — no host port needed.
 4. **Add the datasources**: mount `grafana-datasources.yaml` into Grafana at
    `/etc/grafana/provisioning/datasources/`, or recreate the three
    datasources from the file via the Grafana UI.
