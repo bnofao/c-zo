@@ -4,6 +4,8 @@ c-zo runs as four resources on a single shared network: **postgres** (stateful d
 
 All resources attach to a shared Coolify network, enabling service-to-service DNS resolution: `tour` calls `life:4000` internally, and `life-worker` shares the database with `life`.
 
+There are two ways to deploy this on Coolify. **Option A** (the default, documented in sections 1–4 below) creates four independent Coolify resources — most control and per-service visibility. **Option B** (see the section at the end) deploys a single Docker Compose resource — fewer moving parts, one resource to manage. Postgres is a Coolify-managed database resource in both options.
+
 ## 1. PostgreSQL
 
 Create a Coolify PostgreSQL 17 resource.
@@ -115,6 +117,39 @@ After deployment, open `https://<tour-domain>/login` in a browser. Sign in with 
 4. **tour** — connects to `life:4000` (internal DNS), serves the admin UI.
 
 Deploy each sequentially, verifying each step (health checks, container logs) before moving to the next.
+
+## Option B: Single Docker Compose resource
+
+Instead of four separate resources, you can deploy `life`, `life-worker`, and `tour` as one **Docker Compose** resource using the root `docker-compose.yml`. Postgres remains a separate Coolify-managed database (Option B does not put Postgres in the compose, so you keep Coolify's backup/restore UI).
+
+**When to choose it:** one resource to deploy and manage, with migrations wired into the stack. Choose Option A instead if you need to scale or redeploy each service independently.
+
+**Steps:**
+
+1. **Create the managed Postgres** exactly as in section 1 above (database name `czo`). Note its internal connection string.
+
+2. **Create a new resource → Docker Compose.**
+   - **Repository:** this repo
+   - **Branch:** `main`
+   - **Compose file path:** `docker-compose.yml`
+
+3. **Set environment variables on the stack:**
+   - `DATABASE_URL` — the managed Postgres internal connection string (required; deployment is blocked until it is set).
+   - `SERVICE_PASSWORD_64_AUTH` — leave it for Coolify to **auto-generate**. It becomes `AUTH_SECRET` for both `life` and `life-worker` (one generated secret, shared across both services).
+
+4. **Assign domains:**
+   - On the `life` service, attach a public domain — this populates `SERVICE_FQDN_LIFE_4000`.
+   - On the `tour` service, attach a public domain — this populates `SERVICE_FQDN_TOUR_3000`.
+   - `life-worker` gets no domain (no exposed port).
+
+5. **Deploy.** Coolify builds the images and starts the stack in dependency order:
+   - The `migrate` service runs `pnpm migrate` and exits — **migrations run automatically; there is no separate pre-deployment command** in this option.
+   - `life` and `life-worker` start once `migrate` completes successfully.
+   - `tour` starts once `life` is healthy. `tour` reaches the API at `http://life:4000` over the stack's internal network.
+
+**Verification:** identical to Option A — `curl https://<life-domain>/health` returns `{"ok":true,"app":"life"}`, and `https://<tour-domain>/login` loads the sign-in page. The compose also defines container healthchecks for `life` and `tour`, which Coolify surfaces in the resource status.
+
+**Optional:** `tour` accepts `VITE_TOLGEE_API_URL` and `VITE_TOLGEE_API_KEY` as build-time variables to sync translations at build; omit them to ship the bundled EN/FR JSON.
 
 ## Security & Runtime Notes
 
