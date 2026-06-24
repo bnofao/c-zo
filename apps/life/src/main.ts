@@ -62,8 +62,13 @@ const built = buildApp({
     title: 'life API',
     version: '0.1.0',
     description: 'REST endpoints for the life app.',
+    // `OPENAPI_ENABLED` overrides the docs (/openapi.json + /reference):
+    // `false`/`0`/`no` force them off, any other value forces them on. When
+    // unset, kit falls back to enabling them outside production (NODE_ENV).
+    enabled: process.env.OPENAPI_ENABLED === undefined
+      ? undefined
+      : !['false', '0', 'no'].includes(process.env.OPENAPI_ENABLED.toLowerCase()),
     // jsonPath/uiPath default to /openapi.json and /reference.
-    // Gated off when NODE_ENV === 'production'.
   },
   subGraphs: ['public', 'account', 'org', 'admin'],
   // Pre-mount routes that need no runtime access. Anything requiring

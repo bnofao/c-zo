@@ -30,6 +30,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       AUTH_SECRET: ${SERVICE_PASSWORD_64_AUTH:?}
       AUTH_APP: life
+      # OpenAPI docs (/openapi.json + /reference). Unset → kit's default (on
+      # outside production, off in production). Set `false` to force off, or
+      # `true` to expose them in production.
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED-false}
       # Telemetry → OTel Collector (observability stack, same `coolify` network).
       # apps/life/src/runtime.ts only exports when the endpoint is set; set the
       # var to empty in Coolify to disable if the observability stack isn't up.

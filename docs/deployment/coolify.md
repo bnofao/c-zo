@@ -40,6 +40,7 @@ Create a new Coolify resource using a Dockerfile.
 - `HOST` — `0.0.0.0`
 - `PORT` — `4000`
 - `TRUSTED_PROXY_HOPS` — `1` (Coolify sits behind a reverse proxy)
+- (optional) `OPENAPI_ENABLED` — toggles the OpenAPI docs (`/openapi.json` + `/reference`). Unset → off in production (kit default); set `true` to expose them, `false` to force off. REST routes are always served regardless.
 - (optional) `EMAIL_TRANSPORT` — e.g., `resend` or `smtp` if configured in `EmailService`
 - (optional) `SMTP_*` — SMTP credentials if `EMAIL_TRANSPORT=smtp`
 - (optional) `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` — for observability (see Follow-ups)
@@ -138,6 +139,7 @@ Instead of four separate resources, you can deploy `life`, `life-worker`, and `t
    - `DATABASE_URL` — the managed Postgres internal connection string (required; deployment is blocked until it is set).
    - `SERVICE_PASSWORD_64_AUTH` — leave it for Coolify to **auto-generate**. It becomes `AUTH_SECRET` for both `life` and `life-worker` (one generated secret, shared across both services).
    - **Telemetry (built in):** `life` and `life-worker` default to exporting OTLP to `http://otel-collector:4318` (`OTEL_SERVICE_NAME` = `life` / `life-worker`). If you have **not** deployed the observability stack, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an empty value to disable export and avoid connection-error noise.
+   - **OpenAPI docs (off by default):** `OPENAPI_ENABLED` defaults to `false` in the compose, so `/openapi.json` and `/reference` stay closed in production. Set it to `true` on the stack to expose them.
 
 4. **Assign domains:**
    - On the `life` service, attach a public domain — this populates `SERVICE_FQDN_LIFE_4000`.
