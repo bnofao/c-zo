@@ -217,6 +217,7 @@ catalogs:
     '@next/eslint-plugin-next': ^15.4.5
     '@swc/core': 1.5.7
     '@tailwindcss/postcss': ^4.1.11
+    '@tailwindcss/vite': ^4.1.11
     '@testcontainers/postgresql': ^11.8.0
     '@turbo/gen': ^2.5.5
     drizzle-kit: 1.0.0-rc.3

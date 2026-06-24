@@ -4,7 +4,11 @@ import { TolgeeProvider } from '@tolgee/react'
 import * as React from 'react'
 import { getLocale } from '../i18n/locale.server'
 import { createTolgee } from '../i18n/tolgee'
-import styles from '../styles.css?url'
+// Side-effect import, NOT `?url`: routes the stylesheet through Start's CSS
+// manifest so the injected `<link>` carries a hash that exists in `public/`.
+// A `?url` import is opaque to the manifest and, under the nitro two-env build,
+// resolves to an SSR-only asset hash that 404s in production.
+import '../styles.css'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   // Read the locale server-side so the very first SSR render uses it. On client
@@ -17,7 +21,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'tour — admin' },
     ],
-    links: [{ rel: 'stylesheet', href: styles }],
   }),
   component: RootDocument,
 })

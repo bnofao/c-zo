@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import tailwindcss from '@tailwindcss/vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
@@ -10,6 +11,11 @@ export default defineConfig({
     port: 3000,
   },
   plugins: [
+    // Tailwind v4 via its first-party Vite plugin (not @tailwindcss/postcss):
+    // CSS @imports and their url() asset deps go through Vite's asset pipeline,
+    // so they are rebased and emitted. The PostCSS integration inlines @imports
+    // before Vite resolves urls, silently dropping referenced font/image files.
+    tailwindcss(),
     // importProtection is the build-time guard that blocks `**/*.server.*` files
     // from being imported into client code by FILENAME. It's disabled because our
     // route files import `createServerFn`-wrapped helpers from `*.server.ts`
@@ -19,11 +25,10 @@ export default defineConfig({
     // LIFE_URL / graphql-admin / api-auth / getRequestHeader. Re-enable if a
     // future change lets a raw server-only module reach a component.
     tanstackStart({ importProtection: { enabled: false } }),
-    // Override TanStack Start's default Nitro preset to emit a self-contained
-    // HTTP server bundle (`.output/server/index.mjs`) — required to run the app
-    // as `node .output/server/index.mjs` in the production container. Without
-    // this, the build emits a web-fetch handler module that isn't a server.
-    nitro({ preset: 'node-server' }),
+    // Bundles the app into a standalone Node server (`.output/server/index.mjs`,
+    // the container's entrypoint). Without it the build emits a web-fetch handler,
+    // not a runnable server. `node-server` is nitro's default preset.
+    nitro(),
     viteReact(),
   ],
   resolve: {

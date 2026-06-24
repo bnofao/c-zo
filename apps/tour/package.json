@@ -31,7 +31,7 @@
   "devDependencies": {
     "@graphql-codegen/cli": "catalog:dev",
     "@graphql-codegen/client-preset": "catalog:dev",
-    "@tailwindcss/postcss": "catalog:dev",
+    "@tailwindcss/vite": "catalog:dev",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@tolgee/cli": "catalog:",
