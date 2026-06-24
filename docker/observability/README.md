@@ -40,6 +40,20 @@ Grafana ── Tempo + Prometheus + Loki datasources (correlated)
 4. **Add the datasources**: mount `grafana-datasources.yaml` into Grafana at
    `/etc/grafana/provisioning/datasources/`, or recreate the three
    datasources from the file via the Grafana UI.
+
+### Dashboards (provisioned)
+
+Three dashboards ship as code in `dashboards/` with the provider
+`grafana-dashboards.yaml`. On the Grafana resource (Storages → file mounts):
+
+- `grafana-dashboards.yaml` → `/etc/grafana/provisioning/dashboards/grafana-dashboards.yaml`
+- the `dashboards/` directory → `/var/lib/grafana/dashboards/`
+
+They land in a **c-zo** folder: **life — logs** (Loki), **life — traces**
+(Tempo span metrics + service graph), **OTel Collector** (collector
+self-metrics). Span-metric panels need the Tempo metrics-generator (below) and
+take a few minutes to populate after first traffic.
+
 5. **Keep everything internal.** Do NOT publish Tempo/Loki/Prometheus, and do
    NOT publish the collector's OTLP ports — the receiver is **unauthenticated**,
    so a host-exposed `4318`/`4317` lets anyone inject/poison telemetry or flood
@@ -122,6 +136,15 @@ enable:
 
 (Alternative: the Prometheus-community `postgres_exporter` scraped by
 Prometheus — pick one, not both, to avoid duplicate series.)
+
+## Span metrics & service graph (enabled)
+
+Tempo's metrics-generator derives RED span metrics (`traces_spanmetrics_*`) and
+service-graph metrics (`traces_service_graph_*`) from incoming traces and
+remote-writes them to Prometheus (which runs with
+`--web.enable-remote-write-receiver`). The collector also exposes its own
+telemetry on `:8888`, scraped by the `otel-collector-self` Prometheus job. These
+power the **life — traces** and **OTel Collector** dashboards.
 
 ## Verify
 
