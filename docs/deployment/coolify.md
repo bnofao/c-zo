@@ -132,10 +132,12 @@ Instead of four separate resources, you can deploy `life`, `life-worker`, and `t
    - **Repository:** this repo
    - **Branch:** `main`
    - **Compose file path:** `docker-compose.yml`
+   - **Network:** the compose joins Coolify's shared **`coolify`** network (declared `external: true`). Make sure the managed Postgres is also reachable on it (attach the DB resource to `coolify`), and — if you run the observability stack — that it's on `coolify` too, so `life` can reach `otel-collector:4318` by name.
 
 3. **Set environment variables on the stack:**
    - `DATABASE_URL` — the managed Postgres internal connection string (required; deployment is blocked until it is set).
    - `SERVICE_PASSWORD_64_AUTH` — leave it for Coolify to **auto-generate**. It becomes `AUTH_SECRET` for both `life` and `life-worker` (one generated secret, shared across both services).
+   - **Telemetry (built in):** `life` and `life-worker` default to exporting OTLP to `http://otel-collector:4318` (`OTEL_SERVICE_NAME` = `life` / `life-worker`). If you have **not** deployed the observability stack, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an empty value to disable export and avoid connection-error noise.
 
 4. **Assign domains:**
    - On the `life` service, attach a public domain — this populates `SERVICE_FQDN_LIFE_4000`.

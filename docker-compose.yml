@@ -10,6 +10,8 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:?}
+    networks:
+      - coolify
 
   life:
     build:
@@ -28,6 +30,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       AUTH_SECRET: ${SERVICE_PASSWORD_64_AUTH:?}
       AUTH_APP: life
+      # Telemetry → OTel Collector (observability stack, same `coolify` network).
+      # apps/life/src/runtime.ts only exports when the endpoint is set; set the
+      # var to empty in Coolify to disable if the observability stack isn't up.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: life
       SERVICE_FQDN_LIFE_4000: ${SERVICE_FQDN_LIFE_4000}
     healthcheck:
       test:
@@ -39,6 +46,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - coolify
 
   life-worker:
     image: czo/life:latest
@@ -53,6 +62,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       AUTH_SECRET: ${SERVICE_PASSWORD_64_AUTH:?}
       AUTH_APP: life
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: life-worker
+    networks:
+      - coolify
 
   tour:
     build:
@@ -79,3 +92,13 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - coolify
+
+networks:
+  # Coolify's shared default network (external = pre-existing). Same network the
+  # observability stack joins, so `life`/`life-worker` reach `otel-collector:4318`
+  # by name, and `tour` reaches `life:4000`. Postgres is the Coolify-managed DB
+  # (referenced via DATABASE_URL); attach it to `coolify` too if not already.
+  coolify:
+    external: true
