@@ -3,10 +3,14 @@
 # Grafana is NOT included here — you already run it. See README.md for how to
 # connect your existing Grafana to this stack's network and add the datasources.
 #
-# Deploy in Coolify as a "Docker Compose" resource pointing at this directory
-# in the repo (so the sibling *.yaml config files are bind-mounted). If you
-# must paste raw compose instead, switch the bind mounts to inline `configs:`
-# (see README "Raw-paste mode").
+# SELF-CONTAINED: service configs are inlined as Docker Compose top-level
+# `configs:` (rendered by Docker, not bind-mounted from disk). This deploys
+# identically from Git or raw-paste — a single-file bind mount like
+# `./prometheus.yml:/etc/...` is unreliable on Coolify: when the source path
+# doesn't resolve at deploy time Docker silently creates an empty *directory*
+# there, and the container sees the config as a folder. `configs:` avoids that.
+# The sibling *.yaml files remain the editable source of truth — keep them and
+# this block in sync (or regenerate the block from them).
 #
 # Pin image tags to the current stable releases before deploying — the tags
 # below are known-good baselines, not necessarily the latest.
@@ -15,14 +19,16 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.119.0
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
-    volumes:
-      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    configs:
+      - source: otel_collector_config
+        target: /etc/otelcol-contrib/config.yaml
     environment:
       # Postgres metrics receiver connection. Set PG_METRICS_USER/PASSWORD on the
-      # resource (a read-only pg_monitor role); endpoint/database default to the
-      # in-network DB. Empty creds → scrape errors only (collector still serves).
+      # resource (a read-only pg_monitor role); endpoint is the managed DB's
+      # in-network host:port, database is `czo`. Empty creds → the (opt-in,
+      # commented) receiver simply isn't enabled; the collector still serves OTLP.
       PG_METRICS_ENDPOINT: ${PG_METRICS_ENDPOINT:-postgres:5432}
-      PG_METRICS_DATABASE: ${PG_METRICS_DATABASE:-db_password_manager}
+      PG_METRICS_DATABASE: ${PG_METRICS_DATABASE:-czo}
       PG_METRICS_USER: ${PG_METRICS_USER:-}
       PG_METRICS_PASSWORD: ${PG_METRICS_PASSWORD:-}
     # SECURITY: the OTLP receiver is unauthenticated, so it is NOT published to
@@ -43,8 +49,10 @@ services:
   tempo:
     image: grafana/tempo:2.7.1
     command: ["-config.file=/etc/tempo/tempo.yaml"]
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/tempo.yaml
     volumes:
-      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     restart: unless-stopped
     networks:
@@ -53,8 +61,10 @@ services:
   loki:
     image: grafana/loki:3.4.2
     command: ["-config.file=/etc/loki/loki.yaml"]
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki.yaml
     volumes:
-      - ./loki-config.yaml:/etc/loki/loki.yaml:ro
       - loki-data:/loki
     restart: unless-stopped
     networks:
@@ -65,8 +75,10 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=14d"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     restart: unless-stopped
     networks:
@@ -80,3 +92,196 @@ volumes:
   tempo-data:
   loki-data:
   prometheus-data:
+
+# --- Service configs (inline; mirror the sibling *.yaml files) -----------------
+# NOTE: the postgresql receiver in otel_collector_config uses `$${env:...}` —
+# the doubled `$$` escapes Compose interpolation so the rendered file contains a
+# literal `${env:...}` for the collector to resolve at runtime. Keep the `$$`
+# when you uncomment that block.
+configs:
+  otel_collector_config:
+    content: |
+      # OpenTelemetry Collector — PRODUCTION (Coolify).
+      #
+      # Receives OTLP/HTTP+gRPC from `life` (Effect `Otlp.layerProtobuf`) and fans
+      # the three signals out to the Grafana stack:
+      #   traces  -> Tempo       (OTLP/gRPC)
+      #   metrics -> Prometheus  (scraped off this collector's :8889 exporter)
+      #   logs    -> Loki        (native OTLP endpoint /otlp/v1/logs)
+
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+        # Postgres SERVER metrics (backends, commits/rollbacks, db/table/index
+        # sizes, bloat, replication, …) — pulled over SQL on an interval.
+        # Complements the app-side query spans from @effect/sql-pg. Needs a
+        # read-only monitoring role (pg_monitor) and network reach to the DB.
+        #
+        # OPT-IN: this receiver REQUIRES username+password and the collector
+        # REFUSES to start if they're missing — so it's commented out by default
+        # to keep the base stack bootable. To enable: set PG_METRICS_USER/PASSWORD
+        # on the resource, uncomment this block (keep the `$$`), and add
+        # `postgresql` to the metrics pipeline below.
+        # postgresql:
+        #   endpoint: $${env:PG_METRICS_ENDPOINT}
+        #   username: $${env:PG_METRICS_USER}
+        #   password: $${env:PG_METRICS_PASSWORD}
+        #   databases:
+        #     - $${env:PG_METRICS_DATABASE}
+        #   collection_interval: 30s
+        #   tls:
+        #     insecure: true
+
+      processors:
+        memory_limiter:
+          check_interval: 2s
+          limit_percentage: 80
+          spike_limit_percentage: 25
+        batch:
+          timeout: 5s
+          send_batch_size: 1024
+        resource:
+          attributes:
+            - key: deployment.environment
+              value: production
+              action: upsert
+
+      exporters:
+        # Traces -> Tempo (gRPC OTLP). In-cluster, TLS off.
+        otlp/tempo:
+          endpoint: tempo:4317
+          tls:
+            insecure: true
+
+        # Metrics -> exposed for Prometheus to scrape (pull model).
+        prometheus:
+          endpoint: 0.0.0.0:8889
+          resource_to_telemetry_conversion:
+            enabled: true
+
+        # Logs -> Loki native OTLP ingest (exporter appends /v1/logs to the base).
+        otlphttp/loki:
+          endpoint: http://loki:3100/otlp
+          tls:
+            insecure: true
+
+      extensions:
+        health_check:
+          endpoint: 0.0.0.0:13133
+
+      service:
+        extensions: [health_check]
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, resource, batch]
+            exporters: [otlp/tempo]
+          metrics:
+            receivers: [otlp]   # add `postgresql` here once the receiver above is enabled
+            processors: [memory_limiter, resource, batch]
+            exporters: [prometheus]
+          logs:
+            receivers: [otlp]
+            processors: [memory_limiter, resource, batch]
+            exporters: [otlphttp/loki]
+
+  tempo_config:
+    content: |
+      # Grafana Tempo — single-binary, local filesystem storage.
+
+      server:
+        http_listen_port: 3200      # Grafana datasource URL -> http://tempo:3200
+        grpc_listen_port: 9095
+
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317   # the OTel Collector exports here
+              http:
+                endpoint: 0.0.0.0:4318
+
+      ingester:
+        max_block_duration: 5m
+
+      compactor:
+        compaction:
+          block_retention: 336h          # 14 days trace retention
+
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/blocks
+          wal:
+            path: /var/tempo/wal
+
+      usage_report:
+        reporting_enabled: false
+
+  loki_config:
+    content: |
+      # Grafana Loki 3.x — single-binary, filesystem storage.
+      # Native OTLP ingestion is enabled by default at POST /otlp/v1/logs.
+
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100      # Grafana datasource URL -> http://loki:3100
+        grpc_listen_port: 9096
+
+      common:
+        instance_addr: 127.0.0.1
+        path_prefix: /loki
+        storage:
+          filesystem:
+            chunks_directory: /loki/chunks
+            rules_directory: /loki/rules
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+
+      schema_config:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+
+      limits_config:
+        retention_period: 336h          # 14 days
+        allow_structured_metadata: true # required for OTLP resource/scope attributes
+
+      compactor:
+        working_directory: /loki/compactor
+        retention_enabled: true
+        delete_request_store: filesystem
+
+  prometheus_config:
+    content: |
+      # Prometheus — PRODUCTION (Coolify).
+      # Pull model: scrapes the OTel Collector's Prometheus exporter (:8889).
+      # Grafana datasource URL -> http://prometheus:9090.
+
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: otel-collector
+          static_configs:
+            - targets: ["otel-collector:8889"]   # app metrics (via the collector)
+
+        - job_name: prometheus
+          static_configs:
+            - targets: ["localhost:9090"]

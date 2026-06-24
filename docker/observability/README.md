@@ -26,8 +26,11 @@ Grafana ── Tempo + Prometheus + Loki datasources (correlated)
 ## Install in Coolify
 
 1. **New resource → Docker Compose**, source = this Git repo, base directory
-   `docker/observability`. (Git-based deploy makes the sibling `*.yaml`
-   config files available to the bind mounts.)
+   `docker/observability` (or just paste `docker-compose.yml`). The service
+   configs are inlined as Docker Compose `configs:` (rendered by Docker), so the
+   compose is **self-contained** — it deploys identically from Git or raw-paste,
+   with no dependency on the sibling `*.yaml` files at deploy time. (Those files
+   stay the editable source of truth; keep them and the inline blocks in sync.)
 2. Deploy. Coolify creates the `czo-observability` network and named volumes.
 3. **Connect Grafana AND `life`** to the `czo-observability` network (each
    resource → Networks → attach `czo-observability`). Grafana then resolves
@@ -43,13 +46,20 @@ Grafana ── Tempo + Prometheus + Loki datasources (correlated)
    (`127.0.0.1:4318`) **and** add auth (bearer header / mTLS), never `0.0.0.0`
    bare.
 
-### Raw-paste mode (no Git deploy)
+### Why inline `configs:` (not bind mounts)
 
-If you paste the compose instead of deploying from Git, the bind mounts won't
-find the files. Replace each `volumes: ./x.yaml:...` with a top-level
-`configs:` entry using inline `content: |` (paste the file body), and reference
-it per service. Remember to escape every `$` as `$$` inside inline content
-(e.g. the Loki derived-field `${__value.raw}` → `$${__value.raw}`).
+The four service configs live in this compose as top-level `configs:` with
+inline `content:`, not as `volumes: ./x.yaml:/path` bind mounts. A single-file
+bind mount is unreliable on Coolify: when the source path doesn't resolve at
+deploy time, Docker silently creates an empty **directory** there and the
+container sees the config as a folder (e.g. Prometheus fails: "config is a
+directory"). `configs:` are materialized by Docker, so this can't happen.
+
+Editing a config: change the sibling `*.yaml` file **and** the matching inline
+block (they mirror each other). Inside inline `content:`, escape every literal
+`$` as `$$` (Compose interpolates `${...}`) — e.g. the collector's
+`$${env:PG_METRICS_*}` and, if you ever inline `grafana-datasources.yaml`, the
+Loki derived field `$${__value.raw}`.
 
 ## Wire `life` to the collector
 
@@ -98,12 +108,14 @@ enable:
    CREATE ROLE otel_metrics LOGIN PASSWORD '<strong-password>';
    GRANT pg_monitor TO otel_metrics;   -- built-in role: access to stats views
    ```
-2. Set on the collector resource: `PG_METRICS_USER`, `PG_METRICS_PASSWORD`
-   (and `PG_METRICS_ENDPOINT` / `PG_METRICS_DATABASE` if not the defaults
-   `postgres:5432` / `db_password_manager`). The collector must share a network
+2. Set on the collector resource: `PG_METRICS_USER`, `PG_METRICS_PASSWORD`, and
+   `PG_METRICS_ENDPOINT` (the managed DB's in-network `host:5432`); the
+   `PG_METRICS_DATABASE` default is `czo`. The collector must share a network
    with Postgres.
-3. In `otel-collector-config.yaml`: uncomment the `postgresql:` receiver and
-   add `postgresql` to the `metrics` pipeline's `receivers`.
+3. In the compose's inline `otel_collector_config` (mirror it in
+   `otel-collector-config.yaml`): uncomment the `postgresql:` receiver — keep
+   the `$$` on `$${env:...}` — and add `postgresql` to the `metrics` pipeline's
+   `receivers`.
 4. Import a Grafana dashboard for the `postgresqlreceiver` metric set
    (`postgresql.*`) on the Prometheus datasource.
 
