@@ -58,13 +58,18 @@ function isUniqueViolation(cause: unknown): boolean {
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 /**
- * Reads `INITIAL_ADMIN_*` from the environment. Outside production
- * (`NODE_ENV !== 'production'`) an unset email/password falls back to the dev
- * defaults; in production they stay empty so callers no-op. Empty = unset.
+ * Reads `INITIAL_ADMIN_*` from the environment. Only in local development
+ * (`NODE_ENV === 'development'`, the default when unset) does an unset
+ * email/password fall back to the dev defaults; in production AND under test
+ * (`NODE_ENV === 'test'`, vitest's default) they stay empty so callers no-op.
+ * Gating on `=== 'development'` (not `!== 'production'`) keeps the boot seed
+ * from injecting an admin into every Testcontainers e2e boot, which would shift
+ * auto-increment user ids and break harnesses that assume a sequential id.
+ * Empty = unset.
  */
 export const InitialAdminConfig = Effect.gen(function* () {
   const nodeEnv = yield* Config.string('NODE_ENV').pipe(Config.withDefault('development'))
-  const isProd = nodeEnv === 'production'
+  const isDev = nodeEnv === 'development'
   // `Config.redacted` keeps the raw value out of logs/spans (mirrors how
   // DATABASE_URL is read in packages/kit/src/db/index.ts).
   const emailRaw = yield* Config.redacted('INITIAL_ADMIN_EMAIL').pipe(Config.withDefault(Redacted.make('')))
@@ -72,8 +77,8 @@ export const InitialAdminConfig = Effect.gen(function* () {
   const name = yield* Config.string('INITIAL_ADMIN_NAME').pipe(Config.withDefault('Admin'))
   const role = yield* Config.string('INITIAL_ADMIN_ROLE').pipe(Config.withDefault('admin'))
   // Unwrap only to apply the empty/dev-default branch, then re-wrap.
-  const email = Redacted.value(emailRaw) || (isProd ? '' : DEV_DEFAULT_EMAIL)
-  const password = Redacted.value(passwordRaw) || (isProd ? '' : DEV_DEFAULT_PASSWORD)
+  const email = Redacted.value(emailRaw) || (isDev ? DEV_DEFAULT_EMAIL : '')
+  const password = Redacted.value(passwordRaw) || (isDev ? DEV_DEFAULT_PASSWORD : '')
   return {
     email: Redacted.make(email),
     password: Redacted.make(password),

@@ -8,7 +8,7 @@ function withEnv(env: Record<string, string>) {
 }
 
 describe('InitialAdminConfig', () => {
-  it.effect('applies dev defaults when unset outside production', () =>
+  it.effect('applies dev defaults when unset in development', () =>
     InitialAdminConfig.pipe(
       Effect.tap(s => Effect.sync(() => {
         expect(Redacted.value(s.email)).toBe('admin@life.dev')
@@ -26,6 +26,15 @@ describe('InitialAdminConfig', () => {
         expect(Redacted.value(s.password)).toBe('')
       })),
       withEnv({ NODE_ENV: 'production' }),
+    ))
+
+  it.effect('no defaults under test (NODE_ENV=test) — boot seed stays inert in e2e', () =>
+    InitialAdminConfig.pipe(
+      Effect.tap(s => Effect.sync(() => {
+        expect(Redacted.value(s.email)).toBe('')
+        expect(Redacted.value(s.password)).toBe('')
+      })),
+      withEnv({ NODE_ENV: 'test' }),
     ))
 
   it.effect('explicit env values win and dev defaults do not apply', () =>
