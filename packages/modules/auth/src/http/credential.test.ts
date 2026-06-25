@@ -5,12 +5,16 @@ import { expect, layer } from '@effect/vitest'
 import { Effect, Fiber, Layer, Stream } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
 import { accounts, users } from '../database/schema'
+import { ADMIN_HIERARCHY, ADMIN_STATEMENTS } from '../plugins/access'
 import { DEFAULT_ACTOR_RESTRICTIONS } from '../plugins/actor'
 import * as Actor from '../services/actor'
 import * as Cookie from '../services/cookie'
 import * as AuthEvents from '../services/events/auth'
+import * as UserEvents from '../services/events/user'
 import * as Password from '../services/password'
 import * as Session from '../services/session'
+import * as User from '../services/user'
+import { seededAccessLayer } from '../testing/access'
 import { AuthPostgresLayer, truncateAuth } from '../testing/postgres'
 import { EmailAlreadyRegistered, InvalidCredentials, signIn, signUp } from './credential'
 
@@ -19,11 +23,17 @@ const cookieLayer = Cookie.layer({
   attributes: { httpOnly: true, sameSite: 'lax', secure: false, path: '/', maxAge: 604800 },
 })
 
+const accessLayer = seededAccessLayer(
+  [{ name: 'admin', statements: ADMIN_STATEMENTS, hierarchy: ADMIN_HIERARCHY }],
+  false,
+)
+
 const TestLayer = Layer.mergeAll(
   Password.layer,
   Session.layer.pipe(Layer.provide(Layer.mergeAll(Persistence.layerMemory, cookieLayer, AuthEvents.layer))),
   Actor.makeLayer(DEFAULT_ACTOR_RESTRICTIONS, true),
   AuthEvents.layer,
+  User.makeLayer([]).pipe(Layer.provide(Layer.mergeAll(Password.layer, UserEvents.layer, accessLayer))),
 ).pipe(Layer.provideMerge(AuthPostgresLayer))
 
 layer(TestLayer, { timeout: 120_000 })('credential signUp/signIn', (it) => {

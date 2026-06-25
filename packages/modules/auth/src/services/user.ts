@@ -4,8 +4,8 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db'
-import { and, eq, isNull } from 'drizzle-orm'
-import { Context, Data, Effect, Layer } from 'effect'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import { Config, Context, Data, Effect, Layer } from 'effect'
 import { AccessService } from './access'
 import { UserEvents } from './events/user'
 import { PasswordService } from './password'
@@ -102,6 +102,57 @@ export type UserError
     | CredentialLinkFailed
     | UserDbFailed
 
+// ─── Default-role helpers ─────────────────────────────────────────────
+
+/** Parse a CSV role list: split on `,`, trim, drop empties. */
+export function parseCsvRoles(raw: string): string[] {
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+/** Deduped union of provided + default roles (provided first). */
+export function mergeRoles(provided: ReadonlyArray<string>, defaults: ReadonlyArray<string>): string[] {
+  return [...new Set([...provided, ...defaults])]
+}
+
+/**
+ * Shared reader for the default platform roles assigned to a user at creation.
+ * Unset ⇒ `[]` (no default role). Used by `authConfig` (to build the layer) and
+ * by the boot-time validation in the module's `onStarted`.
+ */
+export const DefaultUserRolesConfig = Effect.gen(function* () {
+  const raw = yield* Config.string('AUTH_DEFAULT_USER_ROLES').pipe(Config.withDefault(''))
+  return parseCsvRoles(raw) as ReadonlyArray<string>
+})
+
+/** Raised at boot when a configured default role is not in the access registry. */
+export class InvalidDefaultUserRoles extends Data.TaggedError('InvalidDefaultUserRoles')<{
+  readonly roles: ReadonlyArray<string>
+}> {
+  readonly code = 'INVALID_DEFAULT_USER_ROLES'
+  get message() {
+    return `AUTH_DEFAULT_USER_ROLES contains unregistered role(s): ${this.roles.join(', ')}`
+  }
+}
+
+/**
+ * Fail-fast check: every configured default role must exist in the registry.
+ *  Reuses `validateRole` (already imported in this file) instead of hand-rolled
+ *  membership checks — `validateRole(r, registered)` returns `false` for an
+ *  unregistered role.
+ */
+export function assertDefaultUserRolesValid(
+  defaultUserRoles: ReadonlyArray<string>,
+  registered: Record<string, unknown>,
+): Effect.Effect<void, InvalidDefaultUserRoles> {
+  return Effect.gen(function* () {
+    const invalid = defaultUserRoles.filter(
+      r => validateRole(r, registered as Parameters<typeof validateRole>[1]) === false,
+    )
+    if (invalid.length > 0)
+      return yield* Effect.fail(new InvalidDefaultUserRoles({ roles: invalid }))
+  })
+}
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 export type SessionRow = InferSelectModel<typeof sessions>
@@ -187,7 +238,7 @@ export class UserService extends Context.Service<
 
     readonly create: (
       input: CreateUserInput,
-    ) => Effect.Effect<User, UserAlreadyExists | InvalidRole | CredentialLinkFailed | PasswordHashFailed | UserDbFailed>
+    ) => Effect.Effect<User, UserAlreadyExists | InvalidRole | CredentialLinkFailed | UserDbFailed>
 
     readonly update: (
       id: number,
@@ -231,226 +282,256 @@ export class UserService extends Context.Service<
 
 // ─── Layer ───────────────────────────────────────────────────────────────
 
-const make = Effect.gen(function* () {
-  const db = (yield* DrizzleDb) as Database<Relations>
-  const passwords = yield* PasswordService
-  const access = yield* AccessService
-  const events = yield* UserEvents
+function makeService(defaultUserRoles: ReadonlyArray<string>) {
+  return Effect.gen(function* () {
+    const db = (yield* DrizzleDb) as Database<Relations>
+    const passwords = yield* PasswordService
+    const access = yield* AccessService
+    const events = yield* UserEvents
 
-  const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
-    eff.pipe(Effect.mapError(cause => new UserDbFailed({ cause })))
+    const dbErr = <A, E>(eff: Effect.Effect<A, E>) =>
+      eff.pipe(Effect.mapError(cause => new UserDbFailed({ cause })))
 
-  const findById = (id: number) =>
-    Effect.gen(function* () {
-      const row = yield* dbErr(db.query.users.findFirst({ where: { id, deletedAt: { isNull: true } } }))
-      if (!row)
-        return yield* Effect.fail(new UserNotFound())
-      return row
-    })
-
-  const ensureValidRole = (role: string | string[]) =>
-    Effect.gen(function* () {
-      // Read the live role set at request time — the registry is fully
-      // populated only after every module's `onStart` (e.g. stock-location),
-      // which runs after this service is constructed.
-      const roles = yield* access.roles
-      const valid = validateRole(role, roles)
-      if (!valid)
-        return yield* Effect.fail(new InvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
-      return valid
-    })
-
-  const updateUserRow = (id: number, patch: Record<string, unknown>) =>
-    Effect.gen(function* () {
-      const [row] = yield* dbErr(
-        db.update(users).set({ ...patch, updatedAt: new Date() }).where(eq(users.id, id)).returning(),
-      )
-      if (!row)
-        return yield* Effect.fail(new UserDbFailed({ cause: 'update returned no row' }))
-      return row
-    })
-
-  return UserService.of({
-    findMany: (config?) =>
-      dbErr(db.query.users.findMany(withDeletedFilter(config))).pipe(
-        Effect.map(rows => rows),
-      ),
-
-    counts: () => {
-      // Global per-bucket totals over live (non-deleted) users; `admins`,
-      // `unverified`, `banned` mirror the admin UI's filter tabs. Counted in
-      // parallel — independent `$count` queries, no ordering dependency.
-      const live = isNull(users.deletedAt)
-      return Effect.all({
-        all: dbErr(db.$count(users, live)),
-        admins: dbErr(db.$count(users, and(live, eq(users.role, 'admin')))),
-        unverified: dbErr(db.$count(users, and(live, eq(users.emailVerified, false)))),
-        banned: dbErr(db.$count(users, and(live, eq(users.banned, true)))),
-      }, { concurrency: 'unbounded' })
-    },
-
-    findFirst: (config?) =>
+    const findById = (id: number) =>
       Effect.gen(function* () {
-        const row = yield* dbErr(db.query.users.findFirst(withDeletedFilter(config)))
+        const row = yield* dbErr(db.query.users.findFirst({ where: { id, deletedAt: { isNull: true } } }))
         if (!row)
           return yield* Effect.fail(new UserNotFound())
         return row
-      }),
+      })
 
-    create: input =>
+    const ensureValidRole = (role: string | string[]) =>
       Effect.gen(function* () {
-        const existing = yield* dbErr(
-          db.query.users.findFirst({ where: { email: input.email } }),
+      // Read the live role set at request time — the registry is fully
+      // populated only after every module's `onStart` (e.g. stock-location),
+      // which runs after this service is constructed.
+        const roles = yield* access.roles
+        const valid = validateRole(role, roles)
+        if (!valid)
+          return yield* Effect.fail(new InvalidRole({ role: Array.isArray(role) ? role.join(',') : role }))
+        return valid
+      })
+
+    const updateUserRow = (id: number, patch: Record<string, unknown>) =>
+      Effect.gen(function* () {
+        const [row] = yield* dbErr(
+          db.update(users).set({ ...patch, updatedAt: new Date() }).where(eq(users.id, id)).returning(),
         )
-        if (existing)
-          return yield* Effect.fail(new UserAlreadyExists({ user: existing }))
+        if (!row)
+          return yield* Effect.fail(new UserDbFailed({ cause: 'update returned no row' }))
+        return row
+      })
 
-        let role: string | undefined = input.role as string | undefined
-        if (input.role) {
-          role = yield* ensureValidRole(input.role)
-        }
+    return UserService.of({
+      findMany: (config?) =>
+        dbErr(db.query.users.findMany(withDeletedFilter(config))).pipe(
+          Effect.map(rows => rows),
+        ),
 
-        const [user] = yield* dbErr(
-          db.insert(users).values({
-            ...input,
-            role: role ?? 'user',
-            emailVerified: input.emailVerified ?? false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }).returning(),
-        )
-        if (!user)
-          return yield* Effect.fail(new UserDbFailed({ cause: 'insert returned no row' }))
+      counts: () => {
+      // Global per-bucket totals over live (non-deleted) users; `admins`,
+      // `unverified`, `banned` mirror the admin UI's filter tabs. Counted in
+      // parallel — independent `$count` queries, no ordering dependency.
+        const live = isNull(users.deletedAt)
+        return Effect.all({
+          all: dbErr(db.$count(users, live)),
+          admins: dbErr(db.$count(users, and(live, sql`'admin' = ANY(string_to_array(${users.role}, ','))`))),
+          unverified: dbErr(db.$count(users, and(live, eq(users.emailVerified, false)))),
+          banned: dbErr(db.$count(users, and(live, eq(users.banned, true)))),
+        }, { concurrency: 'unbounded' })
+      },
 
-        // Link credential if a password was provided. Native impl via the
-        // shared `insertCredential` helper (same row shape as `http/credential.ts`
-        // signUp). Failure is wrapped in `CredentialLinkFailed` — callers must
-        // decide whether to compensate; we don't silently leave a credential-
-        // less user any more.
-        if (input.password) {
-          const hashed = yield* passwords.hash(input.password).pipe(
-            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+      findFirst: (config?) =>
+        Effect.gen(function* () {
+          const row = yield* dbErr(db.query.users.findFirst(withDeletedFilter(config)))
+          if (!row)
+            return yield* Effect.fail(new UserNotFound())
+          return row
+        }),
+
+      create: input =>
+        Effect.gen(function* () {
+          const existing = yield* dbErr(
+            db.query.users.findFirst({ where: { email: input.email } }),
           )
-          yield* insertCredential(db, user.id, hashed).pipe(
-            Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+          if (existing)
+            return yield* Effect.fail(new UserAlreadyExists({ user: existing }))
+
+          // Stored role = deduped union of any provided role(s) (validated) and
+          // the configured defaults (boot-validated); null when both are empty.
+          const provided = input.role ? parseCsvRoles(yield* ensureValidRole(input.role)) : []
+          const merged = mergeRoles(provided, defaultUserRoles)
+          const role = merged.length > 0 ? merged.join(',') : null
+
+          // Hash before opening the transaction to keep the tx short. Hash failure
+          // surfaces as CredentialLinkFailed (no user row written yet).
+          const hashed = input.password
+            ? yield* passwords.hash(input.password).pipe(
+              Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+            )
+            : undefined
+
+          const now = new Date()
+          // user + credential in ONE transaction → no orphan user if the
+          // credential insert fails (it rolls back).
+          const user = yield* db.transaction(tx =>
+            Effect.gen(function* () {
+              const [u] = yield* dbErr(
+                tx.insert(users).values({
+                  ...input,
+                  role,
+                  emailVerified: input.emailVerified ?? false,
+                  createdAt: now,
+                  updatedAt: now,
+                }).returning(),
+              )
+              if (!u)
+                return yield* Effect.fail(new UserDbFailed({ cause: 'insert returned no row' }))
+              if (hashed !== undefined) {
+                yield* insertCredential(tx, u.id, hashed, now).pipe(
+                  Effect.mapError(cause => new CredentialLinkFailed({ cause })),
+                )
+              }
+              return u
+            }),
+          ).pipe(
+            Effect.mapError(e =>
+              e instanceof UserDbFailed || e instanceof CredentialLinkFailed
+                ? e
+                : new UserDbFailed({ cause: e }),
+            ),
           )
-        }
 
-        yield* Effect.forkDetach(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
-        return user
-      }),
+          // Post-commit, fire-and-forget. `UserCreated` currently has no
+          // subscriber; kept for parity with the domain-event surface.
+          yield* Effect.forkDetach(events.publish({ _tag: 'UserCreated', userId: user.id, email: user.email }))
+          return user
+        }),
 
-    update: (id, input) =>
-      Effect.gen(function* () {
-        yield* findById(id)
+      update: (id, input) =>
+        Effect.gen(function* () {
+          yield* findById(id)
 
-        if (Object.keys(input).length === 0)
-          return yield* Effect.fail(new UserNoChanges())
+          if (Object.keys(input).length === 0)
+            return yield* Effect.fail(new UserNoChanges())
 
-        let role: string | undefined = input.role as string | undefined
-        if (input.role) {
-          role = yield* ensureValidRole(input.role)
-        }
+          let role: string | null | undefined
+          if (input.role) {
+            const provided = parseCsvRoles(yield* ensureValidRole(input.role))
+            const merged = mergeRoles(provided, defaultUserRoles)
+            role = merged.length > 0 ? merged.join(',') : null
+          }
 
-        const row = yield* updateUserRow(id, { ...input, role })
-        yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
-        return row
-      }),
+          const row = yield* updateUserRow(id, { ...input, role })
+          yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
+          return row
+        }),
 
-    ban: (id, input, actorId) =>
-      Effect.gen(function* () {
-        const existing = yield* findById(id)
+      ban: (id, input, actorId) =>
+        Effect.gen(function* () {
+          const existing = yield* findById(id)
 
-        if (actorId !== undefined && existing.id === actorId)
-          return yield* Effect.fail(new CannotBanSelf())
+          if (actorId !== undefined && existing.id === actorId)
+            return yield* Effect.fail(new CannotBanSelf())
 
-        if (existing.banned)
-          return yield* Effect.fail(new UserAlreadyBanned())
+          if (existing.banned)
+            return yield* Effect.fail(new UserAlreadyBanned())
 
-        const row = yield* updateUserRow(id, {
-          banned: true,
-          banReason: input.reason ?? 'No reason provided',
-          banExpires: typeof input.expiresIn === 'number'
-            ? new Date(Date.now() + input.expiresIn * 1000)
-            : null,
-        })
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'UserBanned',
-          userId: id,
-          bannedBy: actorId ?? null,
-          reason: row.banReason,
-          expires: row.banExpires,
-        }))
-        return row
-      }),
+          const row = yield* updateUserRow(id, {
+            banned: true,
+            banReason: input.reason ?? 'No reason provided',
+            banExpires: typeof input.expiresIn === 'number'
+              ? new Date(Date.now() + input.expiresIn * 1000)
+              : null,
+          })
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'UserBanned',
+            userId: id,
+            bannedBy: actorId ?? null,
+            reason: row.banReason,
+            expires: row.banExpires,
+          }))
+          return row
+        }),
 
-    unban: (id, actorId) =>
-      Effect.gen(function* () {
-        const existing = yield* findById(id)
-        if (!existing.banned)
-          return yield* Effect.fail(new UserNotBanned())
+      unban: (id, actorId) =>
+        Effect.gen(function* () {
+          const existing = yield* findById(id)
+          if (!existing.banned)
+            return yield* Effect.fail(new UserNotBanned())
 
-        const row = yield* updateUserRow(id, {
-          banned: false,
-          banReason: null,
-          banExpires: null,
-        })
-        yield* Effect.forkDetach(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
-        return row
-      }),
+          const row = yield* updateUserRow(id, {
+            banned: false,
+            banReason: null,
+            banExpires: null,
+          })
+          yield* Effect.forkDetach(events.publish({ _tag: 'UserUnbanned', userId: id, unbannedBy: actorId ?? null }))
+          return row
+        }),
 
-    setRole: (id, role, actorId) =>
-      Effect.gen(function* () {
-        const existing = yield* findById(id)
-        const validRole = yield* ensureValidRole(role)
+      setRole: (id, role, actorId) =>
+        Effect.gen(function* () {
+          const existing = yield* findById(id)
+          const provided = parseCsvRoles(yield* ensureValidRole(role))
+          const newRole = mergeRoles(provided, defaultUserRoles).join(',')
 
-        if (actorId !== undefined && existing.id === actorId)
-          return yield* Effect.fail(new CannotDemoteSelf())
+          if (actorId !== undefined && existing.id === actorId)
+            return yield* Effect.fail(new CannotDemoteSelf())
 
-        const row = yield* updateUserRow(id, { role: validRole })
-        yield* Effect.forkDetach(events.publish({
-          _tag: 'UserRoleChanged',
-          userId: id,
-          previousRole: existing.role,
-          newRole: validRole,
-          changedBy: actorId ?? null,
-        }))
-        return row
-      }),
+          const row = yield* updateUserRow(id, { role: newRole })
+          yield* Effect.forkDetach(events.publish({
+            _tag: 'UserRoleChanged',
+            userId: id,
+            previousRole: existing.role,
+            newRole,
+            changedBy: actorId ?? null,
+          }))
+          return row
+        }),
 
-    setPassword: (id, password) =>
-      Effect.gen(function* () {
-        yield* findById(id)
-        const hashed = yield* passwords.hash(password)
-        yield* dbErr(updateCredentialPassword(db, id, hashed))
-        return true as const
-      }),
+      setPassword: (id, password) =>
+        Effect.gen(function* () {
+          yield* findById(id)
+          const hashed = yield* passwords.hash(password)
+          yield* dbErr(updateCredentialPassword(db, id, hashed))
+          return true as const
+        }),
 
-    remove: (id, actorId) =>
-      Effect.gen(function* () {
-        const existing = yield* findById(id)
+      remove: (id, actorId) =>
+        Effect.gen(function* () {
+          const existing = yield* findById(id)
 
-        if (actorId !== undefined && existing.id === actorId)
-          return yield* Effect.fail(new CannotRemoveSelf())
+          if (actorId !== undefined && existing.id === actorId)
+            return yield* Effect.fail(new CannotRemoveSelf())
 
-        // Hard delete. FKs to users.id are all `ON DELETE CASCADE` (sessions,
-        // accounts, members, invitations, api_keys) so the row removal
-        // cascades exactly the way `better-auth.internalAdapter.deleteUser`
-        // did, without the better-auth runtime dependency.
-        yield* dbErr(db.delete(users).where(eq(users.id, id)))
-        yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
-        return true as const
-      }),
+          // Hard delete. FKs to users.id are all `ON DELETE CASCADE` (sessions,
+          // accounts, members, invitations, api_keys) so the row removal
+          // cascades exactly the way `better-auth.internalAdapter.deleteUser`
+          // did, without the better-auth runtime dependency.
+          yield* dbErr(db.delete(users).where(eq(users.id, id)))
+          yield* Effect.forkDetach(events.publish({ _tag: 'UserDeleted', userId: id, email: existing.email }))
+          return true as const
+        }),
 
-    hasPermission: input =>
-      access.checkPermission(
-        input.role || 'user',
-        input.permissions,
-        role => access.role(role),
-        input.connector ?? 'AND',
-      ),
+      hasPermission: input =>
+        access.checkPermission(
+          input.role || 'user',
+          input.permissions,
+          role => access.role(role),
+          input.connector ?? 'AND',
+        ),
+    })
   })
-})
+}
 
-/** Live layer — depends on DrizzleDb, AccessService, UserEvents. */
-export const layer = Layer.effect(UserService, make)
+/**
+ * Live layer — depends on DrizzleDb, AccessService, UserEvents.
+ *  `defaultUserRoles` are assigned (CSV) to users created without an explicit
+ *  role; they must be registry-valid (checked at boot via assertDefaultUserRolesValid).
+ */
+export function makeLayer(defaultUserRoles: ReadonlyArray<string> = []) {
+  return Layer.effect(UserService, makeService(defaultUserRoles))
+}
+
+/** Back-compat no-arg layer (no default roles). */
+export const layer = makeLayer()
