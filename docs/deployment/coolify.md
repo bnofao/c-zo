@@ -44,6 +44,7 @@ Create a new Coolify resource using a Dockerfile.
 - (optional) `EMAIL_TRANSPORT` — e.g., `resend` or `smtp` if configured in `EmailService`
 - (optional) `SMTP_*` — SMTP credentials if `EMAIL_TRANSPORT=smtp`
 - (optional) `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` — for observability (see Follow-ups)
+- (optional, **secrets**) `INITIAL_ADMIN_EMAIL` + `INITIAL_ADMIN_PASSWORD` — bootstrap a login-capable admin on first boot (created once, then skipped — ensure-by-email). Store BOTH as Coolify **secret** env vars (mark them secret; never commit). The app reads them via `Config.redacted`, so they are never logged. Optional `INITIAL_ADMIN_NAME` (default `Admin`) and `INITIAL_ADMIN_ROLE` (default `admin`, CSV for multi-role) are plain vars. Unset → no admin is seeded.
 
 **Verification:**
 After deployment, verify the health endpoint:
@@ -140,6 +141,7 @@ Instead of four separate resources, you can deploy `life`, `life-worker`, and `t
    - `SERVICE_PASSWORD_64_AUTH` — leave it for Coolify to **auto-generate**. It becomes `AUTH_SECRET` for both `life` and `life-worker` (one generated secret, shared across both services).
    - **Telemetry (built in):** `life` and `life-worker` default to exporting OTLP to `http://otel-collector:4318` (`OTEL_SERVICE_NAME` = `life` / `life-worker`). If you have **not** deployed the observability stack, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an empty value to disable export and avoid connection-error noise.
    - **OpenAPI docs (off by default):** `OPENAPI_ENABLED` defaults to `false` in the compose, so `/openapi.json` and `/reference` stay closed in production. Set it to `true` on the stack to expose them.
+   - **Initial admin (off by default):** set `INITIAL_ADMIN_EMAIL` + `INITIAL_ADMIN_PASSWORD` as Coolify **secrets** on the stack to create a login-capable admin on first boot (idempotent, ensure-by-email; read via `Config.redacted`, never logged). `INITIAL_ADMIN_NAME` defaults to `Admin`, `INITIAL_ADMIN_ROLE` to `admin`. Leave unset to seed no admin. The same can be run on-demand via the `seed:admin` script.
 
 4. **Assign domains:**
    - On the `life` service, attach a public domain — this populates `SERVICE_FQDN_LIFE_4000`.
