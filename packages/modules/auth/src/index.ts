@@ -15,7 +15,7 @@ import { authRelations } from '@czo/auth/relations'
 import * as authSchema from '@czo/auth/schema'
 import { Access, Actor, ApiKey, ApiKeyEvents, Organization, OrganizationEvents, User, UserEvents } from '@czo/auth/services'
 import { defineModule } from '@czo/kit/module'
-import { Config, Duration, Effect, Layer } from 'effect'
+import { Config, Duration, Effect, Layer, Redacted } from 'effect'
 import { authNodeGuards } from './graphql/node-guards'
 import { makeSessionContextContributor } from './graphql/session-context'
 import { authRoutes } from './http/routes'
@@ -34,6 +34,7 @@ import * as Account from './services/account'
 import * as Cookie from './services/cookie'
 import * as AuthEvents from './services/events/auth'
 import * as Impersonation from './services/impersonation'
+import { ensureInitialAdmin, InitialAdminConfig } from './services/initial-admin'
 import * as Password from './services/password'
 import * as Session from './services/session'
 
@@ -226,6 +227,21 @@ export default defineModule(() => {
       // Warm OrganizationService so a broken Layer composition fails at
       // boot rather than at first request.
       yield* Organization.OrganizationService
+
+      // Seed the initial admin (idempotent, ensure-by-email). Env-gated: runs
+      // only when both email + password resolve (prod) or via dev defaults.
+      // A failed seed must never take the server down — catch & log.
+      const admin = yield* InitialAdminConfig
+      yield* Redacted.value(admin.email) && Redacted.value(admin.password)
+        ? ensureInitialAdmin({
+            email: admin.email,
+            name: admin.name,
+            password: admin.password,
+            role: admin.role,
+          }).pipe(
+            Effect.catchCause(cause => Effect.logError('initial admin seed failed', cause)),
+          )
+        : Effect.logInfo('no initial-admin config — skipping seed')
     }) as unknown as Effect.Effect<void, never, never>,
   }
 })

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "NODE_ENV=development node --import tsx --watch src/main.ts",
     "worker": "node --import tsx src/worker.ts",
+    "seed:admin": "node --import tsx src/seed-admin.ts",
     "start": "node --import tsx src/main.ts",
     "emit:sdl": "node --import tsx scripts/emit-admin-sdl.ts",
     "check-types": "pnpm tsc --noEmit",

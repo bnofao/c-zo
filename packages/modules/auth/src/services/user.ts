@@ -115,6 +115,7 @@ export interface CreateUserInput {
   email: string
   role?: string | string[] | null
   password?: string | null
+  emailVerified?: boolean
 }
 
 export interface BanUserInput {
@@ -313,6 +314,7 @@ const make = Effect.gen(function* () {
           db.insert(users).values({
             ...input,
             role: role ?? 'user',
+            emailVerified: input.emailVerified ?? false,
             createdAt: new Date(),
             updatedAt: new Date(),
           }).returning(),
