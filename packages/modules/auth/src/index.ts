@@ -113,7 +113,8 @@ export default defineModule(() => {
     // creators, and is matched by the sole-owner guards. Single source of truth.
     const orgOwnerRole = yield* Config.string('AUTH_ORG_OWNER_ROLE').pipe(Config.withDefault('org:owner'))
     const enumTimingBudgetMs = yield* Config.int('AUTH_ENUM_TIMING_BUDGET_MS').pipe(Config.withDefault(250))
-    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole, enumTimingBudgetMs }
+    const defaultUserRoles = yield* User.DefaultUserRolesConfig
+    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole, enumTimingBudgetMs, defaultUserRoles }
   })
 
   // `Layer.unwrap` bridges runtime (reading Config) to build-time
@@ -176,7 +177,7 @@ export default defineModule(() => {
       // `AccountService` output satisfies `Account.subscribersLayer`'s requirement
       // — sibling layers in `mergeAll` don't wire each other.
       Layer.provideMerge(Account.layer),
-      Layer.provideMerge(User.layer),
+      Layer.provideMerge(User.makeLayer(cfg.defaultUserRoles)),
       Layer.provideMerge(sessionLayer),
       // Factor `UserEvents.layer` out so both `User.layer` (publisher) and
       // `Session.subscribersLayer` (consumer) share the same `PubSub` instance.
@@ -224,6 +225,12 @@ export default defineModule(() => {
       const access = yield* Access.AccessService
       yield* access.buildRoles
       yield* access.freeze
+      // Fail-fast: every configured default user role must exist in the frozen
+      // registry. This is a PROPAGATING failure (not caught) — a bad config
+      // aborts boot rather than silently creating users with phantom roles.
+      const defaultUserRoles = yield* User.DefaultUserRolesConfig
+      const registered = yield* access.roles
+      yield* User.assertDefaultUserRolesValid(defaultUserRoles, registered)
       // Warm OrganizationService so a broken Layer composition fails at
       // boot rather than at first request.
       yield* Organization.OrganizationService

@@ -5,12 +5,12 @@ import type * as Cookie from '../services/cookie'
 import type { PasswordHashFailed } from '../services/user'
 import { describeDbError, DrizzleDb } from '@czo/kit/db'
 import { Data, Effect } from 'effect'
-import { users } from '../database/schema'
 import { AuthActorService } from '../services/actor'
 import * as AuthEvents from '../services/events/auth'
 import * as Password from '../services/password'
 import * as Session from '../services/session'
-import { CREDENTIAL_PROVIDER, insertCredential } from '../services/utils/credential-account'
+import * as User from '../services/user'
+import { CREDENTIAL_PROVIDER } from '../services/utils/credential-account'
 
 // ─── Tagged errors ───────────────────────────────────────────────────────
 
@@ -97,48 +97,26 @@ function assertActorType(userId: number, actorType: string) {
 export function signUp(input: SignUpInput): Effect.Effect<
   CredentialResult,
   CredentialError,
-  Password.PasswordService | Session.SessionService | AuthActorService | DrizzleDb | AuthEvents.AuthEvents
+  User.UserService | Session.SessionService | AuthActorService | AuthEvents.AuthEvents
 > {
   return Effect.gen(function* () {
-    const db = (yield* DrizzleDb) as Database<Relations>
-    const password = yield* Password.PasswordService
+    const users = yield* User.UserService
     const session = yield* Session.SessionService
 
-    // Fail fast: reject an already-registered email BEFORE the (deliberately
-    // expensive) Argon2 hash. The `users.email` unique constraint is still the
-    // race-proof backstop in the transaction's `catch` below — this pre-check
-    // is an optimisation + clean control flow, not a substitute for it.
-    const existing = yield* dbErr(db.query.users.findFirst({ where: { email: input.email } }))
-    if (existing)
-      return yield* Effect.fail(new EmailAlreadyRegistered({ email: input.email }))
+    // Single source of truth for user + credential creation (transactional,
+    // applies default roles). create's existence check runs before the Argon2
+    // hash, so a taken email still fails before the expensive hash.
+    const user = yield* users.create({
+      name: input.name,
+      email: input.email,
+      password: input.password,
+    }).pipe(
+      Effect.catchTag('UserAlreadyExists', () => Effect.fail(new EmailAlreadyRegistered({ email: input.email }))),
+      Effect.catchTag('InvalidRole', cause => Effect.fail(new CredentialDbFailed({ cause }))),
+      Effect.catchTag('CredentialLinkFailed', e => Effect.fail(new CredentialDbFailed({ cause: e.cause }))),
+      Effect.catchTag('UserDbFailed', e => Effect.fail(new CredentialDbFailed({ cause: e.cause }))),
+    )
 
-    const passwordHash = yield* password.hash(input.password)
-
-    // user + credential account in ONE transaction → no orphan user. Integrity
-    // under a concurrent same-email race is guaranteed by the `users.email`
-    // unique constraint (the insert is rejected, the txn rolls back); the
-    // pre-check above maps the normal "email taken" case to EmailAlreadyRegistered.
-    const user = yield* dbErr(db.transaction(tx =>
-      Effect.gen(function* () {
-        const now = new Date()
-        const [u] = yield* tx.insert(users).values({
-          name: input.name,
-          email: input.email,
-          emailVerified: false,
-          createdAt: now,
-          updatedAt: now,
-        }).returning()
-        if (!u)
-          return yield* Effect.fail(new Error('user insert returned no row'))
-        yield* insertCredential(tx, u.id, passwordHash, now)
-        return u
-      }),
-    ))
-
-    // Membership is checked ONLY when the caller explicitly requested an actor
-    // type — a fresh sign-up with no actorType has nothing to validate, and the
-    // default-`'user'` session would otherwise always fail the check (a brand-
-    // new user holds no actor-type memberships).
     if (input.actorType)
       yield* assertActorType(user.id, input.actorType)
 
@@ -148,9 +126,8 @@ export function signUp(input: SignUpInput): Effect.Effect<
     })
     const cookie = session.setCookie(token)
 
-    // SignedUp — fire-and-forget: a domain-event subscriber must never block or
-    // fail signUp. Emitted post-commit, so the event reflects persisted state.
-    // `actorType` is read off the persisted row (`SessionService` defaults it).
+    // SignedUp — fire-and-forget, post-commit. Drives account.onSignedUp
+    // (verification email). `UserCreated` (from create) has no subscriber.
     const events = yield* AuthEvents.AuthEvents
     yield* Effect.forkDetach(events.publish({
       _tag: 'SignedUp',
