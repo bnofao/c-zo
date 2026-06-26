@@ -270,7 +270,9 @@ layer(TestLayer, { timeout: 120_000, excludeTestServices: true })('soft-delete f
       const userService = yield* User.UserService
 
       const counts = yield* userService.counts()
-      expect(counts).toEqual({ all: 4, admins: 1, unverified: 1, banned: 1 })
+      // `all` is the non-admin bucket (Plain/Unverified/Banned), partitioning
+      // live users with `admins` (Admin); the soft-deleted Ghost admin is excluded.
+      expect(counts).toEqual({ all: 3, admins: 1, unverified: 1, banned: 1 })
     }))
 
   it.effect('OrganizationService.listMembers excludes a member whose user is soft-deleted', () =>

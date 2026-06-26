@@ -4,7 +4,7 @@ import type { Database } from '@czo/kit/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import { users } from '@czo/auth/schema'
 import { DrizzleDb } from '@czo/kit/db'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, not, sql } from 'drizzle-orm'
 import { Config, Context, Data, Effect, Layer } from 'effect'
 import { AccessService } from './access'
 import { UserEvents } from './events/user'
@@ -333,9 +333,15 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
       // `unverified`, `banned` mirror the admin UI's filter tabs. Counted in
       // parallel — independent `$count` queries, no ordering dependency.
         const live = isNull(users.deletedAt)
+        // CSV-aware admin membership ('admin' as one role element), coalescing a
+        // null role to '' so roleless users are non-admins. Used positively for
+        // `admins` and negated for `all` — so the two buckets partition live
+        // users and stay in sync with the `users(admin:)` list filter (the
+        // count/list divergence this guards against).
+        const isAdmin = sql`'admin' = ANY(string_to_array(coalesce(${users.role}, ''), ','))`
         return Effect.all({
-          all: dbErr(db.$count(users, live)),
-          admins: dbErr(db.$count(users, and(live, sql`'admin' = ANY(string_to_array(${users.role}, ','))`))),
+          all: dbErr(db.$count(users, and(live, not(isAdmin)))),
+          admins: dbErr(db.$count(users, and(live, isAdmin))),
           unverified: dbErr(db.$count(users, and(live, eq(users.emailVerified, false)))),
           banned: dbErr(db.$count(users, and(live, eq(users.banned, true)))),
         }, { concurrency: 'unbounded' })

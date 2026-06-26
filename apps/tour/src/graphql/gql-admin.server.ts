@@ -1,11 +1,10 @@
 import { LIFE_URL } from '../env.server'
+import { errorCode, GraphqlAdminError, isForbiddenError, isUnauthenticatedError } from './admin-error'
 
-export class GraphqlAdminError extends Error {
-  constructor(message: string, readonly detail?: unknown) {
-    super(message)
-    this.name = 'GraphqlAdminError'
-  }
-}
+// Client-safe error type + denial-code predicates live in `./admin-error` (no
+// server-only deps) so the client route boundary can import them without
+// pulling this server module. Re-exported here for server-side callers + tests.
+export { errorCode, GraphqlAdminError, isForbiddenError, isUnauthenticatedError }
 
 /** A printable GraphQL document — codegen emits `TypedDocumentString` (stringifiable). */
 interface Doc { toString: () => string }
@@ -38,9 +37,18 @@ export async function gqlAdmin<TData, TVars extends Record<string, unknown> = Re
   if (!res.ok)
     throw new GraphqlAdminError(`admin GraphQL HTTP ${res.status}`)
 
-  const body = await res.json() as { data?: TData, errors?: { message: string }[] }
-  if (body.errors?.length)
-    throw new GraphqlAdminError(body.errors.map(e => e.message).join('; '), body.errors)
+  const body = await res.json() as {
+    data?: TData
+    errors?: { message: string, extensions?: { code?: string } }[]
+  }
+  if (body.errors?.length) {
+    const code = body.errors[0]?.extensions?.code
+    const joined = body.errors.map(e => e.message).join('; ')
+    // Prefix the message with `[CODE]` so detection survives even if the custom
+    // `code` field is stripped crossing the createServerFn boundary. The raw
+    // message is never shown to users — the UI renders i18n text.
+    throw new GraphqlAdminError(code ? `[${code}] ${joined}` : joined, body.errors, code)
+  }
   if (body.data == null)
     throw new GraphqlAdminError('admin GraphQL returned no data')
   return body.data

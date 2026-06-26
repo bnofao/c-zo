@@ -67,7 +67,9 @@ layer(userLayer(['admin:viewer']), { timeout: 120_000 })('counts — CSV role me
       yield* users.create({ email: 'plain@x.io', name: 'P', password: 'DevAdmin1!' })
       const counts = yield* users.counts()
       expect(counts.admins).toBe(1)
-      expect(counts.all).toBe(2)
+      // `all` is the non-admin bucket (partitions live users with `admins`), so
+      // the admin is excluded — only `plain@x.io` remains.
+      expect(counts.all).toBe(1)
     }))
 })
 

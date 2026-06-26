@@ -28,16 +28,17 @@ export interface FetchUsersArgs {
   orderDirection?: 'ASC' | 'DESC'
 }
 
-// Tab → relay `where`. Each tab is a positive `eq` match (no admin-exclusion):
-// regular users carry a NULL `role` in the DB, and SQL negation (`role <> 'admin'`)
-// drops NULLs, while `StringFilter` exposes no `isNull` operator — so excluding
-// admins server-side isn't expressible. `all` returns everyone (no filter).
-const ADMIN_ROLE = 'admin'
-const TAB_WHERE: Record<UserTab, Record<string, unknown> | undefined> = {
-  admins: { role: { eq: ADMIN_ROLE } },
-  all: undefined,
-  unverified: { emailVerified: { eq: false } },
-  banned: { banned: { eq: true } },
+// Tab → server filter. `admins`/`all` use the API's CSV-aware `admin` arg, which
+// matches role-membership ('admin' as a CSV element) consistently with
+// `userCounts.admins` — so the count and the list can't diverge, and a
+// multi-role admin ('admin,member') is counted AND listed. `all` excludes
+// admins (admin: false, roleless users included). `unverified`/`banned` use a
+// structured `where`.
+const TAB_FILTER: Record<UserTab, { where?: Record<string, unknown>, admin?: boolean }> = {
+  admins: { admin: true },
+  all: { admin: false },
+  unverified: { where: { emailVerified: { eq: false } } },
+  banned: { where: { banned: { eq: true } } },
 }
 
 interface Connection {
@@ -67,8 +68,8 @@ export function toUserPage(c: Connection): UserPage {
 // `search`, and `orderBy`. Role-based filtering and role/status sorting aren't
 // expressible on the admin API, so those table affordances are dropped.
 const UsersQuery = graphql(`
-  query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!]) {
-    users(first: $first, after: $after, search: $search, where: $where, orderBy: $orderBy) {
+  query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!], $admin: Boolean) {
+    users(first: $first, after: $after, search: $search, where: $where, orderBy: $orderBy, admin: $admin) {
       edges { node { id name email role banned emailVerified createdAt } }
       pageInfo { endCursor hasNextPage }
     }
@@ -97,11 +98,13 @@ export const fetchUsers = createServerFn({ method: 'GET' })
     const orderBy = data.orderField
       ? [{ field: data.orderField, direction: data.orderDirection ?? 'ASC' }]
       : undefined
+    const filter = data.tab ? TAB_FILTER[data.tab] : undefined
     const res = await gqlAdmin<{ users: Connection }>(UsersQuery, {
       first: data.first,
       after: data.after ?? null,
       search: data.search ?? null,
-      where: data.tab ? TAB_WHERE[data.tab] ?? null : null,
+      where: filter?.where ?? null,
+      admin: filter?.admin ?? null,
       orderBy,
     })
     return toUserPage(res.users)

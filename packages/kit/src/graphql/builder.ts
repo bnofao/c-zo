@@ -13,6 +13,7 @@ import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-validation'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { Context, Effect, Layer } from 'effect'
+import { GraphQLError } from 'graphql'
 import { DateTimeResolver, JSONObjectResolver, JSONResolver } from 'graphql-scalars'
 import z from 'zod'
 import { DrizzleDb } from '../db'
@@ -326,6 +327,17 @@ function setupBuilder<Relations extends RelationsEntry>(
     },
     scopeAuth: {
       authScopes: async ctx => Object.assign({}, ...authScope.map(scope => scope(ctx))),
+      // Surface a machine-readable code on declarative denials so clients can
+      // render a 403 vs. redirect on session-expiry. The principal lives at the
+      // conventional `context.auth.user` (set by the auth module's session
+      // context contributor); read it defensively so kit stays auth-agnostic.
+      // Message stays 'Not authorized' (consumers/tests match on it).
+      unauthorizedError: (_parent, context, _info, _result) => {
+        const authed = Boolean((context as { auth?: { user?: unknown } }).auth?.user)
+        return new GraphQLError('Not authorized', {
+          extensions: { code: authed ? 'FORBIDDEN' : 'UNAUTHENTICATED' },
+        })
+      },
     },
     tracing: {
       default: config => isRootField(config),

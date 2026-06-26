@@ -21,6 +21,14 @@ const LIST_USERS_FILTERED = `query ($where: UserWhereInput) {
   }
 }`
 
+const LIST_USERS_ADMIN = `query ($admin: Boolean) {
+  users(admin: $admin, first: 100) {
+    edges { node { id email role } }
+  }
+}`
+
+const USER_COUNTS = `query { userCounts { all admins unverified banned } }`
+
 const BAN_USER = `mutation ($input: BanUserInput!) {
   banUser(input: $input) {
     __typename
@@ -196,5 +204,38 @@ describe('user-admin (E2E)', () => {
     expect(res.data?.setRole?.__typename).toBe('SetRoleSuccess')
     // `role` is exposed as a single String on the User type (u.role ?? 'user').
     expect(res.data?.setRole?.data?.user?.role).toBe('admin:viewer')
+  })
+
+  it('users(admin:) filters by CSV role membership and matches userCounts.admins', async () => {
+    const admin = await adminActor(h, 'user-admin-filter@ex.com')
+    // Multi-role admin: 'admin' is one CSV element among others.
+    const multi = await h.signUp('user-multi-admin@ex.com', 'Multi', 'password123!')
+    await h.grantGlobalRole(multi.userId, 'admin,admin:viewer')
+    // Confusable non-admin: 'admin' appears as a SUBSTRING but not a CSV element.
+    const nonAdmin = await h.signUp('user-viewer-only@ex.com', 'Viewer', 'password123!')
+    await h.grantGlobalRole(nonAdmin.userId, 'admin:viewer')
+    const multiGid = encodeGlobalID('User', String(multi.userId))
+    const viewerGid = encodeGlobalID('User', String(nonAdmin.userId))
+
+    const counts = await h.gql(USER_COUNTS, {}, admin.token, admin.ip)
+    const adminsCount = counts.data?.userCounts?.admins as number
+    const allCount = counts.data?.userCounts?.all as number
+
+    const yes = await h.gql(LIST_USERS_ADMIN, { admin: true }, admin.token, admin.ip)
+    expect(yes.errors).toBeUndefined()
+    const yesIds = yes.data?.users?.edges?.map((e: { node: { id: string } }) => e.node.id) ?? []
+    // The original bug: count and list diverged. They must agree.
+    expect(yesIds.length).toBe(adminsCount)
+    expect(yesIds).toContain(multiGid) // multi-role admin IS an admin
+    expect(yesIds).not.toContain(viewerGid) // 'admin:viewer' is NOT an admin
+
+    const no = await h.gql(LIST_USERS_ADMIN, { admin: false }, admin.token, admin.ip)
+    expect(no.errors).toBeUndefined()
+    const noIds = no.data?.users?.edges?.map((e: { node: { id: string } }) => e.node.id) ?? []
+    expect(noIds).toContain(viewerGid) // non-admin appears among non-admins
+    expect(noIds).not.toContain(multiGid) // admin excluded from non-admins
+    // The reported bug: the `all` badge counted admins too, so it diverged from
+    // the `admin:false` list. Count and list must agree — `all` excludes admins.
+    expect(noIds.length).toBe(allCount)
   })
 })

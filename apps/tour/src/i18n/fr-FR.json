@@ -69,5 +69,14 @@
   "users.pagination.next": "Suivant",
   "common.col.name": "Nom",
   "common.col.handle": "Identifiant",
-  "common.notFound": "Page introuvable."
+  "common.notFound": "Page introuvable.",
+  "errors.forbidden.badge": "Erreur 403",
+  "errors.forbidden.title": "Accès refusé",
+  "errors.forbidden.description": "Vous n'avez pas les autorisations nécessaires pour consulter cette page. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+  "errors.forbidden.back": "Retour",
+  "errors.forbidden.dashboard": "Retour au tableau de bord",
+  "errors.forbidden.reference": "Code de référence :",
+  "errors.generic.title": "Une erreur est survenue",
+  "errors.generic.description": "Impossible de charger ces données. Veuillez réessayer.",
+  "errors.generic.retry": "Réessayer"
 }

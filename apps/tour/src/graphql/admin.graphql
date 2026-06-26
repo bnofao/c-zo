@@ -3514,6 +3514,10 @@ type Query {
   Returns a paginated connection of users, with optional full-text search, filtering, and ordering.
   """
   users(
+    """
+    Filter by admin-role membership: true → only users whose role set includes "admin"; false → only non-admins (incl. roleless users); omitted → no role filter. Matches the userCounts `admins` bucket.
+    """
+    admin: Boolean
     after: String
     before: String
     first: Int
