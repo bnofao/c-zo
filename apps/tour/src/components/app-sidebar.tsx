@@ -19,6 +19,7 @@ import {
 } from '@workspace/ui/components/sidebar'
 import { ChevronRight, Command, LayoutDashboard, Package, Users } from 'lucide-react'
 import * as React from 'react'
+import { can } from '../lib/rbac'
 import { NavUser } from './nav-user'
 
 // Catalog sub-areas without routes yet render as muted placeholders.
@@ -85,12 +86,14 @@ export function AppSidebar({ me, ...props }: { me: MeUser } & React.ComponentPro
               </CollapsibleContent>
             </Collapsible>
 
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip={t('nav.users')} isActive={pathname.startsWith('/users')} render={<Link to="/users" />}>
-                <Users />
-                <span>{t('nav.users')}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {can(me, 'user', 'read') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip={t('nav.users')} isActive={pathname.startsWith('/users')} render={<Link to="/users" />}>
+                  <Users />
+                  <span>{t('nav.users')}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

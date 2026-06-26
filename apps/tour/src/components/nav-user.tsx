@@ -36,6 +36,9 @@ export function NavUser({ user }: { user: MeUser }) {
     setSigningOut(true)
     try {
       await signOut()
+      // Refresh the root-level `me` (session cookie now cleared) so context.me
+      // is null before navigating.
+      await router.invalidate()
       await router.navigate({ to: '/login' })
     }
     finally {

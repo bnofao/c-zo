@@ -4,7 +4,9 @@ import { LIFE_URL } from '../env.server'
 import { graphql } from '../graphql/gen'
 import { gqlAdmin } from '../graphql/gql-admin.server'
 
-export interface MeUser { id: string, name: string, email: string, role: string }
+/** One resource bucket of the viewer's effective permissions (from the API). */
+export interface UserPermission { resource: string, actions: string[] }
+export interface MeUser { id: string, name: string, email: string, role: string, permissions: UserPermission[] }
 
 /** Re-emit life's Set-Cookie onto the tour response. Pure, unit-tested. */
 export function bridgeSetCookie(setCookieHeader: string | null, set: (value: string) => void): void {
@@ -12,7 +14,7 @@ export function bridgeSetCookie(setCookieHeader: string | null, set: (value: str
     set(setCookieHeader)
 }
 
-const MeQuery = graphql(`query Me { me { id name email role } }`)
+const MeQuery = graphql(`query Me { me { id name email role permissions { resource actions } } }`)
 
 export const signIn = createServerFn({ method: 'POST' })
   .validator((data: { email: string, password: string }) => data)

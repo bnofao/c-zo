@@ -2548,6 +2548,17 @@ type PasswordHashFailedError implements Error {
   message: String!
 }
 
+"""
+A resource and the set of actions the user is permitted to perform on it, resolved from the user's roles.
+"""
+type Permission {
+  """Actions the user may perform on this resource (e.g. "read", "create")."""
+  actions: [String!]!
+
+  """The protected resource (e.g. "user", "session")."""
+  resource: String!
+}
+
 input PlaceProductInput {
   """References the Category node the product is placed into."""
   categoryId: ID!
@@ -4867,6 +4878,11 @@ type User implements Node {
 
   """Display name of the user."""
   name: String!
+
+  """
+  Effective permissions resolved from the user's CSV roles via the access-control hierarchies (cumulative). The authoritative source for client-side RBAC gating; the server remains the security boundary.
+  """
+  permissions: [Permission!]!
 
   """
   Platform-level global role of the user, distinct from per-organization membership roles; defaults to "user".

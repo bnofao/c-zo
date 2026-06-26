@@ -15,14 +15,16 @@ import * as types from './graphql';
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "query Me { me { id name email role } }": typeof types.MeDocument,
+    "query MeProbe { me { id name email role } }": typeof types.MeProbeDocument,
+    "query Me { me { id name email role permissions { resource actions } } }": typeof types.MeDocument,
     "\n  query AdminProduct($id: ID!) {\n    product(id: $id) { id name handle createdAt }\n  }\n": typeof types.AdminProductDocument,
     "\n  query AdminProducts($first: Int!, $after: String) {\n    products(first: $first, after: $after) {\n      edges { node { id name handle } }\n      pageInfo { endCursor hasNextPage }\n    }\n  }\n": typeof types.AdminProductsDocument,
     "\n  query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!], $admin: Boolean) {\n    users(first: $first, after: $after, search: $search, where: $where, orderBy: $orderBy, admin: $admin) {\n      edges { node { id name email role banned emailVerified createdAt } }\n      pageInfo { endCursor hasNextPage }\n    }\n  }\n": typeof types.AdminUsersDocument,
     "\n  query AdminUserCounts {\n    userCounts { all admins unverified banned }\n  }\n": typeof types.AdminUserCountsDocument,
 };
 const documents: Documents = {
-    "query Me { me { id name email role } }": types.MeDocument,
+    "query MeProbe { me { id name email role } }": types.MeProbeDocument,
+    "query Me { me { id name email role permissions { resource actions } } }": types.MeDocument,
     "\n  query AdminProduct($id: ID!) {\n    product(id: $id) { id name handle createdAt }\n  }\n": types.AdminProductDocument,
     "\n  query AdminProducts($first: Int!, $after: String) {\n    products(first: $first, after: $after) {\n      edges { node { id name handle } }\n      pageInfo { endCursor hasNextPage }\n    }\n  }\n": types.AdminProductsDocument,
     "\n  query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!], $admin: Boolean) {\n    users(first: $first, after: $after, search: $search, where: $where, orderBy: $orderBy, admin: $admin) {\n      edges { node { id name email role banned emailVerified createdAt } }\n      pageInfo { endCursor hasNextPage }\n    }\n  }\n": types.AdminUsersDocument,
@@ -32,7 +34,11 @@ const documents: Documents = {
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query Me { me { id name email role } }"): typeof import('./graphql').MeDocument;
+export function graphql(source: "query MeProbe { me { id name email role } }"): typeof import('./graphql').MeProbeDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "query Me { me { id name email role permissions { resource actions } } }"): typeof import('./graphql').MeDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
