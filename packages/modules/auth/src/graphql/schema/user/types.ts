@@ -1,5 +1,10 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import type { SessionRow, UserCounts } from '../../../services/user'
+import { Effect } from 'effect'
+import { AccessService, mergePermissions } from '../../../services/access'
+
+/** One resource bucket of a user's effective (role-resolved) permissions. */
+interface PermissionGroup { resource: string, actions: string[] }
 
 // User sub-module — Pothos type definitions
 //
@@ -31,6 +36,16 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
     }),
   })
 
+  // ── Permission (effective, role-resolved access bucket) ───────────────────
+  const permissionRef = builder.objectRef<PermissionGroup>('Permission').implement({
+    subGraphs: ['admin'],
+    description: 'A resource and the set of actions the user is permitted to perform on it, resolved from the user\'s roles.',
+    fields: t => ({
+      resource: t.exposeString('resource', { description: 'The protected resource (e.g. "user", "session").' }),
+      actions: t.exposeStringList('actions', { description: 'Actions the user may perform on this resource (e.g. "read", "create").' }),
+    }),
+  })
+
   // ── UserCounts (admin filter-tab totals) ──────────────────────────────────
   builder.objectRef<UserCounts>('UserCounts').implement({
     subGraphs: ['admin'],
@@ -55,6 +70,21 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
       emailVerified: t.exposeBoolean('emailVerified', { description: 'Whether the user has confirmed ownership of their email address.' }),
       image: t.exposeString('image', { description: 'URL of the user\'s avatar image.', nullable: true }),
       role: t.string({ description: 'Platform-level global role of the user, distinct from per-organization membership roles; defaults to "user".', resolve: u => u.role ?? 'user' }),
+      permissions: t.field({
+        type: [permissionRef],
+        description: 'Effective permissions resolved from the user\'s CSV roles via the access-control hierarchies (cumulative). The authoritative source for client-side RBAC gating; the server remains the security boundary.',
+        resolve: (u, _args, ctx) => ctx.runEffect(Effect.gen(function* () {
+          const access = yield* AccessService
+          const names = (u.role ?? '').split(',').map(s => s.trim()).filter(Boolean)
+          let merged: Record<string, string[]> = {}
+          for (const name of names) {
+            const acRole = yield* access.role(name)
+            if (acRole)
+              merged = mergePermissions(merged, acRole.statements as Record<string, string[]>) as Record<string, string[]>
+          }
+          return Object.entries(merged).map(([resource, actions]) => ({ resource, actions }))
+        })) as never,
+      }),
       banned: t.exposeBoolean('banned', { description: 'Whether the user is currently banned from the platform.', nullable: true }),
       banReason: t.exposeString('banReason', { description: 'Reason recorded for the user\'s ban.', nullable: true }),
       banExpires: t.expose('banExpires', { description: 'Timestamp at which the user\'s ban expires, or null for a permanent ban.', type: 'DateTime', nullable: true }),

@@ -2563,6 +2563,15 @@ export type PasswordHashFailedError = Error & {
   message: Scalars['String']['output'];
 };
 
+/** A resource and the set of actions the user is permitted to perform on it, resolved from the user's roles. */
+export type Permission = {
+  __typename?: 'Permission';
+  /** Actions the user may perform on this resource (e.g. "read", "create"). */
+  actions: Array<Scalars['String']['output']>;
+  /** The protected resource (e.g. "user", "session"). */
+  resource: Scalars['String']['output'];
+};
+
 export type PlaceProductInput = {
   /** References the Category node the product is placed into. */
   categoryId: Scalars['ID']['input'];
@@ -4624,6 +4633,8 @@ export type User = Node & {
   image?: Maybe<Scalars['String']['output']>;
   /** Display name of the user. */
   name: Scalars['String']['output'];
+  /** Effective permissions resolved from the user's CSV roles via the access-control hierarchies (cumulative). The authoritative source for client-side RBAC gating; the server remains the security boundary. */
+  permissions: Array<Permission>;
   /** Platform-level global role of the user, distinct from per-organization membership roles; defaults to "user". */
   role: Scalars['String']['output'];
   /** Whether two-factor authentication is enabled for the user. */
@@ -4799,10 +4810,15 @@ export type VariantSelectionPairInput = {
   valueId: Scalars['Int']['input'];
 };
 
+export type MeProbeQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MeProbeQuery = { __typename?: 'Query', me?: { __typename?: 'User', id: string, name: string, email: string, role: string } | null };
+
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MeQuery = { __typename?: 'Query', me?: { __typename?: 'User', id: string, name: string, email: string, role: string } | null };
+export type MeQuery = { __typename?: 'Query', me?: { __typename?: 'User', id: string, name: string, email: string, role: string, permissions: Array<{ __typename?: 'Permission', resource: string, actions: Array<string> }> } | null };
 
 export type AdminProductQueryVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -4855,6 +4871,16 @@ export class TypedDocumentString<TResult, TVariables>
   }
 }
 
+export const MeProbeDocument = new TypedDocumentString(`
+    query MeProbe {
+  me {
+    id
+    name
+    email
+    role
+  }
+}
+    `) as unknown as TypedDocumentString<MeProbeQuery, MeProbeQueryVariables>;
 export const MeDocument = new TypedDocumentString(`
     query Me {
   me {
@@ -4862,6 +4888,10 @@ export const MeDocument = new TypedDocumentString(`
     name
     email
     role
+    permissions {
+      resource
+      actions
+    }
   }
 }
     `) as unknown as TypedDocumentString<MeQuery, MeQueryVariables>;

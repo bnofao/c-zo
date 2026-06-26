@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useTranslate } from '@tolgee/react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -7,7 +7,16 @@ import { Eye, EyeOff } from 'lucide-react'
 import * as React from 'react'
 import { signIn } from '../server/auth.server'
 
-export const Route = createFileRoute('/login')({ component: LoginPage })
+export const Route = createFileRoute('/login')({
+  // Reverse of the `_authed` guard: an already-authenticated user has no
+  // business on the login page — send them to the dashboard. Reads the `me`
+  // resolved in the root beforeLoad (no extra fetch).
+  beforeLoad: ({ context }) => {
+    if (context.me)
+      throw redirect({ to: '/' })
+  },
+  component: LoginPage,
+})
 
 function LogoMark() {
   return (
@@ -39,10 +48,15 @@ function LoginPage() {
     const form = new FormData(e.currentTarget)
     try {
       const res = await signIn({ data: { email: String(form.get('identifier')), password: String(form.get('password')) } })
-      if (res.ok)
+      if (res.ok) {
+        // Refresh the root-level `me` (the new session cookie is now set) before
+        // navigating, so the `_authed` guard sees the authenticated context.
+        await router.invalidate()
         await router.navigate({ to: '/' })
-      else
+      }
+      else {
         setError(t('login.invalidCredentials'))
+      }
     }
     catch {
       setError(t('login.invalidCredentials'))

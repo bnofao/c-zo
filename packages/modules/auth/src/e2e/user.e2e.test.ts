@@ -29,6 +29,8 @@ const LIST_USERS_ADMIN = `query ($admin: Boolean) {
 
 const USER_COUNTS = `query { userCounts { all admins unverified banned } }`
 
+const ME_PERMISSIONS = `query { me { role permissions { resource actions } } }`
+
 const BAN_USER = `mutation ($input: BanUserInput!) {
   banUser(input: $input) {
     __typename
@@ -204,6 +206,24 @@ describe('user-admin (E2E)', () => {
     expect(res.data?.setRole?.__typename).toBe('SetRoleSuccess')
     // `role` is exposed as a single String on the User type (u.role ?? 'user').
     expect(res.data?.setRole?.data?.user?.role).toBe('admin:viewer')
+  })
+
+  it('me.permissions resolves effective (cumulative) permissions from the user CSV roles', async () => {
+    // `admin` sits atop the cumulative ADMIN_HIERARCHY, so it grants user:read
+    // (inherited from admin:viewer). This is the field that powers tour RBAC.
+    const admin = await adminActor(h, 'user-me-perms-admin@ex.com')
+    const res = await h.gql(ME_PERMISSIONS, {}, admin.token, admin.ip)
+    expect(res.errors).toBeUndefined()
+    const groups = (res.data?.me?.permissions ?? []) as { resource: string, actions: string[] }[]
+    const userGroup = groups.find(g => g.resource === 'user')
+    expect(userGroup?.actions).toContain('read')
+
+    // A plain user (no admin role) has no user:read → empty/absent bucket.
+    const plain = await h.signUp('user-me-perms-plain@ex.com', 'Plain', 'password123!')
+    const plainRes = await h.gql(ME_PERMISSIONS, {}, plain.token, plain.ip)
+    expect(plainRes.errors).toBeUndefined()
+    const plainGroups = (plainRes.data?.me?.permissions ?? []) as { resource: string, actions: string[] }[]
+    expect(plainGroups.find(g => g.resource === 'user')?.actions ?? []).not.toContain('read')
   })
 
   it('users(admin:) filters by CSV role membership and matches userCounts.admins', async () => {

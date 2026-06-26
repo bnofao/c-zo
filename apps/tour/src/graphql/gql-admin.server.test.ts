@@ -36,11 +36,11 @@ describe('gqlAdmin', () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: { me: null } }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const doc = graphql(`query Me { me { id name email role } }`)
+    const doc = graphql(`query MeProbe { me { id name email role } }`)
     await gqlAdmin(doc, {}, { cookie: '' })
 
     const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as { query: string }
-    expect(body.query).toContain('query Me')
+    expect(body.query).toContain('query MeProbe')
     expect(body.query).not.toContain('[object Object]')
   })
 })

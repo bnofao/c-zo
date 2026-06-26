@@ -4,14 +4,14 @@ import { Separator } from '@workspace/ui/components/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@workspace/ui/components/sidebar'
 import { TooltipProvider } from '@workspace/ui/components/tooltip'
 import { AppSidebar } from '../components/app-sidebar'
-import { fetchMe } from '../server/auth.server'
 
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: async () => {
-    const me = await fetchMe()
-    if (!me)
+  // `me` is resolved once in the root `beforeLoad`; here we only gate. Re-return
+  // it narrowed to non-null so descendants get `context.me: MeUser`.
+  beforeLoad: ({ context }) => {
+    if (!context.me)
       throw redirect({ to: '/login' })
-    return { me }
+    return { me: context.me }
   },
   component: AuthedLayout,
 })

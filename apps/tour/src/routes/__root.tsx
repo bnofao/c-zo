@@ -1,9 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query'
+import type { MeUser } from '../server/auth.server'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { TolgeeProvider } from '@tolgee/react'
 import * as React from 'react'
 import { getLocale } from '../i18n/locale.server'
 import { createTolgee } from '../i18n/tolgee'
+import { fetchMe } from '../server/auth.server'
 // Side-effect import, NOT `?url`: routes the stylesheet through Start's CSS
 // manifest so the injected `<link>` carries a hash that exists in `public/`.
 // A `?url` import is opaque to the manifest and, under the nitro two-env build,
@@ -11,6 +13,11 @@ import { createTolgee } from '../i18n/tolgee'
 import '../styles.css'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Resolve the session once, here, and expose it on the router context as `me`
+  // (the single source of truth for every guard — `_authed`, `login`, RBAC).
+  // The root match never unmounts, so this does NOT re-run on client
+  // navigations: signIn/signOut callers must `router.invalidate()` to refresh it.
+  beforeLoad: async (): Promise<{ me: MeUser | null }> => ({ me: await fetchMe() }),
   // Read the locale server-side so the very first SSR render uses it. On client
   // navigations this is served from the dehydrated loader data; the switcher
   // calls `router.invalidate()` to re-run it after changing the cookie.
