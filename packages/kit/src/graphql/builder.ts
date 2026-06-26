@@ -1,7 +1,6 @@
 import type { RelationsEntry } from '@czo/kit/db'
 import type { GraphQLObjectType, GraphQLSchema } from 'graphql'
 import type { Database } from '../db'
-import { trace } from '@opentelemetry/api'
 import PothosSchemaBuilder from '@pothos/core'
 import DirectivesPlugin from '@pothos/plugin-directives'
 import DrizzlePlugin from '@pothos/plugin-drizzle'
@@ -77,6 +76,33 @@ async function passesNodeGuard(
   return true
 }
 
+/**
+ * Per-field `tracing` option object — the `{ attributes }` form of the builder's
+ * `Tracing` type. Attribute values stay JSON-serializable (no @opentelemetry/api
+ * `AttributeValue`) so the builder remains SDK-free; the Otlp tracer serializes
+ * them onto the span. A field declares it as `tracing: { attributes: { … } }` or
+ * `tracing: (parent, args) => ({ attributes: { … } })`.
+ */
+export interface TracingOptions {
+  attributes?: Record<string, string | number | boolean>
+}
+
+/**
+ * Map a field's resolved Pothos `tracing` option to Effect span options. Only
+ * the `{ attributes }` shape is honored — `true` / `false` / absent yield no
+ * extra span options (`undefined`). Used by the tracing `wrap` so fields can
+ * attach custom span attributes (e.g. resolver args) that the Otlp tracer
+ * exports. Exported for unit testing the pass-through.
+ */
+export function tracingSpanOptions(options: unknown): { attributes: Record<string, unknown> } | undefined {
+  if (typeof options === 'object' && options !== null) {
+    const attrs = (options as { attributes?: unknown }).attributes
+    if (attrs && typeof attrs === 'object')
+      return { attributes: attrs as Record<string, unknown> }
+  }
+  return undefined
+}
+
 export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
   db: Database
   relations: Relations
@@ -109,6 +135,7 @@ export interface BuilderSchemaTypes<Relations extends RelationsEntry> extends Pa
   AuthScopes: BuilderAuthScopes
   DefaultFieldNullability: false
   DefaultInputFieldRequiredness: false
+  Tracing: boolean | TracingOptions
 }
 
 export interface GraphQLContextMap {
@@ -134,6 +161,9 @@ export interface BuilderSchemaObjects {
 }
 
 export interface BuilderAuthScopes {
+}
+
+export interface TracingOptions {
 }
 
 export interface BuilderSchemaInputs {
@@ -341,24 +371,27 @@ function setupBuilder<Relations extends RelationsEntry>(
     },
     tracing: {
       default: config => isRootField(config),
-      wrap: (resolver: any, _options: any, fieldConfig: any) => async (...args: any[]) => {
-        const tracer = trace.getTracer('graphql')
-        return tracer.startActiveSpan(
-          `graphql.${fieldConfig.parentType}.${fieldConfig.name}`,
-          async (span) => {
-            try {
-              return await resolver(...args)
-            }
-            catch (err) {
-              span.recordException(err as Error)
-              throw err
-            }
-            finally {
-              span.end()
-            }
-          },
-        )
-      },
+      // Native Effect span per root field, exported by the app's Otlp tracer
+      // (effect/unstable/observability) — no @opentelemetry SDK. The resolver
+      // runs inside the captured request runtime via `ctx.runEffect`, so the
+      // span uses the same tracer as the service spans. `catch: e => e` keeps the
+      // original error instance so the Pothos errors plugin / Yoga maskError
+      // still route coded errors (FORBIDDEN / UNAUTHENTICATED). Flat by design:
+      // each resolver runs its own `runEffect`, so these spans don't parent the
+      // service spans (nesting would need an ambient context manager).
+      wrap: (resolver, options, fieldConfig) =>
+        (source, args, ctx, info) =>
+          ctx.runEffect(
+            Effect.withSpan(
+              `graphql.${fieldConfig.parentType}.${fieldConfig.name}`,
+              tracingSpanOptions(options),
+            )(
+              Effect.tryPromise({
+                try: () => Promise.resolve(resolver(source, args, ctx, info)),
+                catch: e => e,
+              }),
+            ),
+          ),
     },
     subGraphs: {
       // Opt-in / default-none: a type belongs to a sub-graph only when tagged;

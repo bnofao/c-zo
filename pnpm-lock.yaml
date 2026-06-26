@@ -49,9 +49,6 @@ catalogs:
     '@node-rs/argon2':
       specifier: ^2.0.2
       version: 2.0.2
-    '@opentelemetry/api':
-      specifier: ^1.9.0
-      version: 1.9.1
     '@radix-ui/react-slot':
       specifier: ^1.2.3
       version: 1.2.4
@@ -673,9 +670,6 @@ importers:
       '@graphql-tools/utils':
         specifier: catalog:common
         version: 10.11.0(graphql@16.13.2)
-      '@opentelemetry/api':
-        specifier: catalog:common
-        version: 1.9.1
       '@pothos/core':
         specifier: 'catalog:'
         version: 4.12.0(graphql@16.13.2)
@@ -12150,7 +12144,8 @@ snapshots:
 
   '@oozcitak/util@10.0.0': {}
 
-  '@opentelemetry/api@1.9.1': {}
+  '@opentelemetry/api@1.9.1':
+    optional: true
 
   '@opentelemetry/semantic-conventions@1.40.0': {}
 

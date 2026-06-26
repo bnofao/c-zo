@@ -5,7 +5,7 @@ import { Data, Effect, Layer } from 'effect'
 import { assertValidSchema } from 'graphql'
 import { describe, expect } from 'vitest'
 import { DrizzleDb } from '../db'
-import { GraphQLBuilder, makeGraphQLBuilder } from './builder'
+import { GraphQLBuilder, makeGraphQLBuilder, tracingSpanOptions } from './builder'
 import { ValidationError } from './errors'
 import { registerError } from './errors/builders'
 
@@ -329,5 +329,31 @@ describe('makeGraphQLBuilder — relay mutation inside a sub-graph', () => {
     expect(() => assertValidSchema(schema)).not.toThrow()
     expect(schema.getType('Node')).toBeDefined()
     expect(schema.getQueryType()!.getFields().node).toBeDefined()
+  })
+})
+
+describe('tracingSpanOptions — per-field span attributes', () => {
+  itEffect('maps the { attributes } option to span options', () => {
+    expect(tracingSpanOptions({ attributes: { name: 'x', n: 1, b: true } }))
+      .toEqual({ attributes: { name: 'x', n: 1, b: true } })
+  })
+
+  itEffect('yields undefined for boolean / absent / no-attributes options', () => {
+    expect(tracingSpanOptions(true)).toBeUndefined()
+    expect(tracingSpanOptions(false)).toBeUndefined()
+    expect(tracingSpanOptions(undefined)).toBeUndefined()
+    expect(tracingSpanOptions({})).toBeUndefined()
+  })
+
+  // End-to-end through Effect: the mapped attributes land on the actual span the
+  // tracing `wrap` creates (and thus on what the Otlp tracer exports). Mirrors
+  // the wrap's `Effect.withSpan(name, tracingSpanOptions(options))`.
+  itEffect('attaches the attributes onto the Effect span', async () => {
+    const value = await Effect.runPromise(
+      Effect.withSpan('graphql.Query.hello', tracingSpanOptions({ attributes: { name: 'Ada' } }))(
+        Effect.map(Effect.currentSpan, span => span.attributes.get('name')),
+      ),
+    )
+    expect(value).toBe('Ada')
   })
 })
