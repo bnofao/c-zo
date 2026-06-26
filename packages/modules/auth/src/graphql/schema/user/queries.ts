@@ -2,6 +2,18 @@ import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { Effect } from 'effect'
 import { UserService } from '../../../services/user'
 
+// Position-independent CSV membership for the `admin` role element, expressed in
+// the RQBv2 object DSL (the relay connection `where` only accepts object form,
+// not raw SQL). Logically equivalent to `UserService.counts()`'s
+// `'admin' = ANY(string_to_array(role,','))` — keep the two in sync (a divergence
+// is exactly the count/list mismatch this guards against; covered by a test).
+const ADMIN_ROLE_MATCH = [
+  { eq: 'admin' },
+  { like: 'admin,%' },
+  { like: '%,admin' },
+  { like: '%,admin,%' },
+] as const
+
 // ─── User Queries ─────────────────────────────────────────────────────────────
 
 export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
@@ -60,6 +72,7 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
         search: t.arg.string({ description: 'Free-text term to search users by.' }),
         where: t.arg({ description: 'Filter conditions restricting which users are returned.', type: 'UserWhereInput' }),
         orderBy: t.arg({ description: 'Ordering criteria applied to the returned users.', type: ['UserOrderByInput'] }),
+        admin: t.arg.boolean({ description: 'Filter by admin-role membership: true → only users whose role set includes "admin"; false → only non-admins (incl. roleless users); omitted → no role filter. Matches the userCounts `admins` bucket.' }),
       },
       authScopes: { permission: { resource: 'user', actions: ['read'] } },
       resolve: async (query, _root, args, ctx) => {
@@ -71,7 +84,14 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
         const searchClause = s
           ? { OR: [{ name: { ilike: `%${s}%` } }, { email: { ilike: `%${s}%` } }] }
           : null
-        const where = { AND: [args.where, searchClause].filter(Boolean) }
+        // Admin-role membership filter (CSV-aware): true → has 'admin'; false →
+        // not an admin (roleless users included via `isNull`). Matches `counts`.
+        const adminClause = args.admin == null
+          ? null
+          : args.admin
+            ? { role: { OR: ADMIN_ROLE_MATCH } }
+            : { OR: [{ role: { isNull: true } }, { role: { NOT: { OR: ADMIN_ROLE_MATCH } } }] }
+        const where = { AND: [args.where, searchClause, adminClause].filter(Boolean) }
         const program = Effect.gen(function* () {
           const svc = yield* UserService
           return yield* svc.findMany(query({

@@ -29,8 +29,9 @@ import { findDuplicateRoutes, mountOpenApi } from '@czo/kit/openapi'
 import { RateLimiterLive } from '@czo/kit/ratelimit'
 import { Effect, Layer } from 'effect'
 import { Persistence } from 'effect/unstable/persistence'
+import { GraphQLError } from 'graphql'
 import { defaultKeyGenerator, rateLimitDirective } from 'graphql-rate-limit-directive'
-import { createYoga } from 'graphql-yoga'
+import { createYoga, maskError as defaultMaskError } from 'graphql-yoga'
 import { fromNodeHandler, getRequestIP, H3, serve } from 'h3'
 import { resolveClientIp } from './client-ip'
 
@@ -322,6 +323,22 @@ export function buildApp(options: BuildAppOptions): BuiltApp {
     const makeYoga = (schema: GraphQLSchema, endpoint: string) => createYoga<{ pendingCookies?: string[], pendingHeaders?: Array<[string, string]> }, GraphQLContextMap>({
       schema,
       graphqlEndpoint: endpoint,
+      // Preserve errors we deliberately tag with a machine-readable
+      // `extensions.code` (e.g. scope-auth denials → FORBIDDEN/UNAUTHENTICATED):
+      // re-emit a clean coded GraphQLError so its message AND code reach the
+      // client (yoga's default mask would otherwise rewrite both to
+      // "Unexpected error." / INTERNAL_SERVER_ERROR). Everything else still masks.
+      maskedErrors: {
+        maskError(error, message, isDev) {
+          const orig = (error as { originalError?: { extensions?: { code?: unknown }, message?: string } }).originalError
+          const code = (error as { extensions?: { code?: unknown } }).extensions?.code ?? orig?.extensions?.code
+          if (typeof code === 'string') {
+            const msg = (error as { message?: string }).message || orig?.message || 'Forbidden'
+            return new GraphQLError(msg, { extensions: { code } })
+          }
+          return defaultMaskError(error, message, isDev)
+        },
+      },
       context: async (initialContext) => {
         // Yoga owns the Node response and never flushes the h3 `event.res`, so
         // cookies cannot be set through the event. Instead, resolvers (and the

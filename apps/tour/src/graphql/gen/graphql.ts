@@ -3371,6 +3371,7 @@ export type QueryUserArgs = {
 
 
 export type QueryUsersArgs = {
+  admin?: InputMaybe<Scalars['Boolean']['input']>;
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -4824,6 +4825,7 @@ export type AdminUsersQueryVariables = Exact<{
   search?: InputMaybe<Scalars['String']['input']>;
   where?: InputMaybe<UserWhereInput>;
   orderBy?: InputMaybe<Array<UserOrderByInput> | UserOrderByInput>;
+  admin?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
@@ -4891,13 +4893,14 @@ export const AdminProductsDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<AdminProductsQuery, AdminProductsQueryVariables>;
 export const AdminUsersDocument = new TypedDocumentString(`
-    query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!]) {
+    query AdminUsers($first: Int!, $after: String, $search: String, $where: UserWhereInput, $orderBy: [UserOrderByInput!], $admin: Boolean) {
   users(
     first: $first
     after: $after
     search: $search
     where: $where
     orderBy: $orderBy
+    admin: $admin
   ) {
     edges {
       node {

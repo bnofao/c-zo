@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
 import { routerWithQueryClient } from '@tanstack/react-router-with-query'
+import { DataErrorBoundary } from './components/data-error-boundary'
 import { NotFound } from './components/not-found'
 import { routeTree } from './routeTree.gen'
 
@@ -18,6 +19,7 @@ export function createAppRouter() {
     // Router-level fallback for any unmatched route or `notFound()` thrown by a
     // loader. Without it TanStack logs a warning and renders a bare <p>Not Found</p>.
     defaultNotFoundComponent: NotFound,
+    defaultErrorComponent: DataErrorBoundary,
     Wrap: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     ),

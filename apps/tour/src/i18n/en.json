@@ -69,5 +69,14 @@
   "users.pagination.next": "Next",
   "common.col.name": "Name",
   "common.col.handle": "Handle",
-  "common.notFound": "Page not found."
+  "common.notFound": "Page not found.",
+  "errors.forbidden.badge": "Error 403",
+  "errors.forbidden.title": "Access denied",
+  "errors.forbidden.description": "You don't have the permissions required to view this page. Contact an administrator if you think this is a mistake.",
+  "errors.forbidden.back": "Back",
+  "errors.forbidden.dashboard": "Back to dashboard",
+  "errors.forbidden.reference": "Reference code:",
+  "errors.generic.title": "Something went wrong",
+  "errors.generic.description": "We couldn't load this data. Please try again.",
+  "errors.generic.retry": "Retry"
 }

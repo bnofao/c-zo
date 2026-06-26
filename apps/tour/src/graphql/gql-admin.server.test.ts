@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { graphql } from './gen'
-import { gqlAdmin, GraphqlAdminError } from './gql-admin.server'
+import { errorCode, gqlAdmin, GraphqlAdminError, isForbiddenError, isUnauthenticatedError } from './gql-admin.server'
 
 const DOC = 'query { me { id } }'
 
@@ -42,5 +42,26 @@ describe('gqlAdmin', () => {
     const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as { query: string }
     expect(body.query).toContain('query Me')
     expect(body.query).not.toContain('[object Object]')
+  })
+})
+
+describe('error code detection', () => {
+  it('reads a live GraphqlAdminError.code', () => {
+    expect(errorCode(new GraphqlAdminError('[FORBIDDEN] Not authorized', undefined, 'FORBIDDEN'))).toBe('FORBIDDEN')
+  })
+  it('reads the serialized plain-object shape (prototype lost over RPC)', () => {
+    expect(errorCode({ name: 'GraphqlAdminError', message: '[FORBIDDEN] x', code: 'FORBIDDEN' })).toBe('FORBIDDEN')
+  })
+  it('falls back to a [CODE] message prefix when no code field survives', () => {
+    expect(errorCode({ message: '[UNAUTHENTICATED] Not authorized' })).toBe('UNAUTHENTICATED')
+  })
+  it('is undefined for an uncoded error', () => {
+    expect(errorCode(new Error('network down'))).toBeUndefined()
+  })
+  it('isForbiddenError / isUnauthenticatedError', () => {
+    expect(isForbiddenError({ code: 'FORBIDDEN' })).toBe(true)
+    expect(isForbiddenError({ code: 'UNAUTHENTICATED' })).toBe(false)
+    expect(isUnauthenticatedError({ code: 'UNAUTHENTICATED' })).toBe(true)
+    expect(isUnauthenticatedError(new Error('x'))).toBe(false)
   })
 })

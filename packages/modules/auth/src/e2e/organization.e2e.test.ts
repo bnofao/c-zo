@@ -45,7 +45,16 @@ describe('organization (E2E)', () => {
     // A plain viewer is denied by the `organization:update` authScope.
     expect(denied.errors).toBeTruthy()
     expect(denied.errors?.[0]?.message).toContain('Not authorized')
+    expect(denied.errors?.[0]?.extensions?.code).toBe('FORBIDDEN')
     expect(denied.data?.updateOrganization ?? null).toBeNull()
+
+    // No token → no principal → UNAUTHENTICATED (distinct from FORBIDDEN).
+    const anon = await h.gql(
+      `mutation ($i: UpdateOrganizationInput!) { updateOrganization(input: $i) {
+        ... on UpdateOrganizationSuccess { data { organization { id } } } } }`,
+      { i: { id: orgGlobalId, name: 'Anon Renamed' } },
+    )
+    expect(anon.errors?.[0]?.extensions?.code).toBe('UNAUTHENTICATED')
 
     // The owner clears the `organization:update` authScope and the rename succeeds.
     const ok = await h.gql(
@@ -170,6 +179,7 @@ describe('organization (E2E)', () => {
     )
     expect(denied.errors).toBeTruthy()
     expect(denied.errors?.[0]?.message).toContain('Not authorized')
+    expect(denied.errors?.[0]?.extensions?.code).toBe('FORBIDDEN')
     expect(denied.data?.removeMember ?? null).toBeNull()
   })
 
