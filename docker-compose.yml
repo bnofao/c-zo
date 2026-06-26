@@ -95,6 +95,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       LIFE_URL: http://life:4000
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT-http://otel-collector:4318}
+      OTEL_SERVICE_NAME: tour
       SERVICE_FQDN_TOUR_3000: ${SERVICE_FQDN_TOUR_3000}
     healthcheck:
       test:

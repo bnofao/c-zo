@@ -39,6 +39,12 @@ catalog:
   '@mikro-orm/knex': 6.4.3
   '@mikro-orm/migrations': 6.4.3
   '@mikro-orm/postgresql': 6.4.3
+  '@opentelemetry/exporter-trace-otlp-proto': ^0.219.0
+  '@opentelemetry/instrumentation-http': ^0.219.0
+  '@opentelemetry/instrumentation-undici': ^0.29.0
+  '@opentelemetry/resources': ^2.8.0
+  '@opentelemetry/sdk-node': ^0.219.0
+  '@opentelemetry/semantic-conventions': ^1.41.1
   '@paralleldrive/cuid2': ^2.2.2
   '@pothos/core': ^4.12.0
   '@pothos/plugin-directives': ^4.3.0
@@ -78,6 +84,7 @@ catalog:
   date-fns: ^3.6.0
   effect: 4.0.0-beta.70
   errx: ^0.1.0
+  esbuild: ^0.27.7
   exsolve: ^1.0.7
   graphql-rate-limit-directive: ^2.0.6
   graphql-scalars: ^1.25.0

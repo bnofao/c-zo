@@ -11,7 +11,7 @@ import SubGraphPlugin from '@pothos/plugin-sub-graph'
 import TracingPlugin, { isRootField } from '@pothos/plugin-tracing'
 import ValidationPlugin from '@pothos/plugin-validation'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer, Tracer } from 'effect'
 import { GraphQLError } from 'graphql'
 import { DateTimeResolver, JSONObjectResolver, JSONResolver } from 'graphql-scalars'
 import z from 'zod'
@@ -101,6 +101,30 @@ export function tracingSpanOptions(options: unknown): { attributes: Record<strin
       return { attributes: attrs as Record<string, unknown> }
   }
   return undefined
+}
+
+/**
+ * Parse a W3C `traceparent` header into an Effect external span usable as a
+ * parent, or `undefined` when absent/malformed. Format:
+ * `00-<traceId:32hex>-<spanId:16hex>-<flags:2hex>`; `sampled` = low bit of flags.
+ * Lets life join a distributed trace started by a caller (e.g. tour) without any
+ * @opentelemetry dependency — purely effect-native `Tracer.externalSpan`.
+ */
+export function parseTraceparent(header: string | null | undefined): Tracer.ExternalSpan | undefined {
+  if (!header)
+    return undefined
+  const parts = header.split('-')
+  if (parts.length !== 4)
+    return undefined
+  const version = parts[0]!
+  const traceId = parts[1]!
+  const spanId = parts[2]!
+  const flags = parts[3]!
+  if (version !== '00' || !/^[0-9a-f]{32}$/.test(traceId) || !/^[0-9a-f]{16}$/.test(spanId) || !/^[0-9a-f]{2}$/.test(flags))
+    return undefined
+  if (/^0+$/.test(traceId) || /^0+$/.test(spanId))
+    return undefined
+  return Tracer.externalSpan({ traceId, spanId, sampled: (Number.parseInt(flags, 16) & 1) === 1 })
 }
 
 export interface SchemaBuilderOptions<Relations extends RelationsEntry> {
@@ -379,19 +403,24 @@ function setupBuilder<Relations extends RelationsEntry>(
       // still route coded errors (FORBIDDEN / UNAUTHENTICATED). Flat by design:
       // each resolver runs its own `runEffect`, so these spans don't parent the
       // service spans (nesting would need an ambient context manager).
-      wrap: (resolver, options, fieldConfig) =>
-        (source, args, ctx, info) =>
-          ctx.runEffect(
-            Effect.withSpan(
-              `graphql.${fieldConfig.parentType}.${fieldConfig.name}`,
-              tracingSpanOptions(options),
-            )(
+      wrap: (resolver: any, options: any, fieldConfig: any) =>
+        (source: any, args: any, ctx: GraphQLContextMap, info: any) => {
+          // Join the caller's distributed trace when present (e.g. tour sends a
+          // W3C `traceparent`); otherwise the span is a root, as before.
+          const parent = parseTraceparent(ctx.request.headers.get('traceparent'))
+          const base = tracingSpanOptions(options)
+          return ctx.runEffect(
+            Effect.withSpan(`graphql.${fieldConfig.parentType}.${fieldConfig.name}`, {
+              ...(base ?? {}),
+              ...(parent ? { parent } : {}),
+            })(
               Effect.tryPromise({
                 try: () => Promise.resolve(resolver(source, args, ctx, info)),
                 catch: e => e,
               }),
             ),
-          ),
+          )
+        },
     },
     subGraphs: {
       // Opt-in / default-none: a type belongs to a sub-graph only when tagged;

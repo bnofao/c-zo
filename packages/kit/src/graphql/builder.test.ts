@@ -5,7 +5,7 @@ import { Data, Effect, Layer } from 'effect'
 import { assertValidSchema } from 'graphql'
 import { describe, expect } from 'vitest'
 import { DrizzleDb } from '../db'
-import { GraphQLBuilder, makeGraphQLBuilder, tracingSpanOptions } from './builder'
+import { GraphQLBuilder, makeGraphQLBuilder, parseTraceparent, tracingSpanOptions } from './builder'
 import { ValidationError } from './errors'
 import { registerError } from './errors/builders'
 
@@ -355,5 +355,51 @@ describe('tracingSpanOptions — per-field span attributes', () => {
       ),
     )
     expect(value).toBe('Ada')
+  })
+})
+
+describe('parseTraceparent — W3C → external span', () => {
+  const TRACE = '0af7651916cd43dd8448eb211c80319c'
+  const SPAN = 'b7ad6b7169203331'
+
+  itEffect('parses a sampled traceparent into an external span', () => {
+    const ext = parseTraceparent(`00-${TRACE}-${SPAN}-01`)
+    expect(ext?._tag).toBe('ExternalSpan')
+    expect(ext?.traceId).toBe(TRACE)
+    expect(ext?.spanId).toBe(SPAN)
+    expect(ext?.sampled).toBe(true)
+  })
+
+  itEffect('reads the sampled flag low bit (00 = not sampled)', () => {
+    expect(parseTraceparent(`00-${TRACE}-${SPAN}-00`)?.sampled).toBe(false)
+  })
+
+  itEffect('returns undefined for absent / malformed / all-zero ids', () => {
+    expect(parseTraceparent(undefined)).toBeUndefined()
+    expect(parseTraceparent(null)).toBeUndefined()
+    expect(parseTraceparent('')).toBeUndefined()
+    expect(parseTraceparent('garbage')).toBeUndefined()
+    expect(parseTraceparent(`00-${TRACE}-${SPAN}`)).toBeUndefined() // 3 parts
+    expect(parseTraceparent(`01-${TRACE}-${SPAN}-01`)).toBeUndefined() // bad version
+    expect(parseTraceparent(`00-XYZ-${SPAN}-01`)).toBeUndefined() // non-hex trace
+    expect(parseTraceparent(`00-${'0'.repeat(32)}-${SPAN}-01`)).toBeUndefined() // zero trace
+    expect(parseTraceparent(`00-${TRACE}-${'0'.repeat(16)}-01`)).toBeUndefined() // zero span
+  })
+})
+
+describe('tracing wrap — distributed parent', () => {
+  const TRACE = '0af7651916cd43dd8448eb211c80319c'
+  const SPAN = 'b7ad6b7169203331'
+
+  // A child span created with an external parent inherits the parent's traceId —
+  // this is what links life's GraphQL span into the caller's (tour's) trace.
+  itEffect('a span created with the external parent inherits its traceId', async () => {
+    const parent = parseTraceparent(`00-${TRACE}-${SPAN}-01`)!
+    const traceId = await Effect.runPromise(
+      Effect.withSpan('graphql.Query.users', { parent })(
+        Effect.map(Effect.currentSpan, span => span.traceId),
+      ),
+    )
+    expect(traceId).toBe(TRACE)
   })
 })
