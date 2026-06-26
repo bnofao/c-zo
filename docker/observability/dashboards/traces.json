@@ -1,14 +1,30 @@
 {
-  "uid": "czo-life-traces",
-  "title": "life — traces",
+  "uid": "czo-traces",
+  "title": "traces",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
   "timezone": "",
-  "tags": ["c-zo", "life", "traces"],
-  "templating": { "list": [] },
+  "tags": ["c-zo", "traces"],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(traces_spanmetrics_calls_total, service)",
+        "query": "label_values(traces_spanmetrics_calls_total, service)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": { "text": "life", "value": "life" }
+      }
+    ]
+  },
   "annotations": { "list": [] },
   "panels": [
     {
@@ -21,7 +37,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"life\"}[$__rate_interval]))"
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"$service\"}[$__rate_interval]))"
         }
       ]
     },
@@ -35,7 +51,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"life\",status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))"
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"$service\",status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))"
         }
       ]
     },
@@ -49,7 +65,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=\"life\"}[$__rate_interval])))"
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=\"$service\"}[$__rate_interval])))"
         }
       ]
     },
@@ -78,7 +94,7 @@
           "refId": "A",
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{ resource.service.name = \"life\" }",
+          "query": "{ resource.service.name = \"$service\" }",
           "limit": 20
         }
       ]
