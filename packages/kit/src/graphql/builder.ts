@@ -400,9 +400,7 @@ function setupBuilder<Relations extends RelationsEntry>(
       // runs inside the captured request runtime via `ctx.runEffect`, so the
       // span uses the same tracer as the service spans. `catch: e => e` keeps the
       // original error instance so the Pothos errors plugin / Yoga maskError
-      // still route coded errors (FORBIDDEN / UNAUTHENTICATED). Flat by design:
-      // each resolver runs its own `runEffect`, so these spans don't parent the
-      // service spans (nesting would need an ambient context manager).
+      // still route coded errors (FORBIDDEN / UNAUTHENTICATED).
       wrap: (resolver: any, options: any, fieldConfig: any) =>
         (source: any, args: any, ctx: GraphQLContextMap, info: any) => {
           // Join the caller's distributed trace when present (e.g. tour sends a
@@ -414,9 +412,22 @@ function setupBuilder<Relations extends RelationsEntry>(
               ...(base ?? {}),
               ...(parent ? { parent } : {}),
             })(
-              Effect.tryPromise({
-                try: () => Promise.resolve(resolver(source, args, ctx, info)),
-                catch: e => e,
+              Effect.gen(function* () {
+                // Every `ctx.runEffect` in the resolver body spawns a NEW root
+                // fiber (`Effect.runPromiseWith`), and span context is fiber-local
+                // — without help, service spans (e.g. `sql.execute`) start fresh
+                // traces. Capture this resolver span and hand the resolver a ctx
+                // whose `runEffect` re-parents every effect under it, so the
+                // whole request nests into one distributed trace.
+                const span = yield* Effect.orDie(Effect.currentSpan)
+                const tracedCtx: GraphQLContextMap = {
+                  ...ctx,
+                  runEffect: effect => ctx.runEffect(Effect.withParentSpan(span)(effect)),
+                }
+                return yield* Effect.tryPromise({
+                  try: () => Promise.resolve(resolver(source, args, tracedCtx, info)),
+                  catch: e => e,
+                })
               }),
             ),
           )

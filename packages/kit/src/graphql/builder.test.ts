@@ -402,4 +402,34 @@ describe('tracing wrap — distributed parent', () => {
     )
     expect(traceId).toBe(TRACE)
   })
+
+  // Span context is fiber-local: a resolver body's `ctx.runEffect` spawns a NEW
+  // root fiber, so service spans (e.g. `sql.execute`) would start fresh traces.
+  // Mirrors the wrap's fix: capture the resolver span, re-parent the inner run
+  // with `Effect.withParentSpan(span)` — the inner span must land in the SAME
+  // trace, as a child of the resolver span.
+  itEffect('re-parents spans across the runEffect fiber boundary', async () => {
+    const parent = parseTraceparent(`00-${TRACE}-${SPAN}-01`)!
+    const inner = await Effect.runPromise(
+      Effect.withSpan('graphql.Query.userCounts', { parent })(
+        Effect.gen(function* () {
+          const span = yield* Effect.orDie(Effect.currentSpan)
+          // Simulate the resolver body: a separate root fiber (runEffect).
+          const runEffect = <A, E>(effect: Effect.Effect<A, E>) =>
+            Effect.runPromise(Effect.withParentSpan(span)(effect) as Effect.Effect<A>)
+          const observed = yield* Effect.promise(() => runEffect(
+            Effect.withSpan('sql.execute')(
+              Effect.map(Effect.currentSpan, s => ({
+                traceId: s.traceId,
+                parentSpanId: s.parent._tag === 'Some' ? s.parent.value.spanId : undefined,
+              })),
+            ),
+          ))
+          return { resolverSpanId: span.spanId, observed }
+        }),
+      ),
+    )
+    expect(inner.observed.traceId).toBe(TRACE)
+    expect(inner.observed.parentSpanId).toBe(inner.resolverSpanId)
+  })
 })
