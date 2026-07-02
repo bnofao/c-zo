@@ -106,7 +106,11 @@ export default defineModule(() => {
   const authConfig = Effect.gen(function* () {
     const app = yield* Config.string('AUTH_APP').pipe(Config.withDefault('czo'))
     const secret = yield* Config.string('AUTH_SECRET')
-    const baseUrl = yield* Config.string('BASE_URL').pipe(Config.withDefault('http://localhost:4000'))
+    // Base URL of the WEB FRONTEND (tour) — used to build the links in account
+    // emails (password reset, invitations, email verification…). Those pages
+    // live on the frontend, NOT on this API server, so this must never default
+    // to life's own origin.
+    const webUrl = yield* Config.string('AUTH_WEB_URL').pipe(Config.withDefault('http://localhost:3000'))
     const requireEmailVerification = yield* Config.boolean('AUTH_REQUIRE_EMAIL_VERIFICATION').pipe(Config.withDefault(false))
     const sendVerificationOnSignUp = yield* Config.boolean('AUTH_SEND_VERIFICATION_ON_SIGN_UP').pipe(Config.withDefault(true))
     // The org-owner role name: names the top hierarchy level, is granted to org
@@ -114,7 +118,7 @@ export default defineModule(() => {
     const orgOwnerRole = yield* Config.string('AUTH_ORG_OWNER_ROLE').pipe(Config.withDefault('org:owner'))
     const enumTimingBudgetMs = yield* Config.int('AUTH_ENUM_TIMING_BUDGET_MS').pipe(Config.withDefault(250))
     const defaultUserRoles = yield* User.DefaultUserRolesConfig
-    return { app, secret, baseUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole, enumTimingBudgetMs, defaultUserRoles }
+    return { app, secret, webUrl, requireEmailVerification, sendVerificationOnSignUp, orgOwnerRole, enumTimingBudgetMs, defaultUserRoles }
   })
 
   // `Layer.unwrap` bridges runtime (reading Config) to build-time
@@ -151,7 +155,7 @@ export default defineModule(() => {
     const ImpersonationConfigLive = Impersonation.makeImpersonationConfigLayer(undefined)
 
     const AccountConfigLive = Account.makeAccountConfigLayer({
-      baseUrl: cfg.baseUrl,
+      baseUrl: cfg.webUrl,
       requireEmailVerification: cfg.requireEmailVerification,
       sendVerificationOnSignUp: cfg.sendVerificationOnSignUp,
       orgOwnerRole: cfg.orgOwnerRole,

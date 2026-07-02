@@ -85,6 +85,7 @@ export class AccountConfig extends Context.Service<
     readonly emailVerificationTtl: Duration.Duration
     readonly requireEmailVerification: boolean
     readonly sendVerificationOnSignUp: boolean
+    /** Web-frontend base URL (tour) — emailed links (reset, verify…) land there, not on the API. */
     readonly baseUrl: string
     readonly changeEmailTtl: Duration.Duration
     readonly gracePeriod: Duration.Duration

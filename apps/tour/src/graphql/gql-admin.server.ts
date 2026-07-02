@@ -9,7 +9,8 @@ export { errorCode, GraphqlAdminError, isForbiddenError, isUnauthenticatedError 
 /** A printable GraphQL document — codegen emits `TypedDocumentString` (stringifiable). */
 interface Doc { toString: () => string }
 
-export async function gqlAdmin<TData, TVars extends Record<string, unknown> = Record<string, unknown>>(
+async function gqlSubgraph<TData, TVars extends Record<string, unknown> = Record<string, unknown>>(
+  subgraph: 'admin' | 'account',
   document: Doc | string,
   variables?: TVars,
   opts?: { cookie?: string },
@@ -28,14 +29,14 @@ export async function gqlAdmin<TData, TVars extends Record<string, unknown> = Re
 
   const query = typeof document === 'string' ? document : document.toString()
 
-  const res = await fetch(`${LIFE_URL}/graphql/admin`, {
+  const res = await fetch(`${LIFE_URL}/graphql/${subgraph}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie },
     body: JSON.stringify({ query, variables: variables ?? {} }),
   })
 
   if (!res.ok)
-    throw new GraphqlAdminError(`admin GraphQL HTTP ${res.status}`)
+    throw new GraphqlAdminError(`${subgraph} GraphQL HTTP ${res.status}`)
 
   const body = await res.json() as {
     data?: TData
@@ -50,6 +51,27 @@ export async function gqlAdmin<TData, TVars extends Record<string, unknown> = Re
     throw new GraphqlAdminError(code ? `[${code}] ${joined}` : joined, body.errors, code)
   }
   if (body.data == null)
-    throw new GraphqlAdminError('admin GraphQL returned no data')
+    throw new GraphqlAdminError(`${subgraph} GraphQL returned no data`)
   return body.data
+}
+
+export async function gqlAdmin<TData, TVars extends Record<string, unknown> = Record<string, unknown>>(
+  document: Doc | string,
+  variables?: TVars,
+  opts?: { cookie?: string },
+): Promise<TData> {
+  return gqlSubgraph<TData, TVars>('admin', document, variables, opts)
+}
+
+/**
+ * Account sub-graph client — self-service flows (password reset, …). Same
+ * transport as `gqlAdmin`; the reset mutations are token-gated, not
+ * session-gated, but the cookie is forwarded all the same.
+ */
+export async function gqlAccount<TData, TVars extends Record<string, unknown> = Record<string, unknown>>(
+  document: Doc | string,
+  variables?: TVars,
+  opts?: { cookie?: string },
+): Promise<TData> {
+  return gqlSubgraph<TData, TVars>('account', document, variables, opts)
 }
