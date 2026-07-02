@@ -94,11 +94,14 @@ export async function bootAuthApp(opts?: { readonly services?: Layer.Layer<any, 
       headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
       body: JSON.stringify({ email, name, password }),
     }))
-    const body = (await res.json()) as { token?: string }
-    if (!res.ok || !body.token)
+    const body = (await res.json()) as { token?: string, user?: { id: number } }
+    if (!res.ok || !body.token || !body.user)
       throw new Error(`sign-up failed (${res.status}): ${JSON.stringify(body)}`)
     signUpCount += 1
-    return { token: body.token, userId: signUpCount, ip }
+    // Real DB id from the response — NOT the signup counter: users created
+    // outside this helper (e.g. via the createUser mutation) shift the identity
+    // sequence and would silently desync a counter-derived id.
+    return { token: body.token, userId: body.user.id, ip }
   }
 
   const signIn: AuthHarness['signIn'] = (email, password, ip) =>
@@ -117,6 +120,8 @@ export async function bootAuthApp(opts?: { readonly services?: Layer.Layer<any, 
   const grantGlobalRole: AuthHarness['grantGlobalRole'] = (userId, role) =>
     app.runEffect(Effect.gen(function* () {
       const users = yield* User.UserService
+      // Test bootstrap: system call (no actorId) bypasses the delegation guard
+      // so fixtures can grant any role directly.
       yield* users.setRole(userId, role)
     })).then(() => undefined)
 

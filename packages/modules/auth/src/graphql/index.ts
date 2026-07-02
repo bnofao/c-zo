@@ -31,6 +31,8 @@ declare module '@czo/kit/graphql' {
     ApiKey: ApiKey.ApiKey
     Session: SessionRow
     UserCounts: UserCounts
+    RoleTier: { name: string }
+    RoleHierarchy: { name: string, tiers: { name: string }[] }
   }
 
   interface BuilderAuthScopes {

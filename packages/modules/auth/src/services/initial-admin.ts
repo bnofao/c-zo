@@ -110,6 +110,9 @@ export function ensureInitialAdmin(input: EnsureInitialAdminInput): Effect.Effec
       Effect.map((): EnsureInitialAdminResult => ({ created: true, email: input.email })),
       Effect.catchTag('UserAlreadyExists', () =>
         Effect.succeed<EnsureInitialAdminResult>({ created: false, email: input.email })),
+      // Unreachable: the seed is a system call (no actorId) — the delegation
+      // guard is skipped — but `create`'s error channel is static.
+      Effect.catchTag('RoleAssignmentDenied', e => Effect.die(e)),
       Effect.catchTag('UserDbFailed', e =>
         isUniqueViolation(e.cause)
           ? Effect.succeed<EnsureInitialAdminResult>({ created: false, email: input.email })

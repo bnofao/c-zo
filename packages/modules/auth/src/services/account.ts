@@ -17,7 +17,7 @@ import { PasswordService } from './password'
 import { SessionService } from './session'
 import { UserService } from './user'
 import { constantTime } from './utils/constant-time'
-import { CREDENTIAL_PROVIDER, updateCredentialPassword } from './utils/credential-account'
+import { CREDENTIAL_PROVIDER, insertCredential, updateCredentialPassword } from './utils/credential-account'
 
 // ─── Tagged errors ──────────────────────────────────────────────────────
 
@@ -132,6 +132,11 @@ export class AccountService extends Context.Service<
       readonly newPassword: string
     }) => Effect.Effect<void, InvalidPasswordResetToken | PasswordHashFailed | AccountDbFailed | SessionStoreFailed>
     readonly requestEmailVerification: (userId: number) => Effect.Effect<void, AccountDbFailed>
+    readonly sendInvitation: (input: {
+      readonly userId: number
+      readonly email: string
+      readonly bypassCooldown?: boolean
+    }) => Effect.Effect<void, AccountDbFailed>
     readonly verifyEmail: (token: string) => Effect.Effect<void, InvalidEmailVerificationToken | AccountDbFailed>
     readonly changePassword: (input: {
       readonly userId: number
@@ -198,22 +203,26 @@ export const layer = Layer.effect(
       userId: number,
       ttl: Duration.Duration,
       identifierOverride?: string,
+      bypassCooldown = false,
     ) {
       const identifier = identifierOverride ?? `${kind}:${userId}`
-      const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS)
 
-      // Check for a recent token (cooldown). Use select() so we can filter on createdAt.
-      const recent = yield* dbErr(
-        db.select({ id: verifications.id }).from(verifications)
-          .where(and(
-            eq(verifications.identifier, identifier),
-            gt(verifications.createdAt, cooldownCutoff),
-          ))
-          .limit(1),
-      ).pipe(Effect.map(rows => rows[0] ?? null))
+      if (!bypassCooldown) {
+        const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS)
 
-      if (recent !== null)
-        return null
+        // Check for a recent token (cooldown). Use select() so we can filter on createdAt.
+        const recent = yield* dbErr(
+          db.select({ id: verifications.id }).from(verifications)
+            .where(and(
+              eq(verifications.identifier, identifier),
+              gt(verifications.createdAt, cooldownCutoff),
+            ))
+            .limit(1),
+        ).pipe(Effect.map(rows => rows[0] ?? null))
+
+        if (recent !== null)
+          return null
+      }
 
       const raw = randomBytes(32).toString('base64url')
       const hashed = createHash('sha256').update(raw).digest('hex')
@@ -288,12 +297,22 @@ export const layer = Layer.effect(
      * `UserService.setPassword` inside AccountService flows so this module no
      * longer depends on `better-auth.$context.internalAdapter.updatePassword`.
      *
-     * Updates 0 rows if the user has no credential account (OAuth-only).
-     * Call sites already gate on credential presence before invoking.
+     * Upserts: invite-only users (`UserService.create` with no password) have
+     * no `credential` account row yet, so an UPDATE-only write would silently
+     * match 0 rows and leave them unable to ever sign in. Insert the row if
+     * it doesn't exist, otherwise rotate the password on the existing one.
      */
     const setCredentialPassword = Effect.fnUntraced(function* (userId: number, plainPassword: string) {
       const hashed = yield* passwords.hash(plainPassword)
-      yield* dbErr(updateCredentialPassword(db, userId, hashed))
+      const existing = yield* dbErr(
+        db.select({ id: accounts.id }).from(accounts)
+          .where(and(eq(accounts.userId, userId), eq(accounts.providerId, CREDENTIAL_PROVIDER)))
+          .limit(1),
+      )
+      if (existing[0])
+        yield* dbErr(updateCredentialPassword(db, userId, hashed))
+      else
+        yield* dbErr(insertCredential(db, userId, hashed))
     })
 
     const resetPassword = Effect.fn('account.resetPassword')(function* (input: { token: string, newPassword: string }) {
@@ -304,12 +323,34 @@ export const layer = Layer.effect(
 
       yield* setCredentialPassword(userId, input.newPassword)
 
+      // The reset link doubles as the invitation link: clicking it proves
+      // email ownership, so mark the address verified. A no-op for users
+      // who were already verified.
+      yield* dbErr(
+        db.update(users)
+          .set({ emailVerified: true, updatedAt: new Date() })
+          .where(eq(users.id, userId)),
+      )
+
       yield* sessions.revokeAllForUser(userId)
 
       yield* Effect.forkDetach(events.publish({
         _tag: 'PasswordChanged',
         userId,
         reason: 'reset',
+      }))
+    })
+
+    const sendInvitation = Effect.fn('account.sendInvitation')(function* (input: { userId: number, email: string, bypassCooldown?: boolean }) {
+      const raw = yield* writeToken('password-reset', input.userId, config.passwordResetTtl, undefined, input.bypassCooldown ?? false)
+      if (raw === null)
+        return
+      yield* Effect.forkDetach(events.publish({
+        _tag: 'InvitationRequested',
+        userId: input.userId,
+        email: input.email,
+        token: raw,
+        expiresAt: new Date(Date.now() + Duration.toMillis(config.passwordResetTtl)),
       }))
     })
 
@@ -621,6 +662,7 @@ export const layer = Layer.effect(
     return AccountService.of({
       requestPasswordReset,
       resetPassword,
+      sendInvitation,
       requestEmailVerification,
       verifyEmail,
       changePassword,
@@ -660,6 +702,19 @@ const onPasswordResetRequested = Effect.fn('account.subscribers.password-reset')
       subject: 'Reset your password',
       html: `<p>Click to reset: <a href="${resetUrl}">${resetUrl}</a></p><p>Expires ${e.expiresAt.toISOString()}</p>`,
       text: `Reset: ${resetUrl}\nExpires ${e.expiresAt.toISOString()}`,
+    })
+  },
+)
+
+const onInvitationRequested = Effect.fn('account.subscribers.invitation')(
+  function* (e: Extract<AuthEvent, { _tag: 'InvitationRequested' }>) {
+    const config = yield* AccountConfig
+    const url = `${config.baseUrl}/reset-password?token=${e.token}`
+    yield* sendEmail({
+      to: e.email,
+      subject: 'Vous avez été invité — définissez votre mot de passe',
+      html: `<p>Vous avez été invité à rejoindre le backoffice. Cliquez pour définir votre mot de passe : <a href="${url}">${url}</a></p><p>Expire le ${e.expiresAt.toISOString()}</p>`,
+      text: `Définissez votre mot de passe : ${url}\nExpire le ${e.expiresAt.toISOString()}`,
     })
   },
 )
@@ -739,19 +794,21 @@ export const subscribersLayer = Layer.effectDiscard(
     const events = yield* AuthEvents
     yield* Effect.forkScoped(
       Stream.runForEach(events.subscribe, e =>
-        e._tag === 'PasswordResetRequested'
-          ? runSubscriber(e._tag, onPasswordResetRequested(e))
-          : e._tag === 'EmailVerificationRequested'
-            ? runSubscriber(e._tag, onEmailVerificationRequested(e))
-            : e._tag === 'SignedUp'
-              ? runSubscriber(e._tag, onSignedUp(e))
-              : e._tag === 'EmailChangeRequested'
-                ? runSubscriber(e._tag, onEmailChangeRequested(e))
-                : e._tag === 'EmailChanged'
-                  ? runSubscriber(e._tag, onEmailChanged(e))
-                  : e._tag === 'AccountDeleted'
-                    ? runSubscriber(e._tag, onAccountDeleted(e))
-                    : Effect.void),
+        e._tag === 'InvitationRequested'
+          ? runSubscriber(e._tag, onInvitationRequested(e))
+          : e._tag === 'PasswordResetRequested'
+            ? runSubscriber(e._tag, onPasswordResetRequested(e))
+            : e._tag === 'EmailVerificationRequested'
+              ? runSubscriber(e._tag, onEmailVerificationRequested(e))
+              : e._tag === 'SignedUp'
+                ? runSubscriber(e._tag, onSignedUp(e))
+                : e._tag === 'EmailChangeRequested'
+                  ? runSubscriber(e._tag, onEmailChangeRequested(e))
+                  : e._tag === 'EmailChanged'
+                    ? runSubscriber(e._tag, onEmailChanged(e))
+                    : e._tag === 'AccountDeleted'
+                      ? runSubscriber(e._tag, onAccountDeleted(e))
+                      : Effect.void),
     )
   }),
 )

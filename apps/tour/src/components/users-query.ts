@@ -1,6 +1,6 @@
 import type { FetchUsersArgs, UserTab } from '../server/users.server'
 import { queryOptions } from '@tanstack/react-query'
-import { fetchUserCounts, fetchUsers } from '../server/users.server'
+import { fetchRoleHierarchies, fetchUserCounts, fetchUsers } from '../server/users.server'
 
 /** Page-size choices offered in the users table footer. */
 export const USER_PAGE_SIZE_OPTIONS = [5, 10, 25]
@@ -43,5 +43,29 @@ export function userCountsQueryOptions() {
   return queryOptions({
     queryKey: ['users', 'counts'],
     queryFn: () => fetchUserCounts(),
+  })
+}
+
+export interface RoleHierarchy { name: string, tiers: { name: string }[] }
+
+/** Domain of a role token — the segment before the first ':' (a bare role is its own domain). */
+export function hierarchyOf(role: string): string {
+  const i = role.indexOf(':')
+  return i === -1 ? role : role.slice(0, i)
+}
+
+/** Collapse a role list to at most one tier per hierarchy, preserving the last-selected tier per domain. */
+export function dedupeOneTierPerHierarchy(roles: string[], hierarchies: RoleHierarchy[]): string[] {
+  const domainOf = (r: string) => hierarchies.find(h => h.tiers.some(t => t.name === r))?.name ?? hierarchyOf(r)
+  const byDomain = new Map<string, string>()
+  for (const r of roles) byDomain.set(domainOf(r), r)
+  return [...byDomain.values()]
+}
+
+export function roleHierarchiesQueryOptions() {
+  return queryOptions({
+    queryKey: ['roleHierarchies'],
+    queryFn: () => fetchRoleHierarchies(),
+    staleTime: Infinity, // registry is static at runtime
   })
 }

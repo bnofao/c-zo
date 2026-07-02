@@ -6,6 +6,7 @@ import {
   CredentialLinkFailed,
   InvalidRole,
   PasswordHashFailed,
+  RoleAssignmentDenied,
   UserAlreadyBanned,
   UserAlreadyExists,
   UserNoChanges,
@@ -22,6 +23,7 @@ export {
   CredentialLinkFailed,
   InvalidRole,
   PasswordHashFailed,
+  RoleAssignmentDenied,
   UserAlreadyBanned,
   UserAlreadyExists,
   UserNoChanges,
@@ -39,6 +41,11 @@ export function registerUserErrors(builder: any): void {
   })
   registerError(builder, CannotBanSelf, { name: 'CannotBanSelfError', subGraphs: ['admin'] })
   registerError(builder, CannotDemoteSelf, { name: 'CannotDemoteSelfError', subGraphs: ['admin'] })
+  registerError(builder, RoleAssignmentDenied, {
+    name: 'RoleAssignmentDeniedError',
+    subGraphs: ['admin'],
+    fields: t => ({ roles: t.exposeStringList('roles') }),
+  })
   registerError(builder, CannotRemoveSelf, { name: 'CannotRemoveSelfError', subGraphs: ['admin'] })
   registerError(builder, UserAlreadyBanned, { name: 'UserAlreadyBannedError', subGraphs: ['admin'] })
   registerError(builder, UserNotBanned, { name: 'UserNotBannedError', subGraphs: ['admin'] })

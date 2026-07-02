@@ -1,5 +1,6 @@
 import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { Effect } from 'effect'
+import { AccessService } from '../../../services/access'
 import { UserService } from '../../../services/user'
 
 // Position-independent CSV membership for the `admin` role element, expressed in
@@ -59,6 +60,26 @@ export function registerUserQueries(builder: AuthGraphQLSchemaBuilder): void {
       resolve: (_root, _args, ctx) => ctx.runEffect(Effect.gen(function* () {
         const svc = yield* UserService
         return yield* svc.counts()
+      })) as never,
+    }))
+
+  // ── roleHierarchies — assignable role registry for the admin role picker ───
+  // `organization` roles live on `members.role` (per-membership, not global), and
+  // `api-key` roles gate API-key management rather than backoffice access — neither
+  // belongs in the user role picker, so both are excluded.
+  const EXCLUDED_ROLE_DOMAINS = new Set(['organization', 'api-key'])
+  builder.queryField('roleHierarchies', t =>
+    t.field({
+      type: ['RoleHierarchy'],
+      subGraphs: ['admin'],
+      description: 'Registered global platform-role hierarchies and their assignable tiers, for the admin role picker. Excludes the per-organization `organization` and the `api-key` hierarchies.',
+      authScopes: { permission: { resource: 'user', actions: ['read'] } },
+      resolve: (_root, _args, ctx) => ctx.runEffect(Effect.gen(function* () {
+        const access = yield* AccessService
+        const hs = yield* access.hierarchies
+        return hs
+          .filter(h => !EXCLUDED_ROLE_DOMAINS.has(h.name))
+          .map(h => ({ name: h.name, tiers: h.hierarchy.map(l => ({ name: l.name })) }))
       })) as never,
     }))
 

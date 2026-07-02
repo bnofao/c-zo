@@ -58,6 +58,24 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
     }),
   })
 
+  // ── RoleTier / RoleHierarchy (role-picker registry) ───────────────────────
+  const roleTierRef = builder.objectRef<{ name: string }>('RoleTier').implement({
+    subGraphs: ['admin'],
+    description: 'A single assignable role tier, e.g. "admin:manager". Tiers within a hierarchy are cumulative (higher tiers include lower ones).',
+    fields: t => ({
+      name: t.exposeString('name', { description: 'Full CSV role token stored on the user (e.g. "admin:manager").' }),
+    }),
+  })
+
+  builder.objectRef<{ name: string, tiers: { name: string }[] }>('RoleHierarchy').implement({
+    subGraphs: ['admin'],
+    description: 'A role hierarchy (domain) and its assignable tiers in cumulative order. A user may hold at most one tier per hierarchy.',
+    fields: t => ({
+      name: t.exposeString('name', { description: 'Hierarchy/domain name (e.g. "admin", "product").' }),
+      tiers: t.field({ type: [roleTierRef], description: 'Assignable tiers, lowest → highest.', resolve: h => h.tiers }),
+    }),
+  })
+
   // ── User node ─────────────────────────────────────────────────────────────
   builder.drizzleNode('users', {
     name: 'User',
@@ -69,6 +87,18 @@ export function registerUserTypes(builder: AuthGraphQLSchemaBuilder): void {
       email: t.exposeString('email', { description: 'Email address used to identify and contact the user.' }),
       emailVerified: t.exposeBoolean('emailVerified', { description: 'Whether the user has confirmed ownership of their email address.' }),
       image: t.exposeString('image', { description: 'URL of the user\'s avatar image.', nullable: true }),
+      accounts: t.field({
+        type: ['String'],
+        nullable: false,
+        description: 'Provider IDs of the user\'s linked login accounts (e.g. "credential" once a password is set, or an OAuth provider). Empty for an invited user who has not yet accepted the invitation.',
+        // Batch-load the accounts relation into the parent query via the
+        // Pothos-drizzle select sink; limit to `providerId` (never load password hashes).
+        extensions: { pothosDrizzleSelect: { with: { accounts: { columns: { providerId: true } } } } },
+        resolve: (u) => {
+          const accounts = (u as { accounts?: { providerId: string }[] }).accounts ?? []
+          return accounts.map(a => a.providerId)
+        },
+      }),
       role: t.string({ description: 'Platform-level global role of the user, distinct from per-organization membership roles; defaults to "user".', resolve: u => u.role ?? 'user' }),
       permissions: t.field({
         type: [permissionRef],

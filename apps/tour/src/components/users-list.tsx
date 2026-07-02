@@ -1,7 +1,8 @@
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
 import type { UserRow, UserTab } from '../server/users.server'
 import type { UsersQueryParams } from './users-query'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useTolgee, useTranslate } from '@tolgee/react'
 import { Avatar, AvatarFallback } from '@workspace/ui/components/avatar'
@@ -19,7 +20,16 @@ import { Input } from '@workspace/ui/components/input'
 import { cn } from '@workspace/ui/lib/utils'
 import { MoreHorizontal, Plus, Search } from 'lucide-react'
 import * as React from 'react'
+import { errorCode } from '../graphql/admin-error'
+import { can } from '../lib/rbac'
+import { csvRoles, targetOutranksActor } from '../lib/role-delegation'
+import { resendInvitation } from '../server/users.server'
+import { useRoleLabel } from './role-labels'
+import { UserBanDialog } from './user-ban-dialog'
+import { UserCreateDialog } from './user-create-dialog'
+import { UserRolesDialog } from './user-roles-dialog'
 import {
+  roleHierarchiesQueryOptions,
   USER_DEFAULT_PAGE_SIZE,
   USER_PAGE_SIZE_OPTIONS,
   USER_TABS,
@@ -31,13 +41,7 @@ type TFn = ReturnType<typeof useTranslate>['t']
 
 const SEARCH_DEBOUNCE_MS = 300
 
-function roleLabel(t: TFn, role: string): string {
-  if (role === 'admin')
-    return t('users.role.admin')
-  if (role === 'user')
-    return t('users.role.user')
-  return role
-}
+const usersRouteApi = getRouteApi('/_authed/users')
 
 function initials(name: string, email: string): string {
   const base = name?.trim() || email
@@ -69,25 +73,74 @@ function StatusCell({ user, t }: { user: UserRow, t: TFn }) {
   )
 }
 
-// Row actions are read-only placeholders this iteration (no mutation wiring yet).
-function RowMenu({ t }: { t: TFn }) {
+interface RowCaps { setRole: boolean, ban: boolean, create: boolean }
+
+function RowMenu({ user, caps, meId, outranksMe, t, onRoles, onBan, onActivate, onResend }: {
+  user: UserRow
+  caps: RowCaps
+  meId: string
+  outranksMe: (targetRole: string) => boolean
+  t: TFn
+  onRoles: () => void
+  onBan: () => void
+  onActivate: () => void
+  onResend: () => void
+}) {
+  // The API rejects acting on yourself (CannotBanSelf), so never offer ban on
+  // your own row. Resend targets unverified invitees only. If nothing is
+  // available, render no trigger at all.
+  const isSelf = user.id === meId
+  // Editing your own roles stays available (self-onboarding into new domains);
+  // for others, the delegated-admin guard refuses anyone who outranks you in a
+  // shared domain — hide the action instead of surfacing the API error.
+  const canRoles = caps.setRole && (isSelf || !outranksMe(user.role))
+  // Show resend only while the user has no login account yet — i.e. an invited
+  // user who hasn't accepted (set a password). Once any account exists, hide it.
+  const canResend = caps.create && user.accounts.length === 0
+  const canBanToggle = caps.ban && !isSelf
+
+  if (!canRoles && !canResend && !canBanToggle)
+    return null
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={t('users.actions.label')} />}>
         <MoreHorizontal />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuItem>{t('users.actions.viewProfile')}</DropdownMenuItem>
-        <DropdownMenuItem>{t('users.actions.changeRole')}</DropdownMenuItem>
-        <DropdownMenuItem>{t('users.actions.resendInvite')}</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive">{t('users.actions.deactivate')}</DropdownMenuItem>
+        {canRoles ? <DropdownMenuItem onClick={onRoles}>{t('users.actions.changeRole')}</DropdownMenuItem> : null}
+        {canResend ? <DropdownMenuItem onClick={onResend}>{t('users.actions.resendInvite')}</DropdownMenuItem> : null}
+        {canBanToggle
+          ? (
+              <>
+                {canRoles || canResend ? <DropdownMenuSeparator /> : null}
+                {user.banned
+                  ? <DropdownMenuItem onClick={onActivate}>{t('users.actions.activate')}</DropdownMenuItem>
+                  : <DropdownMenuItem variant="destructive" onClick={onBan}>{t('users.actions.deactivate')}</DropdownMenuItem>}
+              </>
+            )
+          : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-function useUserColumns(t: TFn, dateFmt: Intl.DateTimeFormat): ColumnDef<UserRow>[] {
+interface UserColumnHandlers {
+  onRoles: (user: UserRow) => void
+  onBan: (user: UserRow) => void
+  onActivate: (user: UserRow) => void
+  onResend: (user: UserRow) => void
+}
+
+function useUserColumns(
+  t: TFn,
+  dateFmt: Intl.DateTimeFormat,
+  roleLabel: (token: string) => string,
+  caps: RowCaps,
+  handlers: UserColumnHandlers,
+  meId: string,
+  outranksMe: (targetRole: string) => boolean,
+): ColumnDef<UserRow>[] {
   return React.useMemo(() => [
     {
       id: 'name',
@@ -111,7 +164,13 @@ function useUserColumns(t: TFn, dateFmt: Intl.DateTimeFormat): ColumnDef<UserRow
     {
       id: 'role',
       header: () => t('users.col.role'),
-      cell: ({ row }) => roleLabel(t, row.original.role),
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(row.original.role ? row.original.role.split(',').map(s => s.trim()).filter(Boolean) : []).map(r => (
+            <Badge key={r} variant="outline">{roleLabel(r)}</Badge>
+          ))}
+        </div>
+      ),
       enableSorting: false,
     },
     {
@@ -129,11 +188,23 @@ function useUserColumns(t: TFn, dateFmt: Intl.DateTimeFormat): ColumnDef<UserRow
     {
       id: 'actions',
       header: () => null,
-      cell: () => <RowMenu t={t} />,
+      cell: ({ row }) => (
+        <RowMenu
+          user={row.original}
+          caps={caps}
+          meId={meId}
+          outranksMe={outranksMe}
+          t={t}
+          onRoles={() => handlers.onRoles(row.original)}
+          onBan={() => handlers.onBan(row.original)}
+          onActivate={() => handlers.onActivate(row.original)}
+          onResend={() => handlers.onResend(row.original)}
+        />
+      ),
       enableSorting: false,
       meta: { headerClassName: 'w-12', cellClassName: 'text-right' },
     },
-  ], [t, dateFmt])
+  ], [t, dateFmt, roleLabel, caps, handlers, meId, outranksMe])
 }
 
 // react-table column id → the API's server-sortable field.
@@ -143,10 +214,51 @@ function orderFieldFor(columnId: string | undefined): UsersQueryParams['orderFie
 
 export function UsersList() {
   const { t } = useTranslate()
+  const { me } = usersRouteApi.useRouteContext()
+  const qc = useQueryClient()
+  const roleLabel = useRoleLabel()
   const lang = useTolgee(['language']).getLanguage() ?? 'en'
   // Pin to UTC so the SSR (server, UTC) and client (local tz) renders agree.
   const dateFmt = React.useMemo(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeZone: 'UTC' }), [lang])
-  const columns = useUserColumns(t, dateFmt)
+
+  const [creating, setCreating] = React.useState(false)
+  const [rolesUser, setRolesUser] = React.useState<UserRow | null>(null)
+  const [banAction, setBanAction] = React.useState<{ type: 'ban' | 'activate', user: UserRow } | null>(null)
+  const [notice, setNotice] = React.useState<{ kind: 'ok' | 'err', text: string } | null>(null)
+
+  const caps: RowCaps = {
+    create: can(me, 'user', 'create'),
+    setRole: can(me, 'user', 'set-role'),
+    ban: can(me, 'user', 'ban'),
+  }
+
+  // Seniority gate (delegated-admin guard): a row whose user outranks me in a
+  // shared domain gets no role-change action at all.
+  const { data: hierarchies = [] } = useQuery(roleHierarchiesQueryOptions())
+  const outranksMe = React.useCallback(
+    (targetRole: string) => targetOutranksActor(hierarchies, csvRoles(me.role), csvRoles(targetRole)),
+    [hierarchies, me.role],
+  )
+
+  const onResend = async (user: UserRow) => {
+    setNotice(null)
+    try {
+      await resendInvitation({ data: { id: user.id } })
+      setNotice({ kind: 'ok', text: t('users.resend.sent') })
+    }
+    catch (e) {
+      setNotice({ kind: 'err', text: errorCode(e) ? t(`users.error.${errorCode(e)}`) : t('users.error.generic') })
+    }
+  }
+
+  const handlers: UserColumnHandlers = {
+    onRoles: setRolesUser,
+    onBan: user => setBanAction({ type: 'ban', user }),
+    onActivate: user => setBanAction({ type: 'activate', user }),
+    onResend,
+  }
+
+  const columns = useUserColumns(t, dateFmt, roleLabel, caps, handlers, me.id, outranksMe)
 
   const [searchInput, setSearchInput] = React.useState('')
   const [search, setSearch] = React.useState<string | null>(null)
@@ -161,6 +273,7 @@ export function UsersList() {
 
   const onSearchChange = (value: string) => {
     setSearchInput(value)
+    setNotice(null)
     clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => {
       setSearch(value.trim() || null)
@@ -170,6 +283,7 @@ export function UsersList() {
 
   const onTab = (next: UserTab) => {
     setTab(next)
+    setNotice(null)
     resetToFirstPage()
   }
 
@@ -230,10 +344,14 @@ export function UsersList() {
           <h1 className="text-2xl font-semibold tracking-tight">{t('users.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('users.subtitle')}</p>
         </div>
-        <Button>
-          <Plus />
-          {t('users.create')}
-        </Button>
+        {caps.create
+          ? (
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                {t('users.create')}
+              </Button>
+            )
+          : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -265,6 +383,10 @@ export function UsersList() {
         </div>
       </div>
 
+      {notice
+        ? <p className={notice.kind === 'ok' ? 'text-sm text-primary' : 'text-sm text-destructive'}>{notice.text}</p>
+        : null}
+
       <DataTable table={table} emptyMessage={t('users.empty')} />
 
       <DataTablePagination
@@ -282,6 +404,10 @@ export function UsersList() {
           perPage: count => t('users.pagination.perPage', { count }),
         }}
       />
+
+      <UserCreateDialog open={creating} onOpenChange={setCreating} onCreated={() => qc.invalidateQueries({ queryKey: ['users', 'counts'] })} />
+      <UserRolesDialog user={rolesUser} onOpenChange={o => !o && setRolesUser(null)} />
+      <UserBanDialog action={banAction} onOpenChange={o => !o && setBanAction(null)} />
     </div>
   )
 }
