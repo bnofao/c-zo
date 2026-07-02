@@ -186,7 +186,7 @@ describe('user-admin (E2E)', () => {
     const target = await h.signUp('user-target-setrole@ex.com', 'Target', 'password123!')
     const res = await h.gql(
       SET_ROLE,
-      { input: { id: encodeGlobalID('User', String(target.userId)), role: 'admin:viewer' } },
+      { input: { id: encodeGlobalID('User', String(target.userId)), role: ['admin:viewer'] } },
       caller.token,
       caller.ip,
     )
@@ -198,7 +198,7 @@ describe('user-admin (E2E)', () => {
     const victim = await h.signUp('user-victim-setrole@ex.com', 'Victim', 'password123!')
     const res = await h.gql(
       SET_ROLE,
-      { input: { id: encodeGlobalID('User', String(victim.userId)), role: 'admin:viewer' } },
+      { input: { id: encodeGlobalID('User', String(victim.userId)), role: ['admin:viewer'] } },
       admin.token,
       admin.ip,
     )

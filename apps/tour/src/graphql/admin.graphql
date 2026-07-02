@@ -1557,11 +1557,18 @@ input CreateUserInput {
   """Email address for the new user; normalized to lowercase."""
   email: String!
 
+  """
+  When true, send an invitation email with a set-password link after creation.
+  """
+  invite: Boolean
+
   """Display name for the new user."""
   name: String!
 
-  """Initial password for the new user's credential account."""
-  password: String!
+  """
+  Optional initial password. Omit to create an invite-only account whose password is set via the invitation email.
+  """
+  password: String
 
   """Global platform roles to assign to the new user."""
   role: [String!]
@@ -1572,7 +1579,7 @@ type CreateUserPayload {
   user: User!
 }
 
-union CreateUserResult = CreateUserSuccess | CredentialLinkFailedError | InvalidRoleError | PasswordHashFailedError | UserAlreadyExistsError | ValidationError
+union CreateUserResult = CreateUserSuccess | CredentialLinkFailedError | InvalidRoleError | PasswordHashFailedError | RoleAssignmentDeniedError | UserAlreadyExistsError | ValidationError
 
 type CreateUserSuccess {
   data: CreateUserPayload!
@@ -2361,6 +2368,11 @@ type Mutation {
   reorderAttributeValues(input: ReorderAttributeValuesInput!): ReorderAttributeValuesPayload!
 
   """
+  Re-sends the invitation email (a set-password link) to a user. Admin-only.
+  """
+  resendInvitation(input: ResendInvitationInput!): ResendInvitationResult!
+
+  """
   Revokes a single session identified by its token, signing out that session. Admin-only.
   """
   revokeSession(input: RevokeSessionInput!): RevokeSessionPayload!
@@ -2376,7 +2388,7 @@ type Mutation {
   setCategoryParent(input: SetCategoryParentInput!): SetCategoryParentResult!
 
   """
-  Sets a user's global platform role. Cannot be used to demote oneself. Admin-only.
+  Sets a user's global platform roles (one tier per hierarchy). Cannot be used to demote oneself. Admin-only.
   """
   setRole(input: SetRoleInput!): SetRoleResult!
 
@@ -3493,6 +3505,11 @@ type Query {
   ): QueryProductsConnection!
 
   """
+  Registered global platform-role hierarchies and their assignable tiers, for the admin role picker. Excludes the per-organization `organization` and the `api-key` hierarchies.
+  """
+  roleHierarchies: [RoleHierarchy!]!
+
+  """
   Paginated (relay) connection over the taxonomy requests awaiting platform review, with optional filtering and ordering. Requires the global `product:read` role.
   """
   taxonomyRequests(
@@ -3852,6 +3869,22 @@ type ReorderAttributeValuesPayload {
   success: Boolean!
 }
 
+input ResendInvitationInput {
+  """Global ID of the user to (re)invite."""
+  id: ID!
+}
+
+type ResendInvitationPayload {
+  """Whether the invitation was dispatched."""
+  success: Boolean!
+}
+
+union ResendInvitationResult = ResendInvitationSuccess | UserNotFoundError
+
+type ResendInvitationSuccess {
+  data: ResendInvitationPayload!
+}
+
 input RevokeSessionInput {
   """Token of the specific session to revoke."""
   sessionToken: String!
@@ -3869,6 +3902,31 @@ input RevokeSessionsInput {
 
 type RevokeSessionsPayload {
   success: Boolean!
+}
+
+type RoleAssignmentDeniedError implements Error {
+  code: String!
+  message: String!
+  roles: [String!]!
+}
+
+"""
+A role hierarchy (domain) and its assignable tiers in cumulative order. A user may hold at most one tier per hierarchy.
+"""
+type RoleHierarchy {
+  """Hierarchy/domain name (e.g. "admin", "product")."""
+  name: String!
+
+  """Assignable tiers, lowest → highest."""
+  tiers: [RoleTier!]!
+}
+
+"""
+A single assignable role tier, e.g. "admin:manager". Tiers within a hierarchy are cumulative (higher tiers include lower ones).
+"""
+type RoleTier {
+  """Full CSV role token stored on the user (e.g. "admin:manager")."""
+  name: String!
 }
 
 """
@@ -3934,8 +3992,10 @@ input SetRoleInput {
   """Global ID of the user whose role is being set."""
   id: ID!
 
-  """Global platform role to assign to the user."""
-  role: String!
+  """
+  Global platform roles to assign to the user (at most one tier per hierarchy); replaces the user's current role set.
+  """
+  role: [String!]!
 }
 
 type SetRolePayload {
@@ -3943,7 +4003,7 @@ type SetRolePayload {
   user: User!
 }
 
-union SetRoleResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | SetRoleSuccess | UserNotFoundError
+union SetRoleResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | RoleAssignmentDeniedError | SetRoleSuccess | UserNotFoundError
 
 type SetRoleSuccess {
   data: SetRolePayload!
@@ -4735,7 +4795,7 @@ type UpdateUserPayload {
   user: User!
 }
 
-union UpdateUserResult = ForbiddenError | InvalidRoleError | UpdateUserSuccess | UserNoChangesError | UserNotFoundError | ValidationError
+union UpdateUserResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | RoleAssignmentDeniedError | UpdateUserSuccess | UserNoChangesError | UserNotFoundError | ValidationError
 
 type UpdateUserSuccess {
   data: UpdateUserPayload!
@@ -4852,6 +4912,11 @@ type UpsertVariantTranslationSuccess {
 A platform account, identified globally and distinct from per-organization memberships.
 """
 type User implements Node {
+  """
+  Provider IDs of the user's linked login accounts (e.g. "credential" once a password is set, or an OAuth provider). Empty for an invited user who has not yet accepted the invitation.
+  """
+  accounts: [String!]!
+
   """
   Timestamp at which the user's ban expires, or null for a permanent ban.
   """

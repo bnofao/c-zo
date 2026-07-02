@@ -2,7 +2,7 @@ import type { AuthGraphQLSchemaBuilder } from '@czo/auth/graphql'
 import { ForbiddenError, ValidationError } from '@czo/kit/graphql'
 import { Effect } from 'effect'
 import z from 'zod'
-import { Session, User } from '../../../services'
+import { Account, Session, User } from '../../../services'
 import { passwordSchema } from '../../../services/utils/password-schema'
 import { sg } from '../subgraphs'
 import {
@@ -12,6 +12,7 @@ import {
   CredentialLinkFailed,
   InvalidRole,
   PasswordHashFailed,
+  RoleAssignmentDenied,
   UserAlreadyBanned,
   UserAlreadyExists,
   UserNoChanges,
@@ -45,6 +46,8 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
           UserNotFound,
           UserNoChanges,
           InvalidRole,
+          CannotDemoteSelf,
+          RoleAssignmentDenied,
         ],
         ...A.errorOpts,
       },
@@ -52,10 +55,10 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       resolve: async (_root, { input }, ctx) => {
         const id = input.id.id
         const userId = Number(id)
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
 
         if (input.role) {
-          const actorId = ctx.auth.user?.id
-          if (!actorId)
+          if (actorId === undefined)
             throw new ForbiddenError('You do not have permission to set user roles')
 
           const canSetRole = await ctx.runEffect(
@@ -76,9 +79,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
           Effect.gen(function* () {
             const svc = yield* User.UserService
             return yield* svc.update(userId, {
-              ...input,
               name: input.name || undefined,
-            })
+              role: input.role ?? undefined,
+            }, actorId)
           }),
         )
         return { user: result }
@@ -100,8 +103,9 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       inputFields: t => ({
         email: t.string({ description: 'Email address for the new user; normalized to lowercase.', required: true, validate: z.email().transform(email => email.toLowerCase()) }),
         name: t.string({ description: 'Display name for the new user.', required: true, validate: z.string().max(225).min(1).transform(name => name.trim()) }),
-        password: t.string({ description: 'Initial password for the new user\'s credential account.', required: true, validate: z.string().min(8).max(128).nullable().optional() }),
+        password: t.string({ description: 'Optional initial password. Omit to create an invite-only account whose password is set via the invitation email.', required: false, validate: z.string().min(8).max(128).nullable().optional() }),
         role: t.stringList({ description: 'Global platform roles to assign to the new user.' }),
+        invite: t.boolean({ description: 'When true, send an invitation email with a set-password link after creation.', required: false }),
       }),
     },
     {
@@ -112,6 +116,7 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
           ValidationError,
           UserAlreadyExists,
           InvalidRole,
+          RoleAssignmentDenied,
           CredentialLinkFailed,
           PasswordHashFailed,
         ],
@@ -119,10 +124,18 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       },
       authScopes: { permission: { resource: 'user', actions: ['create'] } },
       resolve: async (_root, { input }, ctx) => {
+        const actorId = ctx.auth?.user?.id != null ? Number(ctx.auth.user.id) : undefined
         const result = await ctx.runEffect(
           Effect.gen(function* () {
             const svc = yield* User.UserService
-            return yield* svc.create(input)
+            const created = yield* svc.create(input, actorId)
+            if (input.invite) {
+              const account = yield* Account.AccountService
+              yield* account.sendInvitation({ userId: created.id, email: created.email }).pipe(
+                Effect.catchTag('AccountDbFailed', e => Effect.logError('createUser: invitation send failed', e)),
+              )
+            }
+            return created
           }),
         )
         return result
@@ -210,6 +223,41 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
     },
   )
 
+  // ── resendInvitation ──────────────────────────────────────────────────────
+  builder.relayMutationField(
+    'resendInvitation',
+    {
+      ...A.input,
+      inputFields: t => ({
+        id: t.globalID({ description: 'Global ID of the user to (re)invite.', for: 'User', required: true }),
+      }),
+    },
+    {
+      ...A.field,
+      description: 'Re-sends the invitation email (a set-password link) to a user. Admin-only.',
+      errors: { types: [UserNotFound], ...A.errorOpts },
+      authScopes: { permission: { resource: 'user', actions: ['create'] } },
+      resolve: async (_root, { input }, ctx) => {
+        const userId = Number(input.id.id)
+        await ctx.runEffect(
+          Effect.gen(function* () {
+            const users = yield* User.UserService
+            const user = yield* users.findFirst({ where: { id: userId } })
+            const account = yield* Account.AccountService
+            yield* account.sendInvitation({ userId: user.id, email: user.email, bypassCooldown: true })
+          }),
+        )
+        return { success: true }
+      },
+    },
+    {
+      ...A.payload,
+      outputFields: t => ({
+        success: t.boolean({ description: 'Whether the invitation was dispatched.', resolve: payload => payload.success }),
+      }),
+    },
+  )
+
   // ── setRole ───────────────────────────────────────────────────────────────
   builder.relayMutationField(
     'setRole',
@@ -217,13 +265,13 @@ export function registerUserMutations(builder: AuthGraphQLSchemaBuilder): void {
       ...A.input,
       inputFields: t => ({
         id: t.globalID({ description: 'Global ID of the user whose role is being set.', for: 'User', required: true }),
-        role: t.string({ description: 'Global platform role to assign to the user.', required: true }),
+        role: t.stringList({ description: 'Global platform roles to assign to the user (at most one tier per hierarchy); replaces the user\'s current role set.', required: true }),
       }),
     },
     {
       ...A.field,
-      description: 'Sets a user\'s global platform role. Cannot be used to demote oneself. Admin-only.',
-      errors: { types: [ForbiddenError, UserNotFound, InvalidRole, CannotDemoteSelf], ...A.errorOpts },
+      description: 'Sets a user\'s global platform roles (one tier per hierarchy). Cannot be used to demote oneself. Admin-only.',
+      errors: { types: [ForbiddenError, UserNotFound, InvalidRole, CannotDemoteSelf, RoleAssignmentDenied], ...A.errorOpts },
       authScopes: { permission: { resource: 'user', actions: ['set-role'] } },
       resolve: async (_root, { input }, ctx) => {
         const id = input.id.id

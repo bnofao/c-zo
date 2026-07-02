@@ -26,7 +26,10 @@ export function authRelations(schema: SchemaRegistryShape) {
         // }),
       },
       users: {
-
+        accounts: r.many.accounts({
+          from: r.users.id,
+          to: r.accounts.userId,
+        }),
       },
       organizations: {
         members: r.many.members({

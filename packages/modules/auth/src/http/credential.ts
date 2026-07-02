@@ -113,6 +113,9 @@ export function signUp(input: SignUpInput): Effect.Effect<
     }).pipe(
       Effect.catchTag('UserAlreadyExists', () => Effect.fail(new EmailAlreadyRegistered({ email: input.email }))),
       Effect.catchTag('InvalidRole', cause => Effect.fail(new CredentialDbFailed({ cause }))),
+      // Unreachable: sign-up is a system call (no actorId) — the delegation
+      // guard is skipped — but `create`'s error channel is static.
+      Effect.catchTag('RoleAssignmentDenied', cause => Effect.fail(new CredentialDbFailed({ cause }))),
       Effect.catchTag('CredentialLinkFailed', e => Effect.fail(new CredentialDbFailed({ cause: e.cause }))),
       Effect.catchTag('UserDbFailed', e => Effect.fail(new CredentialDbFailed({ cause: e.cause }))),
     )

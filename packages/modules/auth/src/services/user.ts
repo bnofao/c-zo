@@ -44,7 +44,18 @@ export class CannotBanSelf extends Data.TaggedError('CannotBanSelf') {
 
 export class CannotDemoteSelf extends Data.TaggedError('CannotDemoteSelf') {
   readonly code = 'CANNOT_DEMOTE_SELF'
-  get message() { return 'You cannot demote yourself' }
+  get message() { return 'You cannot change your own role in a domain where you already have one' }
+}
+
+/**
+ * A role change exceeded the actor's authority: assigning a tier above their own
+ * in a domain, or acting in a domain where they hold no role.
+ */
+export class RoleAssignmentDenied extends Data.TaggedError('RoleAssignmentDenied')<{
+  readonly roles: ReadonlyArray<string>
+}> {
+  readonly code = 'ROLE_ASSIGNMENT_DENIED'
+  get message() { return `You can only assign roles within domains you manage, at or below your own level: ${this.roles.join(', ')}` }
 }
 
 export class CannotRemoveSelf extends Data.TaggedError('CannotRemoveSelf') {
@@ -238,12 +249,16 @@ export class UserService extends Context.Service<
 
     readonly create: (
       input: CreateUserInput,
-    ) => Effect.Effect<User, UserAlreadyExists | InvalidRole | CredentialLinkFailed | UserDbFailed>
+      /** The acting user; undefined for system calls (skips the role-delegation guard). */
+      actorId?: number,
+    ) => Effect.Effect<User, UserAlreadyExists | InvalidRole | RoleAssignmentDenied | CredentialLinkFailed | UserDbFailed>
 
     readonly update: (
       id: number,
       input: UpdateUserInput,
-    ) => Effect.Effect<User, UserNotFound | UserNoChanges | InvalidRole | UserDbFailed>
+      /** The acting user; undefined for system calls (skips the role-change guard). */
+      actorId?: number,
+    ) => Effect.Effect<User, UserNotFound | UserNoChanges | InvalidRole | CannotDemoteSelf | RoleAssignmentDenied | UserDbFailed>
 
     readonly ban: (
       id: number,
@@ -259,8 +274,9 @@ export class UserService extends Context.Service<
     readonly setRole: (
       id: number,
       role: string | string[],
+      /** The acting user; undefined for system/seed calls (no delegation guard). */
       actorId?: number,
-    ) => Effect.Effect<User, UserNotFound | InvalidRole | CannotDemoteSelf | UserDbFailed>
+    ) => Effect.Effect<User, UserNotFound | InvalidRole | CannotDemoteSelf | RoleAssignmentDenied | UserDbFailed>
 
     readonly setPassword: (
       id: number,
@@ -322,6 +338,77 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
         return row
       })
 
+    // Delegated-admin role guard, shared by `create`, `update` and `setRole` —
+    // per domain, comparing the actor's tier to the change on the target:
+    //  • self, domain you already hold  → frozen (no raise/lower/remove).
+    //  • self, domain you don't hold    → any tier (self-onboarding).
+    //  • others, domain D               → tier_actor(D) ≥ max(before, after);
+    //    i.e. never above your level, never touching a domain where you hold
+    //    nothing. Plus: you cannot administer someone who outranks you in a
+    //    domain you BOTH hold — even to change an unrelated domain.
+    // A `null` target is a user being created (no before roles, never self).
+    // Callers skip this for system calls (no actorId): seed / bootstrap.
+    const guardRoleChange = Effect.fnUntraced(function* (
+      target: { readonly id: number, readonly role: string | null } | null,
+      provided: ReadonlyArray<string>,
+      newRole: string,
+      actorId: number,
+    ) {
+      const hierarchies = yield* access.hierarchies
+      const roleInfo = new Map<string, { domain: string, idx: number }>()
+      for (const h of hierarchies)
+        h.hierarchy.forEach((lvl, idx) => roleInfo.set(lvl.name, { domain: h.name, idx }))
+      const tiersOf = (roles: Iterable<string>) => {
+        const m = new Map<string, number>()
+        for (const r of roles) {
+          const info = roleInfo.get(r)
+          if (info)
+            m.set(info.domain, Math.max(m.get(info.domain) ?? info.idx, info.idx))
+        }
+        return m
+      }
+
+      const actor = target !== null && actorId === target.id ? target : yield* findById(actorId)
+      const actorTiers = tiersOf(parseCsvRoles(actor.role ?? ''))
+      const beforeTiers = tiersOf(parseCsvRoles(target?.role ?? ''))
+      const afterTiers = tiersOf(parseCsvRoles(newRole))
+      const isSelf = target !== null && target.id === actorId
+
+      // You cannot administer someone who outranks you in a domain you BOTH
+      // hold — a strictly higher tier than yours there. A domain where you
+      // hold nothing is not a seniority question: acting in it is already
+      // gated by the per-domain rule below.
+      if (!isSelf) {
+        for (const [domain, targetTier] of beforeTiers) {
+          const actorTier = actorTiers.get(domain)
+          if (actorTier !== undefined && actorTier < targetTier) {
+            const offending = parseCsvRoles(target?.role ?? '').filter(r => roleInfo.get(r)?.domain === domain)
+            return yield* Effect.fail(new RoleAssignmentDenied({ roles: offending }))
+          }
+        }
+      }
+
+      for (const domain of new Set([...beforeTiers.keys(), ...afterTiers.keys()])) {
+        const bt = beforeTiers.get(domain)
+        const at = afterTiers.get(domain)
+        if (bt === at)
+          continue
+
+        if (isSelf) {
+          if (bt !== undefined)
+            return yield* Effect.fail(new CannotDemoteSelf())
+        }
+        else {
+          const actorTier = actorTiers.get(domain)
+          if (actorTier === undefined || actorTier < Math.max(bt ?? -1, at ?? -1)) {
+            const offending = [...new Set([...provided, ...parseCsvRoles(target?.role ?? '')])]
+              .filter(r => roleInfo.get(r)?.domain === domain)
+            return yield* Effect.fail(new RoleAssignmentDenied({ roles: offending }))
+          }
+        }
+      }
+    })
+
     return UserService.of({
       findMany: (config?) =>
         dbErr(db.query.users.findMany(withDeletedFilter(config))).pipe(
@@ -355,7 +442,7 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
           return row
         }),
 
-      create: input =>
+      create: (input, actorId) =>
         Effect.gen(function* () {
           const existing = yield* dbErr(
             db.query.users.findFirst({ where: { email: input.email } }),
@@ -368,6 +455,21 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
           const provided = input.role ? parseCsvRoles(yield* ensureValidRole(input.role)) : []
           const merged = mergeRoles(provided, defaultUserRoles)
           const role = merged.length > 0 ? merged.join(',') : null
+
+          // Delegated-admin guard on the EXPLICITLY requested roles only (the
+          // config defaults are platform policy applied to every user, not a
+          // delegation by the actor). No target yet → the guard reduces to
+          // "the actor dominates each requested role's domain".
+          if (actorId !== undefined && provided.length > 0) {
+            yield* guardRoleChange(null, provided, provided.join(','), actorId).pipe(
+              Effect.catchTags({
+                // Unreachable: a null target has no self branch.
+                CannotDemoteSelf: e => Effect.die(e),
+                // Actor row vanished mid-session → it cannot delegate anything.
+                UserNotFound: () => Effect.fail(new RoleAssignmentDenied({ roles: [...provided] })),
+              }),
+            )
+          }
 
           // Hash before opening the transaction to keep the tx short. Hash failure
           // surfaces as CredentialLinkFailed (no user row written yet).
@@ -414,22 +516,33 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
           return user
         }),
 
-      update: (id, input) =>
+      update: (id, input, actorId) =>
         Effect.gen(function* () {
-          yield* findById(id)
+          const existing = yield* findById(id)
 
-          if (Object.keys(input).length === 0)
-            return yield* Effect.fail(new UserNoChanges())
-
-          let role: string | null | undefined
+          // Build the patch from KNOWN columns only. Callers (the relay resolver)
+          // may hand us the whole mutation input — including `id` (a global-ID
+          // object) and `clientMutationId` — so never spread `input` into the DB
+          // `set`: `users.id` is GENERATED ALWAYS AS IDENTITY and updating it (or
+          // an unknown column) fails the whole statement.
+          const patch: Record<string, unknown> = {}
+          if (input.name !== undefined)
+            patch.name = input.name
           if (input.role) {
             const provided = parseCsvRoles(yield* ensureValidRole(input.role))
             const merged = mergeRoles(provided, defaultUserRoles)
-            role = merged.length > 0 ? merged.join(',') : null
+            // Same delegated-admin guard as `setRole` — `updateUser` must not be
+            // a bypass route for role changes.
+            if (actorId !== undefined)
+              yield* guardRoleChange(existing, provided, merged.join(','), actorId)
+            patch.role = merged.length > 0 ? merged.join(',') : null
           }
 
-          const row = yield* updateUserRow(id, { ...input, role })
-          yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: input as Record<string, unknown> }))
+          if (Object.keys(patch).length === 0)
+            return yield* Effect.fail(new UserNoChanges())
+
+          const row = yield* updateUserRow(id, patch)
+          yield* Effect.forkDetach(events.publish({ _tag: 'UserUpdated', userId: id, changes: patch }))
           return row
         }),
 
@@ -481,8 +594,8 @@ function makeService(defaultUserRoles: ReadonlyArray<string>) {
           const provided = parseCsvRoles(yield* ensureValidRole(role))
           const newRole = mergeRoles(provided, defaultUserRoles).join(',')
 
-          if (actorId !== undefined && existing.id === actorId)
-            return yield* Effect.fail(new CannotDemoteSelf())
+          if (actorId !== undefined)
+            yield* guardRoleChange(existing, provided, newRole, actorId)
 
           const row = yield* updateUserRow(id, { role: newRole })
           yield* Effect.forkDetach(events.publish({

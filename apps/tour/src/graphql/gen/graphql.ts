@@ -1376,10 +1376,12 @@ export type CreateProductTypeSuccess = {
 export type CreateUserInput = {
   /** Email address for the new user; normalized to lowercase. */
   email: Scalars['String']['input'];
+  /** When true, send an invitation email with a set-password link after creation. */
+  invite?: InputMaybe<Scalars['Boolean']['input']>;
   /** Display name for the new user. */
   name: Scalars['String']['input'];
-  /** Initial password for the new user's credential account. */
-  password: Scalars['String']['input'];
+  /** Optional initial password. Omit to create an invite-only account whose password is set via the invitation email. */
+  password?: InputMaybe<Scalars['String']['input']>;
   /** Global platform roles to assign to the new user. */
   role?: InputMaybe<Array<Scalars['String']['input']>>;
 };
@@ -1390,7 +1392,7 @@ export type CreateUserPayload = {
   user: User;
 };
 
-export type CreateUserResult = CreateUserSuccess | CredentialLinkFailedError | InvalidRoleError | PasswordHashFailedError | UserAlreadyExistsError | ValidationError;
+export type CreateUserResult = CreateUserSuccess | CredentialLinkFailedError | InvalidRoleError | PasswordHashFailedError | RoleAssignmentDeniedError | UserAlreadyExistsError | ValidationError;
 
 export type CreateUserSuccess = {
   __typename?: 'CreateUserSuccess';
@@ -2034,13 +2036,15 @@ export type Mutation = {
   reorderAttributeSwatches: ReorderAttributeSwatchesPayload;
   /** Reorders the plain choice values of a DROPDOWN or MULTISELECT attribute. */
   reorderAttributeValues: ReorderAttributeValuesPayload;
+  /** Re-sends the invitation email (a set-password link) to a user. Admin-only. */
+  resendInvitation: ResendInvitationResult;
   /** Revokes a single session identified by its token, signing out that session. Admin-only. */
   revokeSession: RevokeSessionPayload;
   /** Revokes all active sessions for a given user, signing them out everywhere. Admin-only. */
   revokeSessions: RevokeSessionsPayload;
   /** Moves a category to a new parent in the tree, or detaches it to the root; a move that would form a cycle is rejected. */
   setCategoryParent: SetCategoryParentResult;
-  /** Sets a user's global platform role. Cannot be used to demote oneself. Admin-only. */
+  /** Sets a user's global platform roles (one tier per hierarchy). Cannot be used to demote oneself. Admin-only. */
   setRole: SetRoleResult;
   /** Sets a new password on a user's credential account. Admin-only. */
   setUserPassword: SetUserPasswordResult;
@@ -2355,6 +2359,11 @@ export type MutationReorderAttributeSwatchesArgs = {
 
 export type MutationReorderAttributeValuesArgs = {
   input: ReorderAttributeValuesInput;
+};
+
+
+export type MutationResendInvitationArgs = {
+  input: ResendInvitationInput;
 };
 
 
@@ -3221,6 +3230,8 @@ export type Query = {
   productTypes: QueryProductTypesConnection;
   /** Paginated (relay) connection over the GLOBAL (platform) products, for platform curation, with optional free-text search, filtering, and ordering. Requires the global `product:read` role. */
   products: QueryProductsConnection;
+  /** Registered global platform-role hierarchies and their assignable tiers, for the admin role picker. Excludes the per-organization `organization` and the `api-key` hierarchies. */
+  roleHierarchies: Array<RoleHierarchy>;
   /** Paginated (relay) connection over the taxonomy requests awaiting platform review, with optional filtering and ordering. Requires the global `product:read` role. */
   taxonomyRequests: QueryTaxonomyRequestsConnection;
   /** Fetches a single user by their global ID, returning null if no such user exists. */
@@ -3721,6 +3732,24 @@ export type ReorderAttributeValuesPayload = {
   success: Scalars['Boolean']['output'];
 };
 
+export type ResendInvitationInput = {
+  /** Global ID of the user to (re)invite. */
+  id: Scalars['ID']['input'];
+};
+
+export type ResendInvitationPayload = {
+  __typename?: 'ResendInvitationPayload';
+  /** Whether the invitation was dispatched. */
+  success: Scalars['Boolean']['output'];
+};
+
+export type ResendInvitationResult = ResendInvitationSuccess | UserNotFoundError;
+
+export type ResendInvitationSuccess = {
+  __typename?: 'ResendInvitationSuccess';
+  data: ResendInvitationPayload;
+};
+
 export type RevokeSessionInput = {
   /** Token of the specific session to revoke. */
   sessionToken: Scalars['String']['input'];
@@ -3740,6 +3769,29 @@ export type RevokeSessionsInput = {
 export type RevokeSessionsPayload = {
   __typename?: 'RevokeSessionsPayload';
   success: Scalars['Boolean']['output'];
+};
+
+export type RoleAssignmentDeniedError = Error & {
+  __typename?: 'RoleAssignmentDeniedError';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  roles: Array<Scalars['String']['output']>;
+};
+
+/** A role hierarchy (domain) and its assignable tiers in cumulative order. A user may hold at most one tier per hierarchy. */
+export type RoleHierarchy = {
+  __typename?: 'RoleHierarchy';
+  /** Hierarchy/domain name (e.g. "admin", "product"). */
+  name: Scalars['String']['output'];
+  /** Assignable tiers, lowest → highest. */
+  tiers: Array<RoleTier>;
+};
+
+/** A single assignable role tier, e.g. "admin:manager". Tiers within a hierarchy are cumulative (higher tiers include lower ones). */
+export type RoleTier = {
+  __typename?: 'RoleTier';
+  /** Full CSV role token stored on the user (e.g. "admin:manager"). */
+  name: Scalars['String']['output'];
 };
 
 /** An authenticated session belonging to a user, viewed in an admin-scoped context. */
@@ -3788,8 +3840,8 @@ export type SetCategoryParentSuccess = {
 export type SetRoleInput = {
   /** Global ID of the user whose role is being set. */
   id: Scalars['ID']['input'];
-  /** Global platform role to assign to the user. */
-  role: Scalars['String']['input'];
+  /** Global platform roles to assign to the user (at most one tier per hierarchy); replaces the user's current role set. */
+  role: Array<Scalars['String']['input']>;
 };
 
 export type SetRolePayload = {
@@ -3798,7 +3850,7 @@ export type SetRolePayload = {
   user: User;
 };
 
-export type SetRoleResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | SetRoleSuccess | UserNotFoundError;
+export type SetRoleResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | RoleAssignmentDeniedError | SetRoleSuccess | UserNotFoundError;
 
 export type SetRoleSuccess = {
   __typename?: 'SetRoleSuccess';
@@ -4512,7 +4564,7 @@ export type UpdateUserPayload = {
   user: User;
 };
 
-export type UpdateUserResult = ForbiddenError | InvalidRoleError | UpdateUserSuccess | UserNoChangesError | UserNotFoundError | ValidationError;
+export type UpdateUserResult = CannotDemoteSelfError | ForbiddenError | InvalidRoleError | RoleAssignmentDeniedError | UpdateUserSuccess | UserNoChangesError | UserNotFoundError | ValidationError;
 
 export type UpdateUserSuccess = {
   __typename?: 'UpdateUserSuccess';
@@ -4616,6 +4668,8 @@ export type UpsertVariantTranslationSuccess = {
 /** A platform account, identified globally and distinct from per-organization memberships. */
 export type User = Node & {
   __typename?: 'User';
+  /** Provider IDs of the user's linked login accounts (e.g. "credential" once a password is set, or an OAuth provider). Empty for an invited user who has not yet accepted the invitation. */
+  accounts: Array<Scalars['String']['output']>;
   /** Timestamp at which the user's ban expires, or null for a permanent ban. */
   banExpires?: Maybe<Scalars['DateTime']['output']>;
   /** Reason recorded for the user's ban. */
@@ -4845,12 +4899,52 @@ export type AdminUsersQueryVariables = Exact<{
 }>;
 
 
-export type AdminUsersQuery = { __typename?: 'Query', users: { __typename?: 'QueryUsersConnection', edges: Array<{ __typename?: 'QueryUsersConnectionEdge', node: { __typename?: 'User', id: string, name: string, email: string, role: string, banned?: boolean | null, emailVerified: boolean, createdAt: string } }>, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null, hasNextPage: boolean } } };
+export type AdminUsersQuery = { __typename?: 'Query', users: { __typename?: 'QueryUsersConnection', edges: Array<{ __typename?: 'QueryUsersConnectionEdge', node: { __typename?: 'User', id: string, name: string, email: string, role: string, banned?: boolean | null, emailVerified: boolean, createdAt: string, accounts: Array<string> } }>, pageInfo: { __typename?: 'PageInfo', endCursor?: string | null, hasNextPage: boolean } } };
 
 export type AdminUserCountsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type AdminUserCountsQuery = { __typename?: 'Query', userCounts: { __typename?: 'UserCounts', all: number, admins: number, unverified: number, banned: number } };
+
+export type AdminCreateUserMutationVariables = Exact<{
+  input: CreateUserInput;
+}>;
+
+
+export type AdminCreateUserMutation = { __typename?: 'Mutation', createUser: { __typename: 'CreateUserSuccess', data: { __typename?: 'CreateUserPayload', user: { __typename?: 'User', id: string } } } | { __typename: 'CredentialLinkFailedError', message: string } | { __typename: 'InvalidRoleError', message: string } | { __typename: 'PasswordHashFailedError', message: string } | { __typename: 'RoleAssignmentDeniedError', message: string } | { __typename: 'UserAlreadyExistsError', message: string } | { __typename: 'ValidationError', message: string } };
+
+export type AdminSetRoleMutationVariables = Exact<{
+  input: SetRoleInput;
+}>;
+
+
+export type AdminSetRoleMutation = { __typename?: 'Mutation', setRole: { __typename: 'CannotDemoteSelfError', message: string } | { __typename: 'ForbiddenError', message: string } | { __typename: 'InvalidRoleError', message: string } | { __typename: 'RoleAssignmentDeniedError', message: string } | { __typename: 'SetRoleSuccess', data: { __typename?: 'SetRolePayload', user: { __typename?: 'User', id: string } } } | { __typename: 'UserNotFoundError', message: string } };
+
+export type AdminBanUserMutationVariables = Exact<{
+  input: BanUserInput;
+}>;
+
+
+export type AdminBanUserMutation = { __typename?: 'Mutation', banUser: { __typename: 'BanUserSuccess', data: { __typename?: 'BanUserPayload', user: { __typename?: 'User', id: string } } } | { __typename: 'CannotBanSelfError', message: string } | { __typename: 'ForbiddenError', message: string } | { __typename: 'UserAlreadyBannedError', message: string } | { __typename: 'UserNotFoundError', message: string } };
+
+export type AdminUnbanUserMutationVariables = Exact<{
+  input: UnbanUserInput;
+}>;
+
+
+export type AdminUnbanUserMutation = { __typename?: 'Mutation', unbanUser: { __typename: 'UnbanUserSuccess', data: { __typename?: 'UnbanUserPayload', user: { __typename?: 'User', id: string } } } | { __typename: 'UserNotBannedError', message: string } | { __typename: 'UserNotFoundError', message: string } };
+
+export type AdminResendInvitationMutationVariables = Exact<{
+  input: ResendInvitationInput;
+}>;
+
+
+export type AdminResendInvitationMutation = { __typename?: 'Mutation', resendInvitation: { __typename: 'ResendInvitationSuccess', data: { __typename?: 'ResendInvitationPayload', success: boolean } } | { __typename: 'UserNotFoundError', message: string } };
+
+export type AdminRoleHierarchiesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AdminRoleHierarchiesQuery = { __typename?: 'Query', roleHierarchies: Array<{ __typename?: 'RoleHierarchy', name: string, tiers: Array<{ __typename?: 'RoleTier', name: string }> }> };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -4941,6 +5035,7 @@ export const AdminUsersDocument = new TypedDocumentString(`
         banned
         emailVerified
         createdAt
+        accounts
       }
     }
     pageInfo {
@@ -4960,3 +5055,135 @@ export const AdminUserCountsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<AdminUserCountsQuery, AdminUserCountsQueryVariables>;
+export const AdminCreateUserDocument = new TypedDocumentString(`
+    mutation AdminCreateUser($input: CreateUserInput!) {
+  createUser(input: $input) {
+    __typename
+    ... on CreateUserSuccess {
+      data {
+        user {
+          id
+        }
+      }
+    }
+    ... on ValidationError {
+      message
+    }
+    ... on UserAlreadyExistsError {
+      message
+    }
+    ... on InvalidRoleError {
+      message
+    }
+    ... on RoleAssignmentDeniedError {
+      message
+    }
+    ... on CredentialLinkFailedError {
+      message
+    }
+    ... on PasswordHashFailedError {
+      message
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminCreateUserMutation, AdminCreateUserMutationVariables>;
+export const AdminSetRoleDocument = new TypedDocumentString(`
+    mutation AdminSetRole($input: SetRoleInput!) {
+  setRole(input: $input) {
+    __typename
+    ... on SetRoleSuccess {
+      data {
+        user {
+          id
+        }
+      }
+    }
+    ... on ForbiddenError {
+      message
+    }
+    ... on UserNotFoundError {
+      message
+    }
+    ... on InvalidRoleError {
+      message
+    }
+    ... on CannotDemoteSelfError {
+      message
+    }
+    ... on RoleAssignmentDeniedError {
+      message
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminSetRoleMutation, AdminSetRoleMutationVariables>;
+export const AdminBanUserDocument = new TypedDocumentString(`
+    mutation AdminBanUser($input: BanUserInput!) {
+  banUser(input: $input) {
+    __typename
+    ... on BanUserSuccess {
+      data {
+        user {
+          id
+        }
+      }
+    }
+    ... on ForbiddenError {
+      message
+    }
+    ... on UserNotFoundError {
+      message
+    }
+    ... on CannotBanSelfError {
+      message
+    }
+    ... on UserAlreadyBannedError {
+      message
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminBanUserMutation, AdminBanUserMutationVariables>;
+export const AdminUnbanUserDocument = new TypedDocumentString(`
+    mutation AdminUnbanUser($input: UnbanUserInput!) {
+  unbanUser(input: $input) {
+    __typename
+    ... on UnbanUserSuccess {
+      data {
+        user {
+          id
+        }
+      }
+    }
+    ... on UserNotFoundError {
+      message
+    }
+    ... on UserNotBannedError {
+      message
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminUnbanUserMutation, AdminUnbanUserMutationVariables>;
+export const AdminResendInvitationDocument = new TypedDocumentString(`
+    mutation AdminResendInvitation($input: ResendInvitationInput!) {
+  resendInvitation(input: $input) {
+    __typename
+    ... on ResendInvitationSuccess {
+      data {
+        success
+      }
+    }
+    ... on UserNotFoundError {
+      message
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminResendInvitationMutation, AdminResendInvitationMutationVariables>;
+export const AdminRoleHierarchiesDocument = new TypedDocumentString(`
+    query AdminRoleHierarchies {
+  roleHierarchies {
+    name
+    tiers {
+      name
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<AdminRoleHierarchiesQuery, AdminRoleHierarchiesQueryVariables>;

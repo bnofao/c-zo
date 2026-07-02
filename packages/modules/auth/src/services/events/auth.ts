@@ -38,6 +38,14 @@ export type AuthEvent
     readonly expiresAt: Date
   }
   | {
+    readonly _tag: 'InvitationRequested'
+    readonly userId: number
+    readonly email: string
+    /** Raw set-password token for the invitation email body. Never persisted raw — only sha256(token) is. */
+    readonly token: string
+    readonly expiresAt: Date
+  }
+  | {
     readonly _tag: 'EmailVerificationRequested'
     readonly userId: number
     readonly email: string
