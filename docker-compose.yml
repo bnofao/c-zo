@@ -30,6 +30,23 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       AUTH_SECRET: ${SERVICE_PASSWORD_64_AUTH:?}
       AUTH_APP: life
+      # Web-frontend (tour) base URL — account emails (password reset,
+      # invitations, verification) link there, NOT to this API. Required:
+      # a wrong value silently sends users to a dead origin.
+      AUTH_WEB_URL: ${AUTH_WEB_URL:?}
+      # Email transport (kit `Email.fromEnv`): `smtp` → nodemailer over the
+      # SMTP_* settings below; anything else (default `logging`) only logs the
+      # message — no email leaves the server. When enabling smtp, set
+      # SMTP_HOST + EMAIL_FROM (and SMTP_USER/SMTP_PASSWORD if the relay
+      # requires auth). SMTP_PASSWORD is a SECRET — provide via Coolify
+      # secret env, never commit a value.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT-logging}
+      EMAIL_FROM: ${EMAIL_FROM-}
+      SMTP_HOST: ${SMTP_HOST-}
+      SMTP_PORT: ${SMTP_PORT-587}
+      SMTP_SECURE: ${SMTP_SECURE-false}
+      SMTP_USER: ${SMTP_USER-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD-}
       # OpenAPI docs (/openapi.json + /reference). Unset → kit's default (on
       # outside production, off in production). Set `false` to force off, or
       # `true` to expose them in production.
@@ -76,6 +93,15 @@ services:
       DATABASE_URL: ${DATABASE_URL:?}
       AUTH_SECRET: ${SERVICE_PASSWORD_64_AUTH:?}
       AUTH_APP: life
+      AUTH_WEB_URL: ${AUTH_WEB_URL:?}
+      # Same email transport as `life` — the worker boots the same modules.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT-logging}
+      EMAIL_FROM: ${EMAIL_FROM-}
+      SMTP_HOST: ${SMTP_HOST-}
+      SMTP_PORT: ${SMTP_PORT-587}
+      SMTP_SECURE: ${SMTP_SECURE-false}
+      SMTP_USER: ${SMTP_USER-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT-http://otel-collector:4318}
       OTEL_SERVICE_NAME: life-worker
     networks:

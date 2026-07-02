@@ -7,7 +7,10 @@
  */
 export class GraphqlAdminError extends Error {
   constructor(message: string, readonly detail?: unknown, readonly code?: string) {
-    super(message)
+    // The error crosses the `createServerFn` RPC boundary serialized as a bare
+    // `Error` — only `message` survives, custom props are stripped. Fold the
+    // code into the message so `errorCode` can always recover it client-side.
+    super(code && !message.startsWith(`[${code}]`) ? `[${code}] ${message}` : message)
     this.name = 'GraphqlAdminError'
   }
 }
@@ -25,7 +28,9 @@ export function errorCode(err: unknown): string | undefined {
       return code
     const message = (err as { message?: unknown }).message
     if (typeof message === 'string') {
-      const m = /^\[([A-Z_]+)\]/.exec(message)
+      // Codes are either SCREAMING_SNAKE (FORBIDDEN) or PascalCase GraphQL
+      // error type names (InvalidPasswordResetTokenError).
+      const m = /^\[([A-Z]\w*)\]/.exec(message)
       if (m)
         return m[1]
     }
